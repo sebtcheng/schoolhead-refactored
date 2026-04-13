@@ -1,4 +1,4 @@
-import { FiHome, FiUsers, FiGrid, FiBookOpen, FiClock, FiMapPin, FiUser, FiLayers, FiBox } from "react-icons/fi";
+import { FiHome, FiUsers, FiGrid, FiBookOpen, FiClock, FiMapPin, FiUser, FiLayers, FiBox, FiZap } from "react-icons/fi";
 import { TbSchool, TbUsers, TbActivity, TbReportAnalytics } from "react-icons/tb";
 
 export const DASHBOARD_METADATA = {
@@ -11,6 +11,7 @@ export const DASHBOARD_METADATA = {
         { id: 6, title: "School Resources", icon: FiBox, emoji: '🧰', path: "/modular/unit-6", xp: 400 },
         { id: 7, title: "Physical Facilities", icon: FiBookOpen, emoji: '🏗️', path: "/modular/unit-7", xp: 450 },
         { id: 8, title: "School Terrain", subtitle: "Geography & Safety", icon: FiMapPin, emoji: '🛡️', path: "/modular/unit-8", xp: 500, color: "bg-blue-600", description: "Environmental and structural variables for school location and safety." },
+        { id: 9, title: "Infrastructure & Safety", subtitle: "Wiring & Disaster Preparedness", icon: FiZap, emoji: '⚡', path: "/modular/unit-9", xp: 550, description: "Electrical wiring audit, safety hazards, CCTV status, and disaster equipment inventory." },
     ],
     forms: [
         { id: 1, name: "School Profile", route: "/school-profile", icon: TbSchool, color: "bg-blue-100 text-blue-600", flag: "f1_profile", unit: 1 },

@@ -127,7 +127,7 @@ const NodesDashboard = () => {
             color: 'from-blue-500 to-blue-700',
             textColor: 'text-blue-600',
             bgLight: 'bg-blue-50',
-            progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8]),
+            progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
             route: '/my-activity',
             description: 'CLOUD will look into getting to know more about a school.',
             isLocked: dynamicLocks['school-info'] || false,

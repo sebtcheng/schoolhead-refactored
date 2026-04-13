@@ -60,11 +60,22 @@ const ProgressRing = ({ percentage = 0, size = 160, strokeWidth = 10 }) => {
 };
 
 // --- XP calculation helper ---
-const getXPForUnits = (flags) => {
-    return DASHBOARD_METADATA.units.reduce((total, unit) => {
-        if (flags?.[`unit${unit.id}`]) total += unit.xp;
-        return total;
-    }, 0);
+const getXPForUnits = (unitsArray, flags) => {
+    // If we have flags object from backend, use it
+    if (flags && Object.keys(flags).length > 0) {
+        return DASHBOARD_METADATA.units.reduce((total, unit) => {
+            if (flags[`unit${unit.id}`]) total += unit.xp;
+            return total;
+        }, 0);
+    }
+    // Fallback: use completedUnits array
+    if (Array.isArray(unitsArray)) {
+        return DASHBOARD_METADATA.units.reduce((total, unit) => {
+            if (unitsArray.includes(unit.id)) total += unit.xp;
+            return total;
+        }, 0);
+    }
+    return 0;
 };
 
 const getLevelFromXP = (xp, maxXP) => {
@@ -166,7 +177,7 @@ const MyActivityDashboard = () => {
         };
     }, [user, impersonatedUid]);
 
-    const xp = useMemo(() => getXPForUnits(data?.progress?.flags), [data]);
+    const xp = useMemo(() => getXPForUnits(data?.progress?.completedUnits, data?.progress?.flags), [data]);
     const maxXP = useMemo(() => DASHBOARD_METADATA.units.reduce((sum, u) => sum + u.xp, 0), []);
     const levelInfo = useMemo(() => getLevelFromXP(xp, maxXP), [xp, maxXP]);
 
@@ -177,15 +188,16 @@ const MyActivityDashboard = () => {
 
     const achievements = useMemo(() => {
         const flags = data?.progress?.flags || {};
-        const completed = data?.progress?.completedUnits || 0;
+        const completedArr = data?.progress?.completedUnits || [];
+        const completedCount = Array.isArray(completedArr) ? completedArr.length : (typeof completedArr === 'number' ? completedArr : 0);
         const totalUnits = DASHBOARD_METADATA.units.length;
         const halfway = Math.floor(totalUnits / 2);
 
         return [
-            { id: 'first', name: 'First Steps', desc: 'Complete your first unit', earned: completed >= 1, icon: '🎯' },
-            { id: 'half', name: 'STRIDE Miler', desc: `Complete ${halfway} units`, earned: completed >= halfway, icon: '⚡' },
+            { id: 'first', name: 'First Steps', desc: 'Complete your first unit', earned: completedCount >= 1, icon: '🎯' },
+            { id: 'half', name: 'STRIDE Miler', desc: `Complete ${halfway} units`, earned: completedCount >= halfway, icon: '⚡' },
             { id: 'sprint', name: 'STRIDE Sprinter', desc: 'Log a fastest sprint', earned: !!data?.gamification?.fastest_sprint, icon: '🏃' },
-            { id: 'master', name: 'STRIDE Hero', desc: `Complete all ${totalUnits} units`, earned: completed >= totalUnits, icon: '👑' },
+            { id: 'master', name: 'STRIDE Hero', desc: `Complete all ${totalUnits} units`, earned: completedCount >= totalUnits, icon: '👑' },
         ];
     }, [data]);
 
@@ -312,7 +324,7 @@ const MyActivityDashboard = () => {
                             <div className="flex-1">
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-2">Mission Progress</p>
                                 <h2 className="text-2xl font-black text-slate-800 mb-1">
-                                    {data?.progress?.completedUnits || 0} <span className="text-slate-300 text-lg">/ {data?.progress?.totalUnits || DASHBOARD_METADATA.units.length}</span>
+                                    {Array.isArray(data?.progress?.completedUnits) ? data.progress.completedUnits.length : (data?.progress?.completedUnits || 0)} <span className="text-slate-300 text-lg">/ {DASHBOARD_METADATA.units.length}</span>
                                 </h2>
                                 <p className="text-emerald-500 text-[11px] font-bold">Units Conquered</p>
                                 
@@ -457,7 +469,10 @@ const MyActivityDashboard = () => {
                             <FiStar size={12} className="text-purple-500" /> Quest Log
                         </h3>
                         <div className="space-y-2.5">
-                            {unitMap.filter(u => !data?.progress?.flags?.[`unit${u.flagId}`]).length === 0 ? (
+                            {unitMap.filter(u => {
+                                const completedArr = data?.progress?.completedUnits || [];
+                                return Array.isArray(completedArr) ? !completedArr.includes(u.id) : !data?.progress?.flags?.[`unit${u.flagId}`];
+                            }).length === 0 ? (
                                 <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-8 text-center">
                                     <div className="text-4xl mb-3">🏆</div>
                                     <h4 className="text-emerald-800 font-black text-sm">All Quests Completed!</h4>
@@ -465,7 +480,10 @@ const MyActivityDashboard = () => {
                                 </div>
                             ) : (
                                 unitMap
-                                    .filter(unit => !data?.progress?.flags?.[`unit${unit.flagId}`])
+                                    .filter(unit => {
+                                        const completedArr = data?.progress?.completedUnits || [];
+                                        return Array.isArray(completedArr) ? !completedArr.includes(unit.id) : !data?.progress?.flags?.[`unit${unit.flagId}`];
+                                    })
                                     .map((unit, i) => {
                                         const isNext = nextUnit?.id === unit.id;
                                         return (

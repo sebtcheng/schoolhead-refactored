@@ -967,9 +967,9 @@ app.get('/api/schools/:schoolId/activity', async (req, res) => {
     const schoolRes = await pool.query(
       `SELECT
         school_id, school_name,
-        unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9,
+        unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9, unit10,
         unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-        unit5_completed, unit6_completed, unit7_completed, unit9_completed,
+        unit5_completed, unit6_completed, unit7_completed, unit9_completed, unit10_completed,
         unit_completion, region, division
        FROM ph_schools WHERE school_id = $1`,
       [schoolId]
@@ -977,12 +977,12 @@ app.get('/api/schools/:schoolId/activity', async (req, res) => {
     if (schoolRes.rows.length === 0) return res.status(404).json({ error: "School not found" });
 
     const row = schoolRes.rows[0];
-    const totalUnits = 8;
+    const totalUnits = 9;
     let completedUnitsCount = 0;
     let completedFlags = {};
 
-    // Maps DB column index to display unit ID (unit6=Resources, unit7=Facilities, unit9=Terrain)
-    const unitMapping = [1, 2, 3, 4, 5, 6, 7, 9]; // DB column -> new display ID
+    // Maps DB column index to display unit ID (unit9=Terrain, unit10=Infrastructure)
+    const unitMapping = [1, 2, 3, 4, 5, 6, 7, 9, 10]; // DB column -> new display ID
     for (let i = 0; i < unitMapping.length; i++) {
       const dbIdx = unitMapping[i];
       const displayId = i + 1;
@@ -1066,9 +1066,9 @@ async function updateSchoolTotalCompletion(iern) {
     // This avoids reading the stale ph_school_completion booleans which can diverge
     // when pgBouncer (transaction mode) drops a COMMIT mid-flight.
     const res = await pool.query(
-      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9,
+      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9, unit10,
               unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-              unit5_completed, unit6_completed, unit7_completed, unit9_completed
+              unit5_completed, unit6_completed, unit7_completed, unit9_completed, unit10_completed
        FROM ph_schools WHERE iern = $1`,
       [iern]
     );
@@ -1076,11 +1076,8 @@ async function updateSchoolTotalCompletion(iern) {
 
     const row = res.rows[0];
     const schoolId = row.school_id;
-    // DB column indices that correspond to display units 1–8
-    // DB column indices that correspond to display units 1-8
-    // Mapping: Unit 1-7 direct, Unit 9 maps to Unit 8 display.
-    // Unit 8 and Unit 10 are currently auxiliary/recent and may not be standard in 1-8 summary.
-    const dbCols = [1, 2, 3, 4, 5, 6, 7, 9];
+    // Mapping: Unit 1-7 direct, Unit 9 (DB) maps to Unit 8 display, Unit 10 (DB) maps to Unit 9 display.
+    const dbCols = [1, 2, 3, 4, 5, 6, 7, 9, 10];
     let completedCount = 0;
     const boolValues = [];
     for (const idx of dbCols) {
@@ -1089,19 +1086,18 @@ async function updateSchoolTotalCompletion(iern) {
       if (done) completedCount++;
     }
 
-    const percentage = parseFloat(((completedCount / 8) * 100).toFixed(2));
+    const percentage = parseFloat(((completedCount / 9) * 100).toFixed(2));
 
     // Upsert booleans + total to ph_school_completion.
-    // INSERT...ON CONFLICT ensures a missing row is created rather than silently skipped.
     await pool.query(
       `INSERT INTO ph_school_completion
          (iern, school_id, unit1_completion, unit2_completion, unit3_completion, unit4_completion,
-          unit5_completion, unit6_completion, unit7_completion, unit8_completion, total_completion, updated_at)
-       VALUES ($10, $11, $2, $3, $4, $5, $6, $7, $8, $9, $1, CURRENT_TIMESTAMP)
+          unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, total_completion, updated_at)
+       VALUES ($11, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $1, CURRENT_TIMESTAMP)
        ON CONFLICT (iern) DO UPDATE SET
          unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
          unit5_completion=$6, unit6_completion=$7, unit7_completion=$8, unit8_completion=$9,
-         total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
+         unit9_completion=$10, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
       [percentage, ...boolValues, iern, schoolId]
     );
 
@@ -1111,7 +1107,7 @@ async function updateSchoolTotalCompletion(iern) {
       [percentage, iern]
     );
 
-    console.log(`[SYNC] Updated completion for ${iern}: ${percentage}% (${completedCount}/8)`);
+    console.log(`[SYNC] Updated completion for ${iern}: ${percentage}% (${completedCount}/9)`);
   } catch (err) {
     console.error(`[ERROR] updateSchoolTotalCompletion failed for ${iern}:`, err.message);
   }
@@ -14741,7 +14737,19 @@ app.get('/api/monitoring/schools', async (req, res) => {
     // We use schools table (s) for identity
     // We use ph_schools (sp) for status_of_construction_phase, handling NULLs with COALESCE
     const selectFields = `
-      COALESCE(psc.total_completion, sp.unit_completion, 0) as completion_percentage,
+      ROUND(
+        (
+          (CASE WHEN (COALESCE(sp.unit1, 0) > 0 OR sp.unit1_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit2, 0) > 0 OR sp.unit2_completed OR sp.total_enrollment > 0) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit3, 0) > 0 OR sp.unit3_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit4, 0) > 0 OR sp.unit4_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit5, 0) > 0 OR sp.unit5_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit6, 0) > 0 OR sp.unit6_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit7, 0) > 0 OR sp.unit7_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit9, 0) > 0 OR sp.unit9_completed) THEN 1 ELSE 0 END) +
+          (CASE WHEN (COALESCE(sp.unit10, 0) > 0 OR sp.unit10_completed) THEN 1 ELSE 0 END)
+        )::NUMERIC / 9.0 * 100, 2
+      ) as completion_percentage,
       s."School_Name" as school_name,
       s."SchoolID" as school_id,
       s.status as status,
@@ -14751,16 +14759,15 @@ app.get('/api/monitoring/schools', async (req, res) => {
       COALESCE(sp.total_enrollment, 0) as total_enrollment,
       (sp.school_id IS NOT NULL) as is_registered,
       
-      (COALESCE(sp.unit1, 0) > 0) as profile_status,
-      (COALESCE(sp.unit1, 0) > 0) as head_status,
-      (COALESCE(sp.unit2, 0) > 0) as enrollment_status,
-      (COALESCE(sp.unit3, 0) > 0) as classes_status,
-      (COALESCE(sp.unit5, 0) > 0) as shifting_status,
-      (COALESCE(sp.unit6, 0) > 0) as personnel_status,
-      (COALESCE(sp.unit6, 0) > 0) as specialization_status,
-      (COALESCE(sp.unit7, 0) > 0) as resources_status,
-      (COALESCE(sp.unit4, 0) > 0) as learner_stats_status,
-      (COALESCE(sp.unit8, 0) > 0) as facilities_status,
+      (COALESCE(sp.unit1, 0) > 0 OR sp.unit1_completed) as u1_status,
+      (COALESCE(sp.unit2, 0) > 0 OR sp.unit2_completed OR sp.total_enrollment > 0) as u2_status,
+      (COALESCE(sp.unit3, 0) > 0 OR sp.unit3_completed) as u3_status,
+      (COALESCE(sp.unit4, 0) > 0 OR sp.unit4_completed) as u4_status,
+      (COALESCE(sp.unit5, 0) > 0 OR sp.unit5_completed) as u5_status,
+      (COALESCE(sp.unit6, 0) > 0 OR sp.unit6_completed) as u6_status,
+      (COALESCE(sp.unit7, 0) > 0 OR sp.unit7_completed) as u7_status,
+      (COALESCE(sp.unit9, 0) > 0 OR sp.unit9_completed) as u8_status,
+      (COALESCE(sp.unit10, 0) > 0 OR sp.unit10_completed) as u9_status,
       
       NULL as submitted_by,
       sp.unit10_completed as school_head_validation,
@@ -18145,39 +18152,220 @@ app.put('/api/ph_schools/unit7/:schoolId', async (req, res) => {
 
 
 
-// --- POST: Finalize Unit 7 (School Resources) ---
-app.post('/api/ph_schools/unit7/:schoolId', async (req, res) => {
+// --- Unit 9: Infrastructure & Safety Audit ---
+app.get('/api/ph_schools/unit9/:schoolId', async (req, res) => {
   const { schoolId } = req.params;
   try {
-    // Check if Unit 7 furniture data exists
-    const schoolRes = await pool.query('SELECT unit7_furniture FROM ph_schools WHERE school_id = $1', [schoolId]);
-    const furnitureData = schoolRes.rows[0]?.unit7_furniture;
-
-    if (!furnitureData) {
-      return res.json({
-        success: false,
-        message: "Cannot finalize Unit 7: No school resource data has been saved yet."
-      });
+    const result = await pool.query(
+      'SELECT * FROM ph_schools_audit WHERE school_id = $1 OR iern = $1',
+      [schoolId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, data: null });
     }
 
-    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit6_completed BOOLEAN DEFAULT FALSE;`);
-    await pool.query('UPDATE ph_schools SET unit6_completed = TRUE, unit6 = 1, unit6_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1', [schoolId]);
+    const r = result.rows[0];
+    
+    // RECONSTRUCT: Wrap columns back into JSON strings for the frontend
+    const data = {
+      iern: r.iern,
+      unit9_completed: r.is_certified,
+      u9_general: JSON.stringify({
+        main_power_source: r.main_power_source,
+        active_meters: r.active_meters,
+        wiring_age: r.wiring_age,
+        last_inspection_year: r.last_inspection_year,
+        panel_clear: r.is_panel_clear,
+        panel_labeled: r.is_panel_labeled,
+        panel_locked: r.is_panel_locked
+      }),
+      u9_wiring: JSON.stringify({
+        lights_working: r.are_lights_working,
+        outlet_covers_unbroken: r.are_outlets_unbroken,
+        child_safety_covered: r.are_outlets_child_safe,
+        water_splash_safe: r.are_outlets_splash_safe,
+        bare_wires_visible: r.has_bare_wires,
+        enough_outlets: r.has_enough_outlets
+      }),
+      u9_cords_cctv: JSON.stringify({
+        ext_cord_temp_only: r.is_extension_cord_temporary,
+        no_trip_hazards: r.is_walkway_safe,
+        appliance_cords_good: r.are_appliance_cords_good,
+        plugs_feel_cool: r.are_plugs_running_cool,
+        cctv_recording_clear: r.is_cctv_recording,
+        dvr_room_cool_locked: r.is_dvr_room_secured,
+        cctv_wires_protected: r.is_cctv_wire_protected
+      }),
+      u9_final: JSON.stringify({
+        fire_exit_exists: r.u9_fire_exit_exists ?? r.has_fire_exit,
+        backup_light_exists: r.u9_backup_light_exists ?? r.has_backup_lights,
+        items: {}, // frontend now looks at p.u9_... directly
+        ecart_load_ready: r.u9_ecart_load_ready ?? r.is_grid_load_ready,
+        has_surge_protection: r.u9_has_surge_protection ?? r.has_surge_protection,
+        remarks: r.u9_remarks || r.audit_remarks
+      }),
+      // Pass individual columns directly to frontend
+      ...r
+    };
 
-    // --- SYNC COMPLETION (UI Unit 6 Resources -> unit6_completion) ---
-    const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [schoolId]);
-    if (iernRes.rows.length > 0 && iernRes.rows[0].iern) {
-      const iern = iernRes.rows[0].iern;
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("Fetch Unit 9 Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
+  const { schoolId } = req.params;
+  const { u9_general, u9_wiring, u9_cords_cctv, u9_final, unit9_completed, iern: reqIern } = req.body;
+
+  try {
+    let iern = reqIern;
+    if (!iern) {
+      const sRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [schoolId]);
+      iern = sRes.rows.length > 0 ? sRes.rows[0].iern : null;
+    }
+    if (!iern) return res.status(400).json({ error: "IERN context is required." });
+
+    const gen = u9_general ? JSON.parse(u9_general) : {};
+    const wir = u9_wiring ? JSON.parse(u9_wiring) : {};
+    const lock = u9_cords_cctv ? JSON.parse(u9_cords_cctv) : {};
+    const fin = u9_final ? JSON.parse(u9_final) : {};
+
+    await pool.query(`
+      INSERT INTO ph_schools_audit (
+        iern, school_id,
+        main_power_source, active_meters, wiring_age, last_inspection_year,
+        is_panel_clear, is_panel_labeled, is_panel_locked,
+        are_lights_working, are_outlets_unbroken, are_outlets_child_safe,
+        are_outlets_splash_safe, has_bare_wires, has_enough_outlets,
+        is_extension_cord_temporary, is_walkway_safe, are_appliance_cords_good,
+        are_plugs_running_cool, is_cctv_recording, is_dvr_room_secured,
+        is_cctv_wire_protected, is_certified,
+        u9_cctv_working, u9_cctv_broken, u9_cctv_spares,
+        u9_fire_ext_working, u9_fire_ext_broken, u9_fire_ext_spares,
+        u9_first_aid_working, u9_first_aid_broken, u9_first_aid_spares,
+        u9_bullhorns_working, u9_bullhorns_broken, u9_bullhorns_spares,
+        u9_radios_working, u9_radios_broken, u9_radios_spares,
+        u9_flashlight_working, u9_flashlight_broken, u9_flashlight_spares,
+        u9_whistles_quantity,
+        u9_bulbs_working, u9_bulbs_broken, u9_bulbs_spares,
+        u9_covers_working, u9_covers_broken, u9_covers_spares,
+        u9_breakers_working, u9_breakers_broken, u9_breakers_spares,
+        u9_ext_cords_working, u9_ext_cords_broken, u9_ext_cords_spares,
+        u9_tape_quantity,
+        u9_fire_exit_exists, u9_backup_light_exists, u9_ecart_load_ready,
+        u9_has_surge_protection, u9_remarks
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19, $20, $21, $22, $23,
+        $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36,
+        $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49,
+        $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60
+      ) ON CONFLICT (iern) DO UPDATE SET
+        school_id = EXCLUDED.school_id,
+        main_power_source = EXCLUDED.main_power_source,
+        active_meters = EXCLUDED.active_meters,
+        wiring_age = EXCLUDED.wiring_age,
+        last_inspection_year = EXCLUDED.last_inspection_year,
+        is_panel_clear = EXCLUDED.is_panel_clear,
+        is_panel_labeled = EXCLUDED.is_panel_labeled,
+        is_panel_locked = EXCLUDED.is_panel_locked,
+        are_lights_working = EXCLUDED.are_lights_working,
+        are_outlets_unbroken = EXCLUDED.are_outlets_unbroken,
+        are_outlets_child_safe = EXCLUDED.are_outlets_child_safe,
+        are_outlets_splash_safe = EXCLUDED.are_outlets_splash_safe,
+        has_bare_wires = EXCLUDED.has_bare_wires,
+        has_enough_outlets = EXCLUDED.has_enough_outlets,
+        is_extension_cord_temporary = EXCLUDED.is_extension_cord_temporary,
+        is_walkway_safe = EXCLUDED.is_walkway_safe,
+        are_appliance_cords_good = EXCLUDED.are_appliance_cords_good,
+        are_plugs_running_cool = EXCLUDED.are_plugs_running_cool,
+        is_cctv_recording = EXCLUDED.is_cctv_recording,
+        is_dvr_room_secured = EXCLUDED.is_dvr_room_secured,
+        is_cctv_wire_protected = EXCLUDED.is_cctv_wire_protected,
+        is_certified = EXCLUDED.is_certified,
+        u9_cctv_working = EXCLUDED.u9_cctv_working,
+        u9_cctv_broken = EXCLUDED.u9_cctv_broken,
+        u9_cctv_spares = EXCLUDED.u9_cctv_spares,
+        u9_fire_ext_working = EXCLUDED.u9_fire_ext_working,
+        u9_fire_ext_broken = EXCLUDED.u9_fire_ext_broken,
+        u9_fire_ext_spares = EXCLUDED.u9_fire_ext_spares,
+        u9_first_aid_working = EXCLUDED.u9_first_aid_working,
+        u9_first_aid_broken = EXCLUDED.u9_first_aid_broken,
+        u9_first_aid_spares = EXCLUDED.u9_first_aid_spares,
+        u9_bullhorns_working = EXCLUDED.u9_bullhorns_working,
+        u9_bullhorns_broken = EXCLUDED.u9_bullhorns_broken,
+        u9_bullhorns_spares = EXCLUDED.u9_bullhorns_spares,
+        u9_radios_working = EXCLUDED.u9_radios_working,
+        u9_radios_broken = EXCLUDED.u9_radios_broken,
+        u9_radios_spares = EXCLUDED.u9_radios_spares,
+        u9_flashlight_working = EXCLUDED.u9_flashlight_working,
+        u9_flashlight_broken = EXCLUDED.u9_flashlight_broken,
+        u9_flashlight_spares = EXCLUDED.u9_flashlight_spares,
+        u9_whistles_quantity = EXCLUDED.u9_whistles_quantity,
+        u9_bulbs_working = EXCLUDED.u9_bulbs_working,
+        u9_bulbs_broken = EXCLUDED.u9_bulbs_broken,
+        u9_bulbs_spares = EXCLUDED.u9_bulbs_spares,
+        u9_covers_working = EXCLUDED.u9_covers_working,
+        u9_covers_broken = EXCLUDED.u9_covers_broken,
+        u9_covers_spares = EXCLUDED.u9_covers_spares,
+        u9_breakers_working = EXCLUDED.u9_breakers_working,
+        u9_breakers_broken = EXCLUDED.u9_breakers_broken,
+        u9_breakers_spares = EXCLUDED.u9_breakers_spares,
+        u9_ext_cords_working = EXCLUDED.u9_ext_cords_working,
+        u9_ext_cords_broken = EXCLUDED.u9_ext_cords_broken,
+        u9_ext_cords_spares = EXCLUDED.u9_ext_cords_spares,
+        u9_tape_quantity = EXCLUDED.u9_tape_quantity,
+        u9_fire_exit_exists = EXCLUDED.u9_fire_exit_exists,
+        u9_backup_light_exists = EXCLUDED.u9_backup_light_exists,
+        u9_ecart_load_ready = EXCLUDED.u9_ecart_load_ready,
+        u9_has_surge_protection = EXCLUDED.u9_has_surge_protection,
+        u9_remarks = EXCLUDED.u9_remarks,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      iern, schoolId,
+      gen.main_power_source, gen.active_meters || 0, gen.wiring_age, gen.last_inspection_year,
+      gen.panel_clear, gen.panel_labeled, gen.panel_locked,
+      wir.lights_working, wir.outlet_covers_unbroken, wir.child_safety_covered,
+      wir.water_splash_safe, wir.bare_wires_visible, wir.enough_outlets,
+      lock.ext_cord_temp_only, lock.no_trip_hazards, lock.appliance_cords_good,
+      lock.plugs_feel_cool, lock.cctv_recording_clear, lock.dvr_room_cool_locked,
+      lock.cctv_wires_protected, true,
+      req.body.u9_cctv_working, req.body.u9_cctv_broken, req.body.u9_cctv_spares,
+      req.body.u9_fire_ext_working, req.body.u9_fire_ext_broken, req.body.u9_fire_ext_spares,
+      req.body.u9_first_aid_working, req.body.u9_first_aid_broken, req.body.u9_first_aid_spares,
+      req.body.u9_bullhorns_working, req.body.u9_bullhorns_broken, req.body.u9_bullhorns_spares,
+      req.body.u9_radios_working, req.body.u9_radios_broken, req.body.u9_radios_spares,
+      req.body.u9_flashlight_working, req.body.u9_flashlight_broken, req.body.u9_flashlight_spares,
+      req.body.u9_whistles_quantity,
+      req.body.u9_bulbs_working, req.body.u9_bulbs_broken, req.body.u9_bulbs_spares,
+      req.body.u9_covers_working, req.body.u9_covers_broken, req.body.u9_covers_spares,
+      req.body.u9_breakers_working, req.body.u9_breakers_broken, req.body.u9_breakers_spares,
+      req.body.u9_ext_cords_working, req.body.u9_ext_cords_broken, req.body.u9_ext_cords_spares,
+      req.body.u9_tape_quantity,
+      req.body.u9_fire_exit_exists, req.body.u9_backup_light_exists, req.body.u9_ecart_load_ready,
+      req.body.u9_has_surge_protection, req.body.u9_remarks
+    ]);
+
+    await pool.query(
+      'UPDATE ph_schools SET unit10 = 1, unit10_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE iern = $2',
+      [unit9_completed || false, iern]
+    );
+
+    if (unit9_completed) {
       await pool.query(`
-          INSERT INTO ph_school_completion (iern, school_id, unit6_completion)
-          VALUES ($1, $2, true)
-          ON CONFLICT (iern) DO UPDATE SET unit6_completion = true, school_id = EXCLUDED.school_id, updated_at = CURRENT_TIMESTAMP
+        INSERT INTO ph_school_completion (iern, school_id, unit10_completion)
+        VALUES ($1, $2, true)
+        ON CONFLICT (iern) DO UPDATE SET unit10_completion = true, updated_at = CURRENT_TIMESTAMP
       `, [iern, schoolId]);
       updateSchoolTotalCompletion(iern);
     }
 
-    res.json({ success: true, message: "Unit 7 finalized!" });
+    res.json({ success: true, message: "Unit 9 audit saved successfully." });
   } catch (err) {
-    console.error("Finalize Unit 7 Error:", err);
+    console.error("Save Unit 9 Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -19139,130 +19327,141 @@ app.get('/api/lgu/project/:id', async (req, res) => {
   }
 });
 
-// --- Unit 7 Schema Init (one-time at startup, NOT per request) ---
-// Moved from /api/save-physical-facilities to eliminate AccessExclusiveLock cascade.
+// --- Unit 7 Schema Init (grouped to prevent lock timeout) ---
 const initUnit7Schema = async () => {
   try {
-    console.log('[Unit7] Running one-time schema init...');
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS ph_buildings_inventory (
-        id SERIAL PRIMARY KEY, school_id TEXT, iern TEXT, building_name TEXT,
-        room_name TEXT, category TEXT, storey INTEGER, classroom INTEGER,
-        room_length NUMERIC, room_width NUMERIC,
-        less_than_7x9 INTEGER DEFAULT 0, "7x9" INTEGER DEFAULT 0, above_7x9 INTEGER DEFAULT 0,
-        grade_level TEXT, advisory_teacher TEXT, year_completed INTEGER,
-        remarks TEXT, status TEXT, is_in_use BOOLEAN DEFAULT TRUE, seats TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(e => console.warn('[Unit7] ph_buildings_inventory:', e.message));
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS ph_buildings_repairs (
-        id SERIAL PRIMARY KEY, school_id TEXT, iern TEXT, building_name TEXT,
-        room_name TEXT, item_name TEXT, oms TEXT, condition TEXT,
-        damage_ratio INTEGER, recommended_action TEXT, demo_justification TEXT,
-        remarks TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(e => console.warn('[Unit7] ph_buildings_repairs:', e.message));
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS ph_buildings_demolition (
-        id SERIAL PRIMARY KEY, school_id TEXT, iern TEXT, building_name TEXT,
-        room_name TEXT, less_than_7x9 INTEGER DEFAULT 0,
-        "7x9" INTEGER DEFAULT 0, above_7x9 INTEGER DEFAULT 0,
-        age BOOLEAN DEFAULT FALSE, safety BOOLEAN DEFAULT FALSE,
-        calamity BOOLEAN DEFAULT FALSE, upgrade BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(e => console.warn('[Unit7] ph_buildings_demolition:', e.message));
-    // ADD COLUMN IF NOT EXISTS (safe to run once — no-op if already exists)
-    const addCols = [
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS room_name TEXT`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS status TEXT`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS grade_level TEXT`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS advisory_teacher TEXT`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS less_than_7x9 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS "7x9" INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS above_7x9 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS iern TEXT`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS is_in_use BOOLEAN DEFAULT TRUE`,
-      `ALTER TABLE ph_buildings_inventory ADD COLUMN IF NOT EXISTS seats TEXT`,
-      `ALTER TABLE ph_buildings_repairs ADD COLUMN IF NOT EXISTS room_name TEXT`,
-      `ALTER TABLE ph_buildings_repairs ADD COLUMN IF NOT EXISTS oms TEXT`,
-      `ALTER TABLE ph_buildings_repairs ADD COLUMN IF NOT EXISTS demo_justification TEXT`,
-      `ALTER TABLE ph_buildings_repairs ADD COLUMN IF NOT EXISTS iern TEXT`,
-      `ALTER TABLE ph_buildings_demolition ADD COLUMN IF NOT EXISTS room_name TEXT`,
-      `ALTER TABLE ph_buildings_demolition ADD COLUMN IF NOT EXISTS iern TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS build_classrooms_total INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS build_classrooms_new INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS build_classrooms_good INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS build_classrooms_repair INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS build_classrooms_demolition INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS has_no_building BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit1_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit2_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit3_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit4_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit5_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit6_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit8_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit9_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10_completed BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit1 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit2 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit3 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit4 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit5 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit6 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit8 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit9 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit1_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit2_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit3_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit4_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit5_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit6_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit8_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit9_updated_at TIMESTAMP`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10_updated_at TIMESTAMP`,
-      // --- Unit 1 DDL ---
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS annex_details JSONB`,
-      // --- Unit 2 DDL ---
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_groupings_1 TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_groupings_2 TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_groupings_3 TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_enrollment_1 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_enrollment_2 INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_enrollment_3 INTEGER DEFAULT 0`,
-      // --- Unit 3 DDL ---
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit3_simplified_counts JSONB`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_sections_count INTEGER DEFAULT 0`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_kinder_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_1_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_2_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_3_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_4_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_5_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_6_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_7_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_8_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_9_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_10_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_11_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS grade_12_size TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_size_1 TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_size_2 TEXT`,
-      `ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS multigrade_size_3 TEXT`,
+    console.log('[Init] Running specialized schema auto-hardening...');
+    
+    // Grouped migrations to prevent lock timeout (AccessExclusiveLock on each statement)
+    const migrations = [
+      // 1. ph_schools_audit (New specialized table)
+      `CREATE TABLE IF NOT EXISTS ph_schools_audit (
+          id SERIAL PRIMARY KEY,
+          iern TEXT UNIQUE NOT NULL,
+          school_id TEXT,
+          main_power_source TEXT,
+          active_meters INTEGER DEFAULT 0,
+          wiring_age TEXT,
+          last_inspection_year INTEGER,
+          is_panel_clear BOOLEAN DEFAULT FALSE,
+          is_panel_labeled BOOLEAN DEFAULT FALSE,
+          is_panel_locked BOOLEAN DEFAULT FALSE,
+          are_lights_working BOOLEAN DEFAULT FALSE,
+          are_outlets_unbroken BOOLEAN DEFAULT FALSE,
+          are_outlets_child_safe BOOLEAN DEFAULT FALSE,
+          are_outlets_splash_safe BOOLEAN DEFAULT FALSE,
+          has_bare_wires BOOLEAN DEFAULT FALSE,
+          has_enough_outlets BOOLEAN DEFAULT FALSE,
+          is_extension_cord_temporary BOOLEAN DEFAULT FALSE,
+          is_walkway_safe BOOLEAN DEFAULT FALSE,
+          are_appliance_cords_good BOOLEAN DEFAULT FALSE,
+          are_plugs_running_cool BOOLEAN DEFAULT FALSE,
+          is_cctv_recording BOOLEAN DEFAULT FALSE,
+          is_dvr_room_secured BOOLEAN DEFAULT FALSE,
+          is_cctv_wire_protected BOOLEAN DEFAULT FALSE,
+          has_fire_exit BOOLEAN DEFAULT FALSE,
+          has_backup_lights BOOLEAN DEFAULT FALSE,
+          u9_inventory_data JSONB,
+          is_grid_load_ready BOOLEAN DEFAULT FALSE,
+          has_surge_protection BOOLEAN DEFAULT FALSE,
+          audit_remarks TEXT,
+          is_certified BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // 2. ph_buildings_inventory (Bulk Alter)
+      `ALTER TABLE ph_buildings_inventory 
+        ADD COLUMN IF NOT EXISTS room_name TEXT,
+        ADD COLUMN IF NOT EXISTS status TEXT,
+        ADD COLUMN IF NOT EXISTS grade_level TEXT,
+        ADD COLUMN IF NOT EXISTS advisory_teacher TEXT,
+        ADD COLUMN IF NOT EXISTS less_than_7x9 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS "7x9" INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS above_7x9 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS iern TEXT,
+        ADD COLUMN IF NOT EXISTS is_in_use BOOLEAN DEFAULT TRUE,
+        ADD COLUMN IF NOT EXISTS seats TEXT`,
+
+      // 3. ph_buildings_repairs / demolition
+      `ALTER TABLE ph_buildings_repairs ADD COLUMN IF NOT EXISTS room_name TEXT, ADD COLUMN IF NOT EXISTS oms TEXT, ADD COLUMN IF NOT EXISTS demo_justification TEXT, ADD COLUMN IF NOT EXISTS iern TEXT`,
+      `ALTER TABLE ph_buildings_demolition ADD COLUMN IF NOT EXISTS room_name TEXT, ADD COLUMN IF NOT EXISTS iern TEXT`,
+      `ALTER TABLE ph_school_completion ADD COLUMN IF NOT EXISTS unit9_completion BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS unit10_completion BOOLEAN DEFAULT FALSE`,
+
+      // 4. ph_schools (Bulk Alter)
+      `ALTER TABLE ph_schools 
+        ADD COLUMN IF NOT EXISTS build_classrooms_total INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS build_classrooms_new INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS build_classrooms_good INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS build_classrooms_repair INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS build_classrooms_demolition INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS has_no_building BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit1_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit2_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit3_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit4_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit5_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit6_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit7_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit8_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit9_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit10_completed BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS unit1 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit2 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit3 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit4 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit5 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit6 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit7 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit8 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit9 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit10 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit1_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit2_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit3_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit4_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit5_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit6_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit7_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit8_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit9_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS unit10_updated_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS annex_details JSONB,
+        ADD COLUMN IF NOT EXISTS multigrade_groupings_1 TEXT,
+        ADD COLUMN IF NOT EXISTS multigrade_groupings_2 TEXT,
+        ADD COLUMN IF NOT EXISTS multigrade_groupings_3 TEXT,
+        ADD COLUMN IF NOT EXISTS multigrade_enrollment_1 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS multigrade_enrollment_2 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS multigrade_enrollment_3 INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS unit3_simplified_counts JSONB,
+        ADD COLUMN IF NOT EXISTS multigrade_sections_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS grade_kinder_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_1_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_2_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_3_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_4_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_5_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_6_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_7_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_8_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_9_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_10_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_11_size TEXT,
+        ADD COLUMN IF NOT EXISTS grade_12_size TEXT,
+        ADD COLUMN IF NOT EXISTS multigrade_size_1 TEXT,
+        ADD COLUMN IF NOT EXISTS multigrade_size_2 TEXT,
+        ADD COLUMN IF NOT EXISTS multigrade_size_3 TEXT`
     ];
-    for (const sql of addCols) {
-      await pool.query(sql).catch(() => {}); // Each col idempotent; ignore already-exists errors
+
+    for (const sql of migrations) {
+      await pool.query(sql).catch((e) => {
+        console.warn(`[Init] Migration step failed: ${e.message}`);
+      });
     }
-    console.log('[Unit7] Schema init complete.');
+    console.log('[Unit7] Grouped schema init complete.');
   } catch (err) {
-    console.error('[Unit7] Schema init error (non-fatal):', err.message);
+    console.error('[Unit7] Grouped schema init error:', err.message);
   }
 };
 

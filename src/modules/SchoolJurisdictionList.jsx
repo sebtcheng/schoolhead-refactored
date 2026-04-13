@@ -184,30 +184,31 @@ const SchoolJurisdictionList = () => {
 
                                             {/* COMPLETION INDICATOR */}
                                             {(() => {
-                                                const isComplete = school.profile_status && school.head_status && school.enrollment_status &&
-                                                    school.classes_status && school.shifting_status && school.personnel_status &&
-                                                    school.specialization_status && school.resources_status;
+                                                const isComplete = school.u1_status && school.u2_status && school.u3_status &&
+                                                    school.u4_status && school.u5_status && school.u6_status &&
+                                                    school.u7_status && school.u8_status && school.u9_status;
                                                 return isComplete ? (
                                                     <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
                                                         <FiCheckCircle size={10} /> Completed
                                                     </span>
                                                 ) : (
                                                     <span className="flex items-center gap-1 text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                        <FiClock size={10} /> Incomplete
+                                                        <FiClock size={10} /> {Math.round(school.completion_percentage)}%
                                                     </span>
                                                 );
                                             })()}
                                         </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-1 justify-end max-w-[140px]">
-                                        <StatusBadge active={school.profile_status} label="Info" />
-                                        <StatusBadge active={school.head_status} label="Head" />
-                                        <StatusBadge active={school.enrollment_status} label="Enrol" />
-                                        <StatusBadge active={school.classes_status} label="Class" />
-                                        <StatusBadge active={school.shifting_status} label="Mode" />
-                                        <StatusBadge active={school.personnel_status} label="Staff" />
-                                        <StatusBadge active={school.specialization_status} label="Spec" />
-                                        <StatusBadge active={school.resources_status} label="Res" />
+                                    <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
+                                        <StatusBadge active={school.u1_status} label="Info" />
+                                        <StatusBadge active={school.u2_status} label="Enrol" />
+                                        <StatusBadge active={school.u3_status} label="Class" />
+                                        <StatusBadge active={school.u4_status} label="Stats" />
+                                        <StatusBadge active={school.u5_status} label="Mode" />
+                                        <StatusBadge active={school.u6_status} label="Staff" />
+                                        <StatusBadge active={school.u7_status} label="Bldg" />
+                                        <StatusBadge active={school.u8_status} label="Site" />
+                                        <StatusBadge active={school.u9_status} label="Safety" />
                                     </div>
                                 </div>
 

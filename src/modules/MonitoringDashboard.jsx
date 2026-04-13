@@ -16,7 +16,11 @@ import {
   FiAlertCircle,
   FiFileText,
   FiRefreshCw,
-  FiDownload
+  FiDownload,
+  FiInfo,
+  FiX,
+  FiHardDrive,
+  FiBox
 } from 'react-icons/fi';
 import { TbSchool } from 'react-icons/tb';
 import PageTransition from '../components/PageTransition';
@@ -74,12 +78,11 @@ const slideVariants = {
   exit: (dir) => ({ x: dir > 0 ? '-60%' : '60%', opacity: 0 }),
 };
 
-// --- Stat Card Component ---
 const TopStatCard = ({ title, value, icon: Icon, color, subtext, secondaryValue }) => (
     <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between"
+        className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group overflow-hidden relative"
     >
         <div className="flex justify-between items-start mb-4 sm:mb-6">
             <div className={`p-2 sm:p-4 rounded-xl sm:rounded-2xl ${color} bg-opacity-10 dark:bg-opacity-20 text-current`}>
@@ -101,6 +104,7 @@ const TopStatCard = ({ title, value, icon: Icon, color, subtext, secondaryValue 
 const MonitoringDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [showUnit9Explanation, setShowUnit9Explanation] = useState(false);
 
   // --- User context ---
   const userRole = user?.role || localStorage.getItem('userRole') || '';
@@ -515,13 +519,36 @@ const MonitoringDashboard = () => {
                 color="bg-blue-600" 
                 subtext="Registered Schools"
             />
-            <TopStatCard 
-                title="Completion Status" 
-                value={stats.completed.toLocaleString()} 
-                icon={TbSchool} 
-                color="bg-emerald-600" 
-                subtext="100% Completed"
-            />
+            <div className="flex flex-col gap-3">
+                <TopStatCard 
+                    title="Completion Status" 
+                    value={stats.completed.toLocaleString()} 
+                    icon={TbSchool} 
+                    color="bg-emerald-600" 
+                    subtext="100% Completed"
+                />
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.6 }}
+                    onClick={() => setShowUnit9Explanation(true)}
+                    className="bg-gradient-to-br from-rose-600 to-red-700 p-4 rounded-3xl shadow-lg border border-rose-500/30 flex items-start gap-3 cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+                >
+                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white shrink-0 shadow-inner">
+                        <FiInfo size={14} />
+                    </div>
+                    <div>
+                                                <div className="flex items-center gap-2 mb-0.5">
+                            <p className="text-[10px] font-black text-rose-100 uppercase tracking-widest leading-none">Mission Update</p>
+                            <span className="text-[7px] font-black bg-white/20 text-white px-1.5 py-0.5 rounded-full animate-pulse border border-white/10 uppercase tracking-tighter shadow-sm flex items-center justify-center leading-none">Click to read why</span>
+                        </div>
+
+                        <p className="text-[10px] font-bold text-white leading-relaxed">
+                            Unit 9 is <span className="text-yellow-300 font-black underline underline-offset-2">now live</span>! Please contact your <span className="text-white">SCHOOL HEADS</span> to accomplish it.
+                        </p>
+                    </div>
+                </motion.div>
+            </div>
             <TopStatCard 
                 title="ESF7 Submissions" 
                 value={stats.esf7Submissions.toLocaleString()} 
@@ -791,6 +818,63 @@ const MonitoringDashboard = () => {
             )}
           </AnimatePresence>
         )}
+
+        {/* UNIT 9 EXPLANATION MODAL */}
+        <AnimatePresence>
+            {showUnit9Explanation && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                    <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        onClick={() => setShowUnit9Explanation(false)} 
+                        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" 
+                    />
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.9, y: 30 }} 
+                        animate={{ opacity: 1, scale: 1, y: 0 }} 
+                        exit={{ opacity: 0, scale: 0.9, y: 30 }} 
+                        className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden border border-slate-100 dark:border-slate-800"
+                    >
+                        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-8 text-white relative">
+                            <button 
+                                onClick={() => setShowUnit9Explanation(false)}
+                                className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/10 transition-colors"
+                            >
+                                <FiX size={20} />
+                            </button>
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="p-3 bg-white/10 rounded-2xl">
+                                    <FiHardDrive size={24} />
+                                </div>
+                                <h3 className="text-2xl font-black tracking-tight">Understanding Unit 9</h3>
+                            </div>
+                            <p className="text-rose-50 text-xs font-bold uppercase tracking-widest">Infrastructure & Physical Safety Audit</p>
+                        </div>
+
+                        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            <div className="bg-amber-50 dark:bg-amber-900/10 p-5 rounded-3xl border-2 border-dashed border-amber-200 dark:border-amber-800/50">
+                                <h5 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <FiAlertCircle size={12} /> Why did completion stats drop?
+                                </h5>
+                                <p className="text-xs text-amber-900/70 dark:text-amber-200/60 leading-relaxed font-medium">
+                                    Because the system now tracks <span className="text-amber-600 font-bold">9 units</span> instead of 8, schools that were previously "100%" are now at <span className="text-amber-600 font-bold">89%</span>. They will return to 100% once they submit this new Infrastructure module.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-8 pt-0">
+                            <button 
+                                onClick={() => setShowUnit9Explanation(false)}
+                                className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+                            >
+                                Understood
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
 
         {/* Standard Project Bottom Navigation */}
         <BottomNav userRole={userRole} />

@@ -95,6 +95,7 @@ import Unit5ShiftingModality from './components/modular/Unit5ShiftingModality';
 import Unit6SchoolResources from './components/modular/Unit6SchoolResources';
 import Unit7PhysicalFacilities from './components/modular/Unit7PhysicalFacilities';
 import Unit8SchoolLocation from './components/modular/Unit8SchoolLocation';
+import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 
 // Nexus & Drafts
 import NodesDashboard from './modules/NexusDashboard';
@@ -371,6 +372,14 @@ const AnimatedRoutes = () => {
           element={
             <ProtectedRoute allowedRoles={['School Head']}>
               <Unit8SchoolLocation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/modular/unit-9"
+          element={
+            <ProtectedRoute allowedRoles={['School Head']}>
+              <Unit9Infrastructure />
             </ProtectedRoute>
           }
         />

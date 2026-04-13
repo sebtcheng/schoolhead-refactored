@@ -18,7 +18,7 @@ import Unit5ShiftingModality from '../components/modular/Unit5ShiftingModality';
 import Unit6SchoolResources from '../components/modular/Unit6SchoolResources';
 import Unit7PhysicalFacilities from '../components/modular/Unit7PhysicalFacilities';
 import Unit8SchoolLocation from '../components/modular/Unit8SchoolLocation';
-import Unit10Verification from '../components/modular/Unit10Verification';
+import Unit9Infrastructure from '../components/modular/Unit9Infrastructure';
 
 const SchoolAuditView = () => {
     const { user } = useAuth();
@@ -121,8 +121,8 @@ const SchoolAuditView = () => {
         { id: 'u5', label: 'Shifting & Modality (Unit 5)', icon: <TbReportAnalytics />, Component: Unit5ShiftingModality },
         { id: 'u6', label: 'School Resources (Unit 6)', icon: <FiBox />, Component: Unit6SchoolResources },
         { id: 'u7', label: 'Physical Facilities (Unit 7)', icon: <FiServer />, Component: Unit7PhysicalFacilities },
-        { id: 'u8', label: 'School Terrain & Safety (Unit 8)', icon: <FiActivity />, Component: Unit8SchoolLocation },
-        { id: 'u9', label: 'Compliance Verification (Unit 9)', icon: <FiCheckCircle />, Component: Unit10Verification, noReadOnly: true },
+        { id: 'u8', label: 'School Terrain & Location (Unit 8)', icon: <FiActivity />, Component: Unit8SchoolLocation },
+        { id: 'u9', label: 'Infrastructure & Safety (Unit 9)', icon: <FiServer />, Component: Unit9Infrastructure },
     ];
 
     return (
