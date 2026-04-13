@@ -214,44 +214,74 @@ const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
 console.log(`🔌 Database Connection: ${isLocal ? 'Local' : 'Remote'} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
 
 const { Pool } = pg;
+// [Hawkeye Protocol v4.0 — Unified Cloud Scaling]
+// Azure DB supports 1718 connections. PgBouncer supports 2000 clients & 500 pool size.
+// Following the root cause fix (restoring 6432 proxy), we scale to 100 connections per worker.
+// 8 workers × 100 = 800 clients multiplexed by PgBouncer (500) into Azure (1718).
 const pool = new Pool({
   connectionString: dbUrl,
   ssl: isLocal ? false : { rejectUnauthorized: false },
-
-  max: 20, // Increased from 12: pool exhaustion was causing 'timeout exceeded when trying to connect'.
-           // 8 workers × 20 = 160 clients → PgBouncer (transaction mode, pool_size=25) → Azure PG.
-  min: 2,
+  max: 100,   // Unrestricted throughput following PgBouncer-to-Azure fix
+  min: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 3000,  // Reduced from 10000: fail fast instead of queuing 10s in peak load.
+  connectionTimeoutMillis: 15000, 
   application_name: 'InsightEd_API_Cluster'
-});
-
-pool.on('connect', (client) => {
-  // Optional: monitor new connections if needed for deep debugging
-});
-
-pool.on('acquire', (client) => {
-  // Optional: monitor connection acquisition throughput
 });
 
 pool.on('error', (err) => {
   console.error('💥 [DB-POOL] Unexpected error on idle database client:', err.message);
 });
 
-// Proactive Pool Telemetry (Hawkeye Protocol v2.0)
+// Proactive Pool Telemetry (Hawkeye Protocol v3.1)
 setInterval(() => {
   if (pool) {
     const { totalCount, idleCount, waitingCount } = pool;
     if (waitingCount > 0) {
       console.warn(`📡 [DB-POOL-ALERT] Total: ${totalCount} | Idle: ${idleCount} | WAITING: ${waitingCount} ⚠️`);
-    } else if (process.env.DEBUG_POOL === 'true' || totalCount > 100) {
-        console.log(`📡 [DB-POOL-HEALTH] Total: ${totalCount} | Idle: ${idleCount} | Waiting: ${waitingCount}`);
+    } else if (process.env.DEBUG_POOL === 'true') {
+      console.log(`📡 [DB-POOL-HEALTH] Total: ${totalCount} | Idle: ${idleCount} | Waiting: ${waitingCount}`);
     }
   }
 }, 10000);
 
 // Inject pool into chatbot module
 setPool(pool);
+
+// --- [Hawkeye Protocol] IN-MEMORY TTL CACHE (v1.0) ---
+// Prevents 200+ concurrent users from each running the same heavy aggregation query.
+// Division-stats and district-stats do 200-column full-table joins — caching reduces
+// DB load from N queries/sec to 1 query per TTL_MS, regardless of concurrent users.
+const _cache = new Map();
+const _inflight = new Map();
+const CACHE_TTL_MS = 90_000; // 90 seconds — fresh enough for dashboards
+
+function cacheGet(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) { _cache.delete(key); return null; }
+  return entry.data;
+}
+function cacheSet(key, data) {
+  _cache.set(key, { data, ts: Date.now() });
+}
+
+// Single-flight: if N concurrent requests ask for the same key,
+// only ONE hits the DB; all others await the same promise.
+async function cachedQuery(key, fn) {
+  const hit = cacheGet(key);
+  if (hit !== null) return hit;
+  if (_inflight.has(key)) return _inflight.get(key);
+  const promise = fn().then(result => {
+    cacheSet(key, result);
+    _inflight.delete(key);
+    return result;
+  }).catch(err => {
+    _inflight.delete(key);
+    throw err;
+  });
+  _inflight.set(key, promise);
+  return promise;
+}
 
 // --- [Hawkeye Protocol] DB INITIALIZATION & SCHEMA HARDENING (Consolidated) ---
 const hardenSchoolsIernSchema = async (client) => {
@@ -1124,7 +1154,7 @@ if (process.env.NEW_DATABASE_URL) {
   poolNew = new Pool({
     connectionString: process.env.NEW_DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 20, // Resilient v6.0: Scaled for secondary sync
+    max: 2, // [Hawkeye v3.2] Capped secondary pool to prevent starvation
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     application_name: 'InsightEd_API_Secondary'
@@ -2485,8 +2515,8 @@ app.post('/api/auth/migrate-login', async (req, res) => {
 
     console.log(`[DEBUG LOGIN] Reached handler for: ${identifier}`);
     const query = isSchoolId
-      ? `SELECT ${SELECT_COLS} FROM users WHERE school_id = $1 AND disabled = false`
-      : `SELECT ${SELECT_COLS} FROM users WHERE LOWER(email) = $1 AND disabled = false ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
+      ? `SELECT ${SELECT_COLS} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
+      : `SELECT ${SELECT_COLS} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
     console.log(`[DEBUG LOGIN] Query prepared. Waiting for pool...`);
     const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
@@ -2663,7 +2693,7 @@ app.post('/api/auth/setup-pin', async (req, res) => {
     const hashedPin = await bcrypt.hash(pin, saltRounds);
 
     const result = await pool.query(
-      `UPDATE users SET passcode = $1 WHERE ${whereClause} RETURNING uid`,
+      `UPDATE users SET passcode = $1 WHERE ${whereClause} AND (registration_status = 'Valid' OR registration_status IS NULL) RETURNING uid`,
       [hashedPin, param]
     );
 
@@ -2695,8 +2725,8 @@ app.post('/api/auth/pin-login', async (req, res) => {
     // Unified Identifier Lookup (Strict Users Table)
     const selectCols = 'uid, email, role, region, division, office, account_category, passcode, first_name, last_name, school_id';
     const query = isSchoolId
-      ? `SELECT ${selectCols} FROM users WHERE school_id = $1 AND disabled = false`
-      : `SELECT ${selectCols} FROM users WHERE LOWER(email) = $1 AND disabled = false ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
+      ? `SELECT ${selectCols} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
+      : `SELECT ${selectCols} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
     const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
 
@@ -5350,8 +5380,9 @@ app.get('/api/settings/:key', async (req, res) => {
       res.json({ value: null });
     }
   } catch (err) {
-    console.error(`Get Setting Error [${key}]:`, err);
-    res.status(500).json({ error: "Failed to fetch setting" });
+    // [Hawkeye v3.5] Reduced log noise and prevented 500 on missing settings table
+    console.warn(`⚠️ [Settings] Key "${key}" fetch failed: ${err.message}`);
+    res.json({ value: null, error: "Settings table unavailable" });
   }
 });
 
@@ -7600,60 +7631,61 @@ app.post('/api/register-beta', async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Verify against schools_IERN
-    const iernResult = await client.query('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1', [schoolData.school_id]);
+    const iernResult = await client.query('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1 ORDER BY (CASE WHEN status = \'Active\' THEN 0 ELSE 1 END), updated_at DESC', [schoolData.school_id]);
     if (iernResult.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: "Not an authorized Beta Testing School. Please check your school ID." });
     }
     const iernData = iernResult.rows[0];
-    console.log("✅ Found IERN for school:", iernData.iern);
+    console.log("✅ Found IERN for school:", iernData.iern, "Status:", iernData.status);
     const foundIern = iernData.iern;
-
-    // 1b. Duplicate School ID Check (School Heads use school_id as identifier)
-    const schoolIdCheckRes = await client.query("SELECT uid FROM users WHERE school_id = $1", [schoolData.school_id]);
-    if (schoolIdCheckRes.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ error: "This school ID is already registered." });
-    }
-
-    // NATIVE AUTH: Generate UUID and Hash Password
     const uid = uuidv4();
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // 2. CREATE USER
+    // 2. Robust User Creation with IERN Conflict Handling
     try {
       await client.query('SAVEPOINT user_creation');
+
+      // Check for EXISTING 'Valid' registration with this IERN
+      const existingUserRes = await client.query(
+        "SELECT uid, school_id FROM users WHERE iern = $1 AND (registration_status = 'Valid' OR registration_status IS NULL) LIMIT 1",
+        [foundIern]
+      );
+
+      if (existingUserRes.rows.length > 0) {
+        const existingUser = existingUserRes.rows[0];
+        console.log(`⚠️ IERN Conflict detected for ${foundIern}. Existing School ID: ${existingUser.school_id}`);
+
+        // Check status of BOTH schools in schools_IERN registry
+        const schoolsInfo = await client.query(
+          'SELECT "SchoolID", status FROM "schools_IERN" WHERE "SchoolID" IN ($1, $2)',
+          [existingUser.school_id, schoolData.school_id]
+        );
+
+        const existingStatus = schoolsInfo.rows.find(s => s.SchoolID === existingUser.school_id)?.status;
+        const newStatus = iernData.status;
+
+        if (existingStatus === 'Archived' && newStatus === 'Active') {
+          console.log(`✅ Robustness Logic Triggered: Marking old school ${existingUser.school_id} as 'Invalid'`);
+          await client.query(
+            "UPDATE users SET registration_status = 'Invalid' WHERE uid = $1",
+            [existingUser.uid]
+          );
+        } else if (existingUser.school_id !== schoolData.school_id) {
+          throw new Error(`IERN ${foundIern} is already registered to another Active school (${existingUser.school_id}).`);
+        }
+      }
+
       await client.query(
         `INSERT INTO users (
-            uid, email, role, created_at, contact_number,
-            first_name, last_name, 
-            region, division, province, city,
-            password_hash, hash_version, iern, school_id, registrant_type, passcode
-         ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-         ON CONFLICT (uid) DO UPDATE SET 
-            email = EXCLUDED.email,
-            role = EXCLUDED.role,
-            contact_number = EXCLUDED.contact_number,
-            first_name = EXCLUDED.first_name,
-            last_name = EXCLUDED.last_name,
-            region = EXCLUDED.region,
-            division = EXCLUDED.division,
-            province = EXCLUDED.province,
-            city = EXCLUDED.city,
-            password_hash = EXCLUDED.password_hash,
-            hash_version = EXCLUDED.hash_version,
-            iern = EXCLUDED.iern,
-            school_id = EXCLUDED.school_id,
-            registrant_type = EXCLUDED.registrant_type,
-            passcode = EXCLUDED.passcode;`,
+          uid, email, first_name, last_name, region, division, province, city, 
+          password_hash, hash_version, iern, school_id, role, passcode, registration_status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
           uid,
-          email || null, // School Heads now provide their DepEd email
-          'School Head',
-          contactNumber || null,
-          firstName || 'School',
-          lastName || 'Head',
+          email,
+          firstName || null,
+          lastName || null,
           schoolData.region || null,
           schoolData.division || null,
           schoolData.province || null,
@@ -7663,13 +7695,15 @@ app.post('/api/register-beta', async (req, res) => {
           foundIern,
           schoolData.school_id,
           'School Head',
-          passcode || null
+          passcode || null,
+          'Valid'
         ]
       );
       await client.query('RELEASE SAVEPOINT user_creation');
     } catch (e) {
       await client.query('ROLLBACK TO SAVEPOINT user_creation');
-      console.warn("User table insert failed, continuing...", e.message);
+      console.error("❌ User registration failed:", e.message);
+      throw e;
     }
 
     // 3. HYDRATE PH_SCHOOLS ONLY (Skip ph_schools)
@@ -7677,7 +7711,8 @@ app.post('/api/register-beta', async (req, res) => {
       INSERT INTO ph_schools (
         school_id, school_name, region, province, municipality, division, district, leg_district, curricular_offering, latitude, longitude, barangay, iern, updated_at, unit1, unit1_completed
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, 0, FALSE)
-      ON CONFLICT (school_id) DO UPDATE SET
+      ON CONFLICT (iern) DO UPDATE SET
+        school_id = EXCLUDED.school_id,
         school_name = EXCLUDED.school_name,
         region = EXCLUDED.region,
         province = EXCLUDED.province,
@@ -7689,7 +7724,6 @@ app.post('/api/register-beta', async (req, res) => {
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,
         barangay = EXCLUDED.barangay,
-        iern = EXCLUDED.iern,
         unit1 = 0,
         unit1_completed = FALSE,
         updated_at = CURRENT_TIMESTAMP
@@ -8112,12 +8146,12 @@ app.get('/api/auth/lookup-email/:schoolId', async (req, res) => {
     let result;
     if (resolvedIern) {
       result = await pool.query(
-        "SELECT email FROM users WHERE iern = $1 OR email ILIKE $2 ORDER BY (CASE WHEN iern = $1 THEN 0 ELSE 1 END), (CASE WHEN email ILIKE '%@insighted.app' THEN 0 ELSE 1 END), email LIMIT 1",
+        "SELECT email FROM users WHERE (iern = $1 OR email ILIKE $2) AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY (CASE WHEN iern = $1 THEN 0 ELSE 1 END), (CASE WHEN email ILIKE '%@insighted.app' THEN 0 ELSE 1 END), email LIMIT 1",
         [resolvedIern, `${schoolId}@%`]
       );
     } else {
       result = await pool.query(
-        "SELECT email FROM users WHERE email ILIKE $1 ORDER BY (CASE WHEN email ILIKE '%@insighted.app' THEN 0 ELSE 1 END), email LIMIT 1",
+        "SELECT email FROM users WHERE email ILIKE $1 AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY (CASE WHEN email ILIKE '%@insighted.app' THEN 0 ELSE 1 END), email LIMIT 1",
         [`${schoolId}@%`]
       );
     }
@@ -8385,16 +8419,152 @@ app.get('/api/locations/barangays', async (req, res) => {
     const np = normalizeLocationField(province);
     const nm = normalizeLocationField(municipality);
     const result = await pool.query(
-      `SELECT DISTINCT barangay FROM ph_barangays
+      `SELECT id, barangay FROM ph_barangays
        WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
        AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(province)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
        AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(municipality)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $3
        ORDER BY barangay ASC`,
       [nr, np, nm]
     );
-    const barangays = [...new Set(result.rows.map(r => normalizeLocationOutput(r.barangay)))];
-    if (nm === 'BLANK MUNICIPALITY' && !barangays.includes('BLANK BARANGAY')) barangays.unshift('BLANK BARANGAY');
+    const barangays = result.rows.map(r => ({ id: r.id, barangay: normalizeLocationOutput(r.barangay) }));
     res.json(barangays);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- 5b. SDO/Admin: Location Management CRUD ---
+const checkLocationAuth = (req, res, next) => {
+  const { role } = req.user;
+  if (role === 'School Division Office' || role === 'Regional Office' || role === 'Super User') {
+    next();
+  } else {
+    res.status(403).json({ error: "Access denied: Unauthorized role for location management." });
+  }
+};
+
+app.post('/api/locations/all_locations', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { region, division, district, province, municipality, legislative_district } = req.body;
+  try {
+    const query = `
+      INSERT INTO all_locations (region, division, district, province, municipality, legislative_district)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (region, division, district, province, municipality, legislative_district) DO NOTHING
+      RETURNING *;
+    `;
+    const values = [
+      normalizeLocationField(region), normalizeLocationField(division), normalizeLocationField(district),
+      normalizeLocationField(province), normalizeLocationField(municipality), normalizeLocationField(legislative_district)
+    ];
+    const result = await pool.query(query, values);
+    if (result.rowCount === 0) return res.status(409).json({ error: "Location already exists." });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/locations/all_locations/:id', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { id } = req.params;
+  const { region, division, district, province, municipality, legislative_district } = req.body;
+  try {
+    const query = `
+      UPDATE all_locations 
+      SET region = $1, division = $2, district = $3, province = $4, municipality = $5, legislative_district = $6
+      WHERE id = $7
+      RETURNING *;
+    `;
+    const values = [
+      normalizeLocationField(region), normalizeLocationField(division), normalizeLocationField(district),
+      normalizeLocationField(province), normalizeLocationField(municipality), normalizeLocationField(legislative_district),
+      id
+    ];
+    const result = await pool.query(query, values);
+    if (result.rowCount === 0) return res.status(404).json({ error: "Location not found." });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/locations/all_locations/:id', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM all_locations WHERE id = $1 RETURNING *', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: "Location not found." });
+    res.json({ message: "Location deleted successfully." });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/locations/ph_barangays', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { region, province, municipality, barangay } = req.body;
+  try {
+    const query = `
+      INSERT INTO ph_barangays (region, province, municipality, barangay)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (region, province, municipality, barangay) DO NOTHING
+      RETURNING *;
+    `;
+    const values = [
+      normalizeLocationField(region), normalizeLocationField(province),
+      normalizeLocationField(municipality), normalizeLocationField(barangay)
+    ];
+    const result = await pool.query(query, values);
+    if (result.rowCount === 0) return res.status(409).json({ error: "Barangay already exists." });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/locations/ph_barangays/:id', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { id } = req.params;
+  const { region, province, municipality, barangay } = req.body;
+  try {
+    const query = `
+      UPDATE ph_barangays 
+      SET region = $1, province = $2, municipality = $3, barangay = $4
+      WHERE id = $5
+      RETURNING *;
+    `;
+    const values = [
+      normalizeLocationField(region), normalizeLocationField(province),
+      normalizeLocationField(municipality), normalizeLocationField(barangay),
+      id
+    ];
+    const result = await pool.query(query, values);
+    if (result.rowCount === 0) return res.status(404).json({ error: "Barangay not found." });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/locations/ph_barangays/:id', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM ph_barangays WHERE id = $1 RETURNING *', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: "Barangay not found." });
+    res.json({ message: "Barangay deleted successfully." });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/division-info', async (req, res) => {
+  const { division } = req.query;
+  try {
+    const result = await pool.query(
+      'SELECT DISTINCT region, province FROM all_locations WHERE division = $1 LIMIT 1',
+      [normalizeLocationField(division)]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Division not found." });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/legislative-districts', async (req, res) => {
+  const { region, province, municipality } = req.query;
+  try {
+    const query = `
+      SELECT DISTINCT legislative_district 
+      FROM all_locations 
+      WHERE region = $1 AND province = $2 AND municipality = $3
+      AND legislative_district IS NOT NULL AND legislative_district != ''
+      ORDER BY legislative_district ASC
+    `;
+    const result = await pool.query(query, [
+      normalizeLocationField(region), normalizeLocationField(province), normalizeLocationField(municipality)
+    ]);
+    res.json(result.rows.map(r => normalizeLocationOutput(r.legislative_district)));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -14072,22 +14242,24 @@ app.get('/api/monitoring/division-stats', async (req, res) => {
       GROUP BY UPPER(TRIM(s."Division"))
       ORDER BY UPPER(TRIM(s."Division"))
     `;
-    console.log("DEBUG: Running Division Stats for Region:", region);
+    const cacheKey = `div-stats:${region || 'ALL'}:${req.query.role || ''}}`;
 
-    const result = await pool.query(query, [region]);
+    const rows = await cachedQuery(cacheKey, async () => {
+      const result = await pool.query(query, [region]);
+      return result.rows;
+    });
 
-    // ADDED: Strip validation stats if role is RO/SDO
+    // Strip validation stats if role is RO/SDO
     const requestRole = req.query.role;
     if (requestRole === 'Regional Office' || requestRole === 'School Division Office') {
-      const sanitized = result.rows.map(r => ({
+      return res.json(rows.map(r => ({
         ...r,
         validated_schools: 0,
         for_validation_schools: 0
-      }));
-      return res.json(sanitized);
+      })));
     }
 
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     console.error("Division Stats Error:", err);
     res.status(500).json({ error: "Failed to fetch division stats", details: err.message });
@@ -14646,20 +14818,24 @@ app.get('/api/monitoring/district-stats', async (req, res) => {
       ORDER BY UPPER(TRIM(${groupCol})) ASC
     `;
 
-    const result = await pool.query(query, [region, division]);
+    const distCacheKey = `dist-stats:${region || 'ALL'}:${division || 'ALL'}:${groupBy || 'dist'}:${req.query.role || ''}`;
 
-    // ADDED: Strip validation stats if role is RO/SDO
+    const rows = await cachedQuery(distCacheKey, async () => {
+      const result = await pool.query(query, [region, division]);
+      return result.rows;
+    });
+
+    // Strip validation stats if role is RO/SDO
     const requestRole = req.query.role;
     if (requestRole === 'Regional Office' || requestRole === 'School Division Office') {
-      const sanitized = result.rows.map(r => ({
+      return res.json(rows.map(r => ({
         ...r,
         validated_schools: 0,
         for_validation_schools: 0
-      }));
-      return res.json(sanitized);
+      })));
     }
 
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     console.error("District Stats Error:", err);
     res.status(500).json({ error: "Failed to fetch district stats" });

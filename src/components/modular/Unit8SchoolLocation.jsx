@@ -207,7 +207,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                     <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
                          <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">🛣️</div>
-                         <p className="text-indigo-100 text-[8px] font-black uppercase tracking-widest mb-1">Road Paved</p>
+                         <p className="text-indigo-100 text-[8px] font-black uppercase tracking-widest mb-1">Road Paved (from school to municipal hall)</p>
                          <div className="flex items-baseline gap-1">
                              <span className="text-3xl font-black">{data.road_paved_pct || '0'}%</span>
                          </div>

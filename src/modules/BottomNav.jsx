@@ -88,6 +88,7 @@ const BottomNav = ({ userRole: propRole }) => {
             { label: 'Home', path: '/monitoring-dashboard', icon: TbHomeEdit },
             { label: 'Schools', path: '/school-management', icon: TbSchool },
             { label: 'Users', path: '/user-management', icon: FiUsers },
+            { label: 'Location', path: '/location-management', icon: LuCompass },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
         'Regional Engineer': [
@@ -98,6 +99,7 @@ const BottomNav = ({ userRole: propRole }) => {
             { label: 'Home', path: '/monitoring-dashboard', icon: TbHomeEdit },
             { label: 'Schools', path: '/school-management', icon: TbSchool },
             { label: 'Users', path: '/user-management', icon: FiUsers },
+            { label: 'Location', path: '/location-management', icon: LuCompass },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
         'Central Office': [

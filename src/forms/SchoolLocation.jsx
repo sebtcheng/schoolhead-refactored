@@ -439,7 +439,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                             <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-8 mt-4 shadow-sm">
                                 <div className="flex justify-between items-end mb-6">
                                     <div className="flex flex-col">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Road Paved</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Road Paved (from school to municipal hall)</p>
                                         <span className="text-6xl font-black text-indigo-600 tracking-tighter">{watchPaved}%</span>
                                     </div>
                                     <div className="flex flex-col items-end">
@@ -475,7 +475,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
 
                             <div className="bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm">
                                 <div className="flex justify-between items-baseline mb-6">
-                                    <label className={labelStyle}>Road Lighting Coverage</label>
+                                    <label className={labelStyle}>Road Lighting Coverage (from school to municipal hall)</label>
                                     <span className="text-5xl font-black text-amber-500 tracking-tighter">{watch('road_lighting_pct')}%</span>
                                 </div>
                                 <input 
