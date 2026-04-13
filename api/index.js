@@ -143,6 +143,79 @@ const RegisterUserSchema = z.object({
   passcode: PasscodeSchema.optional()
 });
 
+/**
+ * [Duplicate Shield] Helper to compare two project data objects.
+ * Identifies "Digital Clones" by comparing all values except IDs and timestamps.
+ */
+function isDuplicateSnapshot(newData, oldData) {
+  if (!newData || !oldData) return false;
+  
+  // Columns to ignore in the "Digital Clone" check
+  const ignoreCols = [
+    'project_id', 'ipc', 'created_at', 'status_as_of', 'time_lapsed', 'time_lapsed_days',
+    'engineer_name', 'modified_by', 'actions'
+  ];
+  
+  // Normalize values before comparison
+  const normalize = (val) => {
+    if (val === undefined || val === null || val === '' || val === 'null' || val === 'undefined') return null;
+    
+    // Handle Dates
+    if (val instanceof Date) return new Date(val).getTime();
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(val)) {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.getTime();
+    }
+
+    // Handle Numbers (convert to float to ignore precision)
+    if (typeof val === 'number') return parseFloat(val.toFixed(6));
+    if (typeof val === 'string' && !isNaN(val) && val.trim() !== '') {
+        return parseFloat(parseFloat(val).toFixed(6));
+    }
+
+    if (typeof val === 'string') return val.trim();
+    return val;
+  };
+
+  // Only compare keys that we are trying to insert (content keys)
+  const keys = Object.keys(newData);
+  
+  for (const key of keys) {
+    if (ignoreCols.includes(key)) continue;
+    if (key.startsWith('_') || key === 'rn' || key === 'id') continue;
+
+    const n = normalize(newData[key]);
+    const o = normalize(oldData[key]);
+    
+    if (n !== o) return false; 
+  }
+  return true;
+}
+
+
+
+
+
+
+/**
+ * [Duplicate Shield] Fetches the latest record for a project and checks if it matches the new data.
+ */
+async function checkIsDuplicateContent(client, ipc, newData) {
+  if (!ipc) return false;
+  try {
+    const res = await client.query(
+      `SELECT * FROM engineer_form WHERE ipc = $1 ORDER BY created_at DESC LIMIT 1`,
+      [ipc]
+    );
+    if (res.rows.length === 0) return false;
+    return isDuplicateSnapshot(newData, res.rows[0]);
+  } catch (err) {
+    console.error("⚠️ [DuplicateCheck] Failed to verify latest record:", err.message);
+    return false;
+  }
+}
+
+
 // --- UPLOAD PATH CONFIGURATION (Hawkeye Protocol v1.1) ---
 const UPLOAD_BASE_PATH = process.env.UPLOAD_DIR 
   ? path.resolve(process.env.UPLOAD_DIR) 
@@ -9172,6 +9245,24 @@ app.post('/api/save-project', async (req, res) => {
     const engineerName = await getUserFullName(data.uid);
     const resolvedEngineerName = engineerName || data.modifiedBy || 'Engineer';
 
+    // --- [Duplicate Shield] Digital Clone Check ---
+    const checkData = {
+        ...data,
+        project_name: data.projectName,
+        school_name: data.schoolName,
+        school_id: data.schoolId,
+        ipc: newIpc,
+        engineer_name: resolvedEngineerName
+    };
+    const isDuplicate = await checkIsDuplicateContent(client, newIpc, checkData);
+    if (isDuplicate) {
+        console.log(`🛡️ [DuplicateShield] Identical save attempt detected for IPC: ${newIpc}. Skipping redundant insert.`);
+        await client.query('COMMIT');
+        if (clientNew) await clientNew.query('COMMIT').catch(() => {});
+        return res.status(200).json({ message: "Project already exists with identical data. Snapshot skipped.", ipc: newIpc });
+    }
+
+
     // Normalization Mapping
     const statusMapping = {
       'ongoing': 'Ongoing',
@@ -9705,6 +9796,73 @@ app.put('/api/update-project/:id', upload.fields([
       dupa_filename,
       contract_filename
     ];
+
+    // --- [Procurement Stoplight] Validation ---
+    const constructionPhases = ['Ongoing', 'Completed', 'For Final Inspection', 'Suspended', 'Terminated'];
+    const isMovingToConstruction = constructionPhases.includes(newStatus);
+    const wasAlreadyInConstruction = constructionPhases.includes(oldData.status_of_construction_phase);
+    const isProcurementComplete = newProcurementStatus === 'Procurement Complete';
+
+    // Mandatory Details for "Complete" status
+    const hasContractId = !!(valueOrNull(data.contractId) || oldData.contract_id);
+    const hasNoaDate = !!(valueOrNull(data.dateNoticeOfAward) || oldData.date_notice_of_award);
+
+    if (isMovingToConstruction && !wasAlreadyInConstruction) {
+        if (!isProcurementComplete) {
+            await client.query('ROLLBACK');
+            if (clientNew) await clientNew.query('ROLLBACK').catch(() => {});
+            return res.status(403).json({ 
+                error: "Procurement details required.", 
+                message: "You cannot move a project to the Construction phase until Procurement is marked as 'Procurement Complete'." 
+            });
+        }
+        
+        if (!hasContractId || !hasNoaDate) {
+            await client.query('ROLLBACK');
+            if (clientNew) await clientNew.query('ROLLBACK').catch(() => {});
+            return res.status(403).json({ 
+                error: "Incomplete Procurement Data.", 
+                message: "Notice of Award Date and Contract ID are mandatory before starting construction." 
+            });
+        }
+    }
+
+    // --- [Duplicate Shield] Digital Clone Check ---
+    const dbColumns = [
+        'project_name', 'school_name', 'school_id', 'region', 'division',
+        'status_of_construction_phase', 'accomplishment_percentage', 'status_as_of',
+        'target_completion_date', 'actual_completion_date', 'notice_to_proceed',
+        'contractor_name', 'approved_budget_for_contract', 'contract_amount', 'batch_of_funds', 'other_remarks',
+        'engineer_id', 'ipc', 'engineer_name', 'latitude', 'longitude',
+        'construction_start_date', 'project_category', 'scope_of_work',
+        'number_of_classrooms', 'number_of_sites', 'number_of_storeys', 'funds_utilized',
+        'actions', 'savings',
+        'status_design_phase', 'contract_id', 'date_notice_of_award',
+        'issuance_of_invitation_to_bid', 'pre_bid_conference', 'opening_of_technical_proposal',
+        'opening_of_financial_proposal', 'request_for_quotation', 'negotiation', 'opening_of_quotation',
+        'funding_year', 'funding_year_justification',
+        'delay_reason', 'revised_target_completion_date', 'time_lapsed_days', 'time_lapsed_percentage', 'is_donated', 'uploader_type',
+        'mode_of_project', 'assigned_engineer_id', 'assigned_engineer_name',
+        'implementing_agency', 'implementing_agency_specific', 'uploader_id_moa_rta', 'no_of_units', 'program_type',
+        'province', 'city', 'municipality',
+        'pow_pdf', 'dupa_pdf', 'contract_pdf',
+        'procurement_status',
+        'mother_moa_id', 'supplamental_moa_id', 'sangguniang_resolution_id', 'project_category_id',
+        'checklist', 'triangulated_percentage',
+        'pow_filename', 'dupa_filename', 'contract_filename'
+    ];
+    
+    const mappedNewData = {};
+    dbColumns.forEach((col, idx) => { mappedNewData[col] = insertValues[idx]; });
+
+    const isDuplicate = await checkIsDuplicateContent(client, oldData.ipc, mappedNewData);
+    if (isDuplicate) {
+        console.log(`🛡️ [DuplicateShield] Identical update detected for IPC: ${oldData.ipc}. Skipping redundant insert.`);
+        await client.query('COMMIT');
+        if (clientNew) await clientNew.query('COMMIT').catch(() => {});
+        return res.json({ success: true, message: "No changes detected. Snapshot skipped.", data: oldData });
+    }
+
 
     const insertQuery = `
       INSERT INTO "engineer_form" (

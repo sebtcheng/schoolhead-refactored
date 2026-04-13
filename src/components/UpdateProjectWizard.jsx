@@ -87,14 +87,14 @@ const CONSTRUCTION_OPTIONS = [
 ];
 
 const BIDDING_MILESTONES = [
-    { key: 'preProcurement', label: 'Pre-Procurement Conference' },
-    { key: 'advertisement', label: 'Advertisement/Posting of IB' },
-    { key: 'preBid', label: 'Pre-bid Conference' },
-    { key: 'submission', label: 'Submission & Opening of Bids' },
-    { key: 'evaluation', label: 'Bid Evaluation' },
-    { key: 'postQual', label: 'Post-qualification' },
-    { key: 'noticeOfAward', label: 'Notice of Award' },
-    { key: 'contractSigning', label: 'Contract Signing' },
+    { key: 'preProcurementDate', label: 'Pre-Procurement Conference' },
+    { key: 'issuanceOfInvitationToBid', label: 'Advertisement/Posting of IB' },
+    { key: 'preBidConference', label: 'Pre-bid Conference' },
+    { key: 'openingOfTechnicalProposal', label: 'Opening of Technical Proposal' },
+    { key: 'openingOfFinancialProposal', label: 'Opening of Financial Proposal' },
+    { key: 'postQualDate', label: 'Post-qualification' },
+    { key: 'dateNoticeOfAward', label: 'Notice of Award' },
+    { key: 'contractSigningDate', label: 'Contract Signing' },
 ];
 
 const PhotoCard = ({ categoryColor, activePreviews, activePhotoCategory, removePhoto, internalCameraRef, externalCameraRef, internalInputRef, externalInputRef }) => {
@@ -177,14 +177,14 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
 
     // Procurement specific states
     const [biddingDates, setBiddingDates] = useState({
-        preProcurement: project?.preProcurementDate || "",
-        advertisement: project?.adPostDate || "",
-        preBid: project?.preBidConfDate || "",
-        submission: project?.submissionOpeningBidsDate || "",
-        evaluation: project?.bidEvalDate || "",
-        postQual: project?.postQualDate || "",
-        noticeOfAward: project?.noaDate || "",
-        contractSigning: project?.contractSigningDate || "",
+        preProcurementDate: project?.preProcurementDate || "",
+        issuanceOfInvitationToBid: project?.issuanceOfInvitationToBid || project?.adPostDate || "",
+        preBidConference: project?.preBidConference || project?.preBidConfDate || "",
+        openingOfTechnicalProposal: project?.openingOfTechnicalProposal || "",
+        openingOfFinancialProposal: project?.openingOfFinancialProposal || "",
+        postQualDate: project?.postQualDate || "",
+        dateNoticeOfAward: project?.dateNoticeOfAward || project?.noaDate || "",
+        contractSigningDate: project?.contractSigningDate || "",
     });
 
     const [contractAward, setContractAward] = useState({
@@ -238,14 +238,14 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
             setActivePreviews({ Internal: [], External: [] });
 
             setBiddingDates({
-                preProcurement: project.preProcurementDate || '',
-                advertisement: project.adPostDate || '',
-                preBid: project.preBidConfDate || '',
-                submission: project.submissionOpeningBidsDate || '',
-                evaluation: project.bidEvalDate || '',
-                postQual: project.postQualDate || '',
-                noticeOfAward: project.noaDate || '',
-                contractSigning: project.contractSigningDate || '',
+                preProcurementDate: project.preProcurementDate || '',
+                issuanceOfInvitationToBid: project.issuanceOfInvitationToBid || project.adPostDate || '',
+                preBidConference: project.preBidConference || project.preBidConfDate || '',
+                openingOfTechnicalProposal: project.openingOfTechnicalProposal || '',
+                openingOfFinancialProposal: project.openingOfFinancialProposal || '',
+                postQualDate: project.postQualDate || '',
+                dateNoticeOfAward: project.dateNoticeOfAward || project.noaDate || '',
+                contractSigningDate: project.contractSigningDate || '',
             });
 
             setContractAward({
@@ -283,23 +283,45 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
     // Compute only the steps visible in the stepper based on current selection
     const visibleSteps = React.useMemo(() => {
         const steps = [STEPS[0]]; // Procurement (always)
-        if (isProcurementComplete) {
+        
+        // --- [Procurement Enforcement] ---
+        // Soft-lock exception: If the project is already in a construction phase, 
+        // we always show the Construction/Accomplishment steps so they can update progress.
+        const wasAlreadyInConstruction = [
+            ConstructionStatus.Ongoing, 
+            ConstructionStatus.Completed, 
+            ConstructionStatus.ForFinalInspection, 
+            ConstructionStatus.Suspended, 
+            ConstructionStatus.Terminated
+        ].includes(project?.status);
+
+        if (isProcurementComplete || wasAlreadyInConstruction) {
             steps.push(STEPS[1]); // Construction
-            if (isConstructionActive) {
+            if (isConstructionActive || wasAlreadyInConstruction) {
                 steps.push(STEPS[2]); // Accomplishment
                 steps.push(STEPS[3]); // Checklist
             }
         }
         steps.push(STEPS[4]); // Confirm (always)
         return steps;
-    }, [isProcurementComplete, isConstructionActive]);
+    }, [isProcurementComplete, isConstructionActive, project?.status]);
+
 
     // Skip-aware navigation
     const getNextStep = () => {
-        if (step === 1) return isProcurementComplete ? 2 : 5;
-        if (step === 2) return isConstructionActive ? 3 : 5;
+        const wasAlreadyInConstruction = [
+            ConstructionStatus.Ongoing, 
+            ConstructionStatus.Completed, 
+            ConstructionStatus.ForFinalInspection, 
+            ConstructionStatus.Suspended, 
+            ConstructionStatus.Terminated
+        ].includes(project?.status);
+
+        if (step === 1) return (isProcurementComplete || wasAlreadyInConstruction) ? 2 : 5;
+        if (step === 2) return (isConstructionActive || wasAlreadyInConstruction) ? 3 : 5;
         return step + 1;
     };
+
 
     const getPrevStep = () => {
         if (step === 5) {
@@ -356,6 +378,10 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
             if (REASON_OPTIONS[procurementStatus] && selectedReasons.length === 0) {
                 return { ok: false, reason: "Please select at least one justification/reason." };
             }
+            if (isProcurementComplete) {
+                if (!biddingDates.dateNoticeOfAward) return { ok: false, reason: "Notice of Award Date is required for 'Complete' status." };
+                if (!contractAward.contractId) return { ok: false, reason: "Contract ID / Number is required for 'Complete' status." };
+            }
             return { ok: true };
         }
         if (step === 2) {
@@ -368,6 +394,7 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
             }
             return { ok: true };
         }
+
         if (step === 3) {
             const needsPhotos = [ConstructionStatus.Ongoing, ConstructionStatus.ForFinalInspection, ConstructionStatus.Completed].includes(constructionStatus);
             if (needsPhotos && (internalFiles.length === 0 || externalFiles.length === 0)) {
@@ -525,38 +552,77 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
                                 </div>
                             )}
 
-                            {/* Bidding Milestones (Under Procurement only) */}
-                            {procurementStatus === ProcurementStatus.UnderProcurement && (
+                            {/* Bidding Milestones (Under Procurement / Complete) */}
+                            {([ProcurementStatus.UnderProcurement, ProcurementStatus.ProcurementComplete].includes(procurementStatus)) && (
                                 <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4 text-center">Bidding Milestones</h4>
-                                    <div className="relative space-y-8">
-                                        <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-blue-200 z-0"></div>
-                                        {BIDDING_MILESTONES.map((m, i) => {
-                                            const hasDate = !!biddingDates[m.key];
-                                            return (
-                                                <div key={m.key} className="relative z-10 flex flex-col gap-2">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${hasDate ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-300'}`}>
-                                                            {hasDate ? <FiCheck size={14} /> : <span className="text-[10px] font-black">{i + 1}</span>}
-                                                        </div>
-                                                        <label className={`text-[11px] font-black uppercase tracking-tight ${hasDate ? 'text-slate-800' : 'text-slate-400'}`}>
-                                                            {m.label}
-                                                        </label>
-                                                    </div>
-                                                    <div className="pl-12">
-                                                        <input
-                                                            type="date"
-                                                            value={biddingDates[m.key]}
-                                                            onChange={(e) => setBiddingDates(prev => ({ ...prev, [m.key]: e.target.value }))}
-                                                            className={`w-full p-2.5 rounded-xl border text-xs font-bold outline-none transition-all ${hasDate ? 'border-blue-200 bg-white text-slate-800 shadow-sm' : 'border-slate-100 bg-slate-50/50 text-slate-400'}`}
-                                                        />
-                                                    </div>
+                                    <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4 text-center">
+                                        {procurementStatus === ProcurementStatus.ProcurementComplete ? "Final Procurement Details" : "Bidding Milestones"}
+                                    </h4>
+                                    <div className="space-y-4">
+                                        {procurementStatus === ProcurementStatus.ProcurementComplete ? (
+                                            <>
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Notice of Award Date *</label>
+                                                    <input
+                                                        type="date"
+                                                        value={biddingDates.dateNoticeOfAward}
+                                                        onChange={(e) => setBiddingDates(prev => ({ ...prev, dateNoticeOfAward: e.target.value }))}
+                                                        className="w-full p-2.5 rounded-xl border border-blue-200 bg-white text-xs font-bold text-slate-700 outline-none"
+                                                    />
                                                 </div>
-                                            );
-                                        })}
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Contract ID / Number *</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="e.g. 24INF-001"
+                                                        value={contractAward.contractId}
+                                                        onChange={(e) => setContractAward(prev => ({ ...prev, contractId: e.target.value }))}
+                                                        className="w-full p-2.5 rounded-xl border border-blue-200 bg-white text-xs font-bold text-slate-700 outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5">Contractor Name</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Enter company name"
+                                                        value={contractAward.contractorName}
+                                                        onChange={(e) => setContractAward(prev => ({ ...prev, contractorName: e.target.value }))}
+                                                        className="w-full p-2.5 rounded-xl border border-blue-200 bg-white text-xs font-bold text-slate-700 outline-none"
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="relative space-y-8 mt-2">
+                                                <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-blue-200 z-0"></div>
+                                                {BIDDING_MILESTONES.map((m, i) => {
+                                                    const hasDate = !!biddingDates[m.key];
+                                                    return (
+                                                        <div key={m.key} className="relative z-10 flex flex-col gap-2">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${hasDate ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-300'}`}>
+                                                                    {hasDate ? <FiCheck size={14} /> : <span className="text-[10px] font-black">{i + 1}</span>}
+                                                                </div>
+                                                                <label className={`text-[11px] font-black uppercase tracking-tight ${hasDate ? 'text-slate-800' : 'text-slate-400'}`}>
+                                                                    {m.label}
+                                                                </label>
+                                                            </div>
+                                                            <div className="pl-12">
+                                                                <input
+                                                                    type="date"
+                                                                    value={biddingDates[m.key]}
+                                                                    onChange={(e) => setBiddingDates(prev => ({ ...prev, [m.key]: e.target.value }))}
+                                                                    className={`w-full p-2.5 rounded-xl border text-xs font-bold outline-none transition-all ${hasDate ? 'border-blue-200 bg-white text-slate-800 shadow-sm' : 'border-slate-100 bg-slate-50/50 text-slate-400'}`}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
+
 
                             {/* Date and Remarks */}
                             <div className="space-y-4">
