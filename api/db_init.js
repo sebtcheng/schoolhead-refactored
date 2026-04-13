@@ -18,7 +18,7 @@ const initOtpTable = async (pool) => {
             CREATE TABLE IF NOT EXISTS verification_codes (
                 email VARCHAR(255) PRIMARY KEY,
                 code VARCHAR(10) NOT NULL,
-                expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '10 minutes')
+                expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '10 minutes')
             );
         `);
         console.log("✅ OTP Table Initialized");
@@ -243,7 +243,7 @@ const runMigrations = async (client, dbLabel) => {
                 message TEXT NOT NULL,
                 type TEXT DEFAULT 'alert',
                 is_read BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         // console.log(`✅ [${dbLabel}] Notifications Table Initialized`);
@@ -268,14 +268,14 @@ const runMigrations = async (client, dbLabel) => {
                 unit7_completion BOOLEAN DEFAULT false,
                 unit8_completion BOOLEAN DEFAULT false,
                 total_completion NUMERIC(5,2) DEFAULT 0,
-                registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                registration_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(`
             ALTER TABLE ph_school_completion 
             ADD COLUMN IF NOT EXISTS school_id VARCHAR(255),
-            ADD COLUMN IF NOT EXISTS registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS registration_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             ADD COLUMN IF NOT EXISTS region TEXT,
             ADD COLUMN IF NOT EXISTS division TEXT;
         `).catch(() => {});
@@ -309,7 +309,7 @@ const runMigrations = async (client, dbLabel) => {
                 action_type TEXT,
                 target_entity TEXT,
                 details TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         // console.log(`✅ [${dbLabel}] Activity Logs Table Initialized`);
@@ -345,7 +345,7 @@ const runMigrations = async (client, dbLabel) => {
             CREATE TABLE IF NOT EXISTS user_device_tokens (
                 uid TEXT PRIMARY KEY,
                 fcm_token TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         // console.log(`✅ [${dbLabel}] User Device Tokens Table Initialized`);
@@ -360,7 +360,7 @@ const runMigrations = async (client, dbLabel) => {
                 uid TEXT PRIMARY KEY,
                 email TEXT,
                 role TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 first_name TEXT,
                 last_name TEXT,
                 region TEXT,
@@ -578,10 +578,10 @@ const runMigrations = async (client, dbLabel) => {
                 division TEXT,
                 status TEXT,
                 accomplishment_percentage INTEGER,
-                status_as_of TIMESTAMP,
-                target_completion_date TIMESTAMP,
-                actual_completion_date TIMESTAMP,
-                notice_to_proceed TIMESTAMP,
+                status_as_of TIMESTAMPTZ,
+                target_completion_date TIMESTAMPTZ,
+                actual_completion_date TIMESTAMPTZ,
+                notice_to_proceed TIMESTAMPTZ,
                 contractor_name TEXT,
                 approved_budget_for_contract NUMERIC,
                 contract_amount NUMERIC,
@@ -622,7 +622,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS municipality TEXT,
 
             -- 2. Project Details Extensions
-            ADD COLUMN IF NOT EXISTS construction_start_date TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS construction_start_date TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS project_category TEXT,
             ADD COLUMN IF NOT EXISTS scope_of_work TEXT,
             ADD COLUMN IF NOT EXISTS number_of_classrooms INTEGER,
@@ -637,20 +637,20 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS procurement_status TEXT,
             ADD COLUMN IF NOT EXISTS status_design_phase TEXT,
             ADD COLUMN IF NOT EXISTS contract_id TEXT,
-            ADD COLUMN IF NOT EXISTS date_notice_of_award TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS issuance_of_invitation_to_bid TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS pre_bid_conference TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS opening_of_technical_proposal TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS opening_of_financial_proposal TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS request_for_quotation TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS negotiation TIMESTAMP,
-            ADD COLUMN IF NOT EXISTS opening_of_quotation TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS date_notice_of_award TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS issuance_of_invitation_to_bid TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS pre_bid_conference TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS opening_of_technical_proposal TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS opening_of_financial_proposal TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS request_for_quotation TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS negotiation TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS opening_of_quotation TIMESTAMPTZ,
 
             -- 4. Tracking & Delays
             ADD COLUMN IF NOT EXISTS funding_year INTEGER,
             ADD COLUMN IF NOT EXISTS funding_year_justification TEXT,
             ADD COLUMN IF NOT EXISTS delay_reason TEXT,
-            ADD COLUMN IF NOT EXISTS revised_target_completion_date TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS revised_target_completion_date TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS time_lapsed_days INTEGER,
             ADD COLUMN IF NOT EXISTS time_lapsed_percentage TEXT,
 
@@ -681,7 +681,7 @@ const runMigrations = async (client, dbLabel) => {
                     project_id INTEGER REFERENCES engineer_form(project_id),
                     image_data TEXT,
                     uploaded_by TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
             `);
             await client.query(`
@@ -706,7 +706,7 @@ const runMigrations = async (client, dbLabel) => {
                     moa_pdf TEXT,
                     rta_pdf TEXT,
                     uploader_id TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
             `);
             // Ensure ipc column exists for older installs
@@ -861,7 +861,7 @@ const runMigrations = async (client, dbLabel) => {
           CREATE TABLE IF NOT EXISTS system_settings (
             setting_key TEXT PRIMARY KEY,
             setting_value TEXT,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             updated_by TEXT
           );
         `);
@@ -919,13 +919,13 @@ const runMigrations = async (client, dbLabel) => {
                 -- Submission Metadata
                 submitted_by TEXT NOT NULL,
                 submitted_by_name TEXT,
-                submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                submitted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 
                 -- Approval Status
                 status TEXT DEFAULT 'pending',
                 reviewed_by TEXT,
                 reviewed_by_name TEXT,
-                reviewed_at TIMESTAMP,
+                reviewed_at TIMESTAMPTZ,
                 rejection_reason TEXT,
                 admin_comment TEXT
             );
@@ -950,7 +950,7 @@ const runMigrations = async (client, dbLabel) => {
                 file_size BIGINT,
                 original_size BIGINT,
                 hydra_manifest JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         // Idempotent migrations for existing tables
@@ -989,7 +989,7 @@ const runMigrations = async (client, dbLabel) => {
                 repair_flooring BOOLEAN DEFAULT FALSE,
                 repair_structural BOOLEAN DEFAULT FALSE,
 
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         // --- MIGRATION: ADD MISSING COLUMNS IF TABLE EXISTS ---
@@ -1024,16 +1024,16 @@ const runMigrations = async (client, dbLabel) => {
                 legislative_district TEXT,
                 total_funds NUMERIC,
                 fund_released NUMERIC,
-                date_of_release TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                date_of_release TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 root_id TEXT
             );
         `);
         // --- MIGRATION: ADD updated_at and root_id if missing ---
         await client.query(`
             ALTER TABLE finance_projects 
-            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             ADD COLUMN IF NOT EXISTS root_id TEXT;
         `);
 
@@ -1069,7 +1069,7 @@ const runMigrations = async (client, dbLabel) => {
                 less_than_7x9 INTEGER DEFAULT 0,
                 "7x9" INTEGER DEFAULT 0,
                 above_7x9 INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_inventory_iern ON facility_inventory(iern);`);
@@ -1090,7 +1090,7 @@ const runMigrations = async (client, dbLabel) => {
                 grade_level TEXT,
                 advisory_teacher TEXT,
                 condition TEXT, -- NEWLY BUILT, GOOD CONDITION, REPAIR
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_rooms_school_id ON facility_rooms(school_id);`);
@@ -1112,15 +1112,15 @@ const runMigrations = async (client, dbLabel) => {
             CREATE TABLE IF NOT EXISTS ph_schools (
                 iern        TEXT PRIMARY KEY,
                 school_id   TEXT UNIQUE,
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
 
         // ── UNIT 1: School Identity ──────────────────────────────────────────
         await client.query(`
             ALTER TABLE ph_schools
-            ADD COLUMN IF NOT EXISTS verified_as_of             TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS verified_as_of             TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS school_name                TEXT,
             ADD COLUMN IF NOT EXISTS region                     TEXT,
             ADD COLUMN IF NOT EXISTS province                   TEXT,
@@ -1157,7 +1157,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit1                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit1_completed            BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS submitted_by               TEXT,
-            ADD COLUMN IF NOT EXISTS unit1_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit1_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 2: Learners (Enrollment) ────────────────────────────────────
@@ -1205,7 +1205,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS multigrade_enrollment_3    INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit2                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit2_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit2_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit2_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 3: Organized Classes ────────────────────────────────────────
@@ -1232,7 +1232,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS multigrade_size_3          TEXT,
             ADD COLUMN IF NOT EXISTS unit3                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit3_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit3_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit3_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 4: Learner Profile ──────────────────────────────────────────
@@ -1318,7 +1318,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS sned_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g12 INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit4                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit4_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit4_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit4_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 5: Shifting & Modality ──────────────────────────────────────
@@ -1350,7 +1350,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS mode_mg_1 TEXT, ADD COLUMN IF NOT EXISTS mode_mg_2 TEXT, ADD COLUMN IF NOT EXISTS mode_mg_3 TEXT,
             ADD COLUMN IF NOT EXISTS unit5                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit5_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit5_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit5_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 6: Teaching Personnel (snapshot — roster in teachers_list) ──
@@ -1363,7 +1363,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS total_teachers_shs         INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit6                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit6_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit6_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit6_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 7: School Resources ─────────────────────────────────────────
@@ -1390,7 +1390,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS u7_utility_internet_type   TEXT,
             ADD COLUMN IF NOT EXISTS unit7                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit7_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit7_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit7_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 8: Physical Facilities (aggregate snapshots) ────────────────
@@ -1406,7 +1406,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS it_ecart_total             INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit8                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit8_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit8_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit8_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 9: School Location / Terrain ────────────────────────────────
@@ -1415,7 +1415,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS hazard_risk_score          INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit9                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit9_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit9_updated_at           TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit9_updated_at           TIMESTAMPTZ;
         `);
 
         // ── UNIT 10: Verification ────────────────────────────────────────────
@@ -1423,7 +1423,7 @@ const runMigrations = async (client, dbLabel) => {
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS unit10                     INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit10_completed           BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit10_updated_at          TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS unit10_updated_at          TIMESTAMPTZ;
         `);
 
         // ── MONITORING / COMPLETION SNAPSHOT ─────────────────────────────────
@@ -1461,7 +1461,7 @@ const runMigrations = async (client, dbLabel) => {
                 content TEXT NOT NULL,
                 embedding JSONB,
                 metadata JSONB DEFAULT '{}',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         console.log(`✅ [${dbLabel}] Chatbot Knowledge Table Initialized`);
@@ -1477,7 +1477,7 @@ const runMigrations = async (client, dbLabel) => {
                 content VARCHAR(200) NOT NULL,
                 user_email TEXT,
                 user_uid TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         console.log(`✅ [${dbLabel}] System Feedback Table Initialized`);
@@ -1498,7 +1498,7 @@ const runMigrations = async (client, dbLabel) => {
                 functionality INTEGER,
                 comment TEXT,
                 app_version TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
         console.log(`✅ [${dbLabel}] App Feedback Table Initialized`);
@@ -1518,7 +1518,7 @@ const runMigrations = async (client, dbLabel) => {
                 status TEXT DEFAULT 'pending', -- pending, optimized
                 binary_id UUID,
                 file_size BIGINT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
 
@@ -1644,7 +1644,7 @@ const runMigrations = async (client, dbLabel) => {
                 content BYTEA NOT NULL,
                 mime_type TEXT NOT NULL,
                 size_bytes INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
 

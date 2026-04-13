@@ -1,42 +1,78 @@
 [
   {
+    "project_category": "ALS-CLC",
+    "cnt": 12
+  },
+  {
     "project_category": "Alternative Learning System - Community Based Learning Centers (ALS-CLC)",
-    "cnt": 31
+    "cnt": 8
   },
   {
     "project_category": "Electrification",
-    "cnt": 6850
+    "cnt": 3766
+  },
+  {
+    "project_category": "ELECTRIFICATION",
+    "cnt": 903
+  },
+  {
+    "project_category": "GABALDON",
+    "cnt": 534
   },
   {
     "project_category": "Gabaldon Restoration",
-    "cnt": 391
+    "cnt": 212
   },
   {
     "project_category": "Health facilities",
-    "cnt": 803
+    "cnt": 387
+  },
+  {
+    "project_category": "ILRC",
+    "cnt": 84
   },
   {
     "project_category": "Last Mile Schools",
-    "cnt": 1536
+    "cnt": 750
   },
   {
     "project_category": "Library Hub",
-    "cnt": 533
+    "cnt": 249
+  },
+  {
+    "project_category": "LIBRARY HUB",
+    "cnt": 324
+  },
+  {
+    "project_category": "LMS",
+    "cnt": 1008
   },
   {
     "project_category": "New Construction",
-    "cnt": 27069
+    "cnt": 14648
+  },
+  {
+    "project_category": "NEW CONSTRUCTION",
+    "cnt": 3471
   },
   {
     "project_category": "QRF",
-    "cnt": 1626
+    "cnt": 2028
+  },
+  {
+    "project_category": "REPAIR",
+    "cnt": 2948
   },
   {
     "project_category": "Repair and Rehab",
-    "cnt": 3145
+    "cnt": 1635
+  },
+  {
+    "project_category": "SCHOOL HEALTH FACILITIES",
+    "cnt": 717
   },
   {
     "project_category": "SpEd Inclusive Learning Resource Centers (ILRC)",
-    "cnt": 104
+    "cnt": 50
   }
 ]

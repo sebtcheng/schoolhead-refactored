@@ -1258,6 +1258,41 @@ const runAutoMigrations = async () => {
 
     await Promise.all(columnPromises);
 
+    // [Hawkeye Protocol] Global Timestamp to Timestamptz Migration
+    // This ensures all tables have timezone context, fixing the "wrong date" issue in the gallery.
+    const tablesToMigrate = [
+      { table: 'engineer_image', cols: ['created_at'] },
+      { table: 'engineer_documents', cols: ['created_at'] },
+      { table: 'activity_logs', cols: ['timestamp'] },
+      { table: 'notifications', cols: ['created_at'] },
+      { table: 'users', cols: ['created_at'] },
+      { 
+        table: 'engineer_form', 
+        cols: [
+          'status_as_of', 'target_completion_date', 'actual_completion_date', 
+          'notice_to_proceed', 'construction_start_date', 'date_notice_of_award',
+          'revised_target_completion_date'
+        ] 
+      }
+    ];
+
+    const migrationPromises = [];
+    for (const entry of tablesToMigrate) {
+      for (const col of entry.cols) {
+        const query = `ALTER TABLE ${entry.table} ALTER COLUMN "${col}" TYPE TIMESTAMPTZ USING "${col}"::TIMESTAMPTZ`;
+        migrationPromises.push(pool.query(query).catch(e => {
+          if (!e.message.includes('does not exist')) {
+             console.warn(`      [Auto-Migrate] Failed to migrate ${entry.table}.${col}:`, e.message);
+          }
+        }));
+        if (poolNew) {
+          migrationPromises.push(poolNew.query(query).catch(() => {}));
+        }
+      }
+    }
+    await Promise.all(migrationPromises);
+
+
     await checkAndAddColumn('school_ownership_docs', 'ownership_document_type', 'TEXT', pool);
     if (poolNew) columnPromises.push(checkAndAddColumn('school_ownership_docs', 'ownership_document_type', 'TEXT', poolNew));
 
