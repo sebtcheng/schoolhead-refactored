@@ -30,10 +30,12 @@ with open(LOCAL_PATH, 'r', encoding='utf-8', errors='replace') as f:
     content = f.read()
 
 checks = [
-    ('max: 20,'          , 'Pool max=20 change'),
-    ('connectionTimeoutMillis: 3000', 'connectionTimeoutMillis=3000ms'),
-    ('initUnit7Schema',               'initUnit7Schema function exists'),
-    ('Unit 7 schema DDL runs ONCE',   'ALTER TABLE removed from hot path'),
+    ('max: 5,',                             'Pool max=5 (Hawkeye v3.0 concurrency fix)'),
+    ('max: 2,',                             'Secondary Pool max=2 (Rogue pool safety cap)'),
+    ('connectionTimeoutMillis: 5000',        'connectionTimeoutMillis=5000ms'),
+    ('SET statement_timeout',                'statement_timeout enforced per-connection'),
+    ('SET lock_timeout',                     'lock_timeout enforced per-connection'),
+    ('initUnit7Schema',                      'initUnit7Schema function exists'),
 ]
 all_ok = True
 for pattern, desc in checks:

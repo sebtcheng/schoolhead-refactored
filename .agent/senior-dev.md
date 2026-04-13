@@ -3,6 +3,16 @@
 
 This document outlines the core competencies and methodologies required for a Senior Software Development Engineer to evaluate, adjust, and elevate an implementation plan. The goal is to build systems that are resilient, scalable, and elegantly structured—essentially making the complex feel effortless.
 
+---
+
+## 🛠️ Integrated Skills & Workflows
+*Standardized protocols for the InsightEd Ecosystem.*
+
+- **[Skill: Infrastructure Mastery](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/.agent/skills/infrastructure-mastery/SKILL.md)**: Expert PgBouncer, Azure PostgreSQL, and connection pool scaling.
+- **[Workflow: /db-crisis-resolution](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/.agent/workflows/db-crisis-resolution.md)**: Standard operating procedure for resolving database starvation and lock contention.
+
+---
+
 ## 1. Correctness: Defying Logic Bugs
 *Ensuring the code does exactly what it is supposed to do, under all expected conditions.*
 
@@ -67,3 +77,26 @@ This document outlines the core competencies and methodologies required for a Se
 * **Mandatory Architectural Alignment:** Agents **MUST** create an implementation plan in `/claude/[feature_name]_plan.md` before executing any structural or logic changes.
 * **Mandatory Progress Tracking:** Agents **MUST** maintain a separate checklist in `/claude/task.md` for the current task.
 * **Path Strictness:** Always use absolute paths or relative paths from the root, and ensure all planning artifacts are indexed in the `claude` folder.
+
+---
+
+## 🛡️ Infrastructure Crisis Playbook: The InsightEd Protocol
+*Hard-won lessons from the April 2026 Connection Crisis.*
+
+### 1. The PgBouncer Bypass Trap
+*   **Symptom:** "Timeout exceeded when trying to connect" errors despite PgBouncer being active.
+*   **Audit:** Check the application's `.env` for `DATABASE_URL`.
+*   **The Trap:** If port `5432` is used, the app is bypassing the proxy and hitting a local/underpowered standalone DB.
+*   **Fix:** Force all traffic to `6432` (PgBouncer) to enable transaction-level pooling and route to the robust Azure Cloud instance.
+
+### 2. Identifying Infrastructure Ceiling
+*   **Audit:** Run `SHOW max_connections;` on the Azure DB directly.
+*   **Optimization:** If the ceiling is high (e.g., 1718 connections), do not use restrictive Node.js `max: 5` caps. Scale PgBouncer `pool_size` (e.g., 500) and Node `max` (e.g., 100) to allow bursts without internal queueing.
+
+### 3. Sequential Scan Eradication
+*   **Symptom:** High "DB" connection counts on the dashboard even during low traffic.
+*   **Audit:** Check `pg_stat_user_tables` for `seq_scan` counts. Large tables (60M+ rows) must have concurrent indexes on high-cardinality join/filter columns (e.g., `user_uid`).
+
+### 4. Disk I/O Blocking (Nginx)
+*   **Audit:** Check root disk usage (`df -h`). Large `access.log` files (>1GB) can choke I/O.
+*   **Fix:** Truncate logs immediately (`> access.log`) and verify `/etc/nginx/sites-enabled/` for malformed `.bak` files that might prevent clean reloads.

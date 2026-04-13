@@ -12,3 +12,8 @@ export const normalizeOffering = (val) => {
 
     return val; // Return original if no match
 };
+
+export const toProperCase = (str) => {
+    if (!str) return '';
+    return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
