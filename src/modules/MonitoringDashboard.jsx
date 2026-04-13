@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -819,62 +820,66 @@ const MonitoringDashboard = () => {
           </AnimatePresence>
         )}
 
-        {/* UNIT 9 EXPLANATION MODAL */}
-        <AnimatePresence>
-            {showUnit9Explanation && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                    <motion.div 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }} 
-                        onClick={() => setShowUnit9Explanation(false)} 
-                        className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" 
-                    />
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.9, y: 30 }} 
-                        animate={{ opacity: 1, scale: 1, y: 0 }} 
-                        exit={{ opacity: 0, scale: 0.9, y: 30 }} 
-                        className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl relative z-10 overflow-hidden border border-slate-100 dark:border-slate-800"
-                    >
-                        <div className="bg-gradient-to-br from-rose-500 to-red-600 p-8 text-white relative">
-                            <button 
-                                onClick={() => setShowUnit9Explanation(false)}
-                                className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/10 transition-colors"
-                            >
-                                <FiX size={20} />
-                            </button>
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="p-3 bg-white/10 rounded-2xl">
-                                    <FiHardDrive size={24} />
+        {/* UNIT 9 EXPLANATION MODAL (Using Portal to escape PageTransition transform) */}
+        {createPortal(
+            <AnimatePresence>
+                {showUnit9Explanation && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }} 
+                            onClick={() => setShowUnit9Explanation(false)} 
+                            className="absolute inset-0 bg-slate-900/90 backdrop-blur-md" 
+                        />
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 40 }} 
+                            animate={{ opacity: 1, scale: 1, y: 0 }} 
+                            exit={{ opacity: 0, scale: 0.8, y: 40 }} 
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] relative z-10 overflow-hidden border border-white/10"
+                        >
+                            <div className="bg-gradient-to-br from-rose-500 to-red-600 p-8 text-white relative">
+                                <button 
+                                    onClick={() => setShowUnit9Explanation(false)}
+                                    className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/10 transition-colors"
+                                >
+                                    <FiX size={20} />
+                                </button>
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="p-3 bg-white/10 rounded-2xl">
+                                        <FiHardDrive size={24} />
+                                    </div>
+                                    <h3 className="text-2xl font-black tracking-tight">Understanding Unit 9</h3>
                                 </div>
-                                <h3 className="text-2xl font-black tracking-tight">Understanding Unit 9</h3>
+                                <p className="text-rose-50 text-xs font-bold uppercase tracking-widest">Infrastructure & Physical Safety Audit</p>
                             </div>
-                            <p className="text-rose-50 text-xs font-bold uppercase tracking-widest">Infrastructure & Physical Safety Audit</p>
-                        </div>
 
-                        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                            <div className="bg-amber-50 dark:bg-amber-900/10 p-5 rounded-3xl border-2 border-dashed border-amber-200 dark:border-amber-800/50">
-                                <h5 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <FiAlertCircle size={12} /> Why did completion stats drop?
-                                </h5>
-                                <p className="text-xs text-amber-900/70 dark:text-amber-200/60 leading-relaxed font-medium">
-                                    Because the system now tracks <span className="text-amber-600 font-bold">9 units</span> instead of 8, schools that were previously "100%" are now at <span className="text-amber-600 font-bold">89%</span>. They will return to 100% once they submit this new Infrastructure module.
-                                </p>
+                            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                                <div className="bg-amber-50 dark:bg-amber-900/10 p-5 rounded-3xl border-2 border-dashed border-amber-200 dark:border-amber-800/50">
+                                    <h5 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <FiAlertCircle size={12} /> Why did completion stats drop?
+                                    </h5>
+                                    <p className="text-xs text-amber-900/70 dark:text-amber-200/60 leading-relaxed font-medium">
+                                        Because the system now tracks <span className="text-amber-600 font-bold">9 units</span> instead of 8, schools that were previously "100%" are now at <span className="text-amber-600 font-bold">89%</span>. They will return to 100% once they submit this new Infrastructure module.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="p-8 pt-0">
-                            <button 
-                                onClick={() => setShowUnit9Explanation(false)}
-                                className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
-                            >
-                                Understood
-                            </button>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
-        </AnimatePresence>
+                            <div className="p-8 pt-0">
+                                <button 
+                                    onClick={() => setShowUnit9Explanation(false)}
+                                    className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+                                >
+                                    Understood
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>,
+            document.body
+        )}
 
         {/* Standard Project Bottom Navigation */}
         <BottomNav userRole={userRole} />

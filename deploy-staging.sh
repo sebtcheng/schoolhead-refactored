@@ -29,7 +29,7 @@ echo "🧹 2.5 Cleaning remote destination to free up space..."
 ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || { echo "❌ [SSH Error] Password-less login failed. Please run: 'bash ./setup-ssh-key.sh' to automate your deployment."; exit 1; }
 
 echo "📦 3. Packing artifacts into archive ($TAR_FILE)..."
-tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py tmp_stride.conf forensic_heal.sh ecosystem.config.cjs
+tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs
 
 echo "📤 4. Syncing to VM Staging via SCP..."
 scp -o StrictHostKeyChecking=no -o BatchMode=yes $TAR_FILE $USER@$SERVER_IP:$SERVER_DIR/

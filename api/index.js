@@ -17317,12 +17317,12 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
       let u9 = row.unit9_completed;
       if (!u9) {
         const ck = await pool.query(`SELECT COUNT(*) as cnt FROM school_location_profiles WHERE school_id = $1`, [schoolId]).catch(() => ({ rows: [{ cnt: 0 }] }));
-        if (parseInt(ck.rows[0]?.cnt) > 0) { u9 = true; backfillClauses.push(`unit9_completed = TRUE, unit9 = 1`); }
+        if (parseInt(ck.rows[0]?.cnt) > 0) { u9 = true; backfillClauses.push(`unit9_completed = TRUE, unit9 = 1, unit9_updated_at = CURRENT_TIMESTAMP`); }
       }
       if (u9) { completedUnits.push(8); xp += 500; } else if (row.unit9 === 2) { incompleteUnits.push(8); }
 
       // ── Unit 9: Verification (Old Unit 10) ──────────────────────────────
-      if (row.unit10_completed) { completedUnits.push(9); xp += 500; } else if (row.unit10 === 2) { incompleteUnits.push(9); }
+      if (row.unit10_completed) { completedUnits.push(9); xp += 550; } else if (row.unit10 === 2) { incompleteUnits.push(9); }
 
       // ── Retroactive Backfill (fire-and-forget) ──────────────────────────
       if (backfillClauses.length > 0) {
@@ -17348,9 +17348,9 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
           unit5: row?.unit5_updated_at,
           unit6: row?.unit6_updated_at,
           unit7: row?.unit7_updated_at,
-          unit8: row?.unit8_updated_at,
-          unit9: row?.unit9_updated_at,
-          unit10: row?.unit10_updated_at,
+          unit8: row?.unit9_updated_at,
+          unit9: row?.unit10_updated_at,
+          unit10: row?.unit11_updated_at,
         }
       } 
     });
@@ -18684,7 +18684,7 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
     ]);
 
     await pool.query(
-      'UPDATE ph_schools SET unit10 = 1, unit10_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE iern = $2',
+      'UPDATE ph_schools SET unit10 = 1, unit10_completed = $1, unit10_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE iern = $2',
       [unit9_completed || false, iern]
     );
 

@@ -157,7 +157,7 @@ const SummaryView = ({
             <div className="grid grid-cols-1 gap-3">
                 {[
                     { id: 'cctv_cameras', label: 'CCTV Cameras', icon: <FiCamera /> },
-                    { id: 'fire_extinguishers', label: 'Fire Ext. Tanks', icon: <FiShield /> },
+                    { id: 'fire_extinguishers', label: 'Fire Extinguisher Tanks', icon: <FiShield /> },
                     { id: 'first_aid_kits', label: 'First Aid Kits', icon: <FiPlus /> },
                     { id: 'portable_megaphones', label: 'Bullhorns', icon: <FiPhone /> },
                     { id: 'battery_radios', label: 'Portable Radios', icon: <FiZap /> },
@@ -671,12 +671,17 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
 
     const updateQuestProgress = () => {
         const stored = localStorage.getItem('quest_progress');
-        let progress = stored ? JSON.parse(stored) : { completedUnits: [], xp: 0 };
+        let progress = stored ? JSON.parse(stored) : { completedUnits: [], xp: 0, timestamps: {} };
+        
         if (!progress.completedUnits.includes(9)) {
             progress.completedUnits.push(9);
             progress.xp += 550;
-            localStorage.setItem('quest_progress', JSON.stringify(progress));
         }
+        
+        if (!progress.timestamps) progress.timestamps = {};
+        progress.timestamps.unit9 = new Date().toISOString();
+        
+        localStorage.setItem('quest_progress', JSON.stringify(progress));
     };
 
     if (loading) return (
@@ -933,8 +938,8 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
 
                                     <div className="space-y-6">
                                         <div className="space-y-4">
-                                            <YesNoToggle label="Does school has a Fire Exit?" value={inventoryData.fire_exit_exists} onChange={(v) => updateInventory('fire_exit_exists', v)} disabled={isReadOnly} />
-                                            <YesNoToggle label="Does all classroom has working flashlight or backup light in case the power goes out?" value={inventoryData.backup_light_exists} onChange={(v) => updateInventory('backup_light_exists', v)} disabled={isReadOnly} />
+                                            <YesNoToggle label="Does the school have a fire exit?" value={inventoryData.fire_exit_exists} onChange={(v) => updateInventory('fire_exit_exists', v)} disabled={isReadOnly} />
+                                            <YesNoToggle label="Do all classrooms have working flashlights or backup lights in case the power goes out?" value={inventoryData.backup_light_exists} onChange={(v) => updateInventory('backup_light_exists', v)} disabled={isReadOnly} />
                                         </div>
 
                                         {/* Section 1: Security & Disaster Preparedness */}
@@ -966,8 +971,8 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                                 <tbody className="text-xs">
                                                     {[
                                                         { id: 'cctv_cameras', label: 'CCTV Cameras' },
-                                                        { id: 'fire_extinguishers', label: 'Fire Ext.' },
-                                                        { id: 'first_aid_kits', label: '1st Aid Kit' },
+                                                        { id: 'fire_extinguishers', label: 'Fire Extinguisher' },
+                                                        { id: 'first_aid_kits', label: 'First Aid Kit' },
                                                         { id: 'portable_megaphones', label: 'Bullhorns' },
                                                         { id: 'battery_radios', label: 'Radios' },
                                                         { id: 'large_flashlights', label: 'Flashlight' }
@@ -1052,7 +1057,8 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isCertified ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
                                                     {isCertified && <FiCheck size={14} />}
                                                 </div>
-                                                <p className="text-xs font-bold leading-tight uppercase tracking-tight">I certify that our school's electrical and safety infrastructure has been physically audited.</p>
+                                                <p className="text-xs font-bold leading-tight uppercase tracking-tight">
+I hereby certify that all data and information provided in this module/unit are true and correct.</p>
                                             </div>
                                         </div>
                                     </div>

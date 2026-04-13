@@ -87,7 +87,16 @@ const ModularDashboard = () => {
     const [curricularOffering, setCurricularOffering] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [unitDrafts, setUnitDrafts] = useState({});
-    const [unitTimestamps, setUnitTimestamps] = useState({});
+    const [unitTimestamps, setUnitTimestamps] = useState(() => {
+        if (!impersonatedUid) {
+            const stored = localStorage.getItem('quest_progress');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                return parsed.timestamps || {};
+            }
+        }
+        return {};
+    });
     const [showDevInfo, setShowDevInfo] = useState(false);
 
     useEffect(() => {
@@ -143,7 +152,7 @@ const ModularDashboard = () => {
 
             const drafts = {};
             // Check Units 1-8 (Unit 6 Teaching Personnel has been removed)
-            const unitIds = [1, 2, 3, 4, 5, 6, 7, 8];
+            const unitIds = [1, 2, 3, 4, 5, 6, 7, 8, 9];
             
             await Promise.all(unitIds.map(async (i) => {
                 try {
