@@ -406,7 +406,7 @@ const SchoolProfile = ({ embedded }) => {
                 fetch(`/api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(formData.municipality)}`)
                     .then(r => r.json())
                     .then(data => {
-                        const options = data || [];
+                        const options = (data || []).map(item => (typeof item === 'object' && item !== null) ? item.barangay : item);
                         if (formData.municipality === 'BLANK MUNICIPALITY' && !options.includes('BLANK BARANGAY')) options.unshift('BLANK BARANGAY');
                         if (formData.barangay && !options.some(opt => opt.toUpperCase() === formData.barangay.toUpperCase())) {
                             options.push(formData.barangay.toUpperCase());
@@ -537,7 +537,8 @@ const SchoolProfile = ({ embedded }) => {
                 let brgyOpts = [];
                 if (matchedMun) {
                     const brgyRes = await fetch(`/api/locations/barangays?region=${encodeURIComponent(matchedRegion)}&province=${encodeURIComponent(matchedProv)}&municipality=${encodeURIComponent(matchedMun)}`).catch(() => null);
-                    brgyOpts = brgyRes?.ok ? await brgyRes.json() : [];
+                    const brgyData = brgyRes?.ok ? await brgyRes.json() : [];
+                    brgyOpts = (brgyData || []).map(item => (typeof item === 'object' && item !== null) ? item.barangay : item);
                     matchedBrgy = findMatch(brgyOpts, matchedBrgy);
                     setBarangayOptions(brgyOpts);
                 }
