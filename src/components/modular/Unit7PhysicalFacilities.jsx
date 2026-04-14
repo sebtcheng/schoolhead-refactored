@@ -645,6 +645,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         const numStoreys = parseInt(buildingFormData.storey) || 1;
         const numClassrooms = parseInt(buildingFormData.classroom) || 1;
 
+        let finalRooms = [];
+
         // Smart Room Generation/Preservation
         if (editingBuildingId) {
             // Smart Room Adjustment: Add or remove based on difference
@@ -2205,6 +2207,11 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             {!isReadOnly && (
                 <footer className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-30 pointer-events-none">
                     <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
+                        <button onClick={handleBack} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
+                            <FiArrowLeft className="w-6 h-6" />
+                            <span className="text-sm font-bold text-gray-500">Back</span>
+                        </button>
+
                         <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
                             <FiSave className="w-6 h-6" />
                             <span className="text-sm font-bold text-gray-500">Save Draft</span>
