@@ -2758,8 +2758,6 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
       account_category: user.account_category,
       first_name: user.first_name,
       last_name: user.last_name,
-      firstName: user.first_name, // Compatibility
-      lastName: user.last_name,   // Compatibility
       school_id: user.school_id,
       passcode: user.passcode,
       office: user.office,
@@ -17437,12 +17435,12 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
       let u9 = row.unit9_completed;
       if (!u9) {
         const ck = await pool.query(`SELECT COUNT(*) as cnt FROM school_location_profiles WHERE school_id = $1`, [schoolId]).catch(() => ({ rows: [{ cnt: 0 }] }));
-        if (parseInt(ck.rows[0]?.cnt) > 0) { u9 = true; backfillClauses.push(`unit9_completed = TRUE, unit9 = 1, unit9_updated_at = CURRENT_TIMESTAMP`); }
+        if (parseInt(ck.rows[0]?.cnt) > 0) { u9 = true; backfillClauses.push(`unit9_completed = TRUE, unit9 = 1`); }
       }
       if (u9) { completedUnits.push(8); xp += 500; } else if (row.unit9 === 2) { incompleteUnits.push(8); }
 
       // ── Unit 9: Verification (Old Unit 10) ──────────────────────────────
-      if (row.unit10_completed) { completedUnits.push(9); xp += 550; } else if (row.unit10 === 2) { incompleteUnits.push(9); }
+      if (row.unit10_completed) { completedUnits.push(9); xp += 500; } else if (row.unit10 === 2) { incompleteUnits.push(9); }
 
       // ── Retroactive Backfill (fire-and-forget) ──────────────────────────
       if (backfillClauses.length > 0) {
@@ -17468,9 +17466,9 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
           unit5: row?.unit5_updated_at,
           unit6: row?.unit6_updated_at,
           unit7: row?.unit7_updated_at,
-          unit8: row?.unit9_updated_at,
-          unit9: row?.unit10_updated_at,
-          unit10: row?.unit11_updated_at,
+          unit8: row?.unit8_updated_at,
+          unit9: row?.unit9_updated_at,
+          unit10: row?.unit10_updated_at,
         }
       } 
     });
@@ -18652,12 +18650,12 @@ app.get('/api/ph_schools/unit9/:schoolId', async (req, res) => {
         cctv_wires_protected: r.is_cctv_wire_protected
       }),
       u9_final: JSON.stringify({
-        fire_exit_exists: r.u9_fire_exit_exists,
-        backup_light_exists: r.u9_backup_light_exists,
+        fire_exit_exists: r.u9_fire_exit_exists ?? r.has_fire_exit,
+        backup_light_exists: r.u9_backup_light_exists ?? r.has_backup_lights,
         items: {}, // frontend now looks at p.u9_... directly
-        ecart_load_ready: r.u9_ecart_load_ready,
-        has_surge_protection: r.u9_has_surge_protection,
-        remarks: r.u9_remarks
+        ecart_load_ready: r.u9_ecart_load_ready ?? r.is_grid_load_ready,
+        has_surge_protection: r.u9_has_surge_protection ?? r.has_surge_protection,
+        remarks: r.u9_remarks || r.audit_remarks
       }),
       // Pass individual columns directly to frontend
       ...r
@@ -18803,9 +18801,8 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
       req.body.u9_has_surge_protection, req.body.u9_remarks
     ]);
 
-    // Sync Quest Progress (In DB Mapping: Unit 9 Infrastructure = DB unit10)
     await pool.query(
-      'UPDATE ph_schools SET unit10 = 1, unit10_completed = $1, unit10_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE iern = $2',
+      'UPDATE ph_schools SET unit10 = 1, unit10_completed = $1, updated_at = CURRENT_TIMESTAMP WHERE iern = $2',
       [unit9_completed || false, iern]
     );
 
@@ -19798,24 +19795,28 @@ const initUnit7Schema = async () => {
           active_meters INTEGER DEFAULT 0,
           wiring_age TEXT,
           last_inspection_year INTEGER,
-          is_panel_clear BOOLEAN DEFAULT FALSE,
-          is_panel_labeled BOOLEAN DEFAULT FALSE,
-          is_panel_locked BOOLEAN DEFAULT FALSE,
-          are_lights_working BOOLEAN DEFAULT FALSE,
-          are_outlets_unbroken BOOLEAN DEFAULT FALSE,
-          are_outlets_child_safe BOOLEAN DEFAULT FALSE,
-          are_outlets_splash_safe BOOLEAN DEFAULT FALSE,
-          has_bare_wires BOOLEAN DEFAULT FALSE,
-          has_enough_outlets BOOLEAN DEFAULT FALSE,
-          is_extension_cord_temporary BOOLEAN DEFAULT FALSE,
-          is_walkway_safe BOOLEAN DEFAULT FALSE,
-          are_appliance_cords_good BOOLEAN DEFAULT FALSE,
-          are_plugs_running_cool BOOLEAN DEFAULT FALSE,
-          is_cctv_recording BOOLEAN DEFAULT FALSE,
-          is_dvr_room_secured BOOLEAN DEFAULT FALSE,
-          is_cctv_wire_protected BOOLEAN DEFAULT FALSE,
-          is_certified BOOLEAN DEFAULT FALSE,
-          -- Unit 9 Infrastructure Details (U9 Prefixed for clarity)
+          is_panel_clear INTEGER DEFAULT 0,
+          is_panel_labeled INTEGER DEFAULT 0,
+          is_panel_locked INTEGER DEFAULT 0,
+          are_lights_working INTEGER DEFAULT 0,
+          are_outlets_unbroken INTEGER DEFAULT 0,
+          are_outlets_child_safe INTEGER DEFAULT 0,
+          are_outlets_splash_safe INTEGER DEFAULT 0,
+          has_bare_wires INTEGER DEFAULT 0,
+          has_enough_outlets INTEGER DEFAULT 0,
+          is_extension_cord_temporary INTEGER DEFAULT 0,
+          is_walkway_safe INTEGER DEFAULT 0,
+          are_appliance_cords_good INTEGER DEFAULT 0,
+          are_plugs_running_cool INTEGER DEFAULT 0,
+          is_cctv_recording INTEGER DEFAULT 0,
+          is_dvr_room_secured INTEGER DEFAULT 0,
+          is_cctv_wire_protected INTEGER DEFAULT 0,
+          has_fire_exit INTEGER DEFAULT 0,
+          has_backup_lights INTEGER DEFAULT 0,
+          u9_inventory_data JSONB,
+          is_grid_load_ready INTEGER DEFAULT 0,
+          has_surge_protection INTEGER DEFAULT 0,
+          audit_remarks TEXT,
           u9_cctv_working INTEGER DEFAULT 0,
           u9_cctv_broken INTEGER DEFAULT 0,
           u9_cctv_spares INTEGER DEFAULT 0,
@@ -19848,53 +19849,15 @@ const initUnit7Schema = async () => {
           u9_ext_cords_broken INTEGER DEFAULT 0,
           u9_ext_cords_spares INTEGER DEFAULT 0,
           u9_tape_quantity INTEGER DEFAULT 0,
-          u9_fire_exit_exists BOOLEAN DEFAULT FALSE,
-          u9_backup_light_exists BOOLEAN DEFAULT FALSE,
-          u9_ecart_load_ready BOOLEAN DEFAULT FALSE,
-          u9_has_surge_protection BOOLEAN DEFAULT FALSE,
+          u9_fire_exit_exists INTEGER DEFAULT 0,
+          u9_backup_light_exists INTEGER DEFAULT 0,
+          u9_ecart_load_ready INTEGER DEFAULT 0,
+          u9_has_surge_protection INTEGER DEFAULT 0,
           u9_remarks TEXT,
+          is_certified BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
-      // Migration: Ensure all Unit 9 columns exist for existing ph_schools_audit tables
-      `ALTER TABLE ph_schools_audit 
-        ADD COLUMN IF NOT EXISTS u9_cctv_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_cctv_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_cctv_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_fire_ext_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_fire_ext_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_fire_ext_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_first_aid_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_first_aid_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_first_aid_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_bullhorns_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_bullhorns_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_bullhorns_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_radios_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_radios_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_radios_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_flashlight_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_flashlight_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_flashlight_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_whistles_quantity INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_bulbs_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_bulbs_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_bulbs_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_covers_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_covers_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_covers_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_breakers_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_breakers_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_breakers_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_ext_cords_working INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_ext_cords_broken INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_ext_cords_spares INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_tape_quantity INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS u9_fire_exit_exists BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS u9_backup_light_exists BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS u9_ecart_load_ready BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS u9_has_surge_protection BOOLEAN DEFAULT FALSE,
-        ADD COLUMN IF NOT EXISTS u9_remarks TEXT`,
 
       // 2. ph_buildings_inventory (Bulk Alter)
       `ALTER TABLE ph_buildings_inventory 
@@ -19985,7 +19948,70 @@ const initUnit7Schema = async () => {
         console.warn(`[Init] Migration step failed: ${e.message}`);
       });
     }
-    console.log('[Unit7] Grouped schema init complete.');
+
+    // Specialized Case: Convert BOOLEAN to INTEGER for N/A support (Infrastructure Mission)
+    const boolToIntCols = [
+        'is_panel_clear', 'is_panel_labeled', 'is_panel_locked',
+        'are_lights_working', 'are_outlets_unbroken', 'are_outlets_child_safe',
+        'are_outlets_splash_safe', 'has_bare_wires', 'has_enough_outlets',
+        'is_extension_cord_temporary', 'is_walkway_safe', 'are_appliance_cords_good',
+        'are_plugs_running_cool', 'is_cctv_recording', 'is_dvr_room_secured',
+        'is_cctv_wire_protected', 'u9_fire_exit_exists', 'u9_backup_light_exists',
+        'u9_ecart_load_ready', 'u9_has_surge_protection'
+    ];
+
+    for (const col of boolToIntCols) {
+        await pool.query(`
+            DO $$ 
+            BEGIN 
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'ph_schools_audit' AND column_name = '${col}' AND data_type = 'boolean'
+                ) THEN 
+                    EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' DROP DEFAULT';
+                    EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' TYPE INTEGER USING (CASE WHEN ' || quote_ident('${col}') || ' THEN 1 ELSE 0 END)';
+                    EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' SET DEFAULT 0';
+                END IF; 
+            END $$;
+        `).catch(e => console.warn(`[Init] Conversion failed for ${col}:`, e.message));
+    }
+
+    // New Columns for Unit 9 Inventory (Hardening)
+    const u9InventoryCols = [
+        'u9_cctv_working', 'u9_cctv_broken', 'u9_cctv_spares',
+        'u9_fire_ext_working', 'u9_fire_ext_broken', 'u9_fire_ext_spares',
+        'u9_first_aid_working', 'u9_first_aid_broken', 'u9_first_aid_spares',
+        'u9_bullhorns_working', 'u9_bullhorns_broken', 'u9_bullhorns_spares',
+        'u9_radios_working', 'u9_radios_broken', 'u9_radios_spares',
+        'u9_flashlight_working', 'u9_flashlight_broken', 'u9_flashlight_spares',
+        'u9_whistles_quantity', 'u9_bulbs_working', 'u9_bulbs_broken', 'u9_bulbs_spares',
+        'u9_covers_working', 'u9_covers_broken', 'u9_covers_spares',
+        'u9_breakers_working', 'u9_breakers_broken', 'u9_breakers_spares',
+        'u9_ext_cords_working', 'u9_ext_cords_broken', 'u9_ext_cords_spares',
+        'u9_tape_quantity', 'u9_fire_exit_exists', 'u9_backup_light_exists',
+        'u9_ecart_load_ready', 'u9_has_surge_protection'
+    ];
+
+    for (const col of u9InventoryCols) {
+        await pool.query(`ALTER TABLE ph_schools_audit ADD COLUMN IF NOT EXISTS ${col} INTEGER DEFAULT 0`).catch(() => {});
+        // Also ensure they are converted if they already existed as boolean
+        await pool.query(`
+            DO $$ 
+            BEGIN 
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'ph_schools_audit' AND column_name = '${col}' AND data_type = 'boolean'
+                ) THEN 
+                    EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' DROP DEFAULT';
+                    EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' TYPE INTEGER USING (CASE WHEN ' || quote_ident('${col}') || ' THEN 1 ELSE 0 END)';
+                    EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' SET DEFAULT 0';
+                END IF; 
+            END $$;
+        `).catch(() => {});
+    }
+    await pool.query(`ALTER TABLE ph_schools_audit ADD COLUMN IF NOT EXISTS u9_remarks TEXT`).catch(() => {});
+
+    console.log('[Unit7] Grouped schema init complete (Infrastructure N/A Support enabled).');
   } catch (err) {
     console.error('[Unit7] Grouped schema init error:', err.message);
   }
@@ -20590,7 +20616,6 @@ app.get('/api/audit/remarks/:schoolId', async (req, res) => {
 });
 
 app.post('/api/audit/remarks', authMiddleware, async (req, res) => {
-  console.log(`📝 [Audit-API] POST /api/audit/remarks - User: ${req.user?.email} Role: ${req.user?.role}`);
   if (req.user.role !== 'School Division Office') {
     return res.status(403).json({ error: "Access Denied. Only School Division Office can add remarks." });
   }

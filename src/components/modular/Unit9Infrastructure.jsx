@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
     FiX, FiCheckCircle, FiChevronRight, FiChevronLeft, FiCheck, FiArrowLeft, 
-    FiSave, FiAlertTriangle, FiZap, FiShield, FiCamera, FiBox, FiPhone, FiInfo, FiTrash2, FiPlus
+    FiSave, FiAlertTriangle, FiZap, FiShield, FiCamera, FiBox, FiPhone, FiInfo, FiTrash2, FiPlus, FiMinus
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
@@ -36,26 +36,43 @@ const PageIndicator = ({ currentPage }) => (
 const YesNoToggle = ({ value, onChange, label, disabled }) => (
     <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
         <p className="text-sm font-black text-slate-700 leading-tight">{label}</p>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
             <button
                 type="button"
                 disabled={disabled}
-                onClick={() => onChange(true)}
-                className={`${toggleBtnBase} ${value === true ? 'bg-emerald-100 border-emerald-500 text-emerald-700 shadow-emerald-100' : toggleBtnInactive}`}
+                onClick={() => onChange(1)}
+                className={`${toggleBtnBase} ${value === 1 ? 'bg-emerald-100 border-emerald-500 text-emerald-700 shadow-emerald-100' : toggleBtnInactive}`}
             >
                 <FiCheck /> Yes
             </button>
             <button
                 type="button"
                 disabled={disabled}
-                onClick={() => onChange(false)}
-                className={`${toggleBtnBase} ${value === false ? 'bg-rose-100 border-rose-500 text-rose-700 shadow-rose-100' : toggleBtnInactive}`}
+                onClick={() => onChange(0)}
+                className={`${toggleBtnBase} ${value === 0 ? 'bg-rose-100 border-rose-500 text-rose-700 shadow-rose-100' : toggleBtnInactive}`}
             >
                 <FiX /> No
+            </button>
+            <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(2)}
+                className={`${toggleBtnBase} ${value === 2 ? 'bg-slate-100 border-slate-500 text-slate-700 shadow-slate-100' : toggleBtnInactive}`}
+            >
+                <FiMinus /> N/A
             </button>
         </div>
     </div>
 );
+
+const getStatusBadge = (val, labels = ['Yes', 'No', 'N/A']) => {
+    if (val === 1 || val === true) return <p className="text-xs font-black p-2 rounded-xl bg-emerald-50 text-emerald-700">{labels[0]}</p>;
+    if (val === 0 || val === false) return <p className="text-xs font-black p-2 rounded-xl bg-rose-50 text-rose-700">{labels[1]}</p>;
+    if (val === 2) {
+        return <p className="text-xs font-black p-2 px-3 rounded-xl bg-slate-50 text-slate-400 flex items-center gap-1"><FiMinus size={10} /> {labels[2]}</p>;
+    }
+    return <p className="text-xs font-black p-2 rounded-xl bg-slate-50 text-slate-300">N/A</p>;
+};
 
 const SummaryView = ({ 
     generalData, 
@@ -96,15 +113,15 @@ const SummaryView = ({
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-300">Clear Access</span>
-                        {generalData.panel_clear ? <FiCheckCircle className="text-emerald-400" /> : <FiX className="text-rose-400" />}
+                        {generalData.panel_clear === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_clear === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
                     </div>
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-300">Labeled Switches</span>
-                        {generalData.panel_labeled ? <FiCheckCircle className="text-emerald-400" /> : <FiX className="text-rose-400" />}
+                        {generalData.panel_labeled === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_labeled === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
                     </div>
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-300">Locked Panel</span>
-                        {generalData.panel_locked ? <FiCheckCircle className="text-emerald-400" /> : <FiX className="text-rose-400" />}
+                        {generalData.panel_locked === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_locked === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
                     </div>
                 </div>
             </div>
@@ -119,19 +136,19 @@ const SummaryView = ({
             <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm grid grid-cols-2 gap-y-6 gap-x-4 text-center">
                 <div className="space-y-1">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Hallway Lights</p>
-                    <p className={`text-xs font-black p-2 rounded-xl ${fixedWiringData.lights_working ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{fixedWiringData.lights_working ? 'Working' : 'Not Working'}</p>
+                    {getStatusBadge(fixedWiringData.lights_working, ['Working', 'Not Working', 'N/A'])}
                 </div>
                 <div className="space-y-1">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Bare Wires</p>
-                    <p className={`text-xs font-black p-2 rounded-xl ${!fixedWiringData.bare_wires_visible ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{!fixedWiringData.bare_wires_visible ? 'None' : 'Detected'}</p>
+                    {getStatusBadge(fixedWiringData.bare_wires_visible, ['Detected', 'None', 'N/A'])}
                 </div>
                 <div className="space-y-1">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Outlet Covers</p>
-                    <p className={`text-xs font-black p-2 rounded-xl ${fixedWiringData.outlet_covers_unbroken ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{fixedWiringData.outlet_covers_unbroken ? 'Unbroken' : 'Damaged'}</p>
+                    {getStatusBadge(fixedWiringData.outlet_covers_unbroken, ['Unbroken', 'Damaged', 'N/A'])}
                 </div>
                 <div className="space-y-1">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">CCTV System</p>
-                    <p className={`text-xs font-black p-2 rounded-xl ${applianceCctvData.cctv_recording_clear ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{applianceCctvData.cctv_recording_clear ? 'Active' : 'Offline'}</p>
+                    {getStatusBadge(applianceCctvData.cctv_recording_clear, ['Active', 'Offline', 'N/A'])}
                 </div>
             </div>
         </section>
@@ -146,11 +163,11 @@ const SummaryView = ({
             <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm grid grid-cols-2 gap-4 mb-4">
                 <div className="space-y-1">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Fire Exit Sign</p>
-                    <p className={`text-xs font-black p-2 rounded-xl ${inventoryData.fire_exit_exists ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{inventoryData.fire_exit_exists ? 'Installed' : 'Missing'}</p>
+                    {getStatusBadge(inventoryData.fire_exit_exists, ['Installed', 'Missing', 'N/A'])}
                 </div>
                 <div className="space-y-1">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Emergency Lights</p>
-                    <p className={`text-xs font-black p-2 rounded-xl ${inventoryData.backup_light_exists ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{inventoryData.backup_light_exists ? 'Functional' : 'Missing'}</p>
+                    {getStatusBadge(inventoryData.backup_light_exists, ['Functional', 'Missing', 'N/A'])}
                 </div>
             </div>
 
@@ -235,13 +252,17 @@ const SummaryView = ({
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Capacity & Protection</h3>
             </div>
             <div className="space-y-3">
-                <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.ecart_load_ready ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
-                    {inventoryData.ecart_load_ready ? <FiCheckCircle /> : <FiX />}
-                    <p className="text-[10px] font-bold uppercase leading-tight">Can support full e-Classroom load (20+ units)</p>
+                <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.ecart_load_ready === 1 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : inventoryData.ecart_load_ready === 2 ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
+                    {inventoryData.ecart_load_ready === 1 ? <FiCheckCircle /> : inventoryData.ecart_load_ready === 2 ? <FiInfo /> : <FiX />}
+                    <p className="text-[10px] font-bold uppercase leading-tight">
+                        {inventoryData.ecart_load_ready === 2 ? "Grid Load Support: Not Applicable" : "Can support full e-Classroom load (20+ units)"}
+                    </p>
                 </div>
-                <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.has_surge_protection ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
-                    {inventoryData.has_surge_protection ? <FiCheckCircle /> : <FiAlertTriangle />}
-                    <p className="text-[10px] font-bold uppercase leading-tight">ICT Equipment protected by Surge/AVR</p>
+                <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.has_surge_protection === 1 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : inventoryData.has_surge_protection === 2 ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
+                    {inventoryData.has_surge_protection === 1 ? <FiCheckCircle /> : inventoryData.has_surge_protection === 2 ? <FiInfo /> : <FiAlertTriangle />}
+                    <p className="text-[10px] font-bold uppercase leading-tight">
+                        {inventoryData.has_surge_protection === 2 ? "Surge Protection: Not Applicable" : "ICT Equipment protected by Surge/AVR"}
+                    </p>
                 </div>
             </div>
         </section>
@@ -457,23 +478,61 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
 
     const restoreFromPayload = (p, autofillPower) => {
         if (!p) return;
-        const parsedGeneral = p.u9_general ? JSON.parse(p.u9_general) : generalData;
+
+        // Helper to convert boolean to integer (1, 0) or pass through 0,1,2
+        const normalizeStatus = (val) => {
+            if (val === true) return 1;
+            if (val === false) return 0;
+            if (typeof val === 'number') return val;
+            return 0; // default
+        };
+
+        const rawGen = p.u9_general ? JSON.parse(p.u9_general) : {};
+        const parsedGeneral = {
+            ...rawGen,
+            panel_clear: normalizeStatus(rawGen.panel_clear),
+            panel_labeled: normalizeStatus(rawGen.panel_labeled),
+            panel_locked: normalizeStatus(rawGen.panel_locked)
+        };
         
         // Preserve autofill if it exists and the payload's value is empty/placeholder
         if (autofillPower && (!parsedGeneral.main_power_source || parsedGeneral.main_power_source === "None Reported")) {
             parsedGeneral.main_power_source = autofillPower;
         }
 
+        const rawWiring = p.u9_wiring ? JSON.parse(p.u9_wiring) : {};
+        const parsedWiring = {
+            ...rawWiring,
+            lights_working: normalizeStatus(rawWiring.lights_working),
+            outlet_covers_unbroken: normalizeStatus(rawWiring.outlet_covers_unbroken),
+            child_safety_covered: normalizeStatus(rawWiring.child_safety_covered),
+            water_splash_safe: normalizeStatus(rawWiring.water_splash_safe),
+            bare_wires_visible: normalizeStatus(rawWiring.bare_wires_visible),
+            enough_outlets: normalizeStatus(rawWiring.enough_outlets)
+        };
+
+        const rawCctv = p.u9_cords_cctv ? JSON.parse(p.u9_cords_cctv) : {};
+        const parsedCctv = {
+            ...rawCctv,
+            ext_cord_temp_only: normalizeStatus(rawCctv.ext_cord_temp_only),
+            no_trip_hazards: normalizeStatus(rawCctv.no_trip_hazards),
+            appliance_cords_good: normalizeStatus(rawCctv.appliance_cords_good),
+            plugs_feel_cool: normalizeStatus(rawCctv.plugs_feel_cool),
+            cctv_recording_clear: normalizeStatus(rawCctv.cctv_recording_clear),
+            dvr_room_cool_locked: normalizeStatus(rawCctv.dvr_room_cool_locked),
+            cctv_wires_protected: normalizeStatus(rawCctv.cctv_wires_protected)
+        };
+
         setGeneralData(prev => ({ ...prev, ...parsedGeneral }));
-        setFixedWiringData(prev => ({ ...prev, ...(p.u9_wiring ? JSON.parse(p.u9_wiring) : {}) }));
-        setApplianceCctvData(prev => ({ ...prev, ...(p.u9_cords_cctv ? JSON.parse(p.u9_cords_cctv) : {}) }));
+        setFixedWiringData(prev => ({ ...prev, ...parsedWiring }));
+        setApplianceCctvData(prev => ({ ...prev, ...parsedCctv }));
         
         // Handle Individual Columns Restoration for Inventory
         const dbInventory = {
-            fire_exit_exists: p.u9_fire_exit_exists ?? null,
-            backup_light_exists: p.u9_backup_light_exists ?? null,
-            ecart_load_ready: p.u9_ecart_load_ready ?? null,
-            has_surge_protection: p.u9_has_surge_protection ?? null,
+            fire_exit_exists: normalizeStatus(p.u9_fire_exit_exists ?? null),
+            backup_light_exists: normalizeStatus(p.u9_backup_light_exists ?? null),
+            ecart_load_ready: normalizeStatus(p.u9_ecart_load_ready ?? null),
+            has_surge_protection: normalizeStatus(p.u9_has_surge_protection ?? null),
             remarks: p.u9_remarks || "",
             items: {
                 cctv_cameras: { total: (parseInt(p.u9_cctv_working) + parseInt(p.u9_cctv_broken)).toString(), working: (p.u9_cctv_working ?? "").toString(), broken: (p.u9_cctv_broken ?? "").toString(), spares: (p.u9_cctv_spares ?? "").toString() },
@@ -491,10 +550,19 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
             }
         };
 
-        const parsedInventory = p.u9_final ? JSON.parse(p.u9_final) : {};
+        const rawInventory = p.u9_final ? JSON.parse(p.u9_final) : {};
+        const parsedInventory = {
+            ...rawInventory,
+            fire_exit_exists: normalizeStatus(rawInventory.fire_exit_exists),
+            backup_light_exists: normalizeStatus(rawInventory.backup_light_exists),
+            ecart_load_ready: normalizeStatus(rawInventory.ecart_load_ready),
+            has_surge_protection: normalizeStatus(rawInventory.has_surge_protection)
+        };
+
         setInventoryData(prev => ({
             ...prev,
             ...dbInventory,
+            ...parsedInventory,
             items: {
                 ...prev.items,
                 ...dbInventory.items,
@@ -671,17 +739,12 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
 
     const updateQuestProgress = () => {
         const stored = localStorage.getItem('quest_progress');
-        let progress = stored ? JSON.parse(stored) : { completedUnits: [], xp: 0, timestamps: {} };
-        
+        let progress = stored ? JSON.parse(stored) : { completedUnits: [], xp: 0 };
         if (!progress.completedUnits.includes(9)) {
             progress.completedUnits.push(9);
             progress.xp += 550;
+            localStorage.setItem('quest_progress', JSON.stringify(progress));
         }
-        
-        if (!progress.timestamps) progress.timestamps = {};
-        progress.timestamps.unit9 = new Date().toISOString();
-        
-        localStorage.setItem('quest_progress', JSON.stringify(progress));
     };
 
     if (loading) return (
@@ -1057,8 +1120,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isCertified ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
                                                     {isCertified && <FiCheck size={14} />}
                                                 </div>
-                                                <p className="text-xs font-bold leading-tight uppercase tracking-tight">
-I hereby certify that all data and information provided in this module/unit are true and correct.</p>
+                                                <p className="text-xs font-bold leading-tight uppercase tracking-tight">I certify that our school's electrical and safety infrastructure has been physically audited.</p>
                                             </div>
                                         </div>
                                     </div>
