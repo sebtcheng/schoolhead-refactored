@@ -689,8 +689,14 @@ const DetailedProjInfo = () => {
                     if (!response.ok) throw new Error("Project not found");
                     const data = await response.json();
                     console.log("DEBUG: Network data received for:", data.schoolName);
-                    setProject(data);
-                    setFormData(data); // Sync form data
+                    // Enrich data with explicit status keys so save payload always has them
+                    const enrichedData = {
+                        ...data,
+                        procurementStatus: data.procurementStatus || data.procurement_status || data.status_design_phase || '',
+                        statusDesignPhase: data.statusDesignPhase || data.status_design_phase || data.procurement_status || '',
+                    };
+                    setProject(enrichedData);
+                    setFormData(enrichedData); // Sync form data
                 } catch (err) {
                     console.warn("DEBUG: Network fetch failed, attempting LGU fallback:", err);
                     if (type === 'LGU') {
@@ -1036,9 +1042,11 @@ const DetailedProjInfo = () => {
             
             const newlySavedId = resData.project?.project_id || resData.id || project.id;
             if (String(newlySavedId) !== String(id)) {
-                window.location.href = `/project-details/${newlySavedId}`;
+                // Use navigate() instead of window.location.href to support HashRouter
+                navigate(`/project-details/${newlySavedId}`, { replace: true });
             } else {
-                window.location.reload(); 
+                // Same ID — just re-navigate to refresh the page within HashRouter
+                navigate(`/project-details/${newlySavedId}`, { replace: true });
             }
 
         } catch (err) {
