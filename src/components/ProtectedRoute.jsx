@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LoadingScreen from './LoadingScreen';
-import { getRoleGroup } from '../config/roleGroups';
+import { getRoleGroup, normalizeRole } from '../config/roleGroups';
 
 const ProtectedRoute = ({ children, allowedRoles, allowedGroups }) => {
     const { user, loading } = useAuth();
@@ -19,8 +19,7 @@ const ProtectedRoute = ({ children, allowedRoles, allowedGroups }) => {
     }
 
     // Role Normalization: Map DB role names to UI Display Names
-    const normalize = (r) => r === 'school_head' ? 'School Head' : r;
-    const normalizedUserRole = normalize(user.role);
+    const normalizedUserRole = normalizeRole(user.role);
 
     // Determine derived role for Super Users (if impersonating)
     const isSuperUser = normalizedUserRole === 'Super User';

@@ -427,27 +427,53 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     }, [formData.region, formData.province, formData.municipality, formData.barangay]);
 
     useEffect(() => {
-        if (!formData.region) { setDivisionOptions([]); setLegDistrictOptions([]); return; }
-        Promise.all([
-            fetch(`/api/locations/divisions?region=${encodeURIComponent(formData.region)}`).then(r => r.json()).catch(() => []),
-            fetch(`/api/locations/leg-districts?region=${encodeURIComponent(formData.region)}`).then(r => r.json()).catch(() => []),
-        ]).then(([divs, legs]) => { 
-            let dOptions = Array.isArray(divs) ? divs : [];
-            let lOptions = Array.isArray(legs) ? legs : [];
-            
-            if (formData.region === 'BLANK REGION') {
-                dOptions = dOptions.filter(opt => opt.toUpperCase() !== 'BLANK DIVISION');
-                lOptions = lOptions.filter(opt => opt.toUpperCase() !== 'BLANK LEGISLATIVE DISTRICT');
-                dOptions.unshift('BLANK DIVISION');
-                lOptions.unshift('BLANK LEGISLATIVE DISTRICT');
-            }
-            
-            if (formData.division && !dOptions.some(opt => opt.toUpperCase() === formData.division.toUpperCase())) dOptions.push(formData.division.toUpperCase());
-            if (formData.leg_district && !lOptions.some(opt => opt.toUpperCase() === formData.leg_district.toUpperCase())) lOptions.push(formData.leg_district.toUpperCase());
+        if (!formData.region) { 
+            setDivisionOptions([]); 
+            setLegDistrictOptions([]); 
+            return; 
+        }
 
-            setDivisionOptions(dOptions.filter(Boolean)); 
-            setLegDistrictOptions(lOptions.filter(Boolean)); 
-        });
+        // 1. Fetch Divisions dynamically
+        fetch(`/api/locations/divisions?region=${encodeURIComponent(formData.region)}`)
+            .then(r => r.json())
+            .then(divs => {
+                let dOptions = Array.isArray(divs) ? divs : [];
+                if (formData.region === 'BLANK REGION') {
+                    dOptions = dOptions.filter(opt => opt.toUpperCase() !== 'BLANK DIVISION');
+                    dOptions.unshift('BLANK DIVISION');
+                }
+                if (formData.division && !dOptions.some(opt => opt.toUpperCase() === formData.division.toUpperCase())) {
+                    dOptions.push(formData.division.toUpperCase());
+                }
+                setDivisionOptions(dOptions.filter(Boolean));
+            })
+            .catch(() => setDivisionOptions([]));
+
+        // 2. Hard-coded Legislative Districts (Standardized 1st to 8th)
+        const HARD_CODED_LEGS = [
+            '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+            '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+        ];
+        
+        let lOptions = [...HARD_CODED_LEGS];
+        
+        // 1. Unshift "BLANK" if parent is blank
+        if (formData.region === 'BLANK REGION') {
+            lOptions.unshift('BLANK LEGISLATIVE DISTRICT');
+        }
+
+        // 2. Ensure current value is in list but filter out "BLANK" if region is not blank
+        if (formData.leg_district) {
+            const val = formData.leg_district.toUpperCase();
+            const isBlank = val === 'BLANK LEGISLATIVE DISTRICT';
+            const regionIsBlank = formData.region === 'BLANK REGION';
+            
+            if (!isBlank || regionIsBlank) {
+                if (!lOptions.includes(val)) lOptions.push(val);
+            }
+        }
+
+        setLegDistrictOptions(lOptions);
     }, [formData.region, formData.division, formData.leg_district]);
 
     useEffect(() => {
@@ -625,10 +651,10 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             }
         }
     };
-    const handleRegionChange = (e) => setFormData(prev => ({ ...prev, region: e.target.value, province: "", municipality: "", barangay: "", division: "", district: "" }));
+    const handleRegionChange = (e) => setFormData(prev => ({ ...prev, region: e.target.value, division: "", district: "", province: "", municipality: "", barangay: "" }));
+    const handleDivisionChange = (e) => setFormData(prev => ({ ...prev, division: e.target.value, district: "" }));
     const handleProvinceChange = (e) => setFormData(prev => ({ ...prev, province: e.target.value, municipality: "", barangay: "" }));
     const handleCityChange = (e) => setFormData(prev => ({ ...prev, municipality: e.target.value, barangay: "" }));
-    const handleDivisionChange = (e) => setFormData(prev => ({ ...prev, division: e.target.value, district: "" }));
     const handleOwnershipChange = (e) => {
         setDriveLinkError("");
         setFormData(prev => ({
@@ -1530,58 +1556,68 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 {currentStep === 2 && (
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-1 gap-4">
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Region</label>
-                                                <select name="region" value={formData.region} onChange={handleRegionChange} className={chunkySelect}>
-                                                    <option value="">Choose Region</option>
-                                                    {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                                                </select>
+                                            {/* Chain 1: Administrative */}
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-3xl space-y-4 border border-slate-100 dark:border-slate-800">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Administrative Hierarchy</p>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Region</label>
+                                                    <select name="region" value={formData.region} onChange={handleRegionChange} className={chunkySelect}>
+                                                        <option value="">Choose Region</option>
+                                                        {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Division</label>
+                                                    <select name="division" value={formData.division} onChange={handleDivisionChange} className={chunkySelect} disabled={!formData.region}>
+                                                        <option value="" disabled hidden style={{color: '#999'}}>Select Division</option>
+                                                        {divisionOptions.map(d => <option key={d}>{d}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">District</label>
+                                                    <select name="district" value={formData.district} onChange={handleChange} className={chunkySelect} disabled={!formData.division}>
+                                                        <option value="" disabled hidden style={{color: '#999'}}>Select District</option>
+                                                        {districtOptions.map(d => <option key={d}>{d}</option>)}
+                                                    </select>
+                                                </div>
                                             </div>
-                                            <div className="grid grid-cols-1 gap-4">
+
+                                            {/* Chain 2: Local Government */}
+                                            <div className="p-4 bg-blue-50/30 dark:bg-blue-900/10 rounded-3xl space-y-4 border border-blue-100/50 dark:border-blue-800/20">
+                                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest px-2">LGU Hierarchy</p>
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Province</label>
                                                     <select name="province" value={formData.province} onChange={handleProvinceChange} className={chunkySelect} disabled={!formData.region}>
-                                                        <option value="" disabled hidden style={{color: '#999'}}>Select</option>
+                                                        <option value="" disabled hidden style={{color: '#999'}}>Select Province</option>
                                                         {provinceOptions.map(p => <option key={p}>{p}</option>)}
                                                     </select>
                                                 </div>
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Municipality</label>
                                                     <select name="municipality" value={formData.municipality} onChange={handleCityChange} className={chunkySelect} disabled={!formData.province}>
-                                                        <option value="" disabled hidden style={{color: '#999'}}>Select</option>
+                                                        <option value="" disabled hidden style={{color: '#999'}}>Select Municipality</option>
                                                         {cityOptions.map(c => <option key={c}>{c}</option>)}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Division</label>
-                                                <select name="division" value={formData.division} onChange={handleDivisionChange} className={chunkySelect} disabled={!formData.region}>
-                                                    <option value="" disabled hidden style={{color: '#999'}}>Select Division</option>
-                                                    {divisionOptions.map(d => <option key={d}>{d}</option>)}
-                                                </select>
-                                            </div>
-                                            <div className="grid grid-cols-1 gap-4">
-                                                <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">District</label>
-                                                    <select name="district" value={formData.district} onChange={handleChange} className={chunkySelect} disabled={!formData.division}>
-                                                        <option value="" disabled hidden style={{color: '#999'}}>Select</option>
-                                                        {districtOptions.map(d => <option key={d}>{d}</option>)}
                                                     </select>
                                                 </div>
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Barangay</label>
                                                     <select name="barangay" value={formData.barangay} onChange={handleChange} className={chunkySelect} disabled={!formData.municipality}>
-                                                        <option value="" disabled hidden style={{color: '#999'}}>Select</option>
+                                                        <option value="" disabled hidden style={{color: '#999'}}>Select Barangay</option>
                                                         {barangayOptions.map(b => <option key={b}>{b}</option>)}
                                                     </select>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Legislative District</label>
-                                                <select name="leg_district" value={formData.leg_district} onChange={handleChange} className={chunkySelect} disabled={!formData.region}>
-                                                    <option value="" disabled hidden style={{color: '#999'}}>Select Leg. District</option>
-                                                    {legDistrictOptions.map(l => <option key={l}>{l}</option>)}
-                                                </select>
+
+                                            {/* Others */}
+                                            <div className="p-4 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-3xl space-y-4 border border-indigo-100/50 dark:border-indigo-800/20">
+                                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest px-2">Electoral / Legislative</p>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest pl-4">Legislative District</label>
+                                                    <select name="leg_district" value={formData.leg_district} onChange={handleChange} className={chunkySelect} disabled={!formData.region}>
+                                                        <option value="" disabled hidden style={{color: '#999'}}>Select Leg. District</option>
+                                                        {legDistrictOptions.map(l => <option key={l}>{l}</option>)}
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

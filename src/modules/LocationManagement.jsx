@@ -5,6 +5,7 @@ import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { FiX, FiPlus, FiEdit2, FiTrash2, FiCheck, FiChevronRight, FiMapPin } from 'react-icons/fi';
 import { toProperCase } from '../utils/dataNormalization';
+import { normalizeRole } from '../config/roleGroups';
 
 const LocationManagement = () => {
     const { user, token } = useAuth();
@@ -59,7 +60,8 @@ const LocationManagement = () => {
 
     useEffect(() => {
         if (user) {
-            if (user.role !== 'School Division Office' && user.role !== 'Regional Office' && user.role !== 'Super User') {
+            const normalizedRole = normalizeRole(user.role);
+            if (normalizedRole !== 'School Division Office' && normalizedRole !== 'Regional Office' && normalizedRole !== 'Super User') {
                 navigate('/monitoring-dashboard');
                 return;
             }
@@ -124,19 +126,13 @@ const LocationManagement = () => {
         } catch (err) { console.error("Fetch districts failed", err); }
     };
 
-    const fetchMunicipalities = async (region, province, district, legislativeDistrict) => {
+    const fetchMunicipalities = async (region, province) => {
         if (!region || !province) {
             setMunicipalities([]);
             return;
         }
-        
-        // Build URL with cascading filters
-        let url = `/api/locations/municipalities?region=${encodeURIComponent(region)}&division=${encodeURIComponent(user?.division)}`;
-        if (district) url += `&district=${encodeURIComponent(district)}`;
-        if (legislativeDistrict) url += `&legislative_district=${encodeURIComponent(legislativeDistrict)}`;
-        
         try {
-            const res = await fetch(url);
+            const res = await fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
             if (res.ok) {
                 const data = await res.json();
                 setMunicipalities(data);
@@ -144,25 +140,6 @@ const LocationManagement = () => {
         } catch (err) { console.error("Fetch municipalities failed", err); }
     };
 
-    const fetchLegislativeDistricts = async (region, province, district, municipality) => {
-        if (!region || !province) {
-            setLegislativeDistricts([]);
-            return;
-        }
-        
-        let url = `/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`;
-        if (user?.division) url += `&division=${encodeURIComponent(user.division)}`;
-        if (district) url += `&district=${encodeURIComponent(district)}`;
-        if (municipality) url += `&municipality=${encodeURIComponent(municipality)}`;
-
-        try {
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                setLegislativeDistricts(data);
-            }
-        } catch (err) { console.error("Fetch legislative districts failed", err); }
-    };
 
     const fetchBarangays = async (region, province, municipality) => {
         if (!region || !province || !municipality) {
@@ -181,50 +158,38 @@ const LocationManagement = () => {
     useEffect(() => {
         if (selectedRegion) {
             fetchProvinces(selectedRegion);
-            // Don't clear if it was prefilled and matches
+            // Administrative: Always fetch districts for the user's division
+            if (user?.division) {
+                fetchDistricts(selectedRegion, user.division);
+            }
         }
-    }, [selectedRegion]);
+    }, [selectedRegion, user?.division]);
 
     useEffect(() => {
-        if (selectedProvince) {
-            fetchLegislativeDistricts(selectedRegion, selectedProvince);
-            setSelectedLegislativeDistrict('');
-            setDistricts([]);
-            setMunicipalities([]);
+        if (selectedRegion && selectedProvince) {
+            fetchMunicipalities(selectedRegion, selectedProvince);
+            setSelectedMunicipality('');
             setBarangays([]);
         }
     }, [selectedProvince]);
 
     useEffect(() => {
-        if (selectedLegislativeDistrict) {
-            fetchMunicipalities(selectedRegion, selectedProvince, null, selectedLegislativeDistrict);
-            setSelectedMunicipality('');
-            setDistricts([]);
-            setBarangays([]);
-        }
-    }, [selectedLegislativeDistrict]);
-
-    useEffect(() => {
-        if (selectedMunicipality) {
-            fetchDistricts(selectedRegion, user?.division, selectedLegislativeDistrict, selectedMunicipality);
-            setSelectedDistrict('');
+        if (selectedRegion && selectedProvince && selectedMunicipality) {
             fetchBarangays(selectedRegion, selectedProvince, selectedMunicipality);
         }
     }, [selectedMunicipality]);
 
-    useEffect(() => {
-        if (selectedDistrict) {
-            // Selected District is now the leaf node before Barangay list? 
-            // Actually, Barangay depends on Municipality, so District is just another filter.
-            // But we keep the UI order.
-        }
-    }, [selectedDistrict]);
+    const fetchLegislativeDistricts = async () => {
+        // Hard-coded Legislative Districts (Standardized 1st to 8th)
+        setLegislativeDistricts([
+            '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+            '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+        ]);
+    };
 
     useEffect(() => {
-        if (selectedMunicipality) {
-            fetchBarangays(selectedRegion, selectedProvince, selectedMunicipality);
-        }
-    }, [selectedMunicipality]);
+        fetchLegislativeDistricts();
+    }, []);
 
     const handleAdd = async (type) => {
         setAddModalType(type);
@@ -424,113 +389,124 @@ const LocationManagement = () => {
                 </div>
 
                 <div className="max-w-3xl mx-auto px-6 -mt-12 space-y-6 relative z-30">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 space-y-8">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 space-y-10">
                         
-                        {/* REGION */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Region</label>
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                    <select 
-                                        value={selectedRegion}
-                                        disabled={!!user?.division} // Disable if prefilled by division
-                                        onChange={(e) => setSelectedRegion(e.target.value)}
-                                        className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                    >
-                                        <option value="">Select Region</option>
-                                        {regions.map(r => <option key={r} value={r}>{r}</option>)}
-                                    </select>
-                                {!user?.division && (
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                        <button 
-                                            onClick={() => handleAdd('region')}
-                                            className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
-                                            title="Create New"
+                        {/* ADMINISTRATIVE SECTION */}
+                        <div className="space-y-6">
+                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Administrative Hierarchy</h3>
+                            
+                            {/* REGION */}
+                            <div className="space-y-2 pl-4 border-l-4 border-slate-100 dark:border-slate-700">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Region</label>
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <select 
+                                            value={selectedRegion}
+                                            disabled={!!user?.division} // Disable if prefilled by division
+                                            onChange={(e) => setSelectedRegion(e.target.value)}
+                                            className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
                                         >
-                                            <FiPlus size={18} />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* PROVINCE */}
-                        <div className={`space-y-2 transition-opacity ${!selectedRegion && !isAdding.province ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Province</label>
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                    <select 
-                                        value={selectedProvince}
-                                        disabled={!!user?.division} // Disable if prefilled by division
-                                        onChange={(e) => setSelectedProvince(e.target.value)}
-                                        className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                    >
-                                        <option value="">Select Province</option>
-                                        {provinces.map(p => <option key={p} value={p}>{p}</option>)}
-                                    </select>
-                                {!user?.division && (
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                        <button 
-                                            onClick={() => handleAdd('province')}
-                                            className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
-                                            title="Create New"
-                                        >
-                                            <FiPlus size={18} />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* LEGISLATIVE DISTRICT */}
-                        <div className={`space-y-2 transition-opacity ${!selectedProvince && !isAdding.legislativeDistrict ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Legislative District</label>
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {editingItem?.type === 'legislativeDistrict' ? (
-                                    <input 
-                                        type="text" 
-                                        autoFocus
-                                        value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
-                                    />
-                                ) : (
-                                    <select 
-                                        value={selectedLegislativeDistrict}
-                                        onChange={(e) => setSelectedLegislativeDistrict(e.target.value)}
-                                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
-                                    >
-                                        <option value="">Select Legislative District</option>
-                                        {legislativeDistricts.map(ld => <option key={ld} value={ld}>{ld}</option>)}
-                                    </select>
-                                )}
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                    {editingItem?.type === 'legislativeDistrict' ? (
-                                        <>
+                                            <option value="">Select Region</option>
+                                            {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
+                                    {!user?.division && (
+                                        <div className="flex items-center gap-1 flex-shrink-0">
                                             <button 
-                                                onClick={() => handleEdit('legislativeDistrict', null, editValue)}
-                                                className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                title="Save"
+                                                onClick={() => handleAdd('region')}
+                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                title="Create New"
                                             >
-                                                <FiCheck size={18} />
+                                                <FiPlus size={18} />
                                             </button>
-                                            <button 
-                                                onClick={() => setEditingItem(null)}
-                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
-                                                title="Cancel"
-                                            >
-                                                <FiX size={18} />
-                                            </button>
-                                        </>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* DISTRICT */}
+                            <div className={`space-y-2 pl-4 border-l-4 border-slate-100 dark:border-slate-700 transition-opacity ${!selectedRegion ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">District</label>
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                    {editingItem?.type === 'district' ? (
+                                        <input 
+                                            type="text" 
+                                            autoFocus
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                            className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
+                                        />
                                     ) : (
-                                        <>
-                                            {selectedLegislativeDistrict && (
+                                        <select 
+                                            value={selectedDistrict}
+                                            onChange={(e) => setSelectedDistrict(e.target.value)}
+                                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                        >
+                                            <option value="">Select District</option>
+                                            {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                                        </select>
+                                    )}
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                        {editingItem?.type === 'district' ? (
+                                            <>
                                                 <button 
-                                                    onClick={() => { setEditingItem({ type: 'legislativeDistrict', value: selectedLegislativeDistrict }); setEditValue(selectedLegislativeDistrict); }}
-                                                    className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                    title="Edit Selected Legislative District"
+                                                    onClick={() => handleEdit('district', null, editValue)}
+                                                    className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                    title="Save"
                                                 >
-                                                    <FiEdit2 size={18} />
+                                                    <FiCheck size={18} />
                                                 </button>
-                                            )}
+                                                <button 
+                                                    onClick={() => setEditingItem(null)}
+                                                    className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
+                                                    title="Cancel"
+                                                >
+                                                    <FiX size={18} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {selectedDistrict && (
+                                                    <button 
+                                                        onClick={() => { setEditingItem({ type: 'district', value: selectedDistrict }); setEditValue(selectedDistrict); }}
+                                                        className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                        title="Edit Selected District"
+                                                    >
+                                                        <FiEdit2 size={18} />
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => handleAdd('district')}
+                                                    className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                    title="Create New"
+                                                >
+                                                    <FiPlus size={18} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        </div>
+
+                        {/* ELECTORAL SECTION */}
+                        {normalizeRole(user?.role) !== 'School Division Office' && (
+                            <div className="space-y-6">
+                                <h3 className="text-sm font-black text-indigo-400 uppercase tracking-[0.2em] pl-1">Electoral Hierarchy</h3>
+
+                                {/* LEGISLATIVE DISTRICT */}
+                                <div className={`space-y-2 pl-4 border-l-4 border-indigo-100 dark:border-indigo-800 transition-opacity ${!selectedRegion ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Legislative District</label>
+                                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <select 
+                                            value={selectedLegislativeDistrict}
+                                            onChange={(e) => setSelectedLegislativeDistrict(e.target.value)}
+                                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                        >
+                                            <option value="">Select Legislative District</option>
+                                            {legislativeDistricts.map(ld => <option key={ld} value={ld}>{ld}</option>)}
+                                        </select>
+                                        <div className="flex items-center gap-1 flex-shrink-0">
                                             <button 
                                                 onClick={() => handleAdd('legislativeDistrict')}
                                                 className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
@@ -538,209 +514,178 @@ const LocationManagement = () => {
                                             >
                                                 <FiPlus size={18} />
                                             </button>
-                                        </>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* LGU SECTION */}
+                        <div className="space-y-8">
+                            <h3 className="text-sm font-black text-blue-400 uppercase tracking-[0.2em] pl-1">Local Government Hierarchy</h3>
+
+                            {/* PROVINCE */}
+                            <div className={`space-y-2 pl-4 border-l-4 border-blue-100 dark:border-blue-800 transition-opacity ${!selectedRegion ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Province</label>
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <select 
+                                            value={selectedProvince}
+                                            disabled={!!user?.division} // Disable if prefilled by division
+                                            onChange={(e) => setSelectedProvince(e.target.value)}
+                                            className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        >
+                                            <option value="">Select Province</option>
+                                            {provinces.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                    {!user?.division && (
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            <button 
+                                                onClick={() => handleAdd('province')}
+                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                title="Create New"
+                                            >
+                                                <FiPlus size={18} />
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* MUNICIPALITY */}
-                        <div className={`space-y-2 transition-opacity ${!selectedLegislativeDistrict && !isAdding.municipality ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Municipality</label>
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {editingItem?.type === 'municipality' ? (
-                                    <input 
-                                        type="text" 
-                                        autoFocus
-                                        value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
-                                    />
-                                ) : (
-                                    <select 
-                                        value={selectedMunicipality}
-                                        onChange={(e) => setSelectedMunicipality(e.target.value)}
-                                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
-                                    >
-                                        <option value="">Select Municipality</option>
-                                        {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
-                                    </select>
-                                )}
-                                <div className="flex items-center gap-1 flex-shrink-0">
+                            {/* MUNICIPALITY */}
+                            <div className={`space-y-2 pl-4 border-l-4 border-blue-100 dark:border-blue-800 transition-opacity ${!selectedProvince ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Municipality</label>
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                                     {editingItem?.type === 'municipality' ? (
-                                        <>
-                                            <button 
-                                                onClick={() => handleEdit('municipality', null, editValue)}
-                                                className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                title="Save"
-                                            >
-                                                <FiCheck size={18} />
-                                            </button>
-                                            <button 
-                                                onClick={() => setEditingItem(null)}
-                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
-                                                title="Cancel"
-                                            >
-                                                <FiX size={18} />
-                                            </button>
-                                        </>
+                                        <input 
+                                            type="text" 
+                                            autoFocus
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                            className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
+                                        />
                                     ) : (
-                                        <>
-                                            {selectedMunicipality && (
-                                                <button 
-                                                    onClick={() => { setEditingItem({ type: 'municipality', value: selectedMunicipality }); setEditValue(selectedMunicipality); }}
-                                                    className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                    title="Edit Selected Municipality"
-                                                >
-                                                    <FiEdit2 size={18} />
-                                                </button>
-                                            )}
-                                            <button 
-                                                onClick={() => handleAdd('municipality')}
-                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
-                                                title="Create New"
-                                            >
-                                                <FiPlus size={18} />
-                                            </button>
-                                        </>
+                                        <select 
+                                            value={selectedMunicipality}
+                                            onChange={(e) => setSelectedMunicipality(e.target.value)}
+                                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                        >
+                                            <option value="">Select Municipality</option>
+                                            {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
                                     )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* DISTRICT */}
-                        <div className={`space-y-2 transition-opacity ${!selectedMunicipality && !isAdding.district ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">District</label>
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {editingItem?.type === 'district' ? (
-                                    <input 
-                                        type="text" 
-                                        autoFocus
-                                        value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
-                                    />
-                                ) : (
-                                    <select 
-                                        value={selectedDistrict}
-                                        onChange={(e) => setSelectedDistrict(e.target.value)}
-                                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
-                                    >
-                                        <option value="">Select District</option>
-                                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                                    </select>
-                                )}
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                    {editingItem?.type === 'district' ? (
-                                        <>
-                                            <button 
-                                                onClick={() => handleEdit('district', null, editValue)}
-                                                className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                title="Save"
-                                            >
-                                                <FiCheck size={18} />
-                                            </button>
-                                            <button 
-                                                onClick={() => setEditingItem(null)}
-                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
-                                                title="Cancel"
-                                            >
-                                                <FiX size={18} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {selectedDistrict && (
-                                                <button 
-                                                    onClick={() => { setEditingItem({ type: 'district', value: selectedDistrict }); setEditValue(selectedDistrict); }}
-                                                    className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                    title="Edit Selected District"
-                                                >
-                                                    <FiEdit2 size={18} />
-                                                </button>
-                                            )}
-                                            <button 
-                                                onClick={() => handleAdd('district')}
-                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
-                                                title="Create New"
-                                            >
-                                                <FiPlus size={18} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        {/* BARANGAY LIST */}
-                        <div className={`space-y-4 transition-opacity ${!selectedMunicipality && !isAdding.barangay ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <div className="flex justify-between items-center px-1">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block">Barangays</label>
-                                <button 
-                                    onClick={() => handleAdd('barangay')}
-                                    className="text-blue-600 font-bold text-sm flex items-center gap-1 hover:underline"
-                                >
-                                    <FiPlus /> Add Barangay
-                                </button>
-                            </div>
-
-
-                            <div className="grid grid-cols-1 gap-3">
-                                {barangays.length > 0 ? (
-                                    barangays.map(b => (
-                                        <div key={b.id} className="group flex justify-between items-center p-3 sm:p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-all min-h-[72px] overflow-hidden">
-                                            {editingItem?.id === b.id ? (
-                                                <div className="flex-1 flex items-center gap-2 sm:gap-3 animate-in fade-in zoom-in-95 duration-200 min-w-0">
-                                                    <input 
-                                                        type="text"
-                                                        autoFocus
-                                                        value={editValue}
-                                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
-                                                        className="flex-1 min-w-0 px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 border-2 border-blue-500 rounded-xl outline-none dark:text-white shadow-inner font-bold text-sm sm:text-base"
-                                                    />
-                                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                                        <button 
-                                                            onClick={() => handleEdit('barangay', b.id, editValue)} 
-                                                            className="p-2 sm:p-3 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 active:scale-95 transition-all"
-                                                            title="Save"
-                                                        >
-                                                            <FiCheck size={18} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setEditingItem(null)} 
-                                                            className="p-2 sm:p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all"
-                                                            title="Cancel"
-                                                        >
-                                                            <FiX size={18} />
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                    {normalizeRole(user?.role) !== 'School Division Office' && (
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            {editingItem?.type === 'municipality' ? (
+                                                <>
+                                                    <button 
+                                                        onClick={() => handleEdit('municipality', null, editValue)}
+                                                        className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                        title="Save"
+                                                    >
+                                                        <FiCheck size={18} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setEditingItem(null)}
+                                                        className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
+                                                        title="Cancel"
+                                                    >
+                                                        <FiX size={18} />
+                                                    </button>
+                                                </>
                                             ) : (
                                                 <>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-200">{b.barangay}</span>
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {selectedMunicipality && (
                                                         <button 
-                                                            onClick={() => {
-                                                                setEditingItem({ id: b.id, type: 'barangay' });
-                                                                setEditValue(b.barangay);
-                                                            }}
-                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                            title="Edit"
+                                                            onClick={() => { setEditingItem({ type: 'municipality', value: selectedMunicipality }); setEditValue(selectedMunicipality); }}
+                                                            className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                            title="Edit Selected Municipality"
                                                         >
-                                                            <FiEdit2 size={16} />
-                                                            <span className="text-xs font-bold ml-1">EDIT</span>
+                                                            <FiEdit2 size={18} />
                                                         </button>
-                                                    </div>
+                                                    )}
+                                                    <button 
+                                                        onClick={() => handleAdd('municipality')}
+                                                        className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                        title="Create New"
+                                                    >
+                                                        <FiPlus size={18} />
+                                                    </button>
                                                 </>
                                             )}
                                         </div>
-                                    ))
-                                ) : (
-                                    <div className="col-span-full py-8 text-center text-slate-400 font-medium bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                                        No barangays found.
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </div>
+
+                            {/* BARANGAY LIST */}
+                            <div className={`space-y-4 transition-opacity pl-4 border-l-4 border-blue-50 dark:border-blue-900/30 ${!selectedMunicipality && !isAdding.barangay ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <div className="flex justify-between items-center px-1">
+                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block">Barangays</label>
+                                    <button 
+                                        onClick={() => handleAdd('barangay')}
+                                        className="text-blue-600 font-bold text-sm flex items-center gap-1 hover:underline"
+                                    >
+                                        <FiPlus /> Add Barangay
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3">
+                                    {barangays.length > 0 ? (
+                                        barangays.map(b => (
+                                            <div key={b.id} className="group flex justify-between items-center p-3 sm:p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-all min-h-[72px] overflow-hidden">
+                                                {editingItem?.id === b.id ? (
+                                                    <div className="flex-1 flex items-center gap-2 sm:gap-3 animate-in fade-in zoom-in-95 duration-200 min-w-0">
+                                                        <input 
+                                                            type="text"
+                                                            autoFocus
+                                                            value={editValue}
+                                                            onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                                            className="flex-1 min-w-0 px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 border-2 border-blue-500 rounded-xl outline-none dark:text-white shadow-inner font-bold text-sm sm:text-base"
+                                                        />
+                                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                                            <button 
+                                                                onClick={() => handleEdit('barangay', b.id, editValue)} 
+                                                                className="p-2 sm:p-3 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 active:scale-95 transition-all"
+                                                                title="Save"
+                                                            >
+                                                                <FiCheck size={18} />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setEditingItem(null)} 
+                                                                className="p-2 sm:p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all"
+                                                                title="Cancel"
+                                                            >
+                                                                <FiX size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <span className="font-bold text-slate-700 dark:text-slate-200">{b.barangay}</span>
+                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setEditingItem({ id: b.id, type: 'barangay' });
+                                                                    setEditValue(b.barangay);
+                                                                }}
+                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                title="Edit"
+                                                            >
+                                                                <FiEdit2 size={16} />
+                                                                <span className="text-xs font-bold ml-1">EDIT</span>
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="col-span-full py-8 text-center text-slate-400 font-medium bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                                            No barangays found.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
                     </div>
                 </div>

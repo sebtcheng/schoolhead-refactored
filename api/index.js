@@ -94,6 +94,16 @@ function normalizeProjectCategory(raw) {
   return trimmed;
 }
 
+// --- ROLE NORMALIZER (ensures consistency across underscored/lowercase roles) ---
+function normalizeRole(role) {
+  if (!role) return '';
+  return role
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 // --- LOCATION NORMALIZER (ensures system-wide casing consistency and fixes encoding artifacts) ---
 function normalizeLocationField(val) {
   if (!val || typeof val !== 'string') return val;
@@ -8418,8 +8428,12 @@ app.get('/api/locations/districts', async (req, res) => {
     query += ` AND district IS NOT NULL AND district != '' ORDER BY district ASC`;
     
     const result = await pool.query(query, params);
-    const districts = [...new Set(result.rows.map(r => normalizeLocationOutput(r.district)))];
-    if (normDivision === 'BLANK DIVISION' && !districts.includes('BLANK DISTRICT')) districts.unshift('BLANK DISTRICT');
+    const districts = [...new Set(result.rows.map(r => normalizeLocationOutput(r.district)))]
+      .filter(d => d !== 'BLANK DISTRICT');
+
+    if (normDivision === 'BLANK DIVISION' && !districts.includes('BLANK DISTRICT')) {
+      districts.unshift('BLANK DISTRICT');
+    }
     res.json(districts);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -8435,8 +8449,13 @@ app.get('/api/locations/leg-districts', async (req, res) => {
       AND legislative_district IS NOT NULL AND legislative_district != '' 
       ORDER BY legislative_district ASC
     `, [nr]);
-    const legDistricts = result.rows.map(r => normalizeLocationOutput(r.legislative_district));
-    if (nr === 'BLANK REGION' && !legDistricts.includes('BLANK LEGISLATIVE DISTRICT')) legDistricts.unshift('BLANK LEGISLATIVE DISTRICT');
+    const legDistricts = result.rows
+      .map(r => normalizeLocationOutput(r.legislative_district))
+      .filter(ld => ld !== 'BLANK LEGISLATIVE DISTRICT'); // Always filter out, we'll unshift manually if needed
+
+    if (nr === 'BLANK REGION' && !legDistricts.includes('BLANK LEGISLATIVE DISTRICT')) {
+      legDistricts.unshift('BLANK LEGISLATIVE DISTRICT');
+    }
     res.json(legDistricts);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -8485,8 +8504,12 @@ app.get('/api/locations/provinces', async (req, res) => {
        ORDER BY province ASC`,
       [nr]
     );
-    const provinces = [...new Set(result.rows.map(r => normalizeLocationOutput(r.province)))];
-    if (nr === 'BLANK REGION' && !provinces.includes('BLANK PROVINCE')) provinces.unshift('BLANK PROVINCE');
+    const provinces = [...new Set(result.rows.map(r => normalizeLocationOutput(r.province)))]
+      .filter(p => p !== 'BLANK PROVINCE');
+      
+    if (nr === 'BLANK REGION' && !provinces.includes('BLANK PROVINCE')) {
+      provinces.unshift('BLANK PROVINCE');
+    }
     res.json(provinces);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -8505,8 +8528,12 @@ app.get('/api/locations/municipalities-by-province', async (req, res) => {
        ORDER BY municipality ASC`,
       [nr, np]
     );
-    const municipalities = [...new Set(result.rows.map(r => normalizeLocationOutput(r.municipality)))];
-    if (np === 'BLANK PROVINCE' && !municipalities.includes('BLANK MUNICIPALITY')) municipalities.unshift('BLANK MUNICIPALITY');
+    const municipalities = [...new Set(result.rows.map(r => normalizeLocationOutput(r.municipality)))]
+      .filter(m => m !== 'BLANK MUNICIPALITY');
+
+    if (np === 'BLANK PROVINCE' && !municipalities.includes('BLANK MUNICIPALITY')) {
+      municipalities.unshift('BLANK MUNICIPALITY');
+    }
     res.json(municipalities);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -8558,14 +8585,20 @@ app.get('/api/locations/barangays', async (req, res) => {
        ORDER BY barangay ASC`,
       [nr, np, nm]
     );
-    const barangays = result.rows.map(r => ({ id: r.id, barangay: normalizeLocationOutput(r.barangay) }));
+    const barangays = result.rows
+      .map(r => ({ id: r.id, barangay: normalizeLocationOutput(r.barangay) }))
+      .filter(b => b.barangay !== 'BLANK BARANGAY');
+
+    if (nm === 'BLANK MUNICIPALITY' && !barangays.some(b => b.barangay === 'BLANK BARANGAY')) {
+      barangays.unshift({ id: -1, barangay: 'BLANK BARANGAY' });
+    }
     res.json(barangays);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // --- 5b. SDO/Admin: Location Management CRUD ---
 const checkLocationAuth = (req, res, next) => {
-  const { role } = req.user;
+  const role = normalizeRole(req.user.role);
   if (role === 'School Division Office' || role === 'Regional Office' || role === 'Super User') {
     next();
   } else {
@@ -15428,7 +15461,7 @@ app.get('/api/leaderboard', async (req, res) => {
       const query = `
         SELECT 
           region as name,
-          ROUND(AVG(completion_percentage), 0) as avg_completion
+          ROUND(COUNT(CASE WHEN completion_percentage >= 100 THEN 1 END)::NUMERIC / NULLIF(COUNT(*), 0)::NUMERIC * 100, 0) as avg_completion
         FROM ph_schools
         WHERE region IS NOT NULL
         GROUP BY region
@@ -15443,7 +15476,7 @@ app.get('/api/leaderboard', async (req, res) => {
       let query = `
         SELECT 
           division as name,
-          ROUND(AVG(completion_percentage), 0) as avg_completion
+          ROUND(COUNT(CASE WHEN completion_percentage >= 100 THEN 1 END)::NUMERIC / NULLIF(COUNT(*), 0)::NUMERIC * 100, 0) as avg_completion
         FROM ph_schools
         WHERE division IS NOT NULL
       `;

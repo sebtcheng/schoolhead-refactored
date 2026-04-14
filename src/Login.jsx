@@ -11,10 +11,12 @@ import { FaCalculator } from 'react-icons/fa';
 import { saveSchoolToCache } from './db';
 
 
-import { getRoleGroup, ROLE_GROUPS } from './config/roleGroups';
+import { getRoleGroup, ROLE_GROUPS, normalizeRole } from './config/roleGroups';
 
 // Helper function to map roles to dashboard URLs
 const getDashboardPath = (role, accountCategory) => {
+    const normalizedRole = normalizeRole(role);
+    
     // 1. SPECIFIC ROLE OVERRIDES (Highest Priority)
     const roleMap = {
         'School Head': '/nodes-dashboard',
@@ -41,17 +43,18 @@ const getDashboardPath = (role, accountCategory) => {
         'Regional Engineer': '/regional-engineer-dashboard',
     };
 
-    if (roleMap[role]) return roleMap[role];
+    if (roleMap[normalizedRole]) return roleMap[normalizedRole];
 
     // 2. ENGINEER SPECIAL REDIRECTS
-    if (role === 'DepEd Engineer' || role === 'Non-DepEd Engineer' || role === 'Engineer' || role === 'Division Engineer') {
-        return (accountCategory === 'Non-DepEd Engineer' || role === 'Non-DepEd Engineer')
+    if (normalizedRole === 'DepEd Engineer' || normalizedRole === 'Non-DepEd Engineer' || normalizedRole === 'Engineer' || normalizedRole === 'Division Engineer') {
+        const normCategory = normalizeRole(accountCategory);
+        return (normCategory === 'Non-DepEd Engineer' || normalizedRole === 'Non-DepEd Engineer')
             ? '/non-deped-dashboard'
             : '/engineer-dashboard';
     }
 
     // 3. GROUP-BASED FALLBACK
-    const userGroup = getRoleGroup(role);
+    const userGroup = getRoleGroup(normalizedRole);
     if (userGroup === ROLE_GROUPS.MANAGEMENT) {
         return '/monitoring-dashboard';
     }
@@ -86,7 +89,7 @@ const getDashboardPath = (role, accountCategory) => {
         'DPWH': '/project-summary-dashboard',
         'CSO': '/project-summary-dashboard',
     };
-    return fallbackRoleMap[role] || '/';
+    return fallbackRoleMap[normalizedRole] || '/';
 };
 
 

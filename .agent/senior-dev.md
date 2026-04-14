@@ -88,6 +88,7 @@ This document outlines the core competencies and methodologies required for a Se
 *   **Audit:** Check the application's `.env` for `DATABASE_URL`.
 *   **The Trap:** If port `5432` is used, the app is bypassing the proxy and hitting a local/underpowered standalone DB.
 *   **Fix:** Force all traffic to `6432` (PgBouncer) to enable transaction-level pooling and route to the robust Azure Cloud instance.
+*   **⚠️ Incident Note (2026-04-14):** A major 5xx crisis occurred when the local `.env` reverted to port `5432`. Solving this required both the `.env` fix AND running `fave_scripts/relief_db_locks.py` to clear the residual logs and expand the pool size.
 
 ### 2. Identifying Infrastructure Ceiling
 *   **Audit:** Run `SHOW max_connections;` on the Azure DB directly.
@@ -100,3 +101,4 @@ This document outlines the core competencies and methodologies required for a Se
 ### 4. Disk I/O Blocking (Nginx)
 *   **Audit:** Check root disk usage (`df -h`). Large `access.log` files (>1GB) can choke I/O.
 *   **Fix:** Truncate logs immediately (`> access.log`) and verify `/etc/nginx/sites-enabled/` for malformed `.bak` files that might prevent clean reloads.
+*   **⚠️ Incident Note (2026-04-14):** Truncating `/var/log/nginx/access.log` (which was >100MB and growing rapidly) was a critical step in lowering I/O latency during the recovery phase.

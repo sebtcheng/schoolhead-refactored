@@ -74,8 +74,8 @@ def main():
                     INSERT INTO users (
                         uid, email, role, region, division, province, city, barangay, 
                         password_hash, hash_version, iern, school_id, passcode, 
-                        registration_status, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                        registration_status, registrant_type, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                 """
                 cur.execute(insert_query, (
                     uid,
@@ -91,7 +91,8 @@ def main():
                     school['iern'],
                     school_id,
                     default_passcode,
-                    'Valid'
+                    'Valid',
+                    'School Head'
                 ))
             
             created_count += 1

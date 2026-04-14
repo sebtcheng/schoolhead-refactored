@@ -249,7 +249,11 @@ const SchoolProfile = ({ embedded }) => {
 
                                 setRegionDivMap(finalRegDiv);
                                 setDivDistMap(finalDivDist);
-                                setLegDistrictOptions(Array.from(tempLegsSet).sort());
+                                // Hard-coded Legislative Districts (Standardized 1st to 8th)
+                                setLegDistrictOptions([
+                                    '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+                                    '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+                                ]);
                             }
                         },
                         error: () => { if (isMounted) console.warn("CSV Parse failed"); }
@@ -926,24 +930,104 @@ const SchoolProfile = ({ embedded }) => {
 
 
 
-                                {/* 3. LOCATION */}
+                                {/* 3. LOCATION & ADMINISTRATION */}
                                 <div className={sectionClass}>
-                                    <h2 className="text-gray-800 font-bold text-lg flex items-center gap-2 mb-4"><span className="text-xl">📍</span> Location</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div><label className={labelClass}>Region</label>{isOffline ? <input type="text" value={formData.region} className={inputClass} disabled /> : <select name="region" value={formData.region} onChange={handleRegionChange} className={inputClass} required disabled={isDummy}><option value="">Select Region</option>{regionOptions.map(r => <option key={r} value={r}>{r}</option>)}</select>}</div>
-                                        <div><label className={labelClass}>Province</label>{isOffline ? <input type="text" value={formData.province} className={inputClass} disabled /> : <select name="province" value={formData.province} onChange={handleProvinceChange} className={inputClass} disabled={!formData.region || isDummy} required><option value="">Select Province</option>{provinceOptions.map(p => <option key={p} value={p}>{p}</option>)}</select>}</div>
-                                        <div><label className={labelClass}>Municipality</label>{isOffline ? <input type="text" value={formData.municipality} className={inputClass} disabled /> : <select name="municipality" value={formData.municipality} onChange={handleCityChange} className={inputClass} disabled={!formData.province || isDummy} required><option value="">Select City/Mun</option>{cityOptions.map(c => <option key={c} value={c}>{c}</option>)}</select>}</div>
-                                        <div><label className={labelClass}>Barangay</label>{isOffline ? <input type="text" value={formData.barangay} className={inputClass} disabled /> : <select name="barangay" value={formData.barangay} onChange={handleChange} className={inputClass} disabled={!formData.municipality || isDummy} required><option value="">Select Barangay</option>{barangayOptions.map(b => <option key={b} value={b}>{b}</option>)}</select>}</div>
-                                    </div>
-                                </div>
+                                    <div className="space-y-8">
+                                        {/* Chain 1: Administrative */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] pl-1">Administrative Hierarchy</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className={labelClass}>Region</label>
+                                                    {isOffline ? (
+                                                        <input type="text" value={formData.region} className={inputClass} disabled />
+                                                    ) : (
+                                                        <select name="region" value={formData.region} onChange={handleRegionChange} className={inputClass} required disabled={isDummy}>
+                                                            <option value="">Select Region</option>
+                                                            {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>Division</label>
+                                                    {isOffline ? (
+                                                        <input type="text" value={formData.division} className={inputClass} disabled />
+                                                    ) : (
+                                                        <select name="division" value={formData.division} onChange={handleDivisionChange} className={inputClass} disabled={!formData.region || isDummy} required>
+                                                            <option value="">Select Division</option>
+                                                            {divisionOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>District</label>
+                                                    {isOffline ? (
+                                                        <input type="text" value={formData.district} className={inputClass} disabled />
+                                                    ) : (
+                                                        <select name="district" value={formData.district} onChange={handleChange} className={inputClass} disabled={!formData.division || isDummy} required>
+                                                            <option value="">Select District</option>
+                                                            {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                {/* 4. HIERARCHY */}
-                                <div className={sectionClass}>
-                                    <h2 className="text-gray-800 font-bold text-lg flex items-center gap-2 mb-4"><span className="text-xl">🏛️</span> Administration</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div><label className={labelClass}>Division</label>{isOffline ? <input type="text" value={formData.division} className={inputClass} disabled /> : <select name="division" value={formData.division} onChange={handleDivisionChange} className={inputClass} disabled={!formData.region || isDummy} required><option value="">Select Division</option>{divisionOptions.map(d => <option key={d} value={d}>{d}</option>)}</select>}</div>
-                                        <div><label className={labelClass}>District</label>{isOffline ? <input type="text" value={formData.district} className={inputClass} disabled /> : <select name="district" value={formData.district} onChange={handleChange} className={inputClass} disabled={!formData.division || isDummy} required><option value="">Select District</option>{districtOptions.map(d => <option key={d} value={d}>{d}</option>)}</select>}</div>
-                                        <div className="md:col-span-2"><label className={labelClass}>Legislative District</label>{isOffline ? <input type="text" value={formData.legDistrict} className={inputClass} disabled /> : <select name="legDistrict" value={formData.legDistrict} onChange={handleChange} className={inputClass} required disabled={isDummy}><option value="">Select District</option>{legDistrictOptions.map(l => <option key={l} value={l}>{l}</option>)}</select>}</div>
+                                        {/* Chain 2: LGU Hierarchy */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-black text-blue-400 uppercase tracking-[0.2em] pl-1">LGU Hierarchy</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className={labelClass}>Province</label>
+                                                    {isOffline ? (
+                                                        <input type="text" value={formData.province} className={inputClass} disabled />
+                                                    ) : (
+                                                        <select name="province" value={formData.province} onChange={handleProvinceChange} className={inputClass} disabled={!formData.region || isDummy} required>
+                                                            <option value="">Select Province</option>
+                                                            {provinceOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>Municipality</label>
+                                                    {isOffline ? (
+                                                        <input type="text" value={formData.municipality} className={inputClass} disabled />
+                                                    ) : (
+                                                        <select name="municipality" value={formData.municipality} onChange={handleCityChange} className={inputClass} disabled={!formData.province || isDummy} required>
+                                                            <option value="">Select City/Mun</option>
+                                                            {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>Barangay</label>
+                                                    {isOffline ? (
+                                                        <input type="text" value={formData.barangay} className={inputClass} disabled />
+                                                    ) : (
+                                                        <select name="barangay" value={formData.barangay} onChange={handleChange} className={inputClass} disabled={!formData.municipality || isDummy} required>
+                                                            <option value="">Select Barangay</option>
+                                                            {barangayOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                                                        </select>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Others */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-black text-indigo-400 uppercase tracking-[0.2em] pl-1">Legislative</h3>
+                                            <div>
+                                                <label className={labelClass}>Legislative District</label>
+                                                {isOffline ? (
+                                                    <input type="text" value={formData.legDistrict} className={inputClass} disabled />
+                                                ) : (
+                                                    <select name="legDistrict" value={formData.legDistrict} onChange={handleChange} className={inputClass} required disabled={isDummy}>
+                                                        <option value="">Select Leg. District</option>
+                                                        {legDistrictOptions.map(l => <option key={l} value={l}>{l}</option>)}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
