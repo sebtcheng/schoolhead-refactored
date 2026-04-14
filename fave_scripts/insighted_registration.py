@@ -37,22 +37,34 @@ def main():
                 WHERE legacy."Region" IS NOT NULL 
                   AND TRIM(UPPER(legacy."Region")) NOT IN ('', 'BLANK', 'BLANK REGION')
                 GROUP BY TRIM(UPPER(legacy."Region"))
+            ),
+            completed_counts AS (
+                SELECT TRIM(UPPER(legacy."Region")) as region_name, COUNT(DISTINCT legacy.iern) as completed_count
+                FROM "schools_IERN" legacy
+                JOIN ph_school_completion comp ON legacy.iern = comp.iern
+                WHERE legacy."Region" IS NOT NULL 
+                  AND TRIM(UPPER(legacy."Region")) NOT IN ('', 'BLANK', 'BLANK REGION')
+                  AND comp.total_completion = 100
+                GROUP BY TRIM(UPPER(legacy."Region"))
             )
             SELECT 
                 l.region_name,
                 l.total_legacy,
                 COALESCE(m.migrated_count, 0) as migrated_count,
-                ROUND((COALESCE(m.migrated_count, 0)::numeric / l.total_legacy * 100), 2) as percentage
+                COALESCE(c.completed_count, 0) as completed_count,
+                ROUND((COALESCE(m.migrated_count, 0)::numeric / l.total_legacy * 100), 2) as reg_percentage,
+                ROUND((COALESCE(c.completed_count, 0)::numeric / l.total_legacy * 100), 2) as comp_percentage
             FROM legacy_counts l
             LEFT JOIN migrated_counts m ON l.region_name = m.region_name
-            ORDER BY percentage DESC, l.region_name ASC;
+            LEFT JOIN completed_counts c ON l.region_name = c.region_name
+            ORDER BY reg_percentage DESC, l.region_name ASC;
             """
             cur.execute(query)
             rows = cur.fetchall()
 
             # Output Table
-            headers = ["Region", "Total Schools", "Registered Schools", "Percentage"]
-            col_widths = [30, 18, 22, 12]
+            headers = ["Region", "Total", "Registered", "100% Comp", "Reg %", "Comp %"]
+            col_widths = [26, 8, 12, 12, 10, 10]
             
             # Border
             border = "+" + "+".join("-" * w for w in col_widths) + "+"
@@ -65,25 +77,32 @@ def main():
             
             grand_legacy = 0
             grand_migrated = 0
+            grand_completed = 0
             
             for row in rows:
-                region, legacy, migrated, pct = row
-                row_str = f"| {str(region)[:28]}".ljust(col_widths[0]) + \
+                region, legacy, migrated, completed, reg_pct, comp_pct = row
+                row_str = f"| {str(region)[:24]}".ljust(col_widths[0]) + \
                          f"| {str(legacy)}".ljust(col_widths[1]) + \
                          f"| {str(migrated)}".ljust(col_widths[2]) + \
-                         f"| {str(pct)}%".ljust(col_widths[3]) + "|"
+                         f"| {str(completed)}".ljust(col_widths[3]) + \
+                         f"| {str(reg_pct)}%".ljust(col_widths[4]) + \
+                         f"| {str(comp_pct)}%".ljust(col_widths[5]) + "|"
                 print(row_str)
                 grand_legacy += legacy
                 grand_migrated += migrated
+                grand_completed += completed
             
             print(border)
             
             # Grand Total
-            total_pct = round((grand_migrated / grand_legacy * 100), 2) if grand_legacy > 0 else 0
+            total_reg_pct = round((grand_migrated / grand_legacy * 100), 2) if grand_legacy > 0 else 0
+            total_comp_pct = round((grand_completed / grand_legacy * 100), 2) if grand_legacy > 0 else 0
             footer_row = f"| {'GRAND TOTAL'.ljust(col_widths[0]-1)} " + \
                          f"| {str(grand_legacy)}".ljust(col_widths[1]) + \
                          f"| {str(grand_migrated)}".ljust(col_widths[2]) + \
-                         f"| {str(total_pct)}%".ljust(col_widths[3]) + "|"
+                         f"| {str(grand_completed)}".ljust(col_widths[3]) + \
+                         f"| {str(total_reg_pct)}%".ljust(col_widths[4]) + \
+                         f"| {str(total_comp_pct)}%".ljust(col_widths[5]) + "|"
             print(footer_row)
             print(border)
 

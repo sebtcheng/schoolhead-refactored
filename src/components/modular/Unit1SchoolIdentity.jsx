@@ -412,7 +412,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         fetch(`/api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(formData.municipality)}`)
             .then(r => r.json())
             .then(data => {
-                let options = Array.isArray(data) ? data : [];
+                let options = Array.isArray(data) ? data.map(item => (typeof item === 'object' && item !== null) ? item.barangay : item) : [];
                 options = options.filter(opt => opt.toUpperCase() !== 'BLANK BARANGAY');
                 if (formData.municipality === 'BLANK MUNICIPALITY') options.unshift('BLANK BARANGAY');
                 

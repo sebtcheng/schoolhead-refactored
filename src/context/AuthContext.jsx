@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [token, setToken] = useState(localStorage.getItem('token'));
     const [loading, setLoading] = useState(true);
 
     // AUTO-SEED LOGIC FOR SCHOOL HEADS (ph_schools baseline)
@@ -113,6 +114,7 @@ export const AuthProvider = ({ children }) => {
                         localStorage.removeItem('token');
                         localStorage.removeItem('userId');
                         localStorage.removeItem('userRole');
+                        setToken(null);
                         setUser(null);
                     }
                 } catch (err) {
@@ -153,6 +155,7 @@ export const AuthProvider = ({ children }) => {
         }
         
         setUser(userData);
+        setToken(token);
     };
 
     const logout = () => {
@@ -173,6 +176,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('accountCategory');
         localStorage.removeItem('remembered_user');
         clearProjectsCache().catch(err => console.warn('[AuthContext] Could not clear projects cache:', err));
+        setToken(null);
         setUser(null);
     };
 
@@ -251,7 +255,7 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={{ 
-            user, setUser, login, logout, confirmLogout, loading,
+            user, setUser, token, setToken, login, logout, confirmLogout, loading,
             isPasscodeSetupOpen, setIsPasscodeSetupOpen
         }}>
             {children}

@@ -543,7 +543,7 @@ const Register = () => {
             fetch(`/api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(city)}`)
                 .then(r => r.json())
                 .then(data => {
-                    const options = data || [];
+                    const options = (data || []).map(item => (typeof item === 'object' && item !== null) ? item.barangay : item);
                     if (city === 'BLANK MUNICIPALITY' && !options.includes('BLANK BARANGAY')) options.unshift('BLANK BARANGAY');
                     setBarangayOptions(options);
                 })
