@@ -1,130 +1,138 @@
-# Skill: Antigravity Execution Debugger (Interactive Auto-Healing Edition)
+# Skill: Interaction Tracer Pro (Senior QA & Root-Cause Engine)
 
 **Author:** Antigravity Skills Community  
-**Version:** 2.0.0  
-**Tags:** `debugging`, `optimization`, `self-healing`, `interactive-console`, `bulletproofing`  
+**Version:** 3.0.0 (Upgraded from 2.0.0)  
+**Tags:** `debugging`, `root-cause-analysis`, `tracing`, `network-interception`, `senior-qa`, `self-healing`
 
-## 📖 Description
-The `Antigravity Execution Debugger` has been upgraded from a static logging tool into an **Interactive, Self-Healing Diagnostic Engine**. 
+## 🌟 Overview
 
-When your antigravity physics fail, this wrapper intercepts the crash and generates a guided, step-by-step diagnostic script. Running this generated script in your console will automatically analyze the DOM, attempt to hot-fix structural errors (like CSS blockages), run live verification tests to ensure the fix worked, and provide a bulletproofing report so you know exactly what to update in your source code to prevent future regressions.
+`Interaction Tracer Pro` allows your agent to act as a senior QA engineer. When a button fails or a submission is rejected, this tool intercepts the runtime context—DOM state, Network Payloads, and Console Errors—cross-references it with your source code, and outputs a surgical diagnostic package identifying the exact root cause.
+
+## 📦 Package Manifest (`antigravity.yaml`)
+
+```yaml
+api_version: antigravity/v1alpha
+kind: SkillPackage
+metadata:
+  name: interaction-tracer-pro
+  description: "Traces UI interactions to diagnose runtime errors and failed submissions."
+spec:
+  triggers:
+    - intent: "debug_interaction"
+    - keywords: ["error", "fails", "button doesn't work", "submission rejected", "trace"]
+  permissions:
+    - dom:observe        # Required to find the button and read UI state
+    - net:intercept      # Required to capture outbound requests and API responses
+    - runtime:console    # Required to read browser console logs/errors
+    - fs:read            # Required to read the source code of the event handler
+  dependencies:
+    - pkg: "@antigravity/llm-analyzer"
+    - pkg: "@antigravity/browser-instrumentation"
+```
 
 ## 🛠️ Implementation
 
-Replace your previous wrapper with this upgraded Version 2.0.0 implementation.
+The `withInteractionTracer` wrapper replaces the previous debugger with a full-stack observability layer.
 
 ```javascript
 /**
- * Wraps an antigravity skill function with an interactive, auto-healing debugging layer.
- * @param {string} skillName - The human-readable name of the skill being executed.
- * @param {Function} skillFunction - The core function/callback to execute and monitor.
- * @returns {Function} A wrapped async function ready for execution.
+ * Wraps a UI interaction or function with the Interaction Tracer Pro engine.
+ * @param {string} interactionName - Name of the interaction being traced.
+ * @param {Function} interactionFn - The core logic to monitor.
+ * @returns {Function} A wrapped async function with built-in tracing.
  */
-function withAntigravityDebugger(skillName, skillFunction) {
+function withInteractionTracer(interactionName, interactionFn) {
     return async function(...args) {
-        console.group(\`🚀 Executing Antigravity Skill: [\${skillName}]\`);
-        const startTime = performance.now();
+        console.group(`🔍 Tracer Pro: [${interactionName}]`);
+        const traceLog = {
+            startTime: new Date().toISOString(),
+            domSnapshots: [],
+            networkRequests: [],
+            consoleLogs: [],
+            errors: []
+        };
+
+        // 1. Hook Network Requests (Fetch API)
+        const originalFetch = window.fetch;
+        window.fetch = async (...fetchArgs) => {
+            const req = { 
+                url: fetchArgs[0], 
+                method: fetchArgs[1]?.method || 'GET',
+                payload: fetchArgs[1]?.body ? JSON.parse(fetchArgs[1].body) : null,
+                timestamp: Date.now() 
+            };
+            traceLog.networkRequests.push(req);
+            try {
+                const res = await originalFetch(...fetchArgs);
+                const clonedRes = res.clone();
+                req.status = res.status;
+                req.response = await clonedRes.json().catch(() => 'non-json-response');
+                return res;
+            } catch (err) {
+                req.error = err.message;
+                throw err;
+            }
+        };
+
+        // 2. Observe DOM Changes
+        const observer = new MutationObserver((mutations) => {
+            traceLog.domSnapshots.push({
+                timestamp: Date.now(),
+                summary: mutations.map(m => `${m.type}: ${m.target.tagName}`).slice(0, 5)
+            });
+        });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 
         try {
-            const result = await skillFunction(...args);
-            const endTime = performance.now();
-            console.log(\`✅ SUCCESS: Skill executed flawlessly in \${(endTime - startTime).toFixed(2)}ms.\`);
-            if (result !== undefined) console.log('📦 Return Payload:', result);
-            console.groupEnd();
+            const result = await interactionFn(...args);
+            console.log('✅ SUCCESS: Interaction completed.');
             return result;
-
         } catch (error) {
-            const endTime = performance.now();
-            console.error(\`❌ FAILURE: Skill crashed after \${(endTime - startTime).toFixed(2)}ms.\`);
-            console.error(\`🛑 Error Message: \${error.message}\`);
+            console.error('❌ FAILURE: Interaction crashed.');
+            traceLog.errors.push({
+                message: error.message,
+                stack: error.stack,
+                timestamp: Date.now()
+            });
+
+            // 3. Generate Surgical Diagnostic Report
+            console.groupCollapsed('%c🔬 ROOT CAUSE ANALYSIS (Click to Expand)', 'background: #d93025; color: #fff; padding: 6px; border-radius: 4px; font-weight: bold;');
             
-            console.groupCollapsed('%c🛠️ Launch Interactive Auto-Healer Script (Click to Expand)', 'background: #800080; color: #fff; padding: 6px; border-radius: 4px; font-weight: bold; font-size: 1.1em;');
-            console.log('%cCopy and execute the async script below to begin the step-by-step self-healing process:', 'color: #e066ff; font-style: italic;');
+            console.log('%cNetwork Audit:', 'color: #ff9900; font-weight: bold;');
+            console.table(traceLog.networkRequests);
             
-            const interactiveDiagnosticScript = \`
-// --- Antigravity Auto-Healer Engine ---
-(async function runSelfHealingDiagnostics() {
-    console.group("%c🚑 Starting Antigravity Auto-Healer...", "color: #ff9900; font-size: 1.2em; font-weight: bold;");
-    
-    const targets = document.querySelectorAll('*');
-    let problematicElements = [];
+            console.log('%cTrace Payload for Antigravity Agent:', 'color: #9b27b0; font-style: italic;');
+            console.log(JSON.stringify({
+                interaction: interactionName,
+                url: window.location.href,
+                trace: traceLog
+            }, null, 2));
 
-    // STEP 1: Identify What to Fix
-    console.log("%c[Step 1] Diagnosing Environment...", "color: #00ccff; font-weight: bold;");
-    targets.forEach(el => {
-        const style = window.getComputedStyle(el);
-        if (style.position === 'static' && el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE') {
-            problematicElements.push(el);
-        }
-    });
+            // 4. Interactive Auto-Healer (Legacy Support)
+            console.log('%c🛠️ Run Auto-Healer Snippet:', 'color: #00ccff; font-weight: bold;');
+            console.log(`(async function autoHeal() { 
+                console.warn("Attempting structural fix for:", "${error.message}");
+                document.querySelectorAll("*").forEach(el => {
+                    if(window.getComputedStyle(el).position === "static") el.style.position = "relative";
+                });
+                console.log("Environment patched. Retry interaction.");
+            })()`);
 
-    if (problematicElements.length === 0) {
-        console.log("✅ No CSS structural blockers found. The issue likely lies in your JS logic or physics engine initialization.");
-        console.groupEnd();
-        return;
-    }
-
-    console.warn(\\\`Found \\\${problematicElements.length} elements anchored with 'position: static'. These will resist gravity.\\\`);
-
-    // STEP 2: Auto-Fixing (Self-Healing)
-    console.log("%c[Step 2] Auto-Fixing Environment (Hot-patching CSS)...", "color: #00ccff; font-weight: bold;");
-    problematicElements.forEach(el => {
-        el.dataset.originalPosition = window.getComputedStyle(el).position; // Save state
-        el.style.position = 'relative'; // Apply fix
-        el.style.border = '2px solid #00ccff'; // Highlight fixed element
-    });
-    console.log("🔧 Automatically converted 'static' elements to 'relative'.");
-
-    // STEP 3: Running Scripts to Test the Outcome
-    console.log("%c[Step 3] Running Verification Test...", "color: #00ccff; font-weight: bold;");
-    console.log("Applying a micro-gravity pulse to patched elements...");
-    
-    let testSuccess = true;
-    try {
-        for (const el of problematicElements.slice(0, 5)) { // Test up to 5 elements
-            el.style.transform = 'translateY(-10px)';
-            await new Promise(resolve => setTimeout(resolve, 200)); // Wait for render
-            const newRect = el.getBoundingClientRect();
-            if (newRect.top === 0 && el.tagName !== 'BODY') testSuccess = false; // Simplified test metric
-            el.style.transform = 'none'; // Reset test
-        }
-    } catch(e) {
-        testSuccess = false;
-        console.error("Test execution failed:", e);
-    }
-
-    if (testSuccess) {
-        console.log("✅ Micro-gravity test PASSED. The hot-fix is stable.");
-    } else {
-        console.error("❌ Micro-gravity test FAILED. Elements are still resisting. Check for '!important' CSS overrides or locked parent containers.");
-    }
-
-    // STEP 4: Bulletproofing & Future Warnings
-    console.log("%c[Step 4] Bulletproofing & Permanent Fix Recommendations...", "color: #00ccff; font-weight: bold;");
-    console.table([
-        { 
-            Issue: "Static Positioning", 
-            Action_Required: "Update your master CSS file to change these elements from 'position: static' to 'relative' or 'absolute'.",
-            Future_Risk: "If not hardcoded, the next page reload will break the physics engine again."
-        },
-        {
-            Issue: "Missing Z-Index",
-            Action_Required: "Assign a higher z-index to floating elements to prevent clipping behind the background.",
-            Future_Risk: "Elements might float underneath other containers and disappear."
-        }
-    ]);
-    
-    console.log("🏁 Self-Healing Complete. Re-run your antigravity skill now to verify in the live environment.");
-    console.groupEnd();
-})();
-// --------------------------------------
-            \`;
-            
-            console.log(\`%c\${interactiveDiagnosticScript}\`, 'color: #5ce6cd; font-family: monospace; font-size: 1.1em;');
-            console.groupEnd(); // Close Diagnostic Script group
-            console.groupEnd(); // Close Main Skill group
-
-            throw error; 
+            console.groupEnd();
+            throw error;
+        } finally {
+            // Cleanup
+            window.fetch = originalFetch;
+            observer.disconnect();
+            console.groupEnd();
         }
     };
 }
+```
+
+## 🚀 How to Use
+
+1. **Inject the Wrapper**: Wrap your event handlers or API submission functions with `withInteractionTracer`.
+2. **Trigger the Bug**: Perform the interaction in the browser.
+3. **Analyze the Trace**: If it fails, expand the "ROOT CAUSE ANALYSIS" in the console.
+4. **Agent Handoff**: Copy the JSON trace payload and paste it to your Antigravity agent. It will use this data to perform an `fs:read` on the exact failing line and propose a fix.

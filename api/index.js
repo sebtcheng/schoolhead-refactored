@@ -18687,7 +18687,7 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
     const fin = u9_final ? JSON.parse(u9_final) : {};
 
     const pInt = (v) => (v === '' || v === null || v === undefined || isNaN(parseInt(v))) ? 0 : parseInt(v);
-    const pStatus = (v) => (v === null || v === undefined) ? 2 : parseInt(v); // Default to 2 (N/A) if missing
+    const pStatus = (v) => (v === '' || v === null || v === undefined || isNaN(parseInt(v))) ? 2 : parseInt(v); // Default to 2 (N/A) if missing or invalid
 
     await pool.query(`
       INSERT INTO ph_schools_audit (

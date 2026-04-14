@@ -37,6 +37,8 @@ const TABLES_TO_CLEAN = [
     'school_ownership_docs',
     'ph_school_completion',
     'pending_schools',
+    'school_documents',
+    'schools_IERN',
     'users',
     'ph_schools'
 ];
@@ -56,12 +58,24 @@ async function purge(schoolId) {
         
         for (const table of TABLES_TO_CLEAN) {
             try {
+                // Table-specific column handling
+                let columnName = 'school_id';
+                if (table === 'schools_IERN') {
+                    columnName = 'SchoolID'; // Case sensitive for schools_IERN
+                }
+
                 // Execute deletion using parameter binding for safety
-                const res = await client.query(`DELETE FROM "${table}" WHERE school_id = $1`, [schoolId]);
+                // We use double quotes around column names that might be case-sensitive or reserved
+                const res = await client.query(`DELETE FROM "${table}" WHERE "${columnName}" = $1`, [schoolId]);
                 console.log(` ✅ [${table}] Deleted ${res.rowCount} records.`);
             } catch (err) {
-                console.error(` ❌ [${table}] Error: ${err.message}`);
-                throw err;
+                // If table doesn't exist, just log and continue (optional, but safer)
+                if (err.message.includes('does not exist')) {
+                    console.log(` ⚠️ [${table}] Table does not exist, skipping.`);
+                } else {
+                    console.error(` ❌ [${table}] Error: ${err.message}`);
+                    throw err;
+                }
             }
         }
 

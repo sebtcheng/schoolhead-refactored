@@ -9,6 +9,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { isNetworkError, logSubmissionDiagnostic } from "../../utils/submissionHelper";
 
 // --- Shared Styles ---
 const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm text-center";
@@ -404,8 +405,9 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                 const pendingUnit9 = outbox.find(e => e.unitId === 9 && (e.schoolId === storedId || e.payload?.schoolId === storedId));
                 const draft = await getUnitDraft(9, storedId);
 
-                // Fetch Unit 6 for Autofill
-                const resU6 = await fetch(`/api/ph_schools/${storedId}`);
+                const resU6 = await fetch(`/api/ph_schools/${storedId}`, {
+                    headers: { 'Authorization': `Bearer ${user.token}` }
+                });
                 let u6PowerSource = "";
                 if (resU6.ok) {
                     const profile = await resU6.json();
@@ -484,7 +486,8 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
             if (val === true) return 1;
             if (val === false) return 0;
             if (typeof val === 'number') return val;
-            return 0; // default
+            if (val === null || val === undefined || val === "") return 2; // Default to 2 (N/A)
+            return parseInt(val) || 0;
         };
 
         const rawGen = p.u9_general ? JSON.parse(p.u9_general) : {};
@@ -701,7 +704,27 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
         };
 
         try {
-            if (!navigator.onLine) {
+            const res = await fetch(`/api/ph_schools/unit9/${schoolId}`, {
+                method: "PUT",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${user.token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                await clearUnitDraft(9, schoolId);
+                updateQuestProgress();
+                setShowSuccess(true);
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.details || errData.message || "Server error");
+            }
+        } catch (e) {
+            logSubmissionDiagnostic('Unit 9', isNetworkError(e) ? 'NETWORK' : 'SERVER', e, { schoolId });
+
+            if (isNetworkError(e)) {
                 await addModularToOutbox({
                     unitId: 9,
                     label: "Unit 9: Infrastructure & Safety Audit",
@@ -713,25 +736,9 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                 await clearUnitDraft(9, schoolId);
                 updateQuestProgress();
                 setShowOfflineSuccess(true);
-                return;
-            }
-
-            const res = await fetch(`/api/ph_schools/unit9/${schoolId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                await clearUnitDraft(9, schoolId);
-                updateQuestProgress();
-                setShowSuccess(true);
             } else {
-                throw new Error("Server error");
+                alert(`Submission failed: ${e.message || "Unknown error"}\n\nPlease check your data and try again.`);
             }
-        } catch (e) {
-            console.error(e);
-            alert("Submission failed. Saving to outbox.");
         } finally {
             setLoading(false);
         }
