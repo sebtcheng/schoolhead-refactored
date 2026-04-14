@@ -339,13 +339,9 @@ const SchoolManagement = () => {
     }, [locationOptions, formData.province]);
 
     const districtOptions = useMemo(() => {
-        if (!formData.municipality) return [];
-        return [...new Set(locationOptions
-            .filter(item => item.municipality === formData.municipality)
-            .map(item => item.district)
-            .filter(Boolean)
-        )].sort();
-    }, [locationOptions, formData.municipality]);
+        // District is dependent on Division (implicitly filtered in locationOptions)
+        return [...new Set(locationOptions.map(item => item.district).filter(Boolean))].sort();
+    }, [locationOptions]);
 
     const barangayOptions = useMemo(() => {
         if (!formData.municipality) return [];
@@ -364,13 +360,21 @@ const SchoolManagement = () => {
     }, [locationOptions, formData.municipality, formData.district]);
 
     const legDistrictOptions = useMemo(() => {
-        if (!formData.municipality) return [];
-        return [...new Set(locationOptions
-            .filter(item => item.municipality === formData.municipality)
-            .map(item => item.leg_district)
-            .filter(Boolean)
-        )].sort();
-    }, [locationOptions, formData.municipality]);
+        // Hard-coded Legislative Districts (Standardized 1st to 8th)
+        const HARD_CODED_LEGS = [
+            '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+            '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+        ];
+        
+        let options = [...HARD_CODED_LEGS];
+        
+        // Ensure current value is in list even if not in the 1st-8th range (fallback for old data)
+        if (formData.leg_district && !options.some(opt => opt.toUpperCase() === formData.leg_district.toUpperCase())) {
+            options.push(formData.leg_district.toUpperCase());
+        }
+        
+        return options;
+    }, [formData.leg_district]);
 
 
     const MapClickHandler = () => {
@@ -445,10 +449,16 @@ const SchoolManagement = () => {
         // Map Auto-Pan Logic (First School in Area)
         if (['province', 'municipality', 'district', 'leg_district', 'barangay'].includes(name) && value) {
             // Construct filters using the NEW value (state update is async, so use local 'value')
-            const filters = {
-                ...formData,
-                [name]: value
-            };
+            setFormData(prev => {
+                const updated = { ...prev, [name]: value };
+                if (name === 'province') {
+                    updated.municipality = '';
+                    updated.barangay = '';
+                } else if (name === 'municipality') {
+                    updated.barangay = '';
+                }
+                return updated;
+            });
 
             // Requirement: "When i select a province, municipality, district..." -> trigger pan
             // We need at least a Province to start filtering effectively, but usually Municipality is the key.

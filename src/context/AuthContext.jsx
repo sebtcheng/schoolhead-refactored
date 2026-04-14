@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { clearProjectsCache, saveUnitDraft, getUnitDraft, saveSchoolToCache } from '../db';
+import { normalizeRole } from '../config/roleGroups';
 
 const AuthContext = createContext(null);
 
@@ -91,6 +92,9 @@ export const AuthProvider = ({ children }) => {
                     });
                     if (res.ok) {
                         const userData = await res.json();
+                        // Normalize role before storage
+                        if (userData.role) userData.role = normalizeRole(userData.role);
+                        
                         // Sync localStorage
                         if (userData.uid) localStorage.setItem('uid', userData.uid);
                         if (userData.role) localStorage.setItem('userRole', userData.role);
@@ -98,6 +102,8 @@ export const AuthProvider = ({ children }) => {
                         if (userData.account_category) localStorage.setItem('accountCategory', userData.account_category);
                         if (userData.province) localStorage.setItem('userProvince', userData.province);
                         if (userData.city) localStorage.setItem('userCity', userData.city);
+                        if (userData.region) localStorage.setItem('userRegion', userData.region);
+                        if (userData.division) localStorage.setItem('userDivision', userData.division);
                         
                         setUser(userData);
                         
@@ -135,13 +141,21 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = (userData, token) => {
+        // Normalize role before storage
+        if (userData.role) userData.role = normalizeRole(userData.role);
+
         localStorage.setItem('token', token);
         if (userData.uid) localStorage.setItem('uid', userData.uid);
         if (userData.role) localStorage.setItem('userRole', userData.role);
         if (userData.email) localStorage.setItem('userEmail', userData.email);
-        if (userData.account_category) localStorage.setItem('accountCategory', userData.account_category);
+        if (userData.account_category) {
+            userData.account_category = normalizeRole(userData.account_category);
+            localStorage.setItem('accountCategory', userData.account_category);
+        }
         if (userData.province) localStorage.setItem('userProvince', userData.province);
         if (userData.city) localStorage.setItem('userCity', userData.city);
+        if (userData.region) localStorage.setItem('userRegion', userData.region);
+        if (userData.division) localStorage.setItem('userDivision', userData.division);
         
         localStorage.setItem('remembered_user', JSON.stringify(userData));
         
@@ -174,6 +188,10 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('schoolId');
         localStorage.removeItem('userEmail');
         localStorage.removeItem('accountCategory');
+        localStorage.removeItem('userRegion');
+        localStorage.removeItem('userDivision');
+        localStorage.removeItem('userProvince');
+        localStorage.removeItem('userCity');
         localStorage.removeItem('remembered_user');
         clearProjectsCache().catch(err => console.warn('[AuthContext] Could not clear projects cache:', err));
         setToken(null);

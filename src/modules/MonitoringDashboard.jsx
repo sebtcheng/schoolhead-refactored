@@ -26,6 +26,7 @@ import {
 import { TbSchool } from 'react-icons/tb';
 import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
+import { normalizeRole } from '../config/roleGroups';
 import BottomNav from './BottomNav';
 
 // --- Helper: progress color (Refined with Premium Gradients) ---
@@ -108,7 +109,7 @@ const MonitoringDashboard = () => {
   const [showUnit9Explanation, setShowUnit9Explanation] = useState(false);
 
   // --- User context ---
-  const userRole = user?.role || localStorage.getItem('userRole') || '';
+  const userRole = normalizeRole(user?.role || localStorage.getItem('userRole') || '');
   const userRegion = user?.region || localStorage.getItem('userRegion') || '';
   const userDivision = user?.division || localStorage.getItem('userDivision') || '';
 
@@ -147,6 +148,9 @@ const MonitoringDashboard = () => {
         if (userRegion) params.append('region', userRegion);
         if (userDivision) params.append('division', userDivision);
       }
+      
+      // Explicitly pass role to backend for restricted view (optional security layer)
+      if (userRole) params.append('role', userRole);
 
       const res = await fetch(`/api/monitoring/schools?${params.toString()}`);
       if (res.ok) {
@@ -182,8 +186,8 @@ const MonitoringDashboard = () => {
       const p = parseFloat(s.completion_percentage);
       return p > 0 && p < 100;
     }).length;
-    const avgProgress = registered > 0 
-      ? filteredSchools.reduce((sum, s) => sum + parseFloat(s.completion_percentage || 0), 0) / registered 
+    const avgProgress = total > 0 
+      ? (filteredSchools.filter(s => parseFloat(s.completion_percentage) >= 100).length / total) * 100 
       : 0;
     
     const esf7Submissions = filteredSchools.filter(s => s.esf7_status === 'VERIFIED' || s.esf7_status === 'PENDING_SDO').length;
@@ -203,8 +207,8 @@ const MonitoringDashboard = () => {
 
   const divisionList = useMemo(() => {
     return Object.entries(groupedByDivision).map(([name, list]) => {
-      const avgPct = list.reduce((sum, s) => sum + parseFloat(s.completion_percentage || 0), 0) / (list.length || 1);
       const completed = list.filter(s => parseFloat(s.completion_percentage) >= 100).length;
+      const avgPct = (completed / (list.length || 1)) * 100;
       return { name, count: list.length, avgPct, completed, schools: list };
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [groupedByDivision]);
@@ -224,8 +228,8 @@ const MonitoringDashboard = () => {
       return acc;
     }, {});
     return Object.entries(byDistrict).map(([name, list]) => {
-      const avgPct = list.reduce((sum, s) => sum + parseFloat(s.completion_percentage || 0), 0) / (list.length || 1);
       const completed = list.filter(s => parseFloat(s.completion_percentage) >= 100).length;
+      const avgPct = (completed / (list.length || 1)) * 100;
       return { name, count: list.length, avgPct, completed, schools: list };
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [selectedDivision, groupedByDivision]);

@@ -54,8 +54,23 @@ export const ROLE_GROUP_MAP = {
     'Regional Engineer': ROLE_GROUPS.MANAGEMENT
 };
 
+export const normalizeRole = (role) => {
+    if (!role) return null;
+    return role
+        .split(/[_\s]+/)
+        .map(word => {
+            if (word.toLowerCase() === 'deped') return 'DepEd';
+            if (word.toLowerCase() === 'efd') return 'EFD';
+            if (word.toLowerCase() === 'hrodi') return 'HRODI';
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        })
+        .join(' ');
+};
+
 export const getRoleGroup = (role) => {
-    return ROLE_GROUP_MAP[role] || null;
+    if (!role) return null;
+    const normalized = normalizeRole(role);
+    return ROLE_GROUP_MAP[normalized] || ROLE_GROUP_MAP[role] || null;
 };
 
 
