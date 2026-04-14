@@ -18676,16 +18676,18 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
 
   try {
     let iern = reqIern;
-    if (!iern) {
+    if (!iern || iern === "") {
       const sRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [schoolId]);
-      iern = sRes.rows.length > 0 ? sRes.rows[0].iern : null;
+      iern = (sRes.rows.length > 0 && sRes.rows[0].iern) ? sRes.rows[0].iern : schoolId;
     }
-    if (!iern) return res.status(400).json({ error: "IERN context is required." });
 
     const gen = u9_general ? JSON.parse(u9_general) : {};
     const wir = u9_wiring ? JSON.parse(u9_wiring) : {};
     const lock = u9_cords_cctv ? JSON.parse(u9_cords_cctv) : {};
     const fin = u9_final ? JSON.parse(u9_final) : {};
+
+    const pInt = (v) => (v === '' || v === null || v === undefined || isNaN(parseInt(v))) ? 0 : parseInt(v);
+    const pStatus = (v) => (v === null || v === undefined) ? 2 : parseInt(v); // Default to 2 (N/A) if missing
 
     await pool.query(`
       INSERT INTO ph_schools_audit (
@@ -18780,27 +18782,27 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
     `, [
       iern, schoolId,
-      gen.main_power_source, gen.active_meters || 0, gen.wiring_age, gen.last_inspection_year,
-      gen.panel_clear, gen.panel_labeled, gen.panel_locked,
-      wir.lights_working, wir.outlet_covers_unbroken, wir.child_safety_covered,
-      wir.water_splash_safe, wir.bare_wires_visible, wir.enough_outlets,
-      lock.ext_cord_temp_only, lock.no_trip_hazards, lock.appliance_cords_good,
-      lock.plugs_feel_cool, lock.cctv_recording_clear, lock.dvr_room_cool_locked,
-      lock.cctv_wires_protected, true,
-      req.body.u9_cctv_working, req.body.u9_cctv_broken, req.body.u9_cctv_spares,
-      req.body.u9_fire_ext_working, req.body.u9_fire_ext_broken, req.body.u9_fire_ext_spares,
-      req.body.u9_first_aid_working, req.body.u9_first_aid_broken, req.body.u9_first_aid_spares,
-      req.body.u9_bullhorns_working, req.body.u9_bullhorns_broken, req.body.u9_bullhorns_spares,
-      req.body.u9_radios_working, req.body.u9_radios_broken, req.body.u9_radios_spares,
-      req.body.u9_flashlight_working, req.body.u9_flashlight_broken, req.body.u9_flashlight_spares,
-      req.body.u9_whistles_quantity,
-      req.body.u9_bulbs_working, req.body.u9_bulbs_broken, req.body.u9_bulbs_spares,
-      req.body.u9_covers_working, req.body.u9_covers_broken, req.body.u9_covers_spares,
-      req.body.u9_breakers_working, req.body.u9_breakers_broken, req.body.u9_breakers_spares,
-      req.body.u9_ext_cords_working, req.body.u9_ext_cords_broken, req.body.u9_ext_cords_spares,
-      req.body.u9_tape_quantity,
-      req.body.u9_fire_exit_exists, req.body.u9_backup_light_exists, req.body.u9_ecart_load_ready,
-      req.body.u9_has_surge_protection, req.body.u9_remarks
+      gen.main_power_source, pInt(gen.active_meters), gen.wiring_age, pInt(gen.last_inspection_year),
+      pStatus(gen.panel_clear), pStatus(gen.panel_labeled), pStatus(gen.panel_locked),
+      pStatus(wir.lights_working), pStatus(wir.outlet_covers_unbroken), pStatus(wir.child_safety_covered),
+      pStatus(wir.water_splash_safe), pStatus(wir.bare_wires_visible), pStatus(wir.enough_outlets),
+      pStatus(lock.ext_cord_temp_only), pStatus(lock.no_trip_hazards), pStatus(lock.appliance_cords_good),
+      pStatus(lock.plugs_feel_cool), pStatus(lock.cctv_recording_clear), pStatus(lock.dvr_room_cool_locked),
+      pStatus(lock.cctv_wires_protected), true,
+      pInt(req.body.u9_cctv_working), pInt(req.body.u9_cctv_broken), pInt(req.body.u9_cctv_spares),
+      pInt(req.body.u9_fire_ext_working), pInt(req.body.u9_fire_ext_broken), pInt(req.body.u9_fire_ext_spares),
+      pInt(req.body.u9_first_aid_working), pInt(req.body.u9_first_aid_broken), pInt(req.body.u9_first_aid_spares),
+      pInt(req.body.u9_bullhorns_working), pInt(req.body.u9_bullhorns_broken), pInt(req.body.u9_bullhorns_spares),
+      pInt(req.body.u9_radios_working), pInt(req.body.u9_radios_broken), pInt(req.body.u9_radios_spares),
+      pInt(req.body.u9_flashlight_working), pInt(req.body.u9_flashlight_broken), pInt(req.body.u9_flashlight_spares),
+      pInt(req.body.u9_whistles_quantity),
+      pInt(req.body.u9_bulbs_working), pInt(req.body.u9_bulbs_broken), pInt(req.body.u9_bulbs_spares),
+      pInt(req.body.u9_covers_working), pInt(req.body.u9_covers_broken), pInt(req.body.u9_covers_spares),
+      pInt(req.body.u9_breakers_working), pInt(req.body.u9_breakers_broken), pInt(req.body.u9_breakers_spares),
+      pInt(req.body.u9_ext_cords_working), pInt(req.body.u9_ext_cords_broken), pInt(req.body.u9_ext_cords_spares),
+      pInt(req.body.u9_tape_quantity),
+      pStatus(req.body.u9_fire_exit_exists), pStatus(req.body.u9_backup_light_exists), pStatus(req.body.u9_ecart_load_ready),
+      pStatus(req.body.u9_has_surge_protection), req.body.u9_remarks
     ]);
 
     await pool.query(
@@ -18819,8 +18821,8 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
 
     res.json({ success: true, message: "Unit 9 audit saved successfully." });
   } catch (err) {
-    console.error("Save Unit 9 Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Save Unit 9 Error:", err.message);
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 });
 

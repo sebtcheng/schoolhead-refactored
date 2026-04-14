@@ -114,6 +114,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         // Sharing state
         is_sharing: false,
         shared_with: [], 
+        is_kinder_double_shift: false,
     };
     const [currentGradeForm, setCurrentGradeForm] = useState(initialGradeForm);
 
@@ -425,6 +426,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     is_sharing_parent: currentGradeForm.is_sharing && sharingPartners.length > 0,
                     is_shared_child: false, // Parent can't be a child
                     sharing_parent_id: null,
+                    is_kinder_double_shift: currentGradeForm.is_kinder_double_shift,
                     isVerified: true
                 };
             }
@@ -492,6 +494,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             plastic_chair_only_broken: grade.plastic_chair_only_broken || "",
             is_sharing: grade.is_sharing || (grade.is_sharing_parent && grade.shared_with?.length > 0) || false,
             shared_with: grade.shared_with || [],
+            is_kinder_double_shift: grade.is_kinder_double_shift || false,
         });
         setGradeValidationConfirm("");
         setShowGradeModal(true);
@@ -506,7 +509,13 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         const tsws = parseInt(currentGradeForm.two_seater_wood_steel_func) || 0;
         const wco = parseInt(currentGradeForm.wooden_chair_only_func) || 0;
         const pco = parseInt(currentGradeForm.plastic_chair_only_func) || 0;
-        const totalCapacity = aw + ap + aps + itc + (tsw * 2) + (tsws * 2) + wco + pco;
+        
+        let totalCapacity = aw + ap + aps + itc + (tsw * 2) + (tsws * 2) + wco + pco;
+
+        // Apply Kinder Double Shift Multiplier (UI Only Calculation)
+        if (selectedGradeId === 'kinder' && currentGradeForm.is_kinder_double_shift) {
+            totalCapacity = totalCapacity * 2;
+        }
         
         const activeGrade = gradesData.find(g => g.id === selectedGradeId);
         let totalEnrolled = activeGrade ? parseInt(activeGrade.enrolled || 0) : 0;
@@ -1321,7 +1330,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                 </div>
                                                 
                                                 <div className="pt-2">
-                                                    <p className="text-sm font-bold text-gray-700 mb-4">Do ALL these general rooms have functional Teacher Stations?</p>
+                                                    <p className="text-sm font-bold text-gray-700 mb-4">Do all of these general rooms have functional teacher stations?</p>
                                                     <div className="flex gap-3">
                                                         <button onClick={() => setGeneralRoomsData(p => ({...p, has_teacher_desk: true}))} className={`${toggleBtnBase} ${generalRoomsData.has_teacher_desk === true ? toggleBtnActive : toggleBtnInactive}`}><span>👍</span> Yes, all have</button>
                                                         <button onClick={() => setGeneralRoomsData(p => ({...p, has_teacher_desk: false}))} className={`${toggleBtnBase} ${generalRoomsData.has_teacher_desk === false ? toggleBtnActive : toggleBtnInactive}`}><span>👎</span> No / Some missing</button>
@@ -2057,6 +2066,34 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                 <div><p className="text-[10px] font-black text-red-500 uppercase text-center mb-1">Broken</p><input type="number" name="plastic_chair_only_broken" value={currentGradeForm.plastic_chair_only_broken} onChange={handleGradeFormChange} min="0" placeholder="" className={`${chunkyInput} !bg-red-50 text-red-700 focus:!border-red-400 !mt-0`} /></div>
                                             </div>
                                         </div>
+                                        
+                                        {/* KINDER DOUBLE SHIFT OPTION */}
+                                        {selectedGradeId === 'kinder' && (
+                                            <div className="bg-indigo-50 border-2 border-indigo-100 rounded-[2.5rem] p-6 mb-4">
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <span className="text-xl">🌓</span>
+                                                    <h4 className="text-sm font-black text-indigo-900 uppercase tracking-tight">Shift Management</h4>
+                                                </div>
+                                                <p className="text-xs font-bold text-indigo-600 mb-4 leading-relaxed">
+                                                    Does your Kindergarten have morning and afternoon shifts? (This will double the calculated capacity shown below)
+                                                </p>
+                                                
+                                                <div className="flex gap-3">
+                                                    <button 
+                                                        onClick={() => setCurrentGradeForm(p => ({...p, is_kinder_double_shift: true}))} 
+                                                        className={`${toggleBtnBase} !py-3 ${currentGradeForm.is_kinder_double_shift ? toggleBtnActive : toggleBtnInactive}`}
+                                                    >
+                                                        Yes, 2 Shifts
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setCurrentGradeForm(p => ({...p, is_kinder_double_shift: false}))} 
+                                                        className={`${toggleBtnBase} !py-3 ${!currentGradeForm.is_kinder_double_shift ? toggleBtnActive : toggleBtnInactive}`}
+                                                    >
+                                                        No, Single
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* SHARED SEATS OPTION */}
                                         <div className="bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] p-6 mt-8">
@@ -2134,7 +2171,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                             ) : (
                                                 <div className="flex items-start gap-2 text-red-700">
                                                     <span className="text-lg">⚠️</span>
-                                                    <p className="text-sm font-bold pt-0.5">Note: <span className="text-red-600 text-lg font-black">{Math.abs(gradeStats.diff)}</span> shortage/excess seats identified for this grade level.</p>
+                                                    <p className="text-sm font-bold pt-0.5">Note: A shortage/excess of <span className="text-red-600 text-lg font-black">{Math.abs(gradeStats.diff)}</span> seats has been identified for this grade level.</p>
                                                 </div>
                                             )}
 

@@ -963,7 +963,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                             onFocus={e => { if (e.target.value === '0') setDemographicsData(prev => ({ ...prev, als_total: "" })) }}
                                                             onChange={e => {
                                                                 let val = e.target.value;
-                                                                if (val.length > 3) val = val.slice(0, 3);
+                                                                if (val.length > 6) val = val.slice(0, 6);
                                                                 setDemographicsData(prev => ({ ...prev, als_total: val }));
                                                             }}
                                                             className="w-full p-5 bg-slate-50 border-4 border-slate-100 rounded-3xl text-2xl font-black text-slate-700 focus:outline-none focus:border-indigo-400 focus:bg-white focus:shadow-xl focus:shadow-indigo-100/50 transition-all duration-300"
@@ -996,7 +996,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                                     onFocus={e => { if (e.target.value === '0') setDemographicsData(prev => ({ ...prev, [fieldKey]: "" })) }}
                                                                     onChange={e => {
                                                                         let val = e.target.value;
-                                                                        if (val.length > 3) val = val.slice(0, 3);
+                                                                        if (val.length > 6) val = val.slice(0, 6);
                                                                         setDemographicsData(prev => ({ ...prev, [fieldKey]: val }));
                                                                     }}
                                                                     className={`w-full p-5 bg-slate-50 border-4 rounded-3xl text-2xl font-black text-slate-700 focus:outline-none transition-all duration-300 ${isExceeded ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' : 'border-slate-100 focus:border-indigo-400 focus:bg-white focus:shadow-xl focus:shadow-indigo-100/50'}`}
@@ -1122,7 +1122,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                                     onFocus={e => { if (e.target.value === '0') setMovementData(prev => ({ ...prev, [fieldKey]: "" })) }}
                                                                     onChange={e => {
                                                                         let val = e.target.value;
-                                                                        if (val.length > 3) val = val.slice(0, 3);
+                                                                        if (val.length > 6) val = val.slice(0, 6);
                                                                         setMovementData(prev => ({ ...prev, [fieldKey]: val }));
                                                                     }}
                                                                     className={`w-full p-5 bg-slate-50 border-4 rounded-3xl text-2xl font-black text-slate-700 focus:outline-none transition-all duration-300 ${isExceeded ? 'border-rose-200 bg-rose-50 text-rose-600 focus:border-rose-400' : 'border-slate-100 focus:border-blue-400 focus:bg-white focus:shadow-xl focus:shadow-blue-100/50'}`}
@@ -1209,7 +1209,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                         onFocus={e => { if (e.target.value === '0') setBmiData(prev => ({ ...prev, [f.key]: "" })) }}
                                                         onChange={e => {
                                                             let val = e.target.value;
-                                                            if (val.length > 3) val = val.slice(0, 3);
+                                                            if (val.length > 6) val = val.slice(0, 6);
                                                             setBmiData(p => ({ ...p, [f.key]: val }));
                                                         }}
                                                         className={`w-full p-5 bg-slate-50 border-4 border-slate-100 rounded-3xl text-2xl font-black text-slate-700 focus:outline-none focus:border-${f.color}-400 focus:bg-white focus:shadow-xl transition-all duration-300`}
