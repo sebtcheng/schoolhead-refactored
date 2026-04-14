@@ -53,6 +53,10 @@ const LocationManagement = () => {
     const [showConfirm, setShowConfirm] = useState(false);
     const [confirmData, setConfirmData] = useState(null); // { title, message, onConfirm }
 
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addModalType, setAddModalType] = useState('');
+    const [addModalValue, setAddModalValue] = useState('');
+
     useEffect(() => {
         if (user) {
             if (user.role !== 'School Division Office' && user.role !== 'Regional Office' && user.role !== 'Super User') {
@@ -102,13 +106,17 @@ const LocationManagement = () => {
         } catch (err) { console.error("Fetch provinces failed", err); }
     };
 
-    const fetchDistricts = async (region, division) => {
+    const fetchDistricts = async (region, division, legislativeDistrict, municipality) => {
         if (!region || !division) {
             setDistricts([]);
             return;
         }
         try {
-            const res = await fetch(`/api/locations/districts?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`);
+            let url = `/api/locations/districts?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`;
+            if (legislativeDistrict) url += `&legislative_district=${encodeURIComponent(legislativeDistrict)}`;
+            if (municipality) url += `&municipality=${encodeURIComponent(municipality)}`;
+            
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
                 setDistricts(data);
@@ -116,19 +124,16 @@ const LocationManagement = () => {
         } catch (err) { console.error("Fetch districts failed", err); }
     };
 
-    const fetchMunicipalities = async (region, province, district) => {
+    const fetchMunicipalities = async (region, province, district, legislativeDistrict) => {
         if (!region || !province) {
             setMunicipalities([]);
             return;
         }
-        // Try to fetch by district if available, otherwise by province
-        let url = `/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`;
-        if (district) {
-            // Note: If backend supports municipalities by district, we could use that.
-            // For now, municipalities-by-province is what we have, 
-            // but we'll check if /api/locations/municipalities exists and takes district.
-            url = `/api/locations/municipalities?region=${encodeURIComponent(region)}&division=${encodeURIComponent(user?.division)}&district=${encodeURIComponent(district)}`;
-        }
+        
+        // Build URL with cascading filters
+        let url = `/api/locations/municipalities?region=${encodeURIComponent(region)}&division=${encodeURIComponent(user?.division)}`;
+        if (district) url += `&district=${encodeURIComponent(district)}`;
+        if (legislativeDistrict) url += `&legislative_district=${encodeURIComponent(legislativeDistrict)}`;
         
         try {
             const res = await fetch(url);
@@ -139,13 +144,19 @@ const LocationManagement = () => {
         } catch (err) { console.error("Fetch municipalities failed", err); }
     };
 
-    const fetchLegislativeDistricts = async (region, province, municipality) => {
-        if (!region || !province || !municipality) {
+    const fetchLegislativeDistricts = async (region, province, district, municipality) => {
+        if (!region || !province) {
             setLegislativeDistricts([]);
             return;
         }
+        
+        let url = `/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`;
+        if (user?.division) url += `&division=${encodeURIComponent(user.division)}`;
+        if (district) url += `&district=${encodeURIComponent(district)}`;
+        if (municipality) url += `&municipality=${encodeURIComponent(municipality)}`;
+
         try {
-            const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`);
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
                 setLegislativeDistricts(data);
@@ -176,54 +187,54 @@ const LocationManagement = () => {
 
     useEffect(() => {
         if (selectedProvince) {
-            if (selectedRegion && user?.division) {
-                fetchDistricts(selectedRegion, user.division);
-            }
-            fetchMunicipalities(selectedRegion, selectedProvince, selectedDistrict);
+            fetchLegislativeDistricts(selectedRegion, selectedProvince);
+            setSelectedLegislativeDistrict('');
+            setDistricts([]);
+            setMunicipalities([]);
+            setBarangays([]);
         }
     }, [selectedProvince]);
 
     useEffect(() => {
+        if (selectedLegislativeDistrict) {
+            fetchMunicipalities(selectedRegion, selectedProvince, null, selectedLegislativeDistrict);
+            setSelectedMunicipality('');
+            setDistricts([]);
+            setBarangays([]);
+        }
+    }, [selectedLegislativeDistrict]);
+
+    useEffect(() => {
+        if (selectedMunicipality) {
+            fetchDistricts(selectedRegion, user?.division, selectedLegislativeDistrict, selectedMunicipality);
+            setSelectedDistrict('');
+            fetchBarangays(selectedRegion, selectedProvince, selectedMunicipality);
+        }
+    }, [selectedMunicipality]);
+
+    useEffect(() => {
         if (selectedDistrict) {
-            fetchMunicipalities(selectedRegion, selectedProvince, selectedDistrict);
+            // Selected District is now the leaf node before Barangay list? 
+            // Actually, Barangay depends on Municipality, so District is just another filter.
+            // But we keep the UI order.
         }
     }, [selectedDistrict]);
 
     useEffect(() => {
         if (selectedMunicipality) {
-            fetchLegislativeDistricts(selectedRegion, selectedProvince, selectedMunicipality);
             fetchBarangays(selectedRegion, selectedProvince, selectedMunicipality);
         }
     }, [selectedMunicipality]);
 
     const handleAdd = async (type) => {
-        const value = newInputs[type].toUpperCase();
-        if (!value) return;
-
-        // Duplicate Check
-        let isDuplicate = false;
-        if (type === 'region') isDuplicate = regions.includes(value);
-        else if (type === 'province') isDuplicate = provinces.includes(value);
-        else if (type === 'district') isDuplicate = districts.includes(value);
-        else if (type === 'municipality') isDuplicate = municipalities.includes(value);
-        else if (type === 'legislativeDistrict') isDuplicate = legislativeDistricts.includes(value);
-        else if (type === 'barangay') isDuplicate = barangays.some(b => b.barangay === value);
-
-        if (isDuplicate) {
-            alert(`This ${type.toUpperCase()} already exists in the current list.`);
-            return;
-        }
-
-        setConfirmData({
-            title: `Add New ${type.toUpperCase()}`,
-            message: `Are you sure you want to add "${value}"?`,
-            onConfirm: () => executeAdd(type, value)
-        });
-        setShowConfirm(true);
+        setAddModalType(type);
+        setAddModalValue('');
+        setShowAddModal(true);
     };
 
     const executeAdd = async (type, value) => {
         let body = {};
+        let endpoint = '';
 
         if (type === 'barangay') {
             endpoint = '/api/locations/ph_barangays';
@@ -300,7 +311,9 @@ const LocationManagement = () => {
     };
 
     const executeEdit = async (type, id, newValue) => {
+        const oldValue = type === 'barangay' ? '' : editingItem.value; // For non-barangay, we rename by value
         let body = {};
+        let endpoint = '';
 
         if (type === 'barangay') {
             endpoint = `/api/locations/ph_barangays/${id}`;
@@ -311,8 +324,17 @@ const LocationManagement = () => {
                 barangay: newValue
             };
         } else {
-            alert("Editing for this level is not yet fully implemented in UI.");
-            return;
+            // Rename logic for District, Municipality, Legislative District
+            endpoint = '/api/locations/rename';
+            body = {
+                type,
+                oldValue: oldValue,
+                newValue: newValue,
+                region: selectedRegion,
+                division: user.division,
+                province: selectedProvince,
+                municipality: selectedMunicipality
+            };
         }
 
         try {
@@ -329,7 +351,19 @@ const LocationManagement = () => {
                 alert(`${type.toUpperCase()} updated successfully!`);
                 setEditingItem(null);
                 setEditValue('');
-                if (type === 'barangay') fetchBarangays(selectedRegion, selectedProvince, selectedMunicipality);
+                
+                // Refresh list
+                if (type === 'district') {
+                    await fetchDistricts(selectedRegion, user.division);
+                    setSelectedDistrict(newValue);
+                } else if (type === 'municipality') {
+                    await fetchMunicipalities(selectedRegion, selectedProvince, selectedDistrict);
+                    setSelectedMunicipality(newValue);
+                } else if (type === 'legislativeDistrict') {
+                    await fetchLegislativeDistricts(selectedRegion, selectedProvince, selectedMunicipality);
+                } else if (type === 'barangay') {
+                    fetchBarangays(selectedRegion, selectedProvince, selectedMunicipality);
+                }
             } else {
                 const err = await res.json();
                 alert(err.error || "Failed to update.");
@@ -396,16 +430,6 @@ const LocationManagement = () => {
                         <div className="space-y-2">
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Region</label>
                             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {isAdding.region ? (
-                                    <input 
-                                        type="text" 
-                                        autoFocus
-                                        value={newInputs.region}
-                                        onChange={(e) => setNewInputs(prev => ({ ...prev, region: e.target.value.toUpperCase() }))}
-                                        placeholder="Enter new region..."
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-blue-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
-                                    />
-                                ) : (
                                     <select 
                                         value={selectedRegion}
                                         disabled={!!user?.division} // Disable if prefilled by division
@@ -415,25 +439,15 @@ const LocationManagement = () => {
                                         <option value="">Select Region</option>
                                         {regions.map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
-                                )}
                                 {!user?.division && (
                                     <div className="flex items-center gap-1 flex-shrink-0">
                                         <button 
-                                            onClick={() => isAdding.region ? handleAdd('region') : setIsAdding(prev => ({ ...prev, region: true }))}
-                                            className={`p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center ${isAdding.region ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}
-                                            title={isAdding.region ? "Add" : "Create New"}
+                                            onClick={() => handleAdd('region')}
+                                            className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                            title="Create New"
                                         >
-                                            {isAdding.region ? <FiCheck size={18} /> : <FiPlus size={18} />}
+                                            <FiPlus size={18} />
                                         </button>
-                                        {isAdding.region && (
-                                            <button 
-                                                onClick={() => setIsAdding(prev => ({ ...prev, region: false }))}
-                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all flex items-center justify-center"
-                                                title="Cancel"
-                                            >
-                                                <FiX size={18} />
-                                            </button>
-                                        )}
                                     </div>
                                 )}
                             </div>
@@ -443,16 +457,6 @@ const LocationManagement = () => {
                         <div className={`space-y-2 transition-opacity ${!selectedRegion && !isAdding.province ? 'opacity-50 pointer-events-none' : ''}`}>
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Province</label>
                             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {isAdding.province ? (
-                                    <input 
-                                        type="text" 
-                                        autoFocus
-                                        value={newInputs.province}
-                                        onChange={(e) => setNewInputs(prev => ({ ...prev, province: e.target.value.toUpperCase() }))}
-                                        placeholder="Enter new province..."
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-blue-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
-                                    />
-                                ) : (
                                     <select 
                                         value={selectedProvince}
                                         disabled={!!user?.division} // Disable if prefilled by division
@@ -462,86 +466,95 @@ const LocationManagement = () => {
                                         <option value="">Select Province</option>
                                         {provinces.map(p => <option key={p} value={p}>{p}</option>)}
                                     </select>
-                                )}
                                 {!user?.division && (
                                     <div className="flex items-center gap-1 flex-shrink-0">
                                         <button 
-                                            onClick={() => isAdding.province ? handleAdd('province') : setIsAdding(prev => ({ ...prev, province: true }))}
-                                            className={`p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center ${isAdding.province ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}
-                                            title={isAdding.province ? "Add" : "Create New"}
+                                            onClick={() => handleAdd('province')}
+                                            className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                            title="Create New"
                                         >
-                                            {isAdding.province ? <FiCheck size={18} /> : <FiPlus size={18} />}
+                                            <FiPlus size={18} />
                                         </button>
-                                        {isAdding.province && (
-                                            <button 
-                                                onClick={() => setIsAdding(prev => ({ ...prev, province: false }))}
-                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all flex items-center justify-center"
-                                                title="Cancel"
-                                            >
-                                                <FiX size={18} />
-                                            </button>
-                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* DISTRICT */}
-                        <div className={`space-y-2 transition-opacity ${!selectedProvince && !isAdding.district ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">District</label>
+                        {/* LEGISLATIVE DISTRICT */}
+                        <div className={`space-y-2 transition-opacity ${!selectedProvince && !isAdding.legislativeDistrict ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Legislative District</label>
                             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {isAdding.district ? (
+                                {editingItem?.type === 'legislativeDistrict' ? (
                                     <input 
                                         type="text" 
                                         autoFocus
-                                        value={newInputs.district}
-                                        onChange={(e) => setNewInputs(prev => ({ ...prev, district: e.target.value.toUpperCase() }))}
-                                        placeholder="Enter new district..."
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-blue-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
                                     />
                                 ) : (
                                     <select 
-                                        value={selectedDistrict}
-                                        onChange={(e) => setSelectedDistrict(e.target.value)}
+                                        value={selectedLegislativeDistrict}
+                                        onChange={(e) => setSelectedLegislativeDistrict(e.target.value)}
                                         className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
                                     >
-                                        <option value="">Select District</option>
-                                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                                        <option value="">Select Legislative District</option>
+                                        {legislativeDistricts.map(ld => <option key={ld} value={ld}>{ld}</option>)}
                                     </select>
                                 )}
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                    <button 
-                                        onClick={() => isAdding.district ? handleAdd('district') : setIsAdding(prev => ({ ...prev, district: true }))}
-                                        className={`p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center ${isAdding.district ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}
-                                        title={isAdding.district ? "Add" : "Create New"}
-                                    >
-                                        {isAdding.district ? <FiCheck size={18} /> : <FiPlus size={18} />}
-                                    </button>
-                                    {isAdding.district && (
-                                        <button 
-                                            onClick={() => setIsAdding(prev => ({ ...prev, district: false }))}
-                                            className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all flex items-center justify-center"
-                                            title="Cancel"
-                                        >
-                                            <FiX size={18} />
-                                        </button>
+                                    {editingItem?.type === 'legislativeDistrict' ? (
+                                        <>
+                                            <button 
+                                                onClick={() => handleEdit('legislativeDistrict', null, editValue)}
+                                                className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                title="Save"
+                                            >
+                                                <FiCheck size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditingItem(null)}
+                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
+                                                title="Cancel"
+                                            >
+                                                <FiX size={18} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {selectedLegislativeDistrict && (
+                                                <button 
+                                                    onClick={() => { setEditingItem({ type: 'legislativeDistrict', value: selectedLegislativeDistrict }); setEditValue(selectedLegislativeDistrict); }}
+                                                    className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                    title="Edit Selected Legislative District"
+                                                >
+                                                    <FiEdit2 size={18} />
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={() => handleAdd('legislativeDistrict')}
+                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                title="Create New"
+                                            >
+                                                <FiPlus size={18} />
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         {/* MUNICIPALITY */}
-                        <div className={`space-y-2 transition-opacity ${!selectedProvince && !isAdding.municipality ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className={`space-y-2 transition-opacity ${!selectedLegislativeDistrict && !isAdding.municipality ? 'opacity-50 pointer-events-none' : ''}`}>
                             <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Municipality</label>
                             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                {isAdding.municipality ? (
+                                {editingItem?.type === 'municipality' ? (
                                     <input 
                                         type="text" 
                                         autoFocus
-                                        value={newInputs.municipality}
-                                        onChange={(e) => setNewInputs(prev => ({ ...prev, municipality: e.target.value.toUpperCase() }))}
-                                        placeholder="Enter new municipality..."
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-blue-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
                                     />
                                 ) : (
                                     <select 
@@ -554,122 +567,122 @@ const LocationManagement = () => {
                                     </select>
                                 )}
                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                    <button 
-                                        onClick={() => isAdding.municipality ? handleAdd('municipality') : setIsAdding(prev => ({ ...prev, municipality: true }))}
-                                        className={`p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center ${isAdding.municipality ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'}`}
-                                        title={isAdding.municipality ? "Add" : "Create New"}
-                                    >
-                                        {isAdding.municipality ? <FiCheck size={18} /> : <FiPlus size={18} />}
-                                    </button>
-                                    {isAdding.municipality && (
-                                        <button 
-                                            onClick={() => setIsAdding(prev => ({ ...prev, municipality: false }))}
-                                            className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all flex items-center justify-center"
-                                            title="Cancel"
-                                        >
-                                            <FiX size={18} />
-                                        </button>
+                                    {editingItem?.type === 'municipality' ? (
+                                        <>
+                                            <button 
+                                                onClick={() => handleEdit('municipality', null, editValue)}
+                                                className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                title="Save"
+                                            >
+                                                <FiCheck size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditingItem(null)}
+                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
+                                                title="Cancel"
+                                            >
+                                                <FiX size={18} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {selectedMunicipality && (
+                                                <button 
+                                                    onClick={() => { setEditingItem({ type: 'municipality', value: selectedMunicipality }); setEditValue(selectedMunicipality); }}
+                                                    className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                    title="Edit Selected Municipality"
+                                                >
+                                                    <FiEdit2 size={18} />
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={() => handleAdd('municipality')}
+                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                title="Create New"
+                                            >
+                                                <FiPlus size={18} />
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* LEGISLATIVE DISTRICT LIST */}
-                        <div className={`space-y-4 transition-opacity ${!selectedMunicipality && !isAdding.legislativeDistrict ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <div className="flex justify-between items-center px-1">
-                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block">Legislative Districts</label>
-                                <button 
-                                    onClick={() => setIsAdding(prev => ({ ...prev, legislativeDistrict: true }))}
-                                    className="text-blue-600 font-bold text-sm flex items-center gap-1 hover:underline"
-                                >
-                                    <FiPlus /> Add Legislative District
-                                </button>
-                            </div>
-
-                            {isAdding.legislativeDistrict && (
-                                <div className="flex items-center gap-2 sm:gap-3 animate-in slide-in-from-top-2 duration-200 min-w-0 mb-4">
+                        {/* DISTRICT */}
+                        <div className={`space-y-2 transition-opacity ${!selectedMunicipality && !isAdding.district ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">District</label>
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                {editingItem?.type === 'district' ? (
                                     <input 
                                         type="text" 
                                         autoFocus
-                                        value={newInputs.legislativeDistrict}
-                                        onChange={(e) => setNewInputs(prev => ({ ...prev, legislativeDistrict: e.target.value.toUpperCase() }))}
-                                        placeholder="Enter new legislative district..."
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-blue-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-orange-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
                                     />
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                        <button 
-                                            onClick={() => handleAdd('legislativeDistrict')}
-                                            className="p-3 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 active:scale-95 transition-all"
-                                            title="Add"
-                                        >
-                                            <FiCheck size={18} />
-                                        </button>
-                                        <button 
-                                            onClick={() => setIsAdding(prev => ({ ...prev, legislativeDistrict: false }))}
-                                            className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all"
-                                            title="Cancel"
-                                        >
-                                            <FiX size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {legislativeDistricts.length > 0 ? (
-                                    legislativeDistricts.map(ld => (
-                                        <div key={ld} className="group flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-900 transition-all">
-                                            <span className="font-bold text-slate-700 dark:text-slate-200">{ld}</span>
-                                        </div>
-                                    ))
                                 ) : (
-                                    <div className="col-span-full py-8 text-center text-slate-400 font-medium bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                                        No legislative districts found.
-                                    </div>
+                                    <select 
+                                        value={selectedDistrict}
+                                        onChange={(e) => setSelectedDistrict(e.target.value)}
+                                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                    >
+                                        <option value="">Select District</option>
+                                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
                                 )}
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                    {editingItem?.type === 'district' ? (
+                                        <>
+                                            <button 
+                                                onClick={() => handleEdit('district', null, editValue)}
+                                                className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                title="Save"
+                                            >
+                                                <FiCheck size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditingItem(null)}
+                                                className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
+                                                title="Cancel"
+                                            >
+                                                <FiX size={18} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {selectedDistrict && (
+                                                <button 
+                                                    onClick={() => { setEditingItem({ type: 'district', value: selectedDistrict }); setEditValue(selectedDistrict); }}
+                                                    className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                    title="Edit Selected District"
+                                                >
+                                                    <FiEdit2 size={18} />
+                                                </button>
+                                            )}
+                                            <button 
+                                                onClick={() => handleAdd('district')}
+                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                title="Create New"
+                                            >
+                                                <FiPlus size={18} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
-
                         {/* BARANGAY LIST */}
                         <div className={`space-y-4 transition-opacity ${!selectedMunicipality && !isAdding.barangay ? 'opacity-50 pointer-events-none' : ''}`}>
                             <div className="flex justify-between items-center px-1">
                                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest block">Barangays</label>
                                 <button 
-                                    onClick={() => setIsAdding(prev => ({ ...prev, barangay: true }))}
+                                    onClick={() => handleAdd('barangay')}
                                     className="text-blue-600 font-bold text-sm flex items-center gap-1 hover:underline"
                                 >
                                     <FiPlus /> Add Barangay
                                 </button>
                             </div>
 
-                            {isAdding.barangay && (
-                                <div className="flex items-center gap-2 sm:gap-3 animate-in slide-in-from-top-2 duration-200 min-w-0 mb-4 px-1">
-                                    <input 
-                                        type="text" 
-                                        autoFocus
-                                        value={newInputs.barangay}
-                                        onChange={(e) => setNewInputs(prev => ({ ...prev, barangay: e.target.value.toUpperCase() }))}
-                                        placeholder="Enter new barangay name..."
-                                        className="flex-1 min-w-0 px-4 py-2 bg-white dark:bg-slate-900 border-2 border-blue-500 rounded-2xl outline-none dark:text-white shadow-inner font-bold"
-                                    />
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                        <button 
-                                            onClick={() => handleAdd('barangay')}
-                                            className="p-3 bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 active:scale-95 transition-all"
-                                            title="Add"
-                                        >
-                                            <FiCheck size={18} />
-                                        </button>
-                                        <button 
-                                            onClick={() => setIsAdding(prev => ({ ...prev, barangay: false }))}
-                                            className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-all"
-                                            title="Cancel"
-                                        >
-                                            <FiX size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
 
                             <div className="grid grid-cols-1 gap-3">
                                 {barangays.length > 0 ? (
@@ -760,6 +773,50 @@ const LocationManagement = () => {
                                     className="px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-200 dark:shadow-none hover:bg-blue-700 active:scale-95 transition-all"
                                 >
                                     Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ADD MODAL (FIXED) */}
+                {showAddModal && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-6 leading-tight text-center">
+                                Add New {addModalType === 'legislativeDistrict' ? 'Legislative District' : addModalType.toUpperCase()}
+                            </h3>
+                            
+                            <div className="space-y-4 mb-8">
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Name</label>
+                                <input 
+                                    type="text"
+                                    autoFocus
+                                    value={addModalValue}
+                                    onChange={(e) => setAddModalValue(e.target.value.toUpperCase())}
+                                    placeholder={`Enter ${addModalType}...`}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white font-bold text-lg shadow-inner"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => setShowAddModal(false)}
+                                    className="px-6 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (addModalValue.trim()) {
+                                            executeAdd(addModalType, addModalValue.trim().toUpperCase());
+                                            setShowAddModal(false);
+                                        }
+                                    }}
+                                    disabled={!addModalValue.trim()}
+                                    className={`px-6 py-4 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 ${!addModalValue.trim() ? 'bg-slate-300 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none'}`}
+                                >
+                                    Add
                                 </button>
                             </div>
                         </div>

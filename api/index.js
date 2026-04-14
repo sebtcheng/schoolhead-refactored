@@ -8392,18 +8392,32 @@ app.get('/api/locations/divisions', async (req, res) => {
 });
 
 app.get('/api/locations/districts', async (req, res) => {
-  const { region, division } = req.query;
+  const { region, division, legislative_district } = req.query;
   try {
     const normRegion = normalizeLocationField(region);
     const normDivision = normalizeLocationField(division);
-    const result = await pool.query(`
+    
+    let query = `
       SELECT DISTINCT district 
       FROM all_locations 
       WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
       AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(division)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
-      AND district IS NOT NULL AND district != '' 
-      ORDER BY district ASC
-    `, [normRegion, normDivision]);
+    `;
+    let params = [normRegion, normDivision];
+
+    if (legislative_district) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(legislative_district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normalizeLocationField(legislative_district));
+    }
+
+    if (req.query.municipality) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(municipality)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normalizeLocationField(req.query.municipality));
+    }
+
+    query += ` AND district IS NOT NULL AND district != '' ORDER BY district ASC`;
+    
+    const result = await pool.query(query, params);
     const districts = [...new Set(result.rows.map(r => normalizeLocationOutput(r.district)))];
     if (normDivision === 'BLANK DIVISION' && !districts.includes('BLANK DISTRICT')) districts.unshift('BLANK DISTRICT');
     res.json(districts);
@@ -8428,19 +8442,33 @@ app.get('/api/locations/leg-districts', async (req, res) => {
 });
 
 app.get('/api/locations/municipalities', async (req, res) => {
-  const { region, division, district } = req.query;
+  const { region, division, district, legislative_district } = req.query;
   try {
     const normRegion = normalizeLocationField(region);
     const normDivision = normalizeLocationField(division);
     const normDistrict = normalizeLocationField(district);
-    const result = await pool.query(`
+    const normLD = normalizeLocationField(legislative_district);
+
+    let query = `
       SELECT DISTINCT municipality FROM all_locations
       WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
       AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(division)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
-      AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $3
-      AND municipality IS NOT NULL AND municipality != ''
-      ORDER BY municipality ASC
-    `, [normRegion, normDivision, normDistrict]);
+    `;
+    let params = [normRegion, normDivision];
+
+    if (normDistrict) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normDistrict);
+    }
+
+    if (normLD) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(legislative_district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normLD);
+    }
+
+    query += ` AND municipality IS NOT NULL AND municipality != '' ORDER BY municipality ASC`;
+
+    const result = await pool.query(query, params);
     res.json([...new Set(result.rows.map(r => normalizeLocationOutput(r.municipality)))]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -8643,6 +8671,76 @@ app.delete('/api/locations/ph_barangays/:id', authMiddleware, checkLocationAuth,
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.put('/api/locations/rename', authMiddleware, checkLocationAuth, async (req, res) => {
+  const { type, oldValue, newValue, region, division, province, municipality } = req.body;
+  
+  if (!['district', 'municipality', 'legislative_district'].includes(type)) {
+    return res.status(400).json({ error: "Invalid location type for renaming." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const nr = normalizeLocationField(region);
+    const nd = normalizeLocationField(division);
+    const np = normalizeLocationField(province);
+    const nm = normalizeLocationField(municipality);
+    const ov = normalizeLocationField(oldValue);
+    const nv = normalizeLocationField(newValue);
+
+    let whereClause = 'region = $2 AND division = $3';
+    let params = [nv, nr, nd];
+    let colName = type;
+    
+    // Build filter based on level
+    if (type === 'municipality' || type === 'legislative_district') {
+      whereClause += ' AND province = $4';
+      params.push(np);
+    }
+    if (type === 'legislative_district') {
+      whereClause += ' AND municipality = $5';
+      params.push(nm);
+    }
+
+    params.push(ov);
+    const updateIndex = params.length;
+
+    // 1. Update all_locations
+    const q1 = `UPDATE all_locations SET ${type} = $1 WHERE ${whereClause} AND ${type} = $${updateIndex} RETURNING *`;
+    const res1 = await client.query(q1, params);
+
+    // 2. Update ph_schools (if it exists and has columns) - Best Effort
+    try {
+      // Map frontend types to DB columns
+      const dbCol = type === 'legislative_district' ? 'legislative_district' : type;
+      const q2 = `UPDATE ph_schools SET ${dbCol} = $1 WHERE region = $2 AND division = $3 AND ${dbCol} = $${updateIndex}`;
+      await client.query(q2, [nv, nr, nd, ov]);
+    } catch (e) { console.warn("Skip ph_schools update:", e.message); }
+
+    // 3. Update schools_IERN - Best Effort
+    try {
+      const iernColMap = {
+        district: 'District',
+        municipality: 'Municipality',
+        legislative_district: 'Legislative_District'
+      };
+      const iernCol = iernColMap[type];
+      const q3 = `UPDATE "schools_IERN" SET "${iernCol}" = $1 WHERE "Region" = $2 AND "Division" = $3 AND "${iernCol}" = $${updateIndex}`;
+      await client.query(q3, [nv, nr, nd, ov]);
+    } catch (e) { console.warn("Skip schools_IERN update:", e.message); }
+
+    await client.query('COMMIT');
+    res.json({ message: "Location renamed successfully.", updatedCount: res1.rowCount });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Rename failed:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.get('/api/locations/division-info', async (req, res) => {
   const { division } = req.query;
   try {
@@ -8656,19 +8754,39 @@ app.get('/api/locations/division-info', async (req, res) => {
 });
 
 app.get('/api/locations/legislative-districts', async (req, res) => {
-  const { region, province, municipality } = req.query;
+  const { region, division, province, district, municipality } = req.query;
   try {
-    const query = `
+    let query = `
       SELECT DISTINCT legislative_district 
       FROM all_locations 
-      WHERE region = $1 AND province = $2 AND municipality = $3
-      AND legislative_district IS NOT NULL AND legislative_district != ''
-      ORDER BY legislative_district ASC
+      WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
     `;
-    const result = await pool.query(query, [
-      normalizeLocationField(region), normalizeLocationField(province), normalizeLocationField(municipality)
-    ]);
-    res.json(result.rows.map(r => normalizeLocationOutput(r.legislative_district)));
+    let params = [normalizeLocationField(region)];
+
+    if (province) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(province)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normalizeLocationField(province));
+    }
+
+    if (division) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(division)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normalizeLocationField(division));
+    }
+
+    if (district) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normalizeLocationField(district));
+    }
+
+    if (municipality) {
+      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(municipality)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
+      params.push(normalizeLocationField(municipality));
+    }
+
+    query += ` AND legislative_district IS NOT NULL AND legislative_district != '' ORDER BY legislative_district ASC`;
+
+    const result = await pool.query(query, params);
+    res.json([...new Set(result.rows.map(r => normalizeLocationOutput(r.legislative_district)))]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
