@@ -2758,6 +2758,8 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
       account_category: user.account_category,
       first_name: user.first_name,
       last_name: user.last_name,
+      firstName: user.first_name, // Compatibility
+      lastName: user.last_name,   // Compatibility
       school_id: user.school_id,
       passcode: user.passcode,
       office: user.office,
@@ -18532,12 +18534,12 @@ app.get('/api/ph_schools/unit9/:schoolId', async (req, res) => {
         cctv_wires_protected: r.is_cctv_wire_protected
       }),
       u9_final: JSON.stringify({
-        fire_exit_exists: r.u9_fire_exit_exists ?? r.has_fire_exit,
-        backup_light_exists: r.u9_backup_light_exists ?? r.has_backup_lights,
+        fire_exit_exists: r.u9_fire_exit_exists,
+        backup_light_exists: r.u9_backup_light_exists,
         items: {}, // frontend now looks at p.u9_... directly
-        ecart_load_ready: r.u9_ecart_load_ready ?? r.is_grid_load_ready,
-        has_surge_protection: r.u9_has_surge_protection ?? r.has_surge_protection,
-        remarks: r.u9_remarks || r.audit_remarks
+        ecart_load_ready: r.u9_ecart_load_ready,
+        has_surge_protection: r.u9_has_surge_protection,
+        remarks: r.u9_remarks
       }),
       // Pass individual columns directly to frontend
       ...r
@@ -18683,6 +18685,7 @@ app.put('/api/ph_schools/unit9/:schoolId', async (req, res) => {
       req.body.u9_has_surge_protection, req.body.u9_remarks
     ]);
 
+    // Sync Quest Progress (In DB Mapping: Unit 9 Infrastructure = DB unit10)
     await pool.query(
       'UPDATE ph_schools SET unit10 = 1, unit10_completed = $1, unit10_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE iern = $2',
       [unit9_completed || false, iern]
@@ -19693,16 +19696,87 @@ const initUnit7Schema = async () => {
           is_cctv_recording BOOLEAN DEFAULT FALSE,
           is_dvr_room_secured BOOLEAN DEFAULT FALSE,
           is_cctv_wire_protected BOOLEAN DEFAULT FALSE,
-          has_fire_exit BOOLEAN DEFAULT FALSE,
-          has_backup_lights BOOLEAN DEFAULT FALSE,
-          u9_inventory_data JSONB,
-          is_grid_load_ready BOOLEAN DEFAULT FALSE,
-          has_surge_protection BOOLEAN DEFAULT FALSE,
-          audit_remarks TEXT,
           is_certified BOOLEAN DEFAULT FALSE,
+          -- Unit 9 Infrastructure Details (U9 Prefixed for clarity)
+          u9_cctv_working INTEGER DEFAULT 0,
+          u9_cctv_broken INTEGER DEFAULT 0,
+          u9_cctv_spares INTEGER DEFAULT 0,
+          u9_fire_ext_working INTEGER DEFAULT 0,
+          u9_fire_ext_broken INTEGER DEFAULT 0,
+          u9_fire_ext_spares INTEGER DEFAULT 0,
+          u9_first_aid_working INTEGER DEFAULT 0,
+          u9_first_aid_broken INTEGER DEFAULT 0,
+          u9_first_aid_spares INTEGER DEFAULT 0,
+          u9_bullhorns_working INTEGER DEFAULT 0,
+          u9_bullhorns_broken INTEGER DEFAULT 0,
+          u9_bullhorns_spares INTEGER DEFAULT 0,
+          u9_radios_working INTEGER DEFAULT 0,
+          u9_radios_broken INTEGER DEFAULT 0,
+          u9_radios_spares INTEGER DEFAULT 0,
+          u9_flashlight_working INTEGER DEFAULT 0,
+          u9_flashlight_broken INTEGER DEFAULT 0,
+          u9_flashlight_spares INTEGER DEFAULT 0,
+          u9_whistles_quantity INTEGER DEFAULT 0,
+          u9_bulbs_working INTEGER DEFAULT 0,
+          u9_bulbs_broken INTEGER DEFAULT 0,
+          u9_bulbs_spares INTEGER DEFAULT 0,
+          u9_covers_working INTEGER DEFAULT 0,
+          u9_covers_broken INTEGER DEFAULT 0,
+          u9_covers_spares INTEGER DEFAULT 0,
+          u9_breakers_working INTEGER DEFAULT 0,
+          u9_breakers_broken INTEGER DEFAULT 0,
+          u9_breakers_spares INTEGER DEFAULT 0,
+          u9_ext_cords_working INTEGER DEFAULT 0,
+          u9_ext_cords_broken INTEGER DEFAULT 0,
+          u9_ext_cords_spares INTEGER DEFAULT 0,
+          u9_tape_quantity INTEGER DEFAULT 0,
+          u9_fire_exit_exists BOOLEAN DEFAULT FALSE,
+          u9_backup_light_exists BOOLEAN DEFAULT FALSE,
+          u9_ecart_load_ready BOOLEAN DEFAULT FALSE,
+          u9_has_surge_protection BOOLEAN DEFAULT FALSE,
+          u9_remarks TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
+      // Migration: Ensure all Unit 9 columns exist for existing ph_schools_audit tables
+      `ALTER TABLE ph_schools_audit 
+        ADD COLUMN IF NOT EXISTS u9_cctv_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_cctv_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_cctv_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_fire_ext_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_fire_ext_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_fire_ext_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_first_aid_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_first_aid_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_first_aid_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_bullhorns_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_bullhorns_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_bullhorns_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_radios_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_radios_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_radios_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_flashlight_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_flashlight_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_flashlight_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_whistles_quantity INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_bulbs_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_bulbs_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_bulbs_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_covers_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_covers_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_covers_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_breakers_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_breakers_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_breakers_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_ext_cords_working INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_ext_cords_broken INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_ext_cords_spares INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_tape_quantity INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS u9_fire_exit_exists BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS u9_backup_light_exists BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS u9_ecart_load_ready BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS u9_has_surge_protection BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS u9_remarks TEXT`,
 
       // 2. ph_buildings_inventory (Bulk Alter)
       `ALTER TABLE ph_buildings_inventory 
@@ -20398,6 +20472,7 @@ app.get('/api/audit/remarks/:schoolId', async (req, res) => {
 });
 
 app.post('/api/audit/remarks', authMiddleware, async (req, res) => {
+  console.log(`📝 [Audit-API] POST /api/audit/remarks - User: ${req.user?.email} Role: ${req.user?.role}`);
   if (req.user.role !== 'School Division Office') {
     return res.status(403).json({ error: "Access Denied. Only School Division Office can add remarks." });
   }

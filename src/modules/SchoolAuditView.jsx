@@ -51,22 +51,35 @@ const SchoolAuditView = () => {
         try {
             const res = await fetch('/api/audit/remarks', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({
                     school_id: schoolData.id,
                     unit_id: remarkUnitId,
                     remark: newRemark,
-                    auditor_uid: user?.uid,
-                    auditor_name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email
+                    auditor_uid: user?.uid || null,
+                    auditor_name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'Unknown Auditor'
                 })
             });
             if (res.ok) {
                 setNewRemark('');
                 setIsRemarkModalOpen(false);
                 fetchRemarks(schoolData.id);
+            } else {
+                let errorMessage = 'Failed to submit remark. Please try again.';
+                try {
+                    const errorData = await res.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (jsonErr) {
+                    console.error('Could not parse error JSON:', jsonErr);
+                }
+                alert(errorMessage);
             }
         } catch (e) {
             console.error('Failed to add remark:', e);
+            alert('Failed to submit remark. Please check your connection.');
         } finally {
             setIsSubmitting(false);
         }
@@ -76,13 +89,21 @@ const SchoolAuditView = () => {
         try {
             const res = await fetch(`/api/audit/remarks/${remarkId}/resolve`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
             });
             if (res.ok) {
                 fetchRemarks(schoolData.id);
+                setExpandedUnit(null); // Auto-collapse on resolve
+            } else {
+                const errorData = await res.json();
+                alert(errorData.error || 'Failed to verify remark. Please try again.');
             }
         } catch (e) {
             console.error('Failed to verify remark:', e);
+            alert('An error occurred while verifying the remark.');
         }
     };
 
@@ -211,9 +232,9 @@ const SchoolAuditView = () => {
                                                 )}
                                             </div>
 
-                                            {remarks.filter(r => r.unit_id === unit.id).length > 0 ? (
+                                            {remarks.filter(r => r.unit_id === unit.id && !r.is_resolved).length > 0 ? (
                                                 <div className="space-y-4">
-                                                    {remarks.filter(r => r.unit_id === unit.id).map(rem => (
+                                                    {remarks.filter(r => r.unit_id === unit.id && !r.is_resolved).map(rem => (
                                                         <div key={rem.id} className={`p-4 rounded-2xl border ${rem.status === 'verified' ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800' : rem.status === 'fixed' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800' : 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-800'}`}>
                                                             <div className="flex justify-between items-center mb-2">
                                                                 <span className={`text-[9px] font-black uppercase tracking-wider ${rem.status === 'verified' ? 'text-emerald-600' : rem.status === 'fixed' ? 'text-amber-600' : 'text-rose-600'}`}>

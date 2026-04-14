@@ -243,7 +243,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     }, [availableGrades]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Data Fetching ─────────────────────────────────────────────────────
-    const [isReadOnly, setIsReadOnly] = useState(false);
+    const [isReadOnly, setIsReadOnly] = useState(propReadOnly || false);
     const allBuildings = buildings;
 
     useEffect(() => {
@@ -375,7 +375,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     setSpaces(draft.spaces || []);
                     setHasRepair(draft.hasRepair);
                     setHasNoBuilding(draft.hasNoBuilding || false);
-                    setIsReadOnly(false);
+                    setIsReadOnly(propReadOnly || false);
                     setShowWelcomeBack(true);
                     setTimeout(() => setShowWelcomeBack(false), 3000);
                 } else {
@@ -646,21 +646,52 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         const numClassrooms = parseInt(buildingFormData.classroom) || 1;
 
         // Smart Room Generation/Preservation
-        const existingRooms = roomsData.filter(r => r.building_local_id === bId);
-        let finalRooms = [];
+        if (editingBuildingId) {
+            // Smart Room Adjustment: Add or remove based on difference
+            const existingRooms = roomsData.filter(r => r.building_local_id === bId);
+            const currentCount = existingRooms.length;
 
-        if (editingBuildingId && existingRooms.length === numClassrooms) {
-            // Keep existing rooms but update building name if it changed
-            finalRooms = existingRooms.map(r => ({
-                ...r,
-                building_name: buildingFormData.building_name,
-                // Update names if they followed the building-floor-letter pattern
-                room_name: r.room_name.startsWith(buildings.find(b => b.id === bId).building_name)
-                    ? r.room_name.replace(buildings.find(b => b.id === bId).building_name, buildingFormData.building_name)
-                    : r.room_name
-            }));
+            if (currentCount === numClassrooms) {
+                // Just update building name/details in existing rooms
+                finalRooms = existingRooms.map(r => ({
+                    ...r,
+                    building_name: buildingFormData.building_name,
+                    room_name: r.room_name.startsWith(buildings.find(b => b.id === bId).building_name)
+                        ? r.room_name.replace(buildings.find(b => b.id === bId).building_name, buildingFormData.building_name)
+                        : r.room_name
+                }));
+            } else if (numClassrooms > currentCount) {
+                // Add new rooms
+                const roomsToAdd = numClassrooms - currentCount;
+                const isBuildingCondemned = buildingFormData.status === "For Condemnation" || buildingFormData.status === "Condemned";
+                const isBuildingRepair = buildingFormData.status === "For Major Repairs" || buildingFormData.status === "For Minor Repairs";
+                
+                const newRooms = [];
+                for (let i = 1; i <= roomsToAdd; i++) {
+                    const totalSoFar = currentCount + i;
+                    const floor = Math.ceil(totalSoFar / (numClassrooms / numStoreys || 1));
+                    const roomLetter = String.fromCharCode(65 + ((totalSoFar - 1) % 10)); // Cycle letters
+                    
+                    newRooms.push({
+                        id: `${bId}-room-${totalSoFar}-${Date.now()}`,
+                        building_local_id: bId,
+                        building_name: buildingFormData.building_name,
+                        room_name: `${buildingFormData.building_name} ${floor}-${roomLetter}`,
+                        dimensions: "7x9",
+                        grade_level: isBuildingCondemned ? "Non-Instructional" : "",
+                        teacher_id: "",
+                        condition: isBuildingCondemned ? buildingFormData.status : (isBuildingRepair ? "Repair" : "Good Condition"),
+                        seats: isBuildingCondemned ? "0" : "",
+                        is_in_use: true,
+                    });
+                }
+                finalRooms = [...existingRooms, ...newRooms];
+            } else {
+                // Remove rooms from the end
+                finalRooms = existingRooms.slice(0, numClassrooms);
+            }
         } else {
-            // Generate new rooms
+            // Generate new rooms (Initial Creation)
             const roomsPerFloor = Math.ceil(numClassrooms / numStoreys);
             let roomCount = 0;
             const isBuildingCondemned = buildingFormData.status === "For Condemnation" || buildingFormData.status === "Condemned";
@@ -711,11 +742,14 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     };
 
     const handleEditBuilding = (b) => {
+        // Source of Truth: Count exactly how many rooms exist in the system for this building
+        const actualCount = roomsData.filter(r => r.building_local_id === b.id).length;
+
         setBuildingFormData({
             building_name: b.building_name,
             category: b.category,
-            storey: b.storey,
-            classroom: b.classroom,
+            storey: b.storey || "1",
+            classroom: actualCount.toString(), // Always use actual count
             year_completed: b.year_completed,
             remarks: b.remarks || "",
             status: b.status || "Good Condition",
@@ -1124,7 +1158,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                             <p className="text-indigo-100 text-[8px] font-black uppercase tracking-widest mb-1">Total Rooms</p>
                             <div className="flex items-baseline gap-1">
                                 <span className="text-3xl font-black">{totalClassrooms}</span>
-                                <span className="text-[10px] font-bold text-indigo-200">UNITS</span>
+                                <span className="text-[10px] font-bold text-indigo-200">CLASSROOMS</span>
                             </div>
                         </div>
                     </div>
@@ -1204,18 +1238,20 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                             <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.15em]">{b.category}</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setIsReadOnly(false);
-                                                    setCurrentPage(2);
-                                                    handleEditBuilding(b);
-                                                }}
-                                                className="p-3 bg-white text-indigo-500 rounded-xl shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-50 active:scale-95"
-                                                title="Edit Building"
-                                            >
-                                                <FiEdit2 className="w-4 h-4" />
-                                            </button>
+                                            {!propReadOnly && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setIsReadOnly(false);
+                                                        setCurrentPage(2);
+                                                        handleEditBuilding(b);
+                                                    }}
+                                                    className="p-3 bg-white text-indigo-500 rounded-xl shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-50 active:scale-95"
+                                                    title="Edit Building"
+                                                >
+                                                    <FiEdit2 className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             {!propReadOnly && (
                                                 <button
                                                     onClick={(e) => {
@@ -1243,11 +1279,11 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-slate-50 p-3 rounded-2xl">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Verticality</p>
-                                            <p className="text-[13px] font-black text-slate-700">{b.storey}nd Floor Level</p>
+                                            <p className="text-[13px] font-black text-slate-700">{b.storey} Storey</p>
                                         </div>
                                         <div className="bg-slate-50 p-3 rounded-2xl">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
-                                            <p className="text-[13px] font-black text-slate-700">{roomsData.filter(r => r.building_local_id === b.id).length} Classrooms</p>
+                                            <p className="text-[13px] font-black text-slate-700">{roomsData.filter(r => r.building_local_id === b.id).length} Classroom</p>
                                         </div>
                                     </div>
                                     {b.remarks && (
@@ -1642,7 +1678,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                 {b.status}
                                                             </span>
                                                         </div>
-                                                        <p className="text-sm font-bold text-gray-500 mt-1 uppercase tracking-tighter">{b.category} &bull; {b.storey}nd Floor &bull; {roomsData.filter(r => r.building_local_id === b.id).length} Units</p>
+                                                        <p className="text-sm font-bold text-gray-500 mt-1 uppercase tracking-tighter">{b.category} &bull; {b.storey} Storey &bull; {roomsData.filter(r => r.building_local_id === b.id).length} Classroom</p>
                                                     </div>
                                                     <div className="flex flex-col gap-2">
                                                         <button onClick={() => handleEditBuilding(b)} className="p-3 bg-indigo-50 text-indigo-500 rounded-xl hover:bg-indigo-100 transition-colors">
