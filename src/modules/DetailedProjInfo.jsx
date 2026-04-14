@@ -1153,7 +1153,7 @@ const DetailedProjInfo = () => {
                 )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Current Status" name="status" value={project.status} type="select" options={['Not Yet Started', 'Ongoing', 'For Final Inspection', 'Completed', 'Suspended', 'Terminated']} />
                 <Field label="Status As Of" name="statusAsOf" value={project.statusAsOfDate || project.statusAsOf} type="date" />
             </div>
@@ -1164,11 +1164,11 @@ const DetailedProjInfo = () => {
             <Field label="School Name" name="schoolName" value={project.schoolName} />
             
             <SectionHeader title="Classification" />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Category" name="projectCategory" value={project.projectCategory} />
                 <Field label="Program Type" name="program_type" value={project.program_type} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Funding Year" name="funding_year" value={project.funding_year} />
                 <Field label="Batch of Funds" name="batchOfFunds" value={project.batchOfFunds} />
             </div>
@@ -1185,23 +1185,23 @@ const DetailedProjInfo = () => {
     const renderLocation = () => (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <SectionHeader title="Administrative Location" />
-            <div className="grid grid-cols-2 gap-4 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
                 <Field label="Region" name="region" value={project.region?.toUpperCase()} />
                 <Field label="Division" name="division" value={project.division?.toUpperCase()} />
             </div>
-            <div className="grid grid-cols-2 gap-4 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
                 <Field label="Province" name="province" value={project.province?.toUpperCase()} />
                 <Field label="Municipality / City" name="municipality" value={project.municipality?.toUpperCase()} />
             </div>
             {(project.legislative_district || project.barangay) && (
-                <div className="grid grid-cols-2 gap-4 mb-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
                     {project.legislative_district && <Field label="Legislative District" name="legislative_district" value={project.legislative_district?.toUpperCase()} />}
                     {project.barangay && <Field label="Barangay" name="barangay" value={project.barangay?.toUpperCase()} />}
                 </div>
             )}
 
             <SectionHeader title="Geographic Coordinates" />
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <Field label="Latitude" name="latitude" value={project.latitude} />
                 <Field label="Longitude" name="longitude" value={project.longitude} />
             </div>
@@ -1223,19 +1223,31 @@ const DetailedProjInfo = () => {
 
     const renderProcurement = () => (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <SectionHeader title="Bidding Milestones" />
-            <div className="grid grid-cols-1 gap-1">
-                <Field label="Invitation to Bid" name="issuance_of_invitation_to_bid" value={project.issuance_of_invitation_to_bid} type="date" />
+            <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">Procurement Milestones</h3>
+            
+            <SectionHeader title="Key Procurement Dates" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Issuance of Invitation to Bid" name="issuance_of_invitation_to_bid" value={project.issuance_of_invitation_to_bid} type="date" />
                 <Field label="Pre-Bid Conference" name="pre_bid_conference" value={project.pre_bid_conference} type="date" />
-                <Field label="Opening of Tech. Proposal" name="opening_of_technical_proposal" value={project.opening_of_technical_proposal} type="date" />
-                <Field label="Opening of Fin. Proposal" name="opening_of_financial_proposal" value={project.opening_of_financial_proposal} type="date" />
+                <Field label="Opening of Technical Proposal" name="opening_of_technical_proposal" value={project.opening_of_technical_proposal} type="date" />
+                <Field label="Opening of Financial Proposal" name="opening_of_financial_proposal" value={project.opening_of_financial_proposal} type="date" />
+                <Field label="Request for Quotation" name="request_for_quotation" value={project.request_for_quotation} type="date" />
+                <Field label="Negotiation" name="negotiation" value={project.negotiation} type="date" />
+                <Field label="Opening of Quotation" name="opening_of_quotation" value={project.opening_of_quotation} type="date" />
+                <Field label="Notice of Award" name="date_notice_of_award" value={project.date_notice_of_award} type="date" />
+            </div>
+
+            <SectionHeader title="Timelines" />
+            <div className="grid grid-cols-1 gap-1">
+                <Field label="Notice to Proceed Date" name="noticeToProceed" value={project.noticeToProceed} type="date" />
+                <Field label="Start of Construction" name="constructionStartDate" value={project.constructionStartDate} type="date" />
+                <Field label="Target Completion Date" name="targetCompletionDate" value={project.targetCompletionDate} type="date" />
             </div>
             
             <SectionHeader title="Contract Award" />
-            <div className="grid grid-cols-1 gap-1">
-                <Field label="Notice of Award (NOA)" name="date_notice_of_award" value={project.date_notice_of_award} type="date" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Contract ID" name="contractId" value={project.contractId} />
-                <Field label="Notice to Proceed (NTP)" name="noticeToProceed" value={project.noticeToProceed} type="date" />
+                <Field label="Contractor Name" name="contractorName" value={project.contractorName} />
             </div>
         </div>
     );
@@ -1646,7 +1658,7 @@ const DetailedProjInfo = () => {
                                     }`}
                                 >
                                     {tab.icon}
-                                    <span className="hidden sm:inline">{tab.label}</span>
+                                    <span className="">{tab.label}</span>
                                 </button>
                             ))}
                             <button

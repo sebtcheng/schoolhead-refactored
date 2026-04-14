@@ -9562,7 +9562,7 @@ app.post('/api/save-project', async (req, res) => {
 
     const constructionPhase = data.statusOfConstructionPhase || data.status_of_construction_phase || data.status;
     const normalizedConstructionStatus = statusMapping[constructionPhase?.toLowerCase()] || constructionPhase || '';
-    const designPhase = data.statusDesignPhase || data.status_design_phase || data.procurement_status;
+    const designPhase = data.statusDesignPhase || data.status_design_phase || data.procurement_status || data.procurementStatus;
     const normalizedDesignStatus = statusMapping[designPhase?.toLowerCase()] || designPhase || '';
 
     // Extract Documents with defensive check
@@ -9592,7 +9592,7 @@ app.post('/api/save-project', async (req, res) => {
       parseIntOrNull(data.numberOfSites || data.number_of_sites), // $26
       parseIntOrNull(data.numberOfStoreys || data.number_of_storeys), // $27
       parseNumberOrNull(data.fundsUtilized), // $28
-      'Newly Created', // $29
+      data.actions || data.update_type || 'Newly Created', // $29
       parseNumberOrNull(data.approved_budget_for_contract || data.projectAllocation) - parseNumberOrNull(data.contract_amount), // $30
       normalizedDesignStatus, // $31
       valueOrNull(data.contractId || data.contract_id), // $32
@@ -11527,6 +11527,14 @@ app.get('/api/projects/:id', async (req, res) => {
         TO_CHAR(e.actual_completion_date, 'YYYY-MM-DD') AS "actualCompletionDate",
         TO_CHAR(e.notice_to_proceed, 'YYYY-MM-DD') AS "noticeToProceed",
         TO_CHAR(e.construction_start_date, 'YYYY-MM-DD') AS "constructionStartDate",
+        TO_CHAR(e.issuance_of_invitation_to_bid, 'YYYY-MM-DD') AS "issuance_of_invitation_to_bid",
+        TO_CHAR(e.pre_bid_conference, 'YYYY-MM-DD') AS "pre_bid_conference",
+        TO_CHAR(e.opening_of_technical_proposal, 'YYYY-MM-DD') AS "opening_of_technical_proposal",
+        TO_CHAR(e.opening_of_financial_proposal, 'YYYY-MM-DD') AS "opening_of_financial_proposal",
+        TO_CHAR(e.request_for_quotation, 'YYYY-MM-DD') AS "request_for_quotation",
+        TO_CHAR(e.negotiation, 'YYYY-MM-DD') AS "negotiation",
+        TO_CHAR(e.opening_of_quotation, 'YYYY-MM-DD') AS "opening_of_quotation",
+        TO_CHAR(e.date_notice_of_award, 'YYYY-MM-DD') AS "date_notice_of_award",
         e.project_category AS "projectCategory", e.scope_of_work AS "scopeOfWork",
         e.number_of_classrooms AS "numberOfClassrooms", e.number_of_storeys AS "numberOfStoreys",
         e.number_of_sites AS "numberOfSites", e.funds_utilized AS "fundsUtilized",
