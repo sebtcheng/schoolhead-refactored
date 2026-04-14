@@ -888,8 +888,7 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
                       })}
                     </div>
 
-                    {procurementStatus ===
-                      ProcurementStatus.ProcurementComplete && (
+                    {[ProcurementStatus.UnderProcurement, ProcurementStatus.ProcurementComplete].includes(procurementStatus) && (
                       <div className="mt-8 pt-6 border-t border-blue-200 space-y-4">
                         <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4 text-center">
                           Final Procurement Details

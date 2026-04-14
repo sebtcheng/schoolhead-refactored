@@ -882,7 +882,13 @@ const EngineerProjects = () => {
       if (userRole === 'EFD' || userRole === 'EFD Engineer' || userRole === 'HRODI' || userRole === 'Division Engineer' || userRole === 'DepEd Engineer') uploaderType = 'DepEd Engineer';
       else if (userRole === 'Non-DepEd Engineer' || (userRole === 'DepEd Engineer' && accountCategory === 'Non-DepEd Engineer')) uploaderType = 'Non-DepEd Engineer';
 
-      const payload = { ...updatedProject, uid: uid, modifiedBy: userName, uploader_type: uploaderType };
+      const payload = { 
+        ...updatedProject, 
+        uid: uid, 
+        modifiedBy: userName, 
+        uploader_type: uploaderType,
+        update_type: modalMode === 'quick' ? 'Details Update' : (updatedProject.update_type || 'Status Update')
+      };
       const body = payload;
 
       // Use overrides if provided (from Wizard), otherwise fallback to component state
