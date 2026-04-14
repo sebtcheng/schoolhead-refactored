@@ -549,7 +549,16 @@ const EngineerProjects = () => {
       const matchesBatch = selectedBatchFunds.length === 0 || selectedBatchFunds.includes(p.batch_of_funds || p.batchOfFunds);
 
       return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesYear && matchesBatch;
-    }).sort((a, b) => (b.id ?? 0) - (a.id ?? 0)); // stable DESC order — prevents pop when cache→network transition
+    }).sort((a, b) => {
+      // Primary: funding_year DESC (newest cycle first)
+      const yearA = Number(a.fundingYear ?? a.funding_year ?? 0);
+      const yearB = Number(b.fundingYear ?? b.funding_year ?? 0);
+      if (yearB !== yearA) return yearB - yearA;
+      // Secondary: schoolName ASC (alphabetical — stable within the same year)
+      const nameA = (a.schoolName ?? '').toLowerCase();
+      const nameB = (b.schoolName ?? '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
   }, [projects, searchQuery, selectedRegions, selectedDivisions, selectedCategories, selectedYears, selectedBatchFunds]);
 
   const stats = React.useMemo(() => {

@@ -1033,7 +1033,13 @@ const DetailedProjInfo = () => {
             setInternalFiles([]);
             setExternalFiles([]);
             setPendingDocs({ POW: null, DUPA: null, CONTRACT: null });
-            window.location.reload(); 
+            
+            const newlySavedId = resData.project?.project_id || resData.id || project.id;
+            if (String(newlySavedId) !== String(id)) {
+                window.location.href = `/project-details/${newlySavedId}`;
+            } else {
+                window.location.reload(); 
+            }
 
         } catch (err) {
             console.error("Save Error:", err);
