@@ -43,18 +43,37 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
         }
     };
 
+    const formatPHTimestamp = (dateString) => {
+        if (!dateString) return '';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
+            return date.toLocaleString('en-US', {
+                timeZone: 'Asia/Manila',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+            });
+        } catch {
+            return dateString;
+        }
+    };
+
     const generateSentences = (rows) => {
         if (!rows.length) return [];
-        
+
         // Rows come from API ASC (oldest first).
-        const chronologicalRows = [...rows]; 
+        const chronologicalRows = [...rows];
         const logs = [];
 
         // First row = project creation
         const first = chronologicalRows[0];
         logs.push({
             text: `Project was created${first.engineerName ? ` by Engr. ${first.engineerName}` : ''}.`,
-            date: first.statusAsOfDate || first.created_at,
+            date: first.status_as_of || first.statusAsOfDate || first.created_at,
             user: first.engineerName,
             type: 'create',
         });
@@ -63,9 +82,10 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
         for (let i = 1; i < chronologicalRows.length; i++) {
             const prev = chronologicalRows[i - 1];
             const curr = chronologicalRows[i];
-            const engr = curr.engineerName ? `Engr. ${curr.engineerName}` : 'Someone';
-            const date = curr.statusAsOfDate || curr.created_at;
-            const remark = (curr.remarks && curr.remarks !== prev.remarks) ? curr.remarks : null;
+            const date = curr.status_as_of || curr.statusAsOfDate || curr.created_at;
+            const currRemark = curr.remarks || curr.otherRemarks || curr.other_remarks;
+            const prevRemark = prev.remarks || prev.otherRemarks || prev.other_remarks;
+            const remark = (currRemark && currRemark !== prevRemark) ? currRemark : null;
 
             // Helper to get accomplishment percentage
             const getPct = (row) => {
@@ -80,26 +100,31 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
             const prevStat = prev.status || 'Unset';
             const currStat = curr.status || 'Unset';
 
-            // Check if multiple things changed
-            if (currPct !== prevPct || currProc.toLowerCase() !== prevProc.toLowerCase() || currStat !== prevStat) {
+            const procChanged = currProc.toLowerCase() !== prevProc.toLowerCase();
+            const constChanged = currStat !== prevStat;
+            const pctChanged = currPct !== prevPct;
+
+            const changes = [];
+            if (procChanged) changes.push({ label: 'Procurement', from: prevProc, to: currProc });
+            if (constChanged) changes.push({ label: 'Construction', from: prevStat, to: currStat });
+            if (pctChanged) changes.push({ label: 'Completion', from: `${prevPct}%`, to: `${currPct}%` });
+
+            if (changes.length > 0) {
                 logs.push({
                     user: curr.engineerName,
                     date,
                     type: 'update',
-                    changes: [
-                        currPct !== prevPct && { label: 'Completion', from: `${prevPct}%`, to: `${currPct}%` },
-                        currProc.toLowerCase() !== prevProc.toLowerCase() && { label: 'Procurement', from: prevProc, to: currProc },
-                        currStat !== prevStat && { label: 'Construction', from: prevStat, to: currStat }
-                    ].filter(Boolean),
-                    remark
+                    changes,
+                    remark,
                 });
             } else if (remark) {
+                // Only-remark entry when nothing structural changed
                 logs.push({
                     user: curr.engineerName,
                     date,
                     type: 'remark',
                     text: `Updated remarks: "${remark}"`,
-                    remark
+                    remark,
                 });
             }
         }
@@ -121,6 +146,43 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
         if (type === 'create') return 'bg-emerald-500';
         if (type === 'remark') return 'bg-amber-500';
         return 'bg-blue-500';
+    };
+
+    const renderRemarkStr = (remarkStr) => {
+        if (!remarkStr) return null;
+        
+        const match = remarkStr.match(/^\[Justification:\s*(.*?)\](.*)$/is);
+        if (match) {
+            const category = match[1].trim();
+            const comment = match[2].trim();
+            
+            // Clean up the category part (especially 'Others (Reason)')
+            let cleanCategory = category;
+            if (category.toLowerCase().startsWith('others')) {
+                const innerMatch = category.match(/others\s*\((.*?)\)/i);
+                cleanCategory = innerMatch ? innerMatch[1] : (category.toLowerCase() === 'others' ? "" : category);
+            }
+            
+            return (
+                <div className="flex flex-col gap-3">
+                    {cleanCategory && (
+                        <p className="text-[10px] font-bold text-amber-800 italic leading-relaxed break-words">
+                            "{cleanCategory}"
+                        </p>
+                    )}
+                    {comment && comment !== 'null' && comment !== 'undefined' && comment !== '' && (
+                        <div className="flex flex-col gap-1 border-t border-amber-200/30 pt-2">
+                            <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Additional Notes</span>
+                            <p className="text-[10px] font-medium text-slate-600 italic leading-relaxed break-words">
+                                "{comment}"
+                            </p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        return <p className="text-[10px] font-bold text-amber-700 italic leading-relaxed break-words">"{remarkStr}"</p>;
     };
 
     const modalContent = (
@@ -185,7 +247,7 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
                                             {log.date && (
                                                 <div className="flex items-center gap-1.5 text-slate-400">
                                                     <LuCalendar size={10} />
-                                                    <span className="text-[9px] font-bold">{log.date}</span>
+                                                    <span className="text-[9px] font-bold">{formatPHTimestamp(log.date)}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -206,14 +268,14 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
                                                 ))}
                                                 {log.remark && (
                                                     <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
-                                                        <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-1">Update Reason</p>
-                                                        <p className="text-[10px] font-bold text-amber-700 italic leading-relaxed">"{log.remark}"</p>
+                                                        <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-2">Update Reason</p>
+                                                        {renderRemarkStr(log.remark)}
                                                     </div>
                                                 )}
                                             </div>
                                         ) : (
                                             <div className="p-3 bg-slate-100/50 rounded-xl">
-                                                <p className="text-[11px] font-bold text-slate-600 italic leading-relaxed">"{log.remark}"</p>
+                                                {renderRemarkStr(log.remark)}
                                             </div>
                                         )}
                                     </div>

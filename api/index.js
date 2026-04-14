@@ -9442,8 +9442,10 @@ app.post('/api/save-project', async (req, res) => {
       'not yet procured': 'Not yet procured'
     };
 
-    const normalizedConstructionStatus = statusMapping[data.statusOfConstructionPhase?.toLowerCase()] || data.statusOfConstructionPhase || '';
-    const normalizedDesignStatus = statusMapping[data.statusDesignPhase?.toLowerCase()] || data.statusDesignPhase || '';
+    const constructionPhase = data.statusOfConstructionPhase || data.status_of_construction_phase || data.status;
+    const normalizedConstructionStatus = statusMapping[constructionPhase?.toLowerCase()] || constructionPhase || '';
+    const designPhase = data.statusDesignPhase || data.status_design_phase || data.procurement_status;
+    const normalizedDesignStatus = statusMapping[designPhase?.toLowerCase()] || designPhase || '';
 
     // Extract Documents with defensive check
     const docs = Array.isArray(data.documents) ? data.documents : [];
@@ -9455,11 +9457,11 @@ app.post('/api/save-project', async (req, res) => {
       data.projectName, data.schoolName, data.schoolId, // $1, $2, $3
       valueOrNull(data.region), valueOrNull(data.division), // $4, $5
       normalizedConstructionStatus, parseIntOrNull(data.accomplishmentPercentage), // $6, $7
-      valueOrNull(data.statusAsOfDate), valueOrNull(data.targetCompletionDate), // $8, $9
-      valueOrNull(data.actualCompletionDate), valueOrNull(data.noticeToProceed), // $10, $11
-      valueOrNull(data.contractorName), parseNumberOrNull(data.approved_budget_for_contract || data.projectAllocation), // $12, $13
-      parseNumberOrNull(data.contract_amount), // $14
-      valueOrNull(data.batchOfFunds), valueOrNull(data.otherRemarks), // $15, $16
+      valueOrNull(data.statusAsOfDate || data.statusAsOf || data.status_as_of), valueOrNull(data.targetCompletionDate || data.target_completion_date), // $8, $9
+      valueOrNull(data.actualCompletionDate || data.actual_completion_date), valueOrNull(data.noticeToProceed || data.notice_to_proceed), // $10, $11
+      valueOrNull(data.contractorName || data.contractor_name), parseNumberOrNull(data.approved_budget_for_contract || data.projectAllocation), // $12, $13
+      parseNumberOrNull(data.contract_amount || data.contractAmount), // $14
+      valueOrNull(data.batchOfFunds || data.batch_of_funds), valueOrNull(data.remarks || data.otherRemarks || data.other_remarks), // $15, $16
       data.uid, // $17
       newIpc, // $18
       resolvedEngineerName, // $19
@@ -9468,23 +9470,23 @@ app.post('/api/save-project', async (req, res) => {
       valueOrNull(data.constructionStartDate), // $22
       valueOrNull(data.projectCategory), // $23
       valueOrNull(data.scopeOfWork), // $24
-      parseIntOrNull(data.numberOfClassrooms), // $25
-      parseIntOrNull(data.numberOfSites), // $26
-      parseIntOrNull(data.numberOfStoreys), // $27
+      parseIntOrNull(data.numberOfClassrooms || data.number_of_classrooms), // $25
+      parseIntOrNull(data.numberOfSites || data.number_of_sites), // $26
+      parseIntOrNull(data.numberOfStoreys || data.number_of_storeys), // $27
       parseNumberOrNull(data.fundsUtilized), // $28
       'Newly Created', // $29
       parseNumberOrNull(data.approved_budget_for_contract || data.projectAllocation) - parseNumberOrNull(data.contract_amount), // $30
       normalizedDesignStatus, // $31
-      valueOrNull(data.contractId), // $32
-      valueOrNull(data.dateNoticeOfAward), // $33
-      valueOrNull(data.issuanceOfInvitationToBid), // $34
-      valueOrNull(data.preBidConference), // $35
-      valueOrNull(data.openingOfTechnicalProposal), // $36
-      valueOrNull(data.openingOfFinancialProposal), // $37
-      valueOrNull(data.requestForQuotation), // $38
+      valueOrNull(data.contractId || data.contract_id), // $32
+      valueOrNull(data.dateNoticeOfAward || data.date_notice_of_award), // $33
+      valueOrNull(data.issuanceOfInvitationToBid || data.issuance_of_invitation_to_bid), // $34
+      valueOrNull(data.preBidConference || data.pre_bid_conference), // $35
+      valueOrNull(data.openingOfTechnicalProposal || data.opening_of_technical_proposal), // $36
+      valueOrNull(data.openingOfFinancialProposal || data.opening_of_financial_proposal), // $37
+      valueOrNull(data.requestForQuotation || data.request_for_quotation), // $38
       valueOrNull(data.negotiation), // $39
-      valueOrNull(data.openingOfQuotation), // $40
-      parseIntOrNull(data.fundingYear), // $41
+      valueOrNull(data.openingOfQuotation || data.opening_of_quotation), // $40
+      parseIntOrNull(data.fundingYear || data.funding_year), // $41
       null, // $42
       data.delay_reason || null, // $43
       valueOrNull(data.revised_target_completion_date) || null, // $44
@@ -9868,7 +9870,7 @@ app.put('/api/update-project/:id', upload.fields([
     const newStatusAsOf = valueOrNull(data.statusAsOfDate) || oldData.status_as_of || new Date().toISOString();
     const newChecklist = data.checklist !== undefined ? (typeof data.checklist === 'string' ? data.checklist : JSON.stringify(data.checklist)) : (oldData.checklist ? JSON.stringify(oldData.checklist) : null);
     const newTriangulatedPercentage = data.triangulated_percentage !== undefined ? parseFloat(data.triangulated_percentage) : (oldData.triangulated_percentage || 0);
-    const newRemarks = valueOrNull(data.otherRemarks) || oldData.other_remarks;
+    const newRemarks = valueOrNull(data.remarks) || valueOrNull(data.otherRemarks) || oldData.other_remarks;
     const newActualDate = valueOrNull(data.actualCompletionDate) || oldData.actual_completion_date;
     const newLat = valueOrNull(data.latitude) || oldData.latitude;
     const newLong = valueOrNull(data.longitude) || oldData.longitude;
@@ -9899,10 +9901,10 @@ app.put('/api/update-project/:id', upload.fields([
       data.region || oldData.region,
       data.division || oldData.division,
       newStatus, newAccomplishment, newStatusAsOf,
-      valueOrNull(data.targetCompletionDate) || oldData.target_completion_date,
+      valueOrNull(data.targetCompletionDate || data.target_completion_date) || oldData.target_completion_date,
       newActualDate,
-      valueOrNull(data.noticeToProceed) || oldData.notice_to_proceed,
-      valueOrNull(data.contractorName) || oldData.contractor_name,
+      valueOrNull(data.noticeToProceed || data.notice_to_proceed) || oldData.notice_to_proceed,
+      valueOrNull(data.contractorName || data.contractor_name) || oldData.contractor_name,
       rawAbc,
       rawContract,
       valueOrNull(data.batchOfFunds) || oldData.batch_of_funds,
@@ -9915,23 +9917,23 @@ app.put('/api/update-project/:id', upload.fields([
       valueOrNull(data.constructionStartDate) || oldData.construction_start_date,
       newProjectCategory,
       valueOrNull(data.scopeOfWork) || oldData.scope_of_work,
-      valueOrNull(data.numberOfClassrooms) || oldData.number_of_classrooms,
-      valueOrNull(data.numberOfSites) || oldData.number_of_sites,
-      valueOrNull(data.numberOfStoreys) || oldData.number_of_storeys,
+      valueOrNull(data.numberOfClassrooms || data.number_of_classrooms) || oldData.number_of_classrooms,
+      valueOrNull(data.numberOfSites || data.number_of_sites) || oldData.number_of_sites,
+      valueOrNull(data.numberOfStoreys || data.number_of_storeys) || oldData.number_of_storeys,
       valueOrNull(data.fundsUtilized) || oldData.funds_utilized,
       valueOrNull(data.update_type) || 'Status Update',
       cleanedAbc - cleanedContract,
       newStatusDesignPhase,
-      valueOrNull(data.contractId) || oldData.contract_id,
-      valueOrNull(data.dateNoticeOfAward) || oldData.date_notice_of_award,
-      valueOrNull(data.issuanceOfInvitationToBid) || oldData.issuance_of_invitation_to_bid,
-      valueOrNull(data.preBidConference) || oldData.pre_bid_conference,
-      valueOrNull(data.openingOfTechnicalProposal) || oldData.opening_of_technical_proposal,
-      valueOrNull(data.openingOfFinancialProposal) || oldData.opening_of_financial_proposal,
-      valueOrNull(data.requestForQuotation) || oldData.request_for_quotation,
+      valueOrNull(data.contractId || data.contract_id) || oldData.contract_id,
+      valueOrNull(data.dateNoticeOfAward || data.date_notice_of_award) || oldData.date_notice_of_award,
+      valueOrNull(data.issuanceOfInvitationToBid || data.issuance_of_invitation_to_bid) || oldData.issuance_of_invitation_to_bid,
+      valueOrNull(data.preBidConference || data.pre_bid_conference) || oldData.pre_bid_conference,
+      valueOrNull(data.openingOfTechnicalProposal || data.opening_of_technical_proposal) || oldData.opening_of_technical_proposal,
+      valueOrNull(data.openingOfFinancialProposal || data.opening_of_financial_proposal) || oldData.opening_of_financial_proposal,
+      valueOrNull(data.requestForQuotation || data.request_for_quotation) || oldData.request_for_quotation,
       valueOrNull(data.negotiation) || oldData.negotiation,
-      valueOrNull(data.openingOfQuotation) || oldData.opening_of_quotation,
-      parseIntOrNull(data.fundingYear) || oldData.funding_year,
+      valueOrNull(data.openingOfQuotation || data.opening_of_quotation) || oldData.opening_of_quotation,
+      parseIntOrNull(data.fundingYear || data.funding_year) || oldData.funding_year,
       data.fundingYearJustification || null,
       data.delay_reason || oldData.delay_reason,
       valueOrNull(data.revised_target_completion_date) || oldData.revised_target_completion_date,
