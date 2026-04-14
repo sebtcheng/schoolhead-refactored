@@ -23,7 +23,7 @@ echo "------------------------------------------------"
 
 
 echo "🏗️  2. Building locally (Fixing path conversion)..."
-MSYS_NO_PATHCONV=1 npm run build -- --base=/insighted-staging/
+MSYS_NO_PATHCONV=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build -- --base=/insighted-staging/
 
 echo "🧹 2.5 Cleaning remote destination to free up space..."
 ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || { echo "❌ [SSH Error] Password-less login failed. Please run: 'bash ./setup-ssh-key.sh' to automate your deployment."; exit 1; }

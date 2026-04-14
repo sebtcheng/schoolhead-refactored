@@ -15,6 +15,7 @@ Write-Host "Target Dir: $SERVER_DIR"
 Write-Host "------------------------------------------------"
 
 Write-Host "🏗️  1. Building locally..." -ForegroundColor Yellow
+$env:NODE_OPTIONS="--max-old-space-size=4096"
 npm run build
 
 Write-Host "🧹 1.5 Cleaning remote destination..." -ForegroundColor Gray

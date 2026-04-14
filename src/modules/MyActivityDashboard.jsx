@@ -308,6 +308,42 @@ const MyActivityDashboard = () => {
                             />
                         </div>
                     </motion.div>
+
+                    {/* Unit 9 Announcement Box - Only show if not completed */}
+                    {data?.progress && !data.progress.flags?.unit9 && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.35, type: "spring", stiffness: 100 }}
+                            onClick={() => navigate('/modular/unit-9')}
+                            className="mt-4 bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 rounded-2xl p-4 shadow-xl shadow-blue-200/50 cursor-pointer overflow-hidden relative group"
+                        >
+                            {/* Shimmer effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            
+                            <div className="flex items-center justify-between relative z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center">
+                                            <FiZap className="text-white fill-white" size={20} />
+                                        </div>
+                                        {/* Pulse Indicator */}
+                                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500 border-2 border-white"></span>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-white font-black text-sm tracking-tight">NEW QUEST: UNIT 9</h4>
+                                        <p className="text-white/80 text-[10px] font-bold uppercase tracking-wider">Infrastructure & Safety is Live!</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white/20 px-3 py-1.5 rounded-lg backdrop-blur-md border border-white/20">
+                                    <span className="text-white text-[10px] font-black tracking-widest uppercase">Go Now →</span>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
 
                 {/* Main Content */}

@@ -16,6 +16,7 @@ Write-Host "------------------------------------------------"
 # 1. Build locally
 Write-Host "🏗️  1. Building locally..." -ForegroundColor Yellow
 $env:MSYS_NO_PATHCONV=1
+$env:NODE_OPTIONS="--max-old-space-size=4096"
 npm run build -- --base=/insighted-staging/
 if ($LASTEXITCODE -ne 0) { Write-Error "Build failed"; exit }
 
@@ -26,7 +27,7 @@ if ($LASTEXITCODE -ne 0) { Write-Error "SSH Cleanup failed. Ensure your SSH key 
 
 # 3. Packing
 Write-Host "📦 3. Packing artifacts..." -ForegroundColor Yellow
-tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py tmp_stride.conf forensic_heal.sh ecosystem.config.cjs
+tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs
 if ($LASTEXITCODE -ne 0) { Write-Error "Packing failed"; exit }
 
 # 4. Uploading

@@ -20,13 +20,13 @@ echo "Target Dir: $SERVER_DIR"
 echo "------------------------------------------------"
 
 echo "🏗️  1. Building locally..."
-MSYS_NO_PATHCONV=1 npm run build || { echo "❌ Build failed. Aborting deployment."; exit 1; }
+MSYS_NO_PATHCONV=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build || { echo "❌ Build failed. Aborting deployment."; exit 1; }
 
 echo "🧹 1.5 Cleaning remote destination to free up space..."
 ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || { echo "❌ [SSH Error] Connection failed. Run setup-ssh-key.sh."; exit 1; }
 
 echo "📦 2. Packing artifacts into archive ($TAR_FILE)..."
-tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py tmp_stride.conf tmp_nginx.conf forensic_heal.sh ecosystem.config.cjs
+tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs
 
 echo "📤 3. Syncing to VM via SCP..."
 scp -o StrictHostKeyChecking=no -o BatchMode=yes $TAR_FILE $USER@$SERVER_IP:$SERVER_DIR/

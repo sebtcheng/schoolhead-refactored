@@ -9,7 +9,7 @@ const SERVER_DIR = "/var/www/html/InsightEd-Mobile-PWA";
 const USER = "Administrator1";
 const PASS = "7v52E69TYgTE";
 const TAR_FILE = "local-deploy.tmp.tar.gz";
-const INCLUDE = ['api', 'dist', 'public', 'package.json', 'package-lock.json', 'compress_pdf.py', 'tmp_stride.conf', 'forensic_heal.sh', 'ecosystem.config.cjs'];
+const INCLUDE = ['api', 'dist', 'public', 'package.json', 'package-lock.json', 'compress_pdf.py', 'forensic_heal.sh', 'ecosystem.config.cjs'];
 
 console.log("------------------------------------------------");
 console.log("🚀 Automated Local-to-Remote Deployment (JS)");
@@ -32,7 +32,7 @@ async function deploy() {
 
     // 1. Build locally
     console.log("🏗️  1. Building locally...");
-    runLocal('npm run build', { ...process.env, MSYS_NO_PATHCONV: '1' });
+    runLocal('npm run build', { ...process.env, MSYS_NO_PATHCONV: '1', NODE_OPTIONS: '--max-old-space-size=4096' });
 
     // 2. Prepare tarball
     console.log(`📦 2. Creating local archive (${TAR_FILE})...`);

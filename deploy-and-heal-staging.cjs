@@ -9,7 +9,7 @@ const SERVER_DIR = "/var/www/html/InsightEd-Staging";
 const USER = "Administrator1";
 const PASS = "7v52E69TYgTE"; 
 const TAR_FILE = "staging-deploy.tmp.tar.gz";
-const INCLUDE = ['api', 'dist', 'public', 'package.json', 'package-lock.json', 'compress_pdf.py', 'tmp_stride.conf', 'forensic_heal.sh', 'ecosystem.config.cjs'];
+const INCLUDE = ['api', 'dist', 'public', 'package.json', 'package-lock.json', 'compress_pdf.py', 'forensic_heal.sh', 'ecosystem.config.cjs'];
 
 console.log("================================================");
 console.log("🚀 UNIFIED STAGING DEPLOY & HEAL");
@@ -31,7 +31,7 @@ async function deployAndHeal() {
 
     // 1. Build locally
     console.log("\n🏗️  1. Building locally...");
-    runLocal('npm run build -- --base=/insighted-staging/', { ...process.env, MSYS_NO_PATHCONV: '1' });
+    runLocal('npm run build -- --base=/insighted-staging/', { ...process.env, MSYS_NO_PATHCONV: '1', NODE_OPTIONS: '--max-old-space-size=4096' });
 
     // 2. Prepare tarball
     console.log(`\n📦 2. Creating local archive (${TAR_FILE})...`);
