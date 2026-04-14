@@ -95,10 +95,10 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
 
             const prevPct = getPct(prev);
             const currPct = getPct(curr);
-            const prevProc = prev.procurement_status || 'Unset';
-            const currProc = curr.procurement_status || 'Unset';
-            const prevStat = prev.status || 'Unset';
-            const currStat = curr.status || 'Unset';
+            const prevProc = prev.procurement_status || prev.status_design_phase || prev.procurementStatus || 'Unset';
+            const currProc = curr.procurement_status || curr.status_design_phase || curr.procurementStatus || 'Unset';
+            const prevStat = prev.status || prev.status_of_construction_phase || 'Unset';
+            const currStat = curr.status || curr.status_of_construction_phase || 'Unset';
 
             const procChanged = currProc.toLowerCase() !== prevProc.toLowerCase();
             const constChanged = currStat !== prevStat;
@@ -153,25 +153,52 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
         
         const match = remarkStr.match(/^\[Justification:\s*(.*?)\](.*)$/is);
         if (match) {
-            const category = match[1].trim();
+            const rawCategories = match[1].trim();
             const comment = match[2].trim();
-            
-            // Clean up the category part (especially 'Others (Reason)')
-            let cleanCategory = category;
-            if (category.toLowerCase().startsWith('others')) {
-                const innerMatch = category.match(/others\s*\((.*?)\)/i);
-                cleanCategory = innerMatch ? innerMatch[1] : (category.toLowerCase() === 'others' ? "" : category);
+
+            // Smart split: split by ", " but not inside parentheses
+            const justifications = [];
+            let depth = 0;
+            let current = '';
+            for (let i = 0; i < rawCategories.length; i++) {
+                const ch = rawCategories[i];
+                if (ch === '(') depth++;
+                else if (ch === ')') depth--;
+                // Split on ", " only at depth 0
+                if (depth === 0 && rawCategories.slice(i, i + 2) === ', ') {
+                    if (current.trim()) justifications.push(current.trim());
+                    current = '';
+                    i++; // skip the space
+                    continue;
+                }
+                current += ch;
             }
-            
+            if (current.trim()) justifications.push(current.trim());
+
+            // Clean up each justification (handle "Others (custom reason)")
+            const cleanedJustifications = justifications.map(j => {
+                const othersMatch = j.match(/^others\s*\((.*?)\)$/i);
+                if (othersMatch) return { text: othersMatch[1], isCustom: true };
+                if (j.toLowerCase() === 'others') return null; // Others with no text — skip
+                return { text: j, isCustom: false };
+            }).filter(Boolean);
+
             return (
-                <div className="flex flex-col gap-3">
-                    {cleanCategory && (
-                        <p className="text-[10px] font-bold text-amber-800 italic leading-relaxed break-words">
-                            "{cleanCategory}"
-                        </p>
+                <div className="flex flex-col gap-2">
+                    {cleanedJustifications.length > 0 && (
+                        <ul className="space-y-1.5 pl-0">
+                            {cleanedJustifications.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-2">
+                                    <span className={`mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full ${item.isCustom ? 'bg-slate-400' : 'bg-amber-500'}`} />
+                                    <span className={`text-[10px] leading-relaxed break-words ${item.isCustom ? 'font-medium text-slate-600 italic' : 'font-bold text-amber-800'}`}>
+                                        {item.text}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
                     )}
                     {comment && comment !== 'null' && comment !== 'undefined' && comment !== '' && (
-                        <div className="flex flex-col gap-1 border-t border-amber-200/30 pt-2">
+                        <div className="flex flex-col gap-1 border-t border-amber-200/40 pt-2 mt-1">
                             <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Additional Notes</span>
                             <p className="text-[10px] font-medium text-slate-600 italic leading-relaxed break-words">
                                 "{comment}"
