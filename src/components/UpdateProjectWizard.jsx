@@ -623,6 +623,7 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
         ...biddingDates,
         ...contractAward,
         ...details,
+        update_type: 'Status Update'
       },
       internalFiles,
       externalFiles,
@@ -749,7 +750,7 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
         </div>
 
         {/* Scrollable Body */}
-        <div ref={bodyRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {/* ── STEP 1: PROCUREMENT ── */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -835,7 +836,7 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
                 ProcurementStatus.UnderProcurement,
                 ProcurementStatus.ProcurementComplete,
               ].includes(procurementStatus) && (
-                <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-blue-50 p-3 sm:p-4 rounded-2xl border border-blue-100">
                   <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4 text-center">
                     {procurementStatus === ProcurementStatus.ProcurementComplete
                       ? "Final Procurement Details"
@@ -852,9 +853,9 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
                             key={m.key}
                             className="relative z-10 flex flex-col gap-2"
                           >
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 sm:gap-4">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${hasDate ? "bg-blue-600 border-blue-600 text-white shadow-md" : "bg-white border-slate-200 text-slate-300"}`}
+                                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all ${hasDate ? "bg-blue-600 border-blue-600 text-white shadow-md" : "bg-white border-slate-200 text-slate-300"}`}
                               >
                                 {hasDate ? (
                                   <FiCheck size={14} />
@@ -865,12 +866,12 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
                                 )}
                               </div>
                               <label
-                                className={`text-[11px] font-black uppercase tracking-tight ${hasDate ? "text-slate-800" : "text-slate-400"}`}
+                                className={`text-[10px] sm:text-[11px] font-black uppercase tracking-tight ${hasDate ? "text-slate-800" : "text-slate-400"}`}
                               >
                                 {m.label}
                               </label>
                             </div>
-                            <div className="pl-12">
+                            <div className="pl-10 sm:pl-12">
                               <input
                                 type="date"
                                 value={biddingDates[m.key]}

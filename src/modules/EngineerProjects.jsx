@@ -887,7 +887,7 @@ const EngineerProjects = () => {
         uid: uid, 
         modifiedBy: userName, 
         uploader_type: uploaderType,
-        update_type: modalMode === 'quick' ? 'Details Update' : (updatedProject.update_type || 'Status Update')
+        update_type: updatedProject.update_type || (modalMode === 'quick' ? 'Status Update' : 'Details Update')
       };
       const body = payload;
 
