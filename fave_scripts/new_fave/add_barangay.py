@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import sys
 
 # Load environment variables from .env file in the parent directory
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 def get_selection(options, prompt_text):
     """Helper to display a numbered list and get a valid selection."""
@@ -33,7 +33,7 @@ def add_barangay(region, province, municipality, barangay):
 
     try:
         # Connect to the database
-        conn = psycopg2.connect(database_url, sslmode='require')
+        conn = psycopg2.connect(database_url)
         cur = conn.cursor()
 
         # Force all caps for consistency
@@ -42,15 +42,15 @@ def add_barangay(region, province, municipality, barangay):
         municipality = municipality.upper().strip()
         barangay = barangay.upper().strip()
 
-        print(f"\nℹ️ Creating barangay mapping in 'ph_barangays' for:")
+        print(f"\nℹ️ Creating barangay mapping in 'all_locations_barangay' for:")
         print(f"   Region: {region}")
         print(f"   Province: {province}")
         print(f"   Municipality: {municipality}")
         print(f"   Barangay: {barangay}")
 
-        # 1. Check if the exact combination already exists in ph_barangays
+        # 1. Check if the exact combination already exists in all_locations_barangay
         check_query = """
-            SELECT id FROM ph_barangays 
+            SELECT region FROM all_locations_barangay 
             WHERE UPPER(TRIM(region)) = UPPER(TRIM(%s)) 
               AND UPPER(TRIM(province)) = UPPER(TRIM(%s))
               AND UPPER(TRIM(municipality)) = UPPER(TRIM(%s))
@@ -63,12 +63,12 @@ def add_barangay(region, province, municipality, barangay):
         else:
             # 2. Insert the new barangay mapping
             insert_query = """
-                INSERT INTO ph_barangays (region, province, municipality, barangay) 
+                INSERT INTO all_locations_barangay (region, province, municipality, barangay) 
                 VALUES (%s, %s, %s, %s)
             """
             cur.execute(insert_query, (region, province, municipality, barangay))
             conn.commit()
-            print(f"\n[✅] Successfully added Barangay '{barangay}' to 'ph_barangays'.")
+            print(f"\n[✅] Successfully added Barangay '{barangay}' to 'all_locations_barangay'.")
 
         cur.close()
         conn.close()
@@ -77,7 +77,7 @@ def add_barangay(region, province, municipality, barangay):
         print(f"\n[ERROR] Database Error: {str(e)}")
 
 if __name__ == "__main__":
-    print("--- Add Barangay to Database (ph_barangays) ---")
+    print("--- Add Barangay to Database (all_locations_barangay) ---")
     
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
@@ -85,11 +85,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        conn = psycopg2.connect(database_url, sslmode='require')
+        conn = psycopg2.connect(database_url)
         cur = conn.cursor()
 
         # 1. Select Region
-        cur.execute("SELECT DISTINCT region FROM ph_barangays WHERE region IS NOT NULL ORDER BY region")
+        cur.execute("SELECT DISTINCT region FROM all_locations_barangay WHERE region IS NOT NULL ORDER BY region")
         regions = [r[0] for r in cur.fetchall()]
         
         if not regions:
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         # 2. Select Province
         cur.execute("""
             SELECT DISTINCT province 
-            FROM ph_barangays 
+            FROM all_locations_barangay 
             WHERE region = %s AND province IS NOT NULL 
             ORDER BY province
         """, (selected_region,))
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         # 3. Select Municipality
         cur.execute("""
             SELECT DISTINCT municipality 
-            FROM ph_barangays 
+            FROM all_locations_barangay 
             WHERE region = %s AND province = %s AND municipality IS NOT NULL 
             ORDER BY municipality
         """, (selected_region, selected_province))

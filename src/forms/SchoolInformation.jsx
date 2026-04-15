@@ -59,7 +59,7 @@ const SchoolInformation = ({ embedded = false }) => {
         "School Principal III", "School Principal IV", "Special School Principal I",
         "Special School Principal II", "Vocational School Administrator I",
         "Vocational School Administrator II", "Vocational School Administrator III",
-        "Public School District Supervisor", "PSDS (Officer-in-Charge)"
+        "Public School District Supervisor", "SDO Personnel (OIC)"
     ];
 
     const goBack = () => {

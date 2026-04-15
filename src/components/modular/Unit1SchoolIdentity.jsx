@@ -449,32 +449,38 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             })
             .catch(() => setDivisionOptions([]));
 
-        // 2. Hard-coded Legislative Districts (Standardized 1st to 8th)
-        const HARD_CODED_LEGS = [
-            '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
-            '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
-        ];
-        
-        let lOptions = [...HARD_CODED_LEGS];
-        
-        // 1. Unshift "BLANK" if parent is blank
-        if (formData.region === 'BLANK REGION') {
-            lOptions.unshift('BLANK LEGISLATIVE DISTRICT');
-        }
+        // 2. Fetch Legislative Districts dynamically
+        fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
+            .then(r => r.json())
+            .then(legs => {
+                let lOptions = Array.isArray(legs) ? legs : [];
+                
+                // 1. Unshift "BLANK" if parent is blank
+                if (formData.region === 'BLANK REGION') {
+                    lOptions.unshift('BLANK LEGISLATIVE DISTRICT');
+                }
 
-        // 2. Ensure current value is in list but filter out "BLANK" if region is not blank
-        if (formData.leg_district) {
-            const val = formData.leg_district.toUpperCase();
-            const isBlank = val === 'BLANK LEGISLATIVE DISTRICT';
-            const regionIsBlank = formData.region === 'BLANK REGION';
-            
-            if (!isBlank || regionIsBlank) {
-                if (!lOptions.includes(val)) lOptions.push(val);
-            }
-        }
-
-        setLegDistrictOptions(lOptions);
-    }, [formData.region, formData.division, formData.leg_district]);
+                // 2. Ensure current value is in list but filter out "BLANK" if region is not blank
+                if (formData.leg_district) {
+                    const val = formData.leg_district.toUpperCase();
+                    const isBlank = val === 'BLANK LEGISLATIVE DISTRICT';
+                    const regionIsBlank = formData.region === 'BLANK REGION';
+                    
+                    if (!isBlank || regionIsBlank) {
+                        if (!lOptions.includes(val)) lOptions.push(val);
+                    }
+                }
+                setLegDistrictOptions(lOptions);
+            })
+            .catch(() => {
+                // Fallback to hardcoded if API fails during transition or offline
+                const HARD_CODED_LEGS = [
+                    '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+                    '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+                ];
+                setLegDistrictOptions(HARD_CODED_LEGS);
+            });
+    }, [formData.region, formData.province, formData.division, formData.leg_district]);
 
     useEffect(() => {
         if (!formData.region || !formData.division) { setDistrictOptions([]); return; }
@@ -1712,7 +1718,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                     <option value="School Principal IV">School Principal IV</option>
                                                     <option value="Assistant School Principal I">Assistant School Principal I</option>
                                                     <option value="Assistant School Principal II">Assistant School Principal II</option>
-                                                    <option value="PSDS (Officer-in-Charge)">PSDS (Officer-in-Charge)</option>
+                                                    <option value="SDO Personnel (OIC)">SDO Personnel (OIC)</option>
                                                 </select>
                                             </div>
                                             <div className="space-y-4">

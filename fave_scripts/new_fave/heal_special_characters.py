@@ -10,9 +10,15 @@ if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
 # Load environment variables
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    masked_url = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL
+    print(f"📡 Using Database: {masked_url}")
+else:
+    print("❌ Error: DATABASE_URL not found in environment or .env file.")
+    sys.exit(1)
 
 # Configuration of known corrupted sequences and their targets
 # We use hex strings for precision to avoid terminal encoding issues
@@ -26,10 +32,11 @@ CORRUPTION_MAP = {
 
 TABLES_TO_SCAN = [
     {'name': 'all_locations', 'columns': ['region', 'division', 'district', 'province', 'municipality', 'legislative_district']},
-    {'name': '"schools_IERN"', 'columns': ['Division', 'Region', 'Province', 'Municipality', 'Barangay', 'School_Name']},
-    {'name': 'ph_schools', 'columns': ['division', 'region', 'province', 'municipality', 'barangay', 'school_name']},
+    {'name': '"schools_IERN"', 'columns': ['Division', 'Region', 'Province', 'Municipality', 'District', 'Barangay', 'School_Name']},
+    {'name': 'ph_schools', 'columns': ['division', 'region', 'province', 'municipality', 'district', 'barangay', 'school_name']},
     {'name': 'ph_school_completion', 'columns': ['division', 'region']},
-    {'name': 'users', 'columns': ['division', 'region', 'province', 'city', 'barangay']}
+    {'name': 'users', 'columns': ['division', 'region', 'province', 'city', 'barangay']},
+    {'name': 'all_locations_deped', 'columns': ['region', 'division', 'district']}
 ]
 
 def heal_database(auto_heal=False, dry_run=False):
@@ -45,14 +52,25 @@ def heal_database(auto_heal=False, dry_run=False):
 def perform_scan(auto_heal=False, dry_run=False, quiet=False):
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        # Use sslmode='prefer' to allow connections to proxies (like PgBouncer 6432) that might not support SSL
+        # while still attempting SSL for direct connections.
+        conn = psycopg2.connect(DATABASE_URL, sslmode='prefer')
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         if not quiet:
             print("\n[STEP 1] Scanning for known corrupted hex patterns...")
         for table_info in TABLES_TO_SCAN:
-            table_name = table_info['name']
+            table_name = str(table_info['name'])
             columns = table_info['columns']
+            
+            # Verify table existence
+            cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s OR table_name = %s)", 
+                        (table_name.strip('"'), table_name))
+            if not cur.fetchone()['exists']:
+                if not quiet:
+                    print(f"  ⏭️  Skipping missing table: {table_name}")
+                continue
+
             for column in columns:
                 safe_column = f'"{column}"' if any(c.isupper() for c in column) else column
                 for hex_pattern, target in CORRUPTION_MAP.items():
@@ -77,8 +95,15 @@ def perform_scan(auto_heal=False, dry_run=False, quiet=False):
         if not quiet:
             print("\n[STEP 2] Scanning for general encoding artifacts (efbfbd / replacement char)...")
         for table_info in TABLES_TO_SCAN:
-            table_name = table_info['name']
+            table_name = str(table_info['name'])
             columns = table_info['columns']
+
+            # Verify table existence (re-check in case of disconnects or schema changes)
+            cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s OR table_name = %s)", 
+                        (table_name.strip('"'), table_name))
+            if not cur.fetchone()['exists']:
+                continue
+
             for column in columns:
                 safe_column = f'"{column}"' if any(c.isupper() for c in column) else column
                 cur.execute(f"SELECT DISTINCT {safe_column}, encode({safe_column}::bytea, 'hex') as hex_val FROM {table_name} WHERE encode({safe_column}::bytea, 'hex') ILIKE '%efbfbd%'")
@@ -92,7 +117,10 @@ def perform_scan(auto_heal=False, dry_run=False, quiet=False):
                     for row in anomalies:
                         current_val = row[column]
                         hex_val = row['hex_val']
-                        suggested = current_val.replace('?\uFFFD', 'Ñ').replace('\uFFFD', 'Ñ').replace('?Ñ', 'Ñ').replace('??', 'Ñ')
+                        # Strengthened replacement logic:
+                        # Use regex to collapse ANY sequence of '?' or '\uFFFD' into a SINGLE 'Ñ'
+                        import re
+                        suggested = re.sub(r'[\?\uFFFD]+', 'Ñ', current_val)
                         
                         if not quiet:
                             new_val = None
@@ -150,14 +178,14 @@ if __name__ == "__main__":
     # 3. If --fix: run interactively immediately
     # 4. Default: run summary scan, then ask to start interactive session
     
-    if args.auto:
-        heal_database(auto_heal=True)
-    elif args.dry_run:
-        heal_database(dry_run=True)
-    elif args.fix:
-        heal_database(auto_heal=False)
+    if args.auto or args.dry_run or args.fix:
+        heal_database(auto_heal=args.auto, dry_run=args.dry_run)
     else:
         # Default behavior: Dry run summary, then prompt
         print("--- 🚀 Welcome to the Database Encoding Healing Tool ---")
         print("Running preliminary summary scan...")
-        heal_database(auto_heal=False, dry_run=False)
+        heal_database(auto_heal=False, dry_run=True)
+        
+        confirm = input("\nWould you like to start an interactive healing session? (y/n): ").strip().lower()
+        if confirm == 'y':
+            heal_database(auto_heal=False, dry_run=False)

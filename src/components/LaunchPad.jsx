@@ -259,7 +259,7 @@ const LaunchPad = () => {
                         }}
                         className="text-[10px] font-black text-slate-400 hover:text-[#004A99] uppercase tracking-widest transition-colors mb-4"
                     >
-                        [ Check for Updates ]
+                        [ Optimize App ]
                     </button>
                     <img src="https://cdn.worldvectorlogo.com/logos/deped.svg" className="h-8 opacity-40 grayscale hover:grayscale-0 transition-all" alt="DepEd" />
                 </div>
