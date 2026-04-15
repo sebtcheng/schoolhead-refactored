@@ -1,69 +1,100 @@
 #!/bin/bash
-set -e # Exit on error
+set -eo pipefail # Exit on error, pipefail for better error catching
 
 # Deployment Script (Local to Staging - Ultra Lean Edition)
-# This script pushes a locally built production bundle and optimized assets
-# to minimize server footprint and avoid ENOSPC errors.
+# Optimized for robustness, logging, and performance.
 
+# --- CONFIGURATION ---
 SERVER_IP="20.24.58.49"
 SERVER_DIR="/var/www/html/InsightEd-Staging"
 USER="Administrator1"
 TAR_FILE="staging-deploy.tmp.tar.gz"
-PASS="7v52E69TYgTE"
+PM2_NAME="insighted-staging"
+# SSH command alias for convenience
+SSH_CMD="ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP"
+SCP_CMD="scp -o StrictHostKeyChecking=no -o BatchMode=yes"
 
+# --- LOGGING FUNCTIONS ---
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+ok()   { echo -e "${GREEN}✅ $*${NC}"; }
+warn() { echo -e "${YELLOW}⚠️  $*${NC}"; }
+fail() { echo -e "${RED}❌ $*${NC}"; exit 1; }
+info() { echo -e "${CYAN}ℹ️  $*${NC}"; }
 
-echo "------------------------------------------------"
-echo "🚀 Local-to-Staging Deployment (Incremental/Tarball)"
-echo "------------------------------------------------"
-echo "Host: $SERVER_IP"
-echo "User: $USER"
-echo "Password: $PASS"
-echo "Target Dir: $SERVER_DIR"
-echo "------------------------------------------------"
+# --- PRE-FLIGHT CHECKS ---
+info "------------------------------------------------"
+info "🚀 Local-to-Staging Deployment: $PM2_NAME"
+info "------------------------------------------------"
+info "Host: $SERVER_IP | User: $USER"
+info "Target: $SERVER_DIR"
+info "------------------------------------------------"
 
+# Verify local environment
+if [ ! -f "package.json" ]; then
+  fail "Error: package.json not found in current directory. Are you in the project root?"
+fi
 
-echo "🏗️  2. Building locally (Fixing path conversion)..."
-MSYS_NO_PATHCONV=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build -- --base=/insighted-staging/
+# Check SSH connection early
+info "Verifying SSH connection..."
+$SSH_CMD "echo 'SSH Connection OK'" > /dev/null || fail "SSH connection failed. Run ./setup-ssh-key-simple.cjs first."
 
-echo "🧹 2.5 Cleaning remote destination to free up space..."
-ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || { echo "❌ [SSH Error] Password-less login failed. Please run: 'bash ./setup-ssh-key.sh' to automate your deployment."; exit 1; }
+# --- BUILD ---
+info "🏗️  1. Building locally (Staging mode)..."
+MSYS_NO_PATHCONV=1 NODE_OPTIONS="--max-old-space-size=4096" npm run build -- --base=/insighted-staging/ || fail "Build failed. Aborting deployment."
+ok "Build successful."
 
-echo "📦 3. Packing artifacts into archive ($TAR_FILE)..."
-tar -czf $TAR_FILE dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs
+# --- PREPARE REMOTE ---
+info "Cleaning remote destination to free up space..."
+$SSH_CMD "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || warn "Remote cleanup failed or directory didn't exist."
 
-echo "📤 4. Syncing to VM Staging via SCP..."
-scp -o StrictHostKeyChecking=no -o BatchMode=yes $TAR_FILE $USER@$SERVER_IP:$SERVER_DIR/
+# --- PACK & SYNC ---
+info "📦 2. Packing artifacts into $TAR_FILE..."
+tar -czf "$TAR_FILE" dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs || fail "Failed to create archive."
+ok "Archive created."
 
-echo "🚀 5. Remote Production Setup, Maintenance & Restart..."
-ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP "
-  set -e
+info "📤 3. Syncing to VM Staging via SCP..."
+$SCP_CMD "$TAR_FILE" "$USER@$SERVER_IP:$SERVER_DIR/" || fail "SCP failed."
+ok "Transfer complete."
+
+# --- REMOTE EXECUTION ---
+info "🚀 4. Remote Production Setup & Restart..."
+$SSH_CMD "
+  set -eo pipefail
   mkdir -p $SERVER_DIR
   cd $SERVER_DIR
-  (tar -xzf $TAR_FILE || true) && rm -f $TAR_FILE
+  
+  info() { echo -e '\033[0;36mℹ️  '\"\$*\"'\033[0m'; }
+  ok()   { echo -e '\033[0;32m✅ '\"\$*\"'\033[0m'; }
 
-  # --- Temp dir for PDF compression pipeline (replaces /mnt/uploads) ---
-  # All PDFs/images are stored in Postgres binary. This dir is scratch-only.
+  info 'Extracting archive...'
+  tar -xzf $TAR_FILE && rm -f $TAR_FILE
+
+  # --- Temp dir for PDF compression pipeline ---
+  info 'Setting up PDF scratch space...'
   mkdir -p /tmp/insighted-pdf-tmp
   chmod 775 /tmp/insighted-pdf-tmp
 
+  info 'Installing production dependencies...'
   npm cache clean --force 2>/dev/null
   npm install --omit=dev --legacy-peer-deps
   npm prune --omit=dev --legacy-peer-deps
-  npm cache clean --force 2>/dev/null
+  
+  info 'Configuring PM2 environment...'
   pm2 set pm2-logrotate:max_size 50M
   pm2 set pm2-logrotate:retain 5
-  pm2 flush
+  pm2 flush $PM2_NAME 2>/dev/null || true
 
-  # Run Forensic Healer (Handles Nginx, Python deps, and PM2)
+  # Ensure forensic_heal.sh is executable and clean
   sed -i 's/\r$//' forensic_heal.sh
   chmod +x forensic_heal.sh
+  
+  info 'Triggering Forensic Healer (Handles Nginx, Python, PM2)...'
   ./forensic_heal.sh
-"
+" || fail "Remote execution failed."
 
+# --- CLEANUP ---
+info "🧹 5. Cleaning up local archive..."
+rm -f "$TAR_FILE"
 
-echo "🧹 Cleaning up local archive..."
-rm -f $TAR_FILE
-
-echo "✅ Staging Deployment Complete!"
-echo "------------------------------------------------"
-
+ok "Staging Deployment Complete!"
+info "------------------------------------------------"
