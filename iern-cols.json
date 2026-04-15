@@ -1,0 +1,20 @@
+[
+  "updated_at",
+  "Latitude",
+  "Longitude",
+  "id",
+  "Division",
+  "District",
+  "School_Name",
+  "Barangay",
+  "Legislative_District",
+  "status",
+  "Curricular_Offering",
+  "Street_Address",
+  "Mother_School_ID",
+  "Province",
+  "Municipality",
+  "iern",
+  "SchoolID",
+  "Region"
+]

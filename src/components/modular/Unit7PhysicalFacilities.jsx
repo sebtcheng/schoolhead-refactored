@@ -203,6 +203,9 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     const [hasRepair, setHasRepair] = useState(null);
     const [repairAssessments, setRepairAssessments] = useState([]);
     const [showRepairModal, setShowRepairModal] = useState(false);
+    const [activeBuildingId, setActiveBuildingId] = useState(null);
+    const [hasJustSaved, setHasJustSaved] = useState(false);
+    const [validationModal, setValidationModal] = useState(null);
 
     const [repairRoomFormData, setRepairRoomFormData] = useState({
         building_name: "",
@@ -399,10 +402,16 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 const json = await res.json();
                 if (json.success && json.data) {
                     const { inventory, repairs, isCompleted, has_no_building } = json.data;
-                    setBuildings(inventory);
-                    setHasNoBuilding(has_no_building || false);
                     const allRooms = [];
-                    inventory.forEach(b => {
+                    const normalizedInventory = inventory.map(b => ({
+                        ...b,
+                        classroom: b.classroom || b.classroom_count || (b.rooms ? b.rooms.length : 0),
+                        storey: b.storey || b.storey_count || 1
+                    }));
+                    setBuildings(normalizedInventory);
+                    setHasNoBuilding(has_no_building || false);
+                    
+                    normalizedInventory.forEach(b => {
                         if (b.rooms && Array.isArray(b.rooms)) {
                             b.rooms.forEach(r => {
                                 allRooms.push({
@@ -637,13 +646,15 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         }
 
         const bId = editingBuildingId || Date.now().toString();
-        const newEntry = {
-            ...buildingFormData,
-            id: bId
-        };
-
+        
+        // Safety: If editing, try to get the current room count if the form field is empty
+        let currentRoomCount = parseInt(buildingFormData.classroom);
+        if (editingBuildingId && isNaN(currentRoomCount)) {
+            currentRoomCount = roomsData.filter(r => r.building_local_id === editingBuildingId).length;
+        }
+        
+        const numClassrooms = currentRoomCount || 1;
         const numStoreys = parseInt(buildingFormData.storey) || 1;
-        const numClassrooms = parseInt(buildingFormData.classroom) || 1;
 
         let finalRooms = [];
 
@@ -722,10 +733,19 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             }
         }
 
+        const newEntry = {
+            ...buildingFormData,
+            classroom: numClassrooms.toString(),
+            storey: numStoreys.toString(),
+            id: bId
+        };
+
         if (editingBuildingId) {
             setBuildings(buildings.map(b => b.id === editingBuildingId ? newEntry : b));
+            setActiveBuildingId(editingBuildingId);
         } else {
             setBuildings([...buildings, newEntry]);
+            setActiveBuildingId(bId);
         }
 
         setRoomsData(prev => [
@@ -740,7 +760,9 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             year_completed: currentYear, remarks: "", status: "Good Condition",
             condemn_age: false, condemn_hazard: false, condemn_calamity: false, condemn_upgrade: false
         });
-        setTimeout(() => handlePartialSync(), 100);
+        
+        // Advance to Room Setup (now Page 4)
+        setCurrentPage(4);
     };
 
     const handleEditBuilding = (b) => {
@@ -941,8 +963,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         });
 
         if (unassessedRooms.length > 0) {
-            alert(`Validation Error: Please provide repair details for "${unassessedRooms[0].room_name}" in Step 4 before finalizing.`);
-            setCurrentPage(4);
+            alert(`Validation Error: Please provide repair details for "${unassessedRooms[0].room_name}" before finalizing.`);
+            setCurrentPage(5);
             return;
         }
 
@@ -1072,6 +1094,11 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     };
 
     const handleBack = () => {
+        // Hub-and-spoke: wizard pages (3,4,5,6) return to the Hub (Page 2)
+        if (currentPage === 3 || currentPage === 4 || currentPage === 5 || currentPage === 6) {
+            setCurrentPage(2);
+            return;
+        }
         if (currentPage > 1) {
             setCurrentPage(prev => prev - 1);
         } else {
@@ -1225,7 +1252,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                 <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Building Inventory</h3>
                             </div>
-                            {!propReadOnly && (
+                            {!isReadOnly && (
                                 <button
                                     onClick={() => {
                                         setIsReadOnly(false);
@@ -1253,7 +1280,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                             <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.15em]">{b.category}</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            {!propReadOnly && (
+                                            {!isReadOnly && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1267,7 +1294,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                     <FiEdit2 className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            {!propReadOnly && (
+                                            {!isReadOnly && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1448,7 +1475,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                         </div>
                         {(!isReadOnly) ? (
                             <div className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md uppercase tracking-widest">
-                                Step {currentPage}/4
+                                Step {currentPage}/6
                             </div>
                         ) : (
                             <div className="w-10"></div>
@@ -1457,7 +1484,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     {/* Visual Progress Bar (Only in Wizard) */}
                     {!isReadOnly && (
                         <div className="max-w-md mx-auto mt-3 h-1 bg-gray-100 rounded-full overflow-hidden flex gap-1">
-                            {[1, 2, 3, 4].map(step => (
+                            {[1, 2, 3, 4, 5, 6].map(step => (
                                 <div
                                     key={step}
                                     className={`flex-1 h-full transition-all duration-500 ${currentPage >= step ? "bg-indigo-500" : "bg-gray-200"}`}
@@ -1654,76 +1681,47 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     )}
 
                     {/* ────────────────────────────────────────────────────────
-                    PHASE 2: Register Building
+                    PHASE 2: REGISTER BUILDING SUMMARY (Inventory Hub)
                     ──────────────────────────────────────────────────────── */}
                     {currentPage === 2 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                            <h2 className="text-3xl font-black text-gray-800 tracking-tight leading-tight mb-2">
-                                Register Building 🏢
-                            </h2>
-                            <p className="text-gray-500 mb-6 font-medium">Log the physical structures on your campus.</p>
-
-                            {/* Inventory Area - Only show if hasNoBuilding is FALSE */}
-                            {!hasNoBuilding ? (
-                                <div className="space-y-6 mb-8">
-                                    {/* Add Button - Moved to TOP */}
-                                    {!showBuildingModal && (
-                                        <motion.button
-                                            initial={{ opacity: 0, scale: 0.9 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            onClick={() => setShowBuildingModal(true)}
-                                            className="bg-indigo-50 w-full py-4 rounded-2xl text-indigo-600 font-black text-lg border-2 border-indigo-200 border-dashed hover:bg-indigo-100 hover:border-indigo-300 transition-all flex justify-center items-center gap-2 shadow-sm"
-                                        >
-                                            <FiPlus className="w-6 h-6" /> Register Building
-                                        </motion.button>
-                                    )}
-
-                                    {/* Card List of Registered Buildings */}
-                                    {allBuildings.length > 0 && (
-                                        <div className="space-y-4">
-                                            {allBuildings.map(b => (
-                                                <div key={b.id} className="bg-white p-5 rounded-3xl shadow-sm border-2 border-gray-100 flex justify-between items-center group hover:border-indigo-200 transition-all">
-                                                    <div>
-                                                        <h4 className="font-black text-xl text-gray-800 tracking-tight uppercase">{b.building_name}</h4>
-                                                        <div className="flex gap-2 mt-1">
-                                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${b.status === 'Newly Built' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                                {b.status}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-sm font-bold text-gray-500 mt-1 uppercase tracking-tighter">{b.category} &bull; {b.storey} Storey &bull; {roomsData.filter(r => r.building_local_id === b.id).length} Classroom</p>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <button onClick={() => handleEditBuilding(b)} className="p-3 bg-indigo-50 text-indigo-500 rounded-xl hover:bg-indigo-100 transition-colors">
-                                                            <FiEdit2 className="w-5 h-5" />
-                                                        </button>
-                                                        <button onClick={() => handleDeleteBuilding(b.id)} className="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100 transition-colors">
-                                                            <FiTrash2 className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                            <div className="flex justify-between items-end mb-8">
+                                <div>
+                                    <h2 className="text-3xl font-black text-gray-800 tracking-tight leading-tight">
+                                        Building Inventory 🏗️
+                                    </h2>
+                                    <p className="text-gray-500 font-medium mt-1">Review your registered buildings or add a new one.</p>
                                 </div>
-                            ) : (
-                                <div className="bg-slate-100 rounded-3xl p-10 text-center border-2 border-slate-200 border-dashed">
-                                    <div className="text-5xl mb-4 grayscale">🏢</div>
-                                    <h4 className="font-black text-slate-400 uppercase tracking-widest text-lg">Infrastructure Disabled</h4>
-                                    <p className="text-slate-400 text-sm font-medium mt-2">You have confirmed that this school has no buildings. Uncheck the box below to register structures.</p>
+                                <div className="bg-indigo-50 px-4 py-2 rounded-2xl border-2 border-indigo-100">
+                                    <span className="text-xl font-black text-indigo-600 leading-none">{buildings.length}</span>
+                                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest ml-1">Bldgs</span>
                                 </div>
-                            )}
+                            </div>
 
-                            {/* No Building Confirmation Section - Moved to BOTTOM & Removed if buildings exist or if the header/button is clicked */}
-                            {(allBuildings.length === 0 && !showBuildingModal) && (
-                                <div className={`mt-6 p-6 rounded-3xl border-2 transition-all ${hasNoBuilding ? 'bg-amber-50 border-amber-500 shadow-lg shadow-amber-100' : 'bg-white border-gray-100 hover:border-amber-200'}`}>
-                                    <label className="flex items-start gap-4 cursor-pointer group">
-                                        <div className="relative flex items-center mt-1">
+                            {buildings.length === 0 && !hasNoBuilding ? (
+                                <div className="bg-white p-10 rounded-[3rem] border-2 border-slate-100 shadow-xl shadow-slate-50 text-center py-20">
+                                    <div className="w-24 h-24 bg-indigo-50 rounded-[2.5rem] flex items-center justify-center text-4xl mx-auto mb-8 shadow-inner italic font-serif">?</div>
+                                    <h3 className="text-2xl font-black text-gray-800">No buildings yet</h3>
+                                    <p className="text-gray-400 mt-2 font-medium max-w-[240px] mx-auto text-sm leading-relaxed">Let's start by registering your first school building.</p>
+                                    <button 
+                                        onClick={() => {
+                                            setActiveBuildingId(null);
+                                            setEditingBuildingId(null);
+                                            setCurrentPage(3);
+                                        }}
+                                        className="mt-10 px-10 py-4 bg-indigo-600 text-white rounded-[2rem] font-black shadow-xl shadow-indigo-100 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 mx-auto"
+                                    >
+                                        <FiPlus className="w-6 h-6" /> Add First Building
+                                    </button>
+
+                                    <div className="mt-8 pt-6 border-t border-slate-100">
+                                        <label className="flex items-center gap-3 cursor-pointer justify-center group">
                                             <input
                                                 type="checkbox"
                                                 checked={hasNoBuilding}
                                                 onChange={(e) => {
                                                     if (e.target.checked) {
-                                                        const confirm = window.confirm("Selecting this will confirm that this school has no physical buildings. Are you sure?");
+                                                        const confirm = window.confirm("This will confirm that this school has no physical buildings. Are you sure?");
                                                         if (confirm) {
                                                             setHasNoBuilding(true);
                                                             setBuildings([]);
@@ -1734,75 +1732,231 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                         setHasNoBuilding(false);
                                                     }
                                                 }}
-                                                className="w-6 h-6 rounded-lg border-2 border-gray-300 text-amber-600 focus:ring-amber-500 transition-all cursor-pointer"
+                                                className="w-5 h-5 rounded-lg border-2 border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                                             />
+                                            <span className="text-sm font-bold text-gray-400 group-hover:text-amber-600 transition-colors">This school has NO buildings</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            ) : hasNoBuilding ? (
+                                <div className="bg-slate-50 p-10 rounded-[3rem] border-2 border-slate-100 text-center">
+                                    <div className="text-5xl mb-6 text-slate-300">🗺️</div>
+                                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Buildings Declared</h3>
+                                    <p className="text-slate-500 mt-2 font-medium">You have stated that this school site has no physical buildings yet.</p>
+                                    <button onClick={() => setHasNoBuilding(false)} className="mt-8 px-8 py-3 bg-indigo-50 text-indigo-600 rounded-2xl font-black border-2 border-indigo-100 italic transition-all active:scale-95">Wait, I have buildings</button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {buildings.map(b => (
+                                        <div key={b.id} className="bg-white p-6 rounded-[2.5rem] border-2 border-slate-100 shadow-sm hover:border-indigo-100 transition-all group">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h4 className="font-black text-xl text-gray-800 uppercase tracking-tight">{b.building_name}</h4>
+                                                        <span className="text-[9px] font-black px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 uppercase tracking-tighter">
+                                                            {b.category}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-sm font-bold text-gray-400 uppercase tracking-widest">
+                                                        <span>{b.storey} {b.storey === "1" ? 'Storey' : 'Storeys'}</span>
+                                                        <span className="w-1 h-1 bg-gray-200 rounded-full" />
+                                                        <span>{roomsData.filter(r => r.building_local_id === b.id).length} Rooms</span>
+                                                    </div>
+                                                    <div className="flex gap-2 mt-4">
+                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                                            b.status === 'Good Condition' || b.status === "Newly Built" ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                        }`}>
+                                                            {b.status}
+                                                        </span>
+                                                        {roomsData.filter(r => r.building_local_id === b.id && r.condition === 'Repair').length > 0 && (
+                                                            <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                                                <FiAlertTriangle className="w-3 h-3" /> Has Repairs
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <button 
+                                                        onClick={() => {
+                                                            const actualRooms = roomsData.filter(r => r.building_local_id === b.id);
+                                                            setEditingBuildingId(b.id);
+                                                            setBuildingFormData({ 
+                                                                ...b,
+                                                                classroom: actualRooms.length.toString(),
+                                                                storey: b.storey || "1"
+                                                            });
+                                                            setCurrentPage(3);
+                                                        }}
+                                                        className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-transparent hover:border-indigo-100"
+                                                    >
+                                                        <FiEdit2 className="w-5 h-5" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteBuilding(b.id)}
+                                                        className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all border border-transparent hover:border-rose-100"
+                                                    >
+                                                        <FiTrash2 className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="font-black text-gray-800 text-lg leading-tight group-hover:text-amber-700 transition-colors">
-                                                Confirm: This school has NO building 🚩
-                                            </p>
-                                            <p className="text-gray-500 text-sm mt-1 font-medium leading-relaxed">
-                                                Check this ONLY if there are zero physical learning or administrative structures on the campus lot.
-                                            </p>
-                                        </div>
-                                    </label>
+                                    ))}
+                                    
+                                    <button 
+                                        onClick={() => {
+                                            setActiveBuildingId(null);
+                                            setEditingBuildingId(null);
+                                            setBuildingFormData({
+                                                building_name: "", category: "Academic Building", storey: "", classroom: "",
+                                                year_completed: currentYear, remarks: "", status: "Good Condition",
+                                                condemn_age: false, condemn_hazard: false, condemn_calamity: false, condemn_upgrade: false
+                                            });
+                                            setCurrentPage(3);
+                                        }}
+                                        className="w-full py-6 rounded-[2.5rem] bg-indigo-50 text-indigo-600 font-black text-xl border-4 border-dashed border-indigo-100 hover:bg-indigo-100 transition-all flex items-center justify-center gap-3 mt-8 shadow-sm"
+                                    >
+                                        <FiPlus className="w-7 h-7" /> Add Another Building
+                                    </button>
                                 </div>
                             )}
                         </motion.div>
                     )}
 
                     {/* ────────────────────────────────────────────────────────
-                    PHASE 2: Granular Room Setup
+                    PHASE 3: Building Setup
                     ──────────────────────────────────────────────────────── */}
                     {currentPage === 3 && (
+                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+                            <div className="flex flex-col gap-1 mb-6">
+                                <h2 className="text-3xl font-black text-gray-800 tracking-tight leading-tight mb-2">
+                                    {editingBuildingId ? "Edit Building" : "Register Building"} 🏢
+                                </h2>
+                                <p className="text-gray-500 mb-6 font-medium">Log the physical structures on your campus.</p>
+                            </div>
+
+                            <div className="space-y-6 mb-8">
+                                <div className="bg-white p-6 rounded-[2.5rem] border-2 border-indigo-100 shadow-sm transition-all focus-within:border-indigo-400">
+                                        <div className="space-y-6">
+                                            <div>
+                                                <label className="text-sm font-bold text-gray-500 ml-2 uppercase tracking-widest">Building Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={buildingFormData.building_name}
+                                                    onChange={(e) => setBuildingFormData({ ...buildingFormData, building_name: e.target.value })}
+                                                    className={`w-full bg-gray-50 border-2 ${buildings.some(b => b.id !== editingBuildingId && (b.building_name || "").trim().toLowerCase() === (buildingFormData.building_name || "").trim().toLowerCase()) ? 'border-rose-300 focus:border-rose-500' : 'border-gray-200 focus:border-indigo-500'} mt-1 rounded-2xl px-6 py-4 text-xl font-bold text-gray-700 outline-none transition-all placeholder-gray-300`}
+                                                    placeholder="e.g. Marcos Type Bldg"
+                                                />
+                                                {buildings.some(b => b.id !== editingBuildingId && (b.building_name || "").trim().toLowerCase() === (buildingFormData.building_name || "").trim().toLowerCase()) && (
+                                                    <p className="text-rose-500 text-[10px] font-black uppercase mt-1 ml-2 flex items-center gap-1">
+                                                        <FiAlertTriangle /> This building name is already in use
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="relative">
+                                                <label className="text-sm font-bold text-gray-500 ml-2 uppercase tracking-widest">Building Category</label>
+                                                <div className="relative mt-1">
+                                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                        <FiSearch className="text-gray-400 w-5 h-5" />
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search building type..."
+                                                        value={isBuildingDropdownOpen ? buildingSearch : buildingFormData.category}
+                                                        onFocus={() => {
+                                                            setIsBuildingDropdownOpen(true);
+                                                            setBuildingSearch("");
+                                                        }}
+                                                        onChange={(e) => {
+                                                            setBuildingSearch(e.target.value);
+                                                            setBuildingFormData(prev => ({ ...prev, category: e.target.value }));
+                                                        }}
+                                                        className="w-full bg-gray-50 border-2 border-gray-200 rounded-2xl pl-11 pr-12 py-4 text-lg font-bold text-gray-700 outline-none focus:border-indigo-500 focus:bg-white transition-all placeholder-gray-300 shadow-sm"
+                                                    />
+                                                    <div className="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-400" onClick={() => setIsBuildingDropdownOpen(!isBuildingDropdownOpen)}>
+                                                        <FiChevronDown className={`w-6 h-6 transition-transform ${isBuildingDropdownOpen ? 'rotate-180' : ''}`} />
+                                                    </div>
+                                                    <AnimatePresence>
+                                                        {isBuildingDropdownOpen && (
+                                                            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                                                                className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-100 rounded-3xl shadow-2xl max-h-60 overflow-y-auto py-2">
+                                                                {(buildingSearch ? buildingTypes.filter(t => t.toLowerCase().includes(buildingSearch.toLowerCase())) : buildingTypes).map(type => (
+                                                                    <button key={type} type="button" onClick={() => { setBuildingFormData({ ...buildingFormData, category: type }); setBuildingSearch(type); setIsBuildingDropdownOpen(false); }}
+                                                                        className="w-full text-left px-6 py-4 font-bold text-gray-700 hover:bg-indigo-50 transition-all flex items-center justify-between">
+                                                                        <span>{type}</span>
+                                                                        {buildingFormData.category === type && <FiCheck className="w-5 h-5 text-indigo-500" />}
+                                                                    </button>
+                                                                ))}
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-4">
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Storeys</label>
+                                                    <input type="text" inputMode="numeric" value={buildingFormData.storey} placeholder="1" onChange={(e) => setBuildingFormData({ ...buildingFormData, storey: e.target.value.replace(/[^0-9]/g, '') })}
+                                                        className="w-full bg-gray-50 border-2 border-gray-200 mt-1 rounded-2xl px-4 py-4 text-xl font-bold text-gray-700 outline-none focus:border-indigo-500 text-center" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Classrooms</label>
+                                                    <input type="text" inputMode="numeric" value={buildingFormData.classroom} placeholder="1" onChange={(e) => setBuildingFormData({ ...buildingFormData, classroom: e.target.value.replace(/[^0-9]/g, '') })}
+                                                        className="w-full bg-gray-50 border-2 border-gray-200 mt-1 rounded-2xl px-4 py-4 text-xl font-bold text-gray-700 outline-none focus:border-indigo-500 text-center" />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Building Status</label>
+                                                <select value={buildingFormData.status} onChange={(e) => setBuildingFormData({ ...buildingFormData, status: e.target.value })}
+                                                    className="w-full bg-gray-50 border-2 border-gray-200 mt-1 rounded-2xl px-6 py-4 text-xl font-bold text-gray-700 outline-none focus:border-indigo-500 appearance-none cursor-pointer">
+                                                    <option value="Newly Built">Newly Built</option>
+                                                    <option value="Good Condition">Good Condition</option>
+                                                    <option value="For Major Repairs">For Major Repairs</option>
+                                                    <option value="For Minor Repairs">For Minor Repairs</option>
+                                                    <option value="For Condemnation">For Condemnation</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* ────────────────────────────────────────────────────────
+                    PHASE 4: Granular Room Setup
+                    ──────────────────────────────────────────────────────── */}
+                    {currentPage === 4 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                             <h2 className="text-3xl font-black text-gray-800 tracking-tight leading-tight mb-2">
                                 Granular Room Setup 🏫
                             </h2>
-                            <p className="text-gray-500 mb-6 font-medium">Set detailed information for each room in your registered buildings.</p>
+                            <p className="text-gray-500 mb-6 font-medium">Set detailed information for each room in <strong>{buildings.find(b => b.id === activeBuildingId)?.building_name || 'this building'}</strong>.</p>
 
                             <div className="space-y-6">
-                                {roomsData.length === 0 && (
+                                {roomsData.filter(r => r.building_local_id === activeBuildingId).length === 0 && (
                                     <div className="bg-amber-50 p-8 rounded-3xl border-2 border-amber-200 text-center">
-                                        <p className="text-amber-800 font-bold">No rooms generated yet. Please register a building first!</p>
-                                        <button onClick={() => setCurrentPage(2)} className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-xl font-bold">Go to Step 2</button>
+                                        <p className="text-amber-800 font-bold">No rooms detected for this building. Please check your building details.</p>
+                                        <button onClick={() => setCurrentPage(3)} className="mt-4 px-6 py-2 bg-amber-500 text-white rounded-xl font-bold">Back to Building Details</button>
                                     </div>
                                 )}
 
-                                {roomsData.length > 0 && (
+                                {roomsData.filter(r => r.building_local_id === activeBuildingId).length > 0 && (
                                     <div className="flex justify-between items-center px-2 mb-4">
                                         <div className="flex items-center gap-2">
                                             <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
-                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{buildings.length} Buildings Registered</span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => {
-                                                    const newState = {};
-                                                    buildings.forEach(b => newState[b.id] = true);
-                                                    setExpandedBuildings(newState);
-                                                }}
-                                                className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-indigo-100 transition-colors"
-                                            >
-                                                Expand All
-                                            </button>
-                                            <button 
-                                                onClick={() => {
-                                                    const newState = {};
-                                                    buildings.forEach(b => newState[b.id] = false);
-                                                    setExpandedBuildings(newState);
-                                                }}
-                                                className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-slate-200 transition-colors"
-                                            >
-                                                Collapse All
-                                            </button>
+                                            <span className="text-sm font-black text-gray-700 uppercase tracking-widest">
+                                                Designing {buildings.find(b => b.id === activeBuildingId)?.building_name}
+                                            </span>
                                         </div>
                                     </div>
                                 )}
 
                                 {(() => {
                                     const nameCounts = {};
-                                    roomsData.forEach(r => {
+                                    const activeBuildingRooms = roomsData.filter(r => r.building_local_id === activeBuildingId);
+                                    
+                                    activeBuildingRooms.forEach(r => {
                                         const key = (r.room_name || "").trim().toLowerCase();
                                         if (key) nameCounts[key] = (nameCounts[key] || 0) + 1;
                                     });
@@ -1810,51 +1964,27 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                         Object.keys(nameCounts).filter(k => nameCounts[k] > 1)
                                     );
 
-                                    return buildings.map((building) => {
-                                        const buildingRooms = roomsData.filter(r => r.building_local_id === building.id);
-                                        if (buildingRooms.length === 0) return null;
-                                        
-                                        const isExpanded = expandedBuildings[building.id] !== false; // Default to expanded
-                                        
-                                        return (
-                                            <div key={building.id} className="space-y-4 mb-6">
-                                                {/* Building Header Toggle */}
-                                                <button 
-                                                    onClick={() => setExpandedBuildings(prev => ({ ...prev, [building.id]: !isExpanded }))}
-                                                    className={`w-full flex items-center justify-between p-5 bg-white rounded-[2rem] border-2 transition-all group ${isExpanded ? 'border-indigo-100 shadow-sm' : 'border-gray-100 hover:border-indigo-200'}`}
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isExpanded ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500'}`}>
-                                                            <FiChevronDown className={`w-6 h-6 transition-transform duration-500 ${isExpanded ? '' : '-rotate-90'}`} />
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <h3 className="font-black text-lg text-gray-800 uppercase tracking-tight leading-none mb-1">{building.building_name}</h3>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[10px] font-black text-indigo-500 bg-indigo-50/50 px-2 py-0.5 rounded-md uppercase tracking-widest">{buildingRooms.length} {buildingRooms.length === 1 ? 'Room' : 'Rooms'}</span>
-                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">• {building.category}</span>
-                                                            </div>
-                                                        </div>
+                                    const building = buildings.find(b => b.id === activeBuildingId);
+                                    if (!building) return null;
+                                    const buildingRooms = activeBuildingRooms;
+                                    
+                                    return (
+                                        <div key={building.id} className="space-y-4 mb-6">
+                                            {/* Building Header */}
+                                            <div className="w-full flex items-center justify-between p-5 bg-indigo-600 rounded-[2rem] shadow-lg shadow-indigo-100 text-white">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                                                        <FiCheckCircle className="w-6 h-6 text-white" />
                                                     </div>
-                                                    <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border hidden sm:block ${
-                                                        building.status === 'Newly Built' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 
-                                                        building.status === 'Good Condition' ? 'bg-blue-50 border-blue-100 text-blue-600' : 
-                                                        'bg-rose-50 border-rose-100 text-rose-600'
-                                                    }`}>
-                                                        {building.status}
-                                                    </span>
-                                                </button>
+                                                    <div className="text-left">
+                                                        <h3 className="font-black text-lg uppercase tracking-tight leading-none mb-1">{building.building_name}</h3>
+                                                        <p className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest">{buildingRooms.length} Classrooms Configured</p>
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                                                {/* Rooms Container */}
-                                                <AnimatePresence initial={false}>
-                                                    {isExpanded && (
-                                                        <motion.div 
-                                                            initial={{ height: 0, opacity: 0 }}
-                                                            animate={{ height: "auto", opacity: 1 }}
-                                                            exit={{ height: 0, opacity: 0 }}
-                                                            transition={{ duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98] }}
-                                                            className="overflow-hidden"
-                                                        >
-                                                            <div className="space-y-4 pl-4 border-l-2 border-indigo-100/50 ml-5 py-2">
+                                            {/* Rooms Container */}
+                                            <div className="space-y-4">
                                                                 {buildingRooms.map((room) => {
                                                                     const isDuplicate = duplicateNames.has((room.room_name || "").trim().toLowerCase());
                                                                     const isBuildingCondemned = building?.status === "For Condemnation" || building?.status === "Condemned";
@@ -2047,169 +2177,151 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                         </motion.div>
                                                                     );
                                                                 })}
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </div>
-                                        );
-                                    });
+                                                </div>
+                                        </div>
+                                    );
                                 })()}
                             </div>
                         </motion.div>
                     )}
 
                     {/* ────────────────────────────────────────────────────────
-                    PHASE 2: Repair Assessment
+                    PHASE 5: Repair Assessment
                     ──────────────────────────────────────────────────────── */}
-                    {currentPage === 4 && (
+                    {currentPage === 5 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                             <h2 className="text-3xl font-black text-gray-800 tracking-tight leading-tight mb-2">
                                 Repair Assessment 🛠️
                             </h2>
-                            <p className="text-gray-500 mb-6 font-medium">Assess rooms marked for repair during registration.</p>
+                            <p className="text-gray-500 mb-6 font-medium">Assess rooms marked for repair in <strong>{buildings.find(b => b.id === activeBuildingId)?.building_name || 'this building'}</strong>.</p>
 
                             <div className="space-y-6">
-                                {roomsData.filter(r => r.condition === 'Repair').length === 0 ? (
+                                {roomsData.filter(r => r.building_local_id === activeBuildingId && r.condition === 'Repair').length === 0 ? (
                                     <div className="bg-emerald-50 p-8 rounded-3xl border-2 border-emerald-100 text-center">
-                                        <p className="text-emerald-800 font-bold text-xl">✨ All rooms are in good shape!</p>
-                                        <p className="text-emerald-600 mt-2 font-medium">No rooms were marked for repair. You can proceed to the next step.</p>
+                                        <p className="text-emerald-800 font-bold text-xl">✨ Structural integrity looks great!</p>
+                                        <p className="text-emerald-600 mt-2 font-medium">No major repairs needed for {buildings.find(b => b.id === activeBuildingId)?.building_name}.</p>
+                                        <button onClick={() => { handlePartialSync(); setCurrentPage(6); }} className="mt-6 px-10 py-4 bg-emerald-600 text-white rounded-3xl font-black shadow-lg shadow-emerald-100">Proceed to Finish</button>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        <div className="flex justify-between items-center px-2 mb-4">
+                                        <div className="px-2 mb-4">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-1.5 h-4 bg-amber-500 rounded-full" />
-                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Identify Damaged Items per Room</span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => {
-                                                        const newState = {};
-                                                        buildings.forEach(b => newState[b.id] = true);
-                                                        setExpandedRepairBuildings(newState);
-                                                    }}
-                                                    className="text-[10px] font-black text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-amber-100 transition-colors"
-                                                >
-                                                    Expand All
-                                                </button>
-                                                <button 
-                                                    onClick={() => {
-                                                        const newState = {};
-                                                        buildings.forEach(b => newState[b.id] = false);
-                                                        setExpandedRepairBuildings(newState);
-                                                    }}
-                                                    className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-slate-200 transition-colors"
-                                                >
-                                                    Collapse All
-                                                </button>
+                                                <span className="text-sm font-black text-gray-700 uppercase tracking-widest">
+                                                    Assessing Repairs for {buildings.find(b => b.id === activeBuildingId)?.building_name}
+                                                </span>
                                             </div>
                                         </div>
 
-                                        {buildings.map((building) => {
+                                        {(() => {
+                                            const building = buildings.find(b => b.id === activeBuildingId);
+                                            if (!building) return null;
                                             const repairRoomsInBuilding = roomsData.filter(r => r.building_local_id === building.id && r.condition === 'Repair');
-                                            if (repairRoomsInBuilding.length === 0) return null;
-                                            
-                                            const isExpanded = expandedRepairBuildings[building.id] !== false; // Default to expanded
                                             
                                             return (
                                                 <div key={building.id} className="space-y-4 mb-6">
-                                                    {/* Building Header Toggle */}
-                                                    <button 
-                                                        onClick={() => setExpandedRepairBuildings(prev => ({ ...prev, [building.id]: !isExpanded }))}
-                                                        className={`w-full flex items-center justify-between p-5 bg-white rounded-[2rem] border-2 transition-all group ${isExpanded ? 'border-amber-100 shadow-sm' : 'border-gray-100 hover:border-amber-200'}`}
-                                                    >
-                                                        <div className="flex items-center gap-4">
-                                                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isExpanded ? 'bg-amber-500 text-white shadow-lg shadow-amber-100' : 'bg-slate-50 text-slate-400 group-hover:bg-amber-50 group-hover:text-amber-500'}`}>
-                                                                <FiChevronDown className={`w-6 h-6 transition-transform duration-500 ${isExpanded ? '' : '-rotate-90'}`} />
-                                                            </div>
-                                                            <div className="text-left">
-                                                                <h3 className="font-black text-lg text-gray-800 uppercase tracking-tight leading-none mb-1">{building.building_name}</h3>
-                                                                <p className="text-[10px] font-black text-amber-600 bg-amber-50/50 px-2 py-0.5 rounded-md uppercase tracking-widest inline-block">{repairRoomsInBuilding.length} Repair {repairRoomsInBuilding.length === 1 ? 'Requirement' : 'Requirements'}</p>
-                                                            </div>
-                                                        </div>
-                                                    </button>
+                                                    <div className="space-y-4">
+                                                        {repairRoomsInBuilding.map((room) => {
+                                                            const bName = building?.building_name || building?.building_no || "";
+                                                            const isAssessed = repairAssessments.some(a => a.building_name === bName && a.room_name === room.room_name);
 
-                                                    {/* Rooms Container */}
-                                                    <AnimatePresence initial={false}>
-                                                        {isExpanded && (
-                                                            <motion.div 
-                                                                initial={{ height: 0, opacity: 0 }}
-                                                                animate={{ height: "auto", opacity: 1 }}
-                                                                exit={{ height: 0, opacity: 0 }}
-                                                                transition={{ duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98] }}
-                                                                className="overflow-hidden"
-                                                            >
-                                                                <div className="space-y-4 pl-4 border-l-2 border-amber-100/50 ml-5 py-2">
-                                                                    {repairRoomsInBuilding.map((room) => {
-                                                                        const bName = building?.building_name || building?.building_no || "";
-                                                                        const isAssessed = repairAssessments.some(a => a.building_name === bName && a.room_name === room.room_name);
+                                                            return (
+                                                                <motion.div 
+                                                                    key={room.id}
+                                                                    initial={{ x: -20, opacity: 0 }}
+                                                                    animate={{ x: 0, opacity: 1 }}
+                                                                    className={`bg-white p-6 rounded-[2.5rem] shadow-sm border-2 ${isAssessed ? 'border-emerald-100 bg-emerald-50/10' : 'border-amber-100 bg-amber-50/5'}`}
+                                                                >
+                                                                    <div className="flex justify-between items-center text-left">
+                                                                        <div className="flex-1">
+                                                                            <h4 className="font-black text-xl text-gray-800">{room.room_name}</h4>
+                                                                            <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mt-1 italic">Requires Assessment</p>
+                                                                            {isAssessed && <p className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase flex items-center gap-1 mt-3 w-fit"><FiCheckCircle /> Assessment Done</p>}
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setRepairRoomFormData({
+                                                                                    building_name: bName,
+                                                                                    room_name: room.room_name,
+                                                                                    room_length: room.room_length || 9,
+                                                                                    room_width: room.room_width || 7
+                                                                                });
 
-                                                                        return (
-                                                                            <motion.div 
-                                                                                key={room.id}
-                                                                                initial={{ x: -20, opacity: 0 }}
-                                                                                animate={{ x: 0, opacity: 1 }}
-                                                                                className="bg-white p-6 rounded-3xl shadow-sm border-2 border-gray-100"
-                                                                            >
-                                                                                <div className="flex justify-between items-center">
-                                                                                    <div>
-                                                                                        <h4 className="font-black text-xl text-gray-800">{room.room_name}</h4>
-                                                                                        <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest">{bName || 'N/A'}</p>
-                                                                                        {isAssessed && <p className="text-xs font-black text-emerald-500 mt-2 uppercase flex items-center gap-1"><FiCheckCircle /> Assessment Recorded</p>}
-                                                                                    </div>
-                                                                                    <button
-                                                                                        onClick={() => {
-                                                                                            const bName = building?.building_name || building?.building_no || "";
-                                                                                            setRepairRoomFormData({
-                                                                                                building_name: bName,
-                                                                                                room_name: room.room_name,
-                                                                                                room_length: room.room_length || 9,
-                                                                                                room_width: room.room_width || 7
-                                                                                            });
+                                                                                const existingItems = repairAssessments.filter(a =>
+                                                                                    a.building_name === bName &&
+                                                                                    a.room_name === room.room_name
+                                                                                );
 
-                                                                                            // Populate previous assessments
-                                                                                            const existingItems = repairAssessments.filter(a =>
-                                                                                                a.building_name === bName &&
-                                                                                                a.room_name === room.room_name
-                                                                                            );
-
-                                                                                            const initialState = {};
-                                                                                            existingItems.forEach(item => {
-                                                                                                initialState[item.item] = {
-                                                                                                    oms: item.oms || "",
-                                                                                                    condition: item.condition || "Repair",
-                                                                                                    damage_ratio: item.damage_ratio || 0,
-                                                                                                    recommend_action: item.recommend_action || "Routine Repair",
-                                                                                                    demo_justification: item.demo_justification || "",
-                                                                                                    remarks: item.remarks || ""
-                                                                                                };
-                                                                                            });
-                                                                                            setRepairItemsState(initialState);
-
-                                                                                            setEditingRepairRoomId(bName + "-" + room.room_name);
-                                                                                            setShowRepairModal(true);
-                                                                                        }}
-                                                                                        className={`p-4 rounded-2xl shadow-lg transition-all active:scale-95 ${isAssessed ? 'bg-indigo-50 text-indigo-500 shadow-indigo-100' : 'bg-amber-500 text-white shadow-amber-100'}`}
-                                                                                    >
-                                                                                        {isAssessed ? <FiEdit2 className="w-6 h-6" /> : <FiPlus className="w-6 h-6" />}
-                                                                                    </button>
-                                                                                </div>
-                                                                            </motion.div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            </motion.div>
-                                                        )}
-                                                    </AnimatePresence>
+                                                                                const initialState = {};
+                                                                                existingItems.forEach(item => {
+                                                                                    initialState[item.item] = {
+                                                                                        oms: item.oms || "",
+                                                                                        condition: item.condition || "Repair",
+                                                                                        damage_ratio: item.damage_ratio || 0,
+                                                                                        recommend_action: item.recommend_action || "Routine Repair",
+                                                                                        demo_justification: item.demo_justification || "",
+                                                                                        remarks: item.remarks || ""
+                                                                                    };
+                                                                                });
+                                                                                setRepairItemsState(initialState);
+                                                                                setEditingRepairRoomId(bName + "-" + room.room_name);
+                                                                                setShowRepairModal(true);
+                                                                            }}
+                                                                            className={`w-14 h-14 rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center ${isAssessed ? 'bg-indigo-600 text-white shadow-indigo-100' : 'bg-amber-500 text-white shadow-amber-100'}`}
+                                                                        >
+                                                                            {isAssessed ? <FiEdit2 className="w-6 h-6" /> : <FiPlus className="w-6 h-6" />}
+                                                                        </button>
+                                                                    </div>
+                                                                </motion.div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             );
-                                        })}
+                                        })()}
                                     </div>
                                 )}
                             </div>
                         </motion.div>
                     )}
+
+                    {/* ────────────────────────────────────────────────────────
+                    PHASE 6: Interstitial / Loop Question
+                    ──────────────────────────────────────────────────────── */}
+                    {currentPage === 6 && (
+                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 text-center">
+                            <div className="w-32 h-32 bg-emerald-100 rounded-[3rem] flex items-center justify-center text-5xl mb-10 shadow-xl shadow-emerald-50">🎉</div>
+                            <h2 className="text-4xl font-black text-gray-800 leading-tight px-4 tracking-tighter">Inventory Updated!</h2>
+                            <p className="text-gray-500 mt-4 text-lg font-medium px-10">You've successfully audited <strong>{buildings.find(b => b.id === activeBuildingId)?.building_name}</strong>.</p>
+                            
+                            <div className="w-full max-w-sm space-y-4 mt-12 px-6">
+                                <button
+                                    onClick={() => {
+                                        setActiveBuildingId(null);
+                                        setEditingBuildingId(null);
+                                        setBuildingFormData({
+                                            building_name: "", category: "Academic Building", storey: "", classroom: "",
+                                            year_completed: currentYear, remarks: "", status: "Good Condition",
+                                            condemn_age: false, condemn_hazard: false, condemn_calamity: false, condemn_upgrade: false
+                                        });
+                                        setCurrentPage(3);
+                                    }}
+                                    className="w-full py-5 rounded-[2.5rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100 active:scale-95 transition-all flex items-center justify-center gap-3 border-b-8 border-indigo-800"
+                                >
+                                    <FiPlus className="w-6 h-6" /> Add Another Building
+                                </button>
+                                
+                                <button
+                                    onClick={() => setCurrentPage(2)}
+                                    className="w-full py-5 rounded-[2.5rem] bg-white text-gray-800 font-black text-xl border-2 border-gray-100 shadow-sm active:scale-95 transition-all flex items-center justify-center gap-3"
+                                >
+                                    <FiArrowLeft className="w-6 h-6" /> Back to Inventory Hub
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+
+
                 </main>
             )}
 
@@ -2225,47 +2337,83 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                             <FiSave className="w-6 h-6" />
                         </button>
 
-                        {currentPage === 4 ? (
+                        {currentPage === 2 ? (
                             <button
                                 onClick={handleMasterSubmit}
-                                disabled={loading || roomsData.filter(r => r.condition === 'Repair').some(room => {
-                                    const building = buildings.find(b => b.id === room.building_local_id);
-                                    const bName = building ? (building.building_name || building.building_no) : "";
-                                    return !repairAssessments.some(a =>
-                                        (a.building_name === bName || a.building_no === bName) &&
-                                        (a.room_name === room.room_name || a.room_no === room.room_name)
-                                    );
-                                })}
-                                className="flex-1 py-5 rounded-3xl bg-indigo-600 text-white font-black text-xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-b-[6px] border-indigo-200 active:border-b-0 active:translate-y-[6px]"
+                                disabled={loading || (buildings.length === 0 && !hasNoBuilding)}
+                                className="flex-1 py-5 rounded-3xl bg-indigo-600 text-white font-black text-xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-b-[6px] border-indigo-900 active:border-b-0 active:translate-y-[6px]"
                             >
-                                {loading ? "Processing..." : "Submit Unit Audit"}
-                                <FiArrowRight className="w-6 h-6" />
+                                {loading ? "Processing..." : "Finish Unit Audit"}
+                                <FiCheckCircle className="w-6 h-6" />
                             </button>
-                        ) : (
+                        ) : currentPage === 3 ? (
+                            <button
+                                onClick={handleSaveBuilding}
+                                className="flex-1 py-5 rounded-3xl bg-indigo-600 text-white font-black text-xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 border-b-[6px] border-indigo-900 active:border-b-0 active:translate-y-[6px]"
+                            >
+                                Save & Setup Rooms <FiArrowRight className="w-6 h-6" />
+                            </button>
+                        ) : currentPage === 4 ? (
                             <button
                                 onClick={() => {
-                                    // Validation for Phase 2 Step 3: Granular Room Setup
-                                    if (currentPage === 3) {
-                                        const missingGradeLevel = roomsData.some(r => !r.grade_level);
-                                        if (missingGradeLevel) {
-                                            alert("Please select a Granular Grade Level for all classrooms before proceeding.");
-                                            return;
-                                        }
-
-                                        const nameCounts = {};
-                                        roomsData.forEach(r => {
-                                            const key = (r.room_name || "").trim().toLowerCase();
-                                            if (key) nameCounts[key] = (nameCounts[key] || 0) + 1;
-                                        });
-                                        const hasDuplicates = Object.values(nameCounts).some(count => count > 1);
-                                        if (hasDuplicates) {
-                                            alert("Please resolve duplicate room names before proceeding.");
+                                    const bRooms = roomsData.filter(r => r.building_local_id === activeBuildingId);
+                                    const missingGradeLevel = bRooms.some(r => !r.grade_level);
+                                    if (missingGradeLevel) {
+                                        alert("Please select a Grade Level for all classrooms in this building.");
+                                        return;
+                                    }
+                                    const nameCounts = {};
+                                    bRooms.forEach(r => {
+                                        const key = (r.room_name || "").trim().toLowerCase();
+                                        if (key) nameCounts[key] = (nameCounts[key] || 0) + 1;
+                                    });
+                                    const hasDuplicates = Object.values(nameCounts).some(count => count > 1);
+                                    if (hasDuplicates) {
+                                        alert("Please resolve duplicate room names in this building.");
+                                        return;
+                                    }
+                                    // Validate Total Seats (skip condemned rooms which auto-set to "0")
+                                    const activeBuilding = buildings.find(b => b.id === activeBuildingId);
+                                    const isBldgCondemned = activeBuilding?.status === "For Condemnation";
+                                    if (!isBldgCondemned) {
+                                        const missingSeats = bRooms.find(r => !r.seats || r.seats === "" || r.seats === "0");
+                                        if (missingSeats) {
+                                            setValidationModal({ roomName: missingSeats.room_name });
                                             return;
                                         }
                                     }
-                                    setCurrentPage(prev => prev + 1);
-                                    handlePartialSync();
+                                    const hasRepairRooms = bRooms.some(r => r.condition === 'Repair');
+                                    if (hasRepairRooms) {
+                                        setCurrentPage(5);
+                                    } else {
+                                        handlePartialSync();
+                                        setCurrentPage(6);
+                                    }
                                 }}
+                                className="flex-1 py-5 rounded-3xl bg-indigo-500 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-600 transition-all border-b-[6px] border-indigo-700 active:border-b-0 active:translate-y-[6px]"
+                            >
+                                Process Room Audit <FiArrowRight className="w-6 h-6" />
+                            </button>
+                        ) : currentPage === 5 ? (
+                            <button
+                                onClick={() => {
+                                    const bName = buildings.find(b => b.id === activeBuildingId)?.building_name || "";
+                                    const repairRooms = roomsData.filter(r => r.building_local_id === activeBuildingId && r.condition === 'Repair');
+                                    const unassessed = repairRooms.filter(room => !repairAssessments.some(a => a.building_name === bName && a.room_name === room.room_name));
+                                    if (unassessed.length > 0) {
+                                        alert(`Please complete repair assessment for "${unassessed[0].room_name}" before continuing.`);
+                                        return;
+                                    }
+                                    handlePartialSync();
+                                    setCurrentPage(6);
+                                }}
+                                className="flex-1 py-5 rounded-3xl bg-emerald-600 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px]"
+                            >
+                                Complete Building Audit <FiArrowRight className="w-6 h-6" />
+                            </button>
+                        ) : currentPage === 6 ? null : (
+                            <button
+                                onClick={() => setCurrentPage(currentPage + 1)}
                                 className="flex-1 py-5 rounded-3xl bg-indigo-500 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-600 transition-all border-b-[6px] border-indigo-700 active:border-b-0 active:translate-y-[6px]"
                             >
                                 Next Step <FiArrowRight className="w-6 h-6" />
@@ -2274,6 +2422,39 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     </div>
                 </footer>
             )}
+
+            {/* Validation Modal: Missing Seats */}
+            <AnimatePresence>
+                {validationModal && (
+                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md z-[100] flex items-end justify-center pointer-events-auto">
+                        <motion.div 
+                            initial={{ y: 300 }} 
+                            animate={{ y: 0 }} 
+                            exit={{ y: 300 }} 
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="bg-white w-full max-w-md rounded-t-[3rem] p-10 pb-12 shadow-2xl relative text-center"
+                        >
+                            <div className="w-16 h-1.5 bg-gray-200 rounded-full mx-auto mb-8" />
+                            <div className="w-20 h-20 bg-amber-500 rounded-full mx-auto flex items-center justify-center text-3xl shadow-2xl shadow-amber-200 mb-6">
+                                <FiAlertTriangle className="text-white w-9 h-9" />
+                            </div>
+                            <h2 className="text-2xl font-black text-gray-900 leading-tight">Missing Total Seats</h2>
+                            <p className="text-gray-500 font-medium mt-3 px-4 leading-relaxed">
+                                Please enter the <strong className="text-gray-800">Total Seats</strong> for
+                            </p>
+                            <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl px-6 py-4 mt-4 mx-4">
+                                <p className="text-amber-800 font-black text-xl uppercase tracking-tight">{validationModal.roomName}</p>
+                            </div>
+                            <button 
+                                onClick={() => setValidationModal(null)}
+                                className="w-full mt-10 py-5 rounded-[2rem] bg-amber-500 text-white font-black text-lg shadow-xl shadow-amber-100 active:scale-95 transition-all outline-none"
+                            >
+                                Got it, I'll fill it in
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             <SuccessModal
                 isOpen={showSuccess}

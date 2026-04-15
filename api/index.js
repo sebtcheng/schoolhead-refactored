@@ -18896,6 +18896,8 @@ const ensureUnit10Tables = async (client) => {
   await checkAndAddColumn('ph_buildings_inventory', 'above_7x9', 'INTEGER DEFAULT 0', client);
   await checkAndAddColumn('ph_buildings_inventory', 'grade_level', 'TEXT', client);
   await checkAndAddColumn('ph_buildings_inventory', 'advisory_teacher', 'TEXT', client);
+  await checkAndAddColumn('ph_buildings_inventory', 'is_in_use', 'BOOLEAN DEFAULT TRUE', client);
+  await checkAndAddColumn('ph_buildings_inventory', 'seats', 'TEXT', client);
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS ph_buildings_demolition (
@@ -19106,7 +19108,9 @@ app.get('/api/ph_schools/unit10/:schoolId/master', async (req, res) => {
         advisory_teacher: row.advisory_teacher,
         room_length: row.room_length,
         room_width: row.room_width,
-        condition: row.status // Mapping 'status' back to condition for UI
+        condition: row.status, // Mapping 'status' back to condition for UI
+        seats: row.seats || '',
+        is_in_use: row.is_in_use !== false
       });
     });
 
