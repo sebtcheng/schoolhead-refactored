@@ -185,13 +185,14 @@ const EditProjectModal = ({
                         time_extension_days: project.time_extension_days || '',
                         revised_expiry_date: project.revised_expiry_date ? project.revised_expiry_date.split('T')[0] : '',
                         caf_reference: project.caf_reference || '',
-                        isProjectDetailsUpdate: false,
+                        isProjectDetailsUpdate: true,
                         fundingYear: project.funding_year || project.fundingYear || '',
                         fundingYearJustification: '',
                         program_type: project.program_type || (project.isDonated || project.is_donated ? 'Donated' : 'BEFF'),
                         isDonated: project.isDonated || project.is_donated || false,
                         justification_category: project.justification_category || 'Site Condition',
-                        justification_details: project.justification_details || ''
+                        justification_details: project.justification_details || '',
+                        procurement_status: project.procurement_status || project.procurementStatus || project.statusDesignPhase || ''
                     };
                 }
                 
@@ -1711,12 +1712,23 @@ const EditProjectModal = ({
                                 }
 
                                 // Determine Update Type for tracking
-                                let updateType = 'Status Update';
-                                if (formData.isProjectDetailsUpdate) updateType = 'Details Update';
+                                let updateType = 'Details Update';
+                                if (!formData.isProjectDetailsUpdate) updateType = 'Status Update';
                                 if (formData.hasVariationOrder) updateType = 'Variation Order';
                                 if (formData.isRealignment) updateType = 'Realignment';
 
-                                onSave({ ...finalData, update_type: updateType, actions: updateType });
+                                // Ensure procurement_status is explicitly set in final payload if it exists in formData
+                                const savePayload = { 
+                                    ...finalData, 
+                                    update_type: updateType, 
+                                    actions: updateType 
+                                };
+                                
+                                if (formData.procurement_status) {
+                                    savePayload.procurement_status = formData.procurement_status;
+                                }
+
+                                onSave(savePayload);
                             }}
                             disabled={isUploading || isSubmittingRealignment}
                             className="flex-[2] py-4 text-white font-black text-xs uppercase tracking-widest bg-gradient-to-r from-[#004A99] to-[#003366] rounded-2xl shadow-xl shadow-blue-900/20 disabled:from-slate-300 disabled:to-slate-400 disabled:shadow-none flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
