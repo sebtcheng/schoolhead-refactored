@@ -1944,8 +1944,36 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                     <option value="For Major Repairs">For Major Repairs</option>
                                                     <option value="For Minor Repairs">For Minor Repairs</option>
                                                     <option value="For Condemnation">For Condemnation</option>
+                                                    <option value="Condemned">Condemned</option>
                                                 </select>
                                             </div>
+
+                                            {((buildingFormData.status || "").toLowerCase() === 'for condemnation' || (buildingFormData.status || "").toLowerCase() === 'condemned') && (
+                                                <div className="p-5 bg-rose-50 rounded-2xl border-2 border-rose-100 space-y-4">
+                                                    <h4 className="text-sm font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
+                                                        <FiAlertTriangle className="w-4 h-4" /> Justification for Condemnation
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        {[
+                                                            { id: 'condemn_age', label: 'Age / Dilapidation', icon: <FiClock /> },
+                                                            { id: 'condemn_hazard', label: 'Safety Hazard', icon: <FiAlertOctagon /> },
+                                                            { id: 'condemn_calamity', label: 'Calamity Damage', icon: <FiCloudLightning /> },
+                                                            { id: 'condemn_upgrade', label: 'Site Upgrade / Repurposing', icon: <FiTrendingUp /> }
+                                                        ].map(item => (
+                                                            <button
+                                                                key={item.id}
+                                                                onClick={() => setBuildingFormData({ ...buildingFormData, [item.id]: !buildingFormData[item.id] })}
+                                                                className={`py-3 px-4 rounded-xl font-bold text-sm border-2 text-left flex items-center justify-between transition-all ${buildingFormData[item.id] ? 'bg-white border-rose-400 text-rose-700 shadow-sm' : 'bg-rose-50/50 border-rose-100 text-rose-300 hover:bg-white hover:border-rose-200'}`}
+                                                            >
+                                                                <span className="flex items-center gap-2">{item.icon} {item.label}</span>
+                                                                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${buildingFormData[item.id] ? 'bg-rose-500 border-rose-500 text-white' : 'border-rose-200'}`}>
+                                                                    {buildingFormData[item.id] && <FiCheck className="w-3 h-3" />}
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                 </div>
                             </div>
