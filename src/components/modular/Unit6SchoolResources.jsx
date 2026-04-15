@@ -885,195 +885,225 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         const totalWASH = WASH_CATEGORIES.reduce((acc, cat) => acc + (parseInt(washData[`${cat.key}_total`]) || 0), 0);
         
         return (
-            <div className="min-h-screen bg-slate-50/50 font-sans pb-40">
-                {/* Exit Header */}
-                {!propReadOnly && (
-                    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                        <div className="max-w-md mx-auto flex items-center gap-3">
-                            <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
-                                <FiArrowLeft className="w-6 h-6" />
-                            </button>
-                            <div className="flex-1 text-center">
-                                <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 6</div>
-                                <h1 className="text-sm font-black text-gray-800">School Resources</h1>
-                            </div>
-                            <div className="w-10" />
+            <div className="min-h-screen bg-[#F8FAFC] font-sans pb-40">
+                <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-6 py-4">
+                    <div className="max-w-xl mx-auto flex items-center justify-between">
+                        <button onClick={() => navigate("/modular-dashboard")} className="p-2.5 rounded-2xl bg-slate-50 text-slate-400 hover:text-slate-900 border border-slate-100 transition-all active:scale-90">
+                            <FiArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="text-center">
+                            <p className="text-[10px] font-black tracking-[0.2em] text-indigo-500 uppercase leading-none mb-1">Unit 06</p>
+                            <h1 className="text-sm font-black text-slate-800 uppercase tracking-tight">Audit Summary</h1>
                         </div>
-                    </header>
-                )}
+                        <div className="w-10" />
+                    </div>
+                </header>
 
-                <div className="max-w-md mx-auto mt-4 px-4 space-y-10">
+                <div className="max-w-xl mx-auto pt-8 px-6 space-y-12">
                     <UnitRemarkAlert unitId="u6" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
-                    {/* Header */}
-                    <div className="text-center mb-10">
+                    
+                    {/* Hero Stats */}
+                    <div className="text-center relative">
                         <motion.div 
-                            initial={{ scale: 0 }} 
-                            animate={{ scale: 1 }} 
-                            className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-[2rem] mx-auto mb-6 flex items-center justify-center shadow-xl shadow-indigo-100"
+                            initial={{ scale: 0.5, opacity: 0 }} 
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="w-24 h-24 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-[2.5rem] mx-auto mb-6 flex items-center justify-center shadow-2xl shadow-indigo-200 relative z-10"
                         >
-                            <span className="text-4xl text-white">🎒</span>
+                            <span className="text-4xl">📦</span>
+                            <div className="absolute -inset-4 bg-indigo-500/10 blur-3xl rounded-full -z-10 animate-pulse"></div>
                         </motion.div>
-                        <span className="inline-block px-4 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-[0.2em] mb-3 shadow-sm border border-indigo-100">
-                            Unit 6 • Inventory Profile
-                        </span>
-                        <h1 className="text-3xl font-black text-slate-800 leading-tight tracking-tight">Resources Summary</h1>
-                        <p className="text-slate-500 font-medium mt-2 italic">"Physical assets and utility infrastructure report"</p>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">School Resources</h1>
+                        <p className="text-slate-500 font-medium text-sm mt-2 max-w-[280px] mx-auto">Complete inventory of ICT, Seating, and Utility infrastructure.</p>
                     </div>
 
-                    {/* High Level Metrics */}
+                    {/* Dashboard Metrics */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
-                             <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">💻</div>
-                             <p className="text-indigo-300 text-[8px] font-black uppercase tracking-widest mb-1">ICT Assets</p>
-                             <div className="flex items-baseline gap-1">
-                                 <span className="text-3xl font-black">{totalUnitsICT}</span>
-                                 <span className="text-[10px] font-bold text-indigo-400">UNITS</span>
-                             </div>
-                        </div>
-                        <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
-                             <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">🚰</div>
-                             <p className="text-indigo-100 text-[8px] font-black uppercase tracking-widest mb-1">WASH Fixtures</p>
-                             <div className="flex items-baseline gap-1">
-                                 <span className="text-3xl font-black">{totalWASH}</span>
-                                 <span className="text-[10px] font-bold text-indigo-200">TOTAL</span>
-                             </div>
-                        </div>
+                        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-5 text-4xl">💻</div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ICT Assets</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-black text-slate-800">{totalUnitsICT}</span>
+                                <span className="text-[10px] font-bold text-slate-400">UNITS</span>
+                            </div>
+                        </motion.div>
+                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-slate-900 p-6 rounded-[2.5rem] shadow-xl shadow-slate-200 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl">🚿</div>
+                            <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">WASH Units</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-black text-white">{totalWASH}</span>
+                                <span className="text-[10px] font-bold text-indigo-400">TOTAL</span>
+                            </div>
+                        </motion.div>
                     </div>
 
-                    {/* ── SEATING & FURNITURE ── */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Seating Inventory</h3>
+                    {/* ── SEATING INVENTORY ── */}
+                    <section className="space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Seating health</h3>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full">{generalRoomsData.general_rooms_count || 0} Classrooms</span>
                         </div>
                         
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
-                                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Shared Classrooms</span>
-                                <span className="bg-white px-3 py-1 rounded-full border border-slate-200 text-xs font-black text-slate-700">
-                                    {generalRoomsData.general_rooms_count || 0} ROOMS
-                                </span>
-                            </div>
-                            <div className="p-6 space-y-4">
-                                {gradesData.filter(g => g.isVerified).map(g => {
-                                    const total = (parseInt(g.armchair_wood_func)||0) + (parseInt(g.armchair_plastic_func)||0) + (parseInt(g.armchair_plastic_steel_func)||0) + (parseInt(g.individual_table_chair_func)||0) + ((parseInt(g.two_seater_wood_func)||0)*2) + ((parseInt(g.two_seater_wood_steel_func)||0)*2) + (parseInt(g.wooden_chair_only_func)||0) + (parseInt(g.plastic_chair_only_func)||0);
-                                    
-                                    // Logic for shortage in review mode
-                                    let enrolledCount = parseInt(g.enrolled)||0;
-                                    let subtitle = `${g.enrolled} Enrolled · ${total} Functional Seats`;
-                                    let isParent = g.is_sharing_parent && g.shared_with?.length > 0;
-                                    let isChild = g.is_shared_child;
+                        <div className="space-y-4">
+                            {gradesData.filter(g => g.isVerified).map((g, idx) => {
+                                const total = (parseInt(g.armchair_wood_func)||0) + (parseInt(g.armchair_plastic_func)||0) + (parseInt(g.armchair_plastic_steel_func)||0) + (parseInt(g.individual_table_chair_func)||0) + ((parseInt(g.two_seater_wood_func)||0)*2) + ((parseInt(g.two_seater_wood_steel_func)||0)*2) + (parseInt(g.wooden_chair_only_func)||0) + (parseInt(g.plastic_chair_only_func)||0);
+                                let enrolledTotal = parseInt(g.enrolled)||0;
+                                let isParent = g.is_sharing_parent && g.shared_with?.length > 0;
+                                let isChild = g.is_shared_child;
 
-                                    if (isParent) {
-                                        g.shared_with.forEach(id => {
-                                            const p = gradesData.find(x => x.id === id);
-                                            if (p) enrolledCount += parseInt(p.enrolled || 0);
-                                        });
-                                        subtitle = `Shared with ${g.shared_with.length} grades · ${total} Total Seats`;
-                                    } else if (isChild) {
-                                        const parent = gradesData.find(p => p.id === g.sharing_parent_id);
-                                        subtitle = `Shares seats with ${parent ? parent.grade_level : 'another grade'}`;
-                                    }
+                                if (isParent) {
+                                    g.shared_with.forEach(id => {
+                                        const p = gradesData.find(x => x.id === id);
+                                        if (p) enrolledTotal += parseInt(p.enrolled || 0);
+                                    });
+                                }
 
-                                    const shortage = !isChild && total < enrolledCount;
+                                const shortage = !isChild && total < enrolledTotal;
+                                const ratio = Math.min(100, (total / (enrolledTotal || 1)) * 100);
 
-                                    return (
-                                        <div key={g.id} className="flex items-center justify-between group">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[10px] font-black ${isChild ? 'bg-indigo-50 text-indigo-400' : 'bg-slate-50 text-slate-400'}`}>
+                                return (
+                                    <motion.div 
+                                        key={g.id}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden"
+                                    >
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black ${isChild ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-50 text-slate-400 border border-slate-100 shadow-inner'}`}>
                                                     {isChild ? "🔗" : g.grade_level.slice(0,3).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-black text-slate-800 text-[13px]">{g.grade_level}</h4>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                        {subtitle}
+                                                    <h4 className="font-black text-slate-900 text-lg leading-none mb-1">{g.grade_level}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        {isChild ? `Shares with ${gradesData.find(p => p.id === g.sharing_parent_id)?.grade_level}` : `${enrolledTotal} Enrolled`}
                                                     </p>
                                                 </div>
                                             </div>
-                                            {isChild ? (
-                                                <div className="bg-indigo-50 text-indigo-500 p-2 rounded-lg">
-                                                    <FiCheckCircle className="w-4 h-4" />
-                                                </div>
-                                            ) : shortage ? (
-                                                <div className="bg-rose-50 text-rose-600 p-2 rounded-lg" title="Shortage">
-                                                    <FiAlertTriangle className="w-4 h-4" />
-                                                </div>
-                                            ) : (
-                                                <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg">
-                                                    <FiCheckCircle className="w-4 h-4" />
+                                            {!isChild && (
+                                                <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase ${shortage ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                    {shortage ? `Deficit: ${enrolledTotal - total}` : "Adequate Supply"}
                                                 </div>
                                             )}
                                         </div>
-                                    );
-                                })}
-                            </div>
+
+                                        {!isChild && (
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <span>Seat Capacity</span>
+                                                    <span>{ratio.toFixed(0)}% Coverage</span>
+                                                </div>
+                                                <div className="h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100 p-0.5">
+                                                    <motion.div 
+                                                        initial={{ width: 0 }} 
+                                                        animate={{ width: `${ratio}%` }} 
+                                                        className={`h-full rounded-full ${shortage ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 'bg-gradient-to-r from-emerald-400 to-emerald-600'}`}
+                                                    />
+                                                </div>
+                                                <div className="flex gap-4 pt-1">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-slate-300 uppercase">Functional</span>
+                                                        <span className="text-sm font-black text-slate-700">{total}</span>
+                                                    </div>
+                                                    <div className="w-px h-6 bg-slate-100 self-center" />
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-slate-300 uppercase">Enrolled</span>
+                                                        <span className="text-sm font-black text-slate-700">{enrolledTotal}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                );
+                            })}
                         </div>
                     </section>
 
-                    {/* ── ICT BREAKDOWN ── */}
-                    <section className="space-y-4">
+                    {/* ── ICT DISTRIBUTION ── */}
+                    <section className="space-y-6">
                         <div className="flex items-center gap-2 px-2">
                             <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">ICT Distribution</h3>
+                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">ICT Distribution</h3>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-4">
                             {ICT_CATEGORIES.map(cat => {
                                 const total = parseInt(ictData[`${cat.key}_total`]) || 0;
-                                const func = parseInt(ictData[`${cat.key}_func`]) || 0;
+                                const isAdvanced = ["laptops", "tablets", "desktops"].includes(cat.key);
+                                const func = isAdvanced ? (parseInt(ictData[`${cat.key}_working`]) || 0) : (parseInt(ictData[`${cat.key}_func`]) || 0);
                                 if (total === 0) return null;
+                                const teaching = isAdvanced ? (parseInt(ictData[`${cat.key}_teaching`]) || 0) : 0;
+                                const nonTeaching = isAdvanced ? Math.max(0, total - teaching) : 0;
+
                                 return (
-                                    <div key={cat.key} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col items-center group">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-xl mb-3 group-hover:scale-110 transition-transform duration-500">
+                                    <div key={cat.key} className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm flex flex-col items-center group relative overflow-hidden">
+                                        <div className="absolute -top-2 -right-2 p-4 opacity-5 text-4xl group-hover:scale-125 transition-transform duration-700">{cat.emoji}</div>
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center mb-4 border border-indigo-100/50 shadow-inner group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
                                             {cat.emoji}
                                         </div>
-                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{cat.label}</span>
-                                        <div className="mt-1 flex items-baseline gap-1">
-                                            <span className="text-lg font-black text-slate-800">{func}</span>
-                                            <span className="text-[9px] font-bold text-slate-300">/ {total}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{cat.label}</span>
+                                        <div className="w-full h-1.5 bg-slate-50 rounded-full mt-4 overflow-hidden">
+                                            <motion.div initial={{ width: 0 }} animate={{ width: `${(func/total)*100}%` }} className="h-full bg-indigo-500 rounded-full" />
                                         </div>
-                                        <div className="w-full bg-slate-50 h-1 rounded-full mt-3 overflow-hidden">
-                                            <div className="h-full bg-indigo-500" style={{ width: `${(func/total)*100}%` }} />
-                                        </div>
+
+                                        {isAdvanced && total > 0 && (
+                                            <div className="w-full mt-4 pt-3 border-t border-slate-50 flex justify-between gap-2">
+                                                <div className="flex flex-col items-center flex-1">
+                                                     <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Teaching</span>
+                                                     <span className="text-[10px] font-black text-indigo-500">{teaching}</span>
+                                                </div>
+                                                <div className="w-px h-4 bg-slate-50 self-center" />
+                                                <div className="flex flex-col items-center flex-1">
+                                                     <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Non-Teach</span>
+                                                     <span className="text-[10px] font-black text-slate-400">{nonTeaching}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
                     </section>
 
-                    {/* ── MOBILE LABS (eCARTS) ── */}
+                    {/* ── eCART PACKAGES ── */}
                     {hasEcart && (
-                        <section className="space-y-4">
+                        <section className="space-y-6">
                             <div className="flex items-center gap-2 px-2">
                                 <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">eCart Packages</h3>
+                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">eCart Packages</h3>
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 {eCarts.map((cart, idx) => (
-                                    <div key={idx} className="bg-white rounded-[2rem] p-6 border border-rose-100 shadow-sm relative overflow-hidden group">
-                                        <div className="absolute top-0 right-0 p-4 text-4xl opacity-5 group-hover:scale-110 transition-transform">🛒</div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <h4 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tight">{cart.batches_name}</h4>
-                                                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.15em]">{cart.sources_fund} · {cart.year_received}</p>
+                                    <div key={idx} className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden group shadow-2xl shadow-indigo-100">
+                                        <div className="absolute top-0 right-0 p-6 text-6xl opacity-10 group-hover:scale-125 transition-transform">🎒</div>
+                                        <div className="relative z-10">
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div>
+                                                    <h4 className="text-xl font-black italic tracking-tighter uppercase leading-none mb-2">{cart.batches_name}</h4>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-2.5 py-1 bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-indigo-300">{cart.year_received}</span>
+                                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{cart.sources_fund}</span>
+                                                    </div>
+                                                </div>
+                                                <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${cart.charging_condition === 'Functional' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
+                                                    {cart.charging_condition} Status
+                                                </div>
                                             </div>
-                                            <div className={`px-3 py-1 rounded-full border text-[9px] font-black uppercase ${cart.charging_condition === 'Functional' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
-                                                {cart.charging_condition}
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-[9px] font-bold text-slate-300 uppercase">Laptops</span>
-                                                <span className="font-black text-slate-700">{cart.ecart_laptops || 0}</span>
-                                            </div>
-                                            <div className="w-px h-8 bg-slate-100" />
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-[9px] font-bold text-slate-300 uppercase">Tablets</span>
-                                                <span className="font-black text-slate-700">{cart.ecart_tablets || 0}</span>
-                                            </div>
-                                            <div className="w-px h-8 bg-slate-100" />
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-[9px] font-bold text-slate-300 uppercase">TVs</span>
-                                                <span className="font-black text-slate-700">{cart.ecart_tv || 0}</span>
+                                            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
+                                                <div className="text-center">
+                                                    <p className="text-2xl font-black">{cart.ecart_laptops || 0}</p>
+                                                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Laptops</p>
+                                                </div>
+                                                <div className="text-center border-x border-white/5">
+                                                    <p className="text-2xl font-black">{cart.ecart_tablets || 0}</p>
+                                                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Tablets</p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-2xl font-black">{cart.ecart_tv || 0}</p>
+                                                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Smart TV</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1082,71 +1112,56 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         </section>
                     )}
 
-                    {/* ── WASH & UTILITIES ── */}
-                    <section className="space-y-4">
+                    {/* ── UTILITIES & WASH ── */}
+                    <section className="space-y-6">
                         <div className="flex items-center gap-2 px-2">
                             <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Wash & Utilities</h3>
+                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Infrastructure & Wash</h3>
                         </div>
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 space-y-8">
-                            <div className="flex flex-col items-center text-center">
-                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-2xl mb-3 shadow-inner">⚡</div>
-                                <h4 className="text-lg font-black text-slate-800">{utilitiesData.utility_electricity || "Non-Electrified"}</h4>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Power Source Availability</p>
-                                {utilitiesData.has_solar_or_gen && (
-                                    <span className="mt-3 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase border border-amber-100">
-                                        Active Solar / Gen Set
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="h-px w-full bg-slate-50" />
-
-                            <div className="flex flex-col items-center text-center">
-                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl mb-3 shadow-inner">🌐</div>
-                                <h4 className="text-lg font-black text-slate-800">
-                                    {utilitiesData.utility_internet_yesno ? "Fully Connected" : "No Internet"}
-                                </h4>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                    {utilitiesData.utility_internet_yesno ? utilitiesData.utility_internet_funder : "Zero Connectivity"}
-                                </p>
-                            </div>
-
-                            <div className="h-px w-full bg-slate-50" />
-
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="text-center">
-                                    <p className="text-2xl font-black text-emerald-600">{washData.attached_cr_classrooms || 0}</p>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Attached CRs</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Utility Cards */}
+                            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-2xl flex items-center justify-center shadow-inner">⚡</div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Electricity</p>
+                                    <h4 className="text-base font-black text-slate-800 leading-tight">{utilitiesData.utility_electricity || "Non-Electrified"}</h4>
+                                    {utilitiesData.has_solar_or_gen && <span className="text-[9px] font-bold text-amber-600 uppercase mt-1 block">✅ Solar/Genset Backup</span>}
                                 </div>
-                                <div className="text-center">
-                                    <p className="text-2xl font-black text-indigo-600">{utilitiesData.sha_category || "N/A"}</p>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">SHA Category</p>
+                            </div>
+                            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-2xl flex items-center justify-center shadow-inner">🌐</div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Connectivity</p>
+                                    <h4 className="text-base font-black text-slate-800 leading-tight">{utilitiesData.utility_internet_yesno ? "Broadband Active" : "No Internet"}</h4>
+                                    <span className="text-[9px] font-bold text-blue-500 uppercase mt-1 block">{utilitiesData.utility_internet_yesno ? utilitiesData.utility_internet_funder : "Manual Sync Required"}</span>
+                                </div>
+                            </div>
+                            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
+                                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center shadow-inner">🚽</div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sanitation</p>
+                                    <h4 className="text-base font-black text-slate-800 leading-tight">{washData.attached_cr_classrooms || 0} Unit/s</h4>
+                                    <span className="text-[9px] font-bold text-indigo-500 uppercase mt-1 block">Attached Class CRs</span>
                                 </div>
                             </div>
                         </div>
                     </section>
-
-                    {!propReadOnly && (
-                        <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="mt-12"
-                        >
-                            <button 
-                                onClick={() => { setIsReviewMode(false); setCurrentPhase(1); }}
-                                className="group relative w-full py-6 rounded-[2rem] bg-white border-4 border-indigo-100 text-indigo-700 font-black text-lg shadow-xl shadow-indigo-100/50 hover:border-indigo-200 hover:bg-indigo-50 transition-all duration-300 overflow-hidden flex items-center justify-center gap-3"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <FiUnlock className="w-5 h-5 text-indigo-700" />
-                                </div>
-                                <span>Unlock to Edit Resources</span>
-                            </button>
-                        </motion.div>
-                    )}
                 </div>
+
+                {/* Fixed bottom Unlock button for Review Mode */}
+                {!propReadOnly && (
+                    <div className="fixed bottom-0 left-0 w-full p-8 pb-12 bg-white/80 backdrop-blur-xl border-t border-slate-200/50 flex justify-center z-[60]">
+                        <button
+                            onClick={() => { setIsReviewMode(false); setCurrentPhase(1); }}
+                            className="w-full max-w-sm py-5 rounded-[2.2rem] bg-indigo-600 text-white font-black text-xl shadow-2xl shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-4 group"
+                        >
+                            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-12 transition-transform">
+                                <FiUnlock className="w-5 h-5" />
+                            </div>
+                            <span>Unlock to Edit Resources</span>
+                        </button>
+                    </div>
+                )}
             </div>
         );
     }

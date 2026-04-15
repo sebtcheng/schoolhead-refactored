@@ -1267,26 +1267,31 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         <div className={`min-h-screen ${effectiveReadOnly ? 'bg-slate-50' : 'bg-[#fcfdff]'} relative pb-32`}>
             
             {/* Header */}
-            {!effectiveReadOnly && (
-                <div className="pt-8 pb-4 px-6 sticky top-0 bg-white/80 backdrop-blur-xl z-20 border-b border-gray-100/50">
-                    <div className="max-w-xl mx-auto flex items-center justify-between">
-                        <button onClick={handleBack} className="p-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-400 hover:text-indigo-600 hover:border-indigo-100 transition-all active:scale-95 group">
-                            <FiChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
-                        </button>
-                        <div className="flex flex-col items-center">
+            <div className="pt-8 pb-4 px-6 sticky top-0 bg-white/80 backdrop-blur-xl z-20 border-b border-gray-100/50">
+                <div className="max-w-xl mx-auto flex items-center justify-between">
+                    <button 
+                        onClick={() => effectiveReadOnly ? navigate("/modular-dashboard") : handleBack()} 
+                        className="p-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-400 hover:text-indigo-600 hover:border-indigo-100 transition-all active:scale-95 group"
+                    >
+                        <FiChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
+                    </button>
+                    <div className="flex flex-col items-center">
+                        {!effectiveReadOnly && (
                             <div className="flex gap-1.5 mb-2">
                                 {[1, 2, 3, 4, 5, 6, 7].map(s => (
                                     <div key={s} className={`h-1.5 rounded-full transition-all duration-500 ${currentStep === s ? 'w-8 bg-indigo-600 shadow-sm shadow-indigo-100' : 'w-2 bg-slate-200'}`} />
                                 ))}
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Module Status</span>
-                        </div>
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center border-2 border-indigo-100 shadow-inner">
-                            <span className="text-xl font-black text-indigo-600">{currentStep}</span>
-                        </div>
+                        )}
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                            {effectiveReadOnly ? "Reviewing Audit" : "Module Status"}
+                        </span>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center border-2 border-indigo-100 shadow-inner">
+                        <span className="text-xl font-black text-indigo-600">{effectiveReadOnly ? "✓" : currentStep}</span>
                     </div>
                 </div>
-            )}
+            </div>
 
             {showWelcomeBack && (
                 <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-full max-w-xs animate-in slide-in-from-top duration-500">
@@ -2283,25 +2288,22 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 </div>
                             </div>
                             
-                             <div 
+                            {/* Final Certification */}
+                            <div 
                                 onClick={() => setIsCertified(!isCertified)}
-                                className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer flex items-start gap-4 ${
-                                    isCertified 
-                                        ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
-                                        : 'bg-white border-slate-100 hover:border-slate-200'
-                                }`}
+                                className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                             >
-                                <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${
-                                    isCertified 
-                                        ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                        : 'border-slate-300 bg-white'
-                                }`}>
-                                    {isCertified && <FiCheck className="w-4 h-4" />}
+                                <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                    {isCertified && <FiCheck className="w-5 h-5" />}
                                 </div>
-                                <p className={`text-xs font-bold leading-relaxed ${isCertified ? 'text-emerald-900' : 'text-slate-500 italic'}`}>
-                                    I hereby certify that all data and information provided in this module/unit is true and correct
-                                </p>
+                                <div>
+                                    <p className="text-sm font-black text-slate-800 leading-snug">
+                                        I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                    </p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
+                                </div>
                             </div>
+
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -2408,6 +2410,25 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 message="School learners profile has been successfully saved to the cloud registry! ✓" 
                 redirectUrl="/modular-dashboard" 
             />
+
+            {/* Fixed bottom Unlock button for Read-Only Summary Mode */}
+            {(!propReadOnly && isReadOnly) && (
+                <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">
+                    <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
+                        <button
+                            onClick={() => { 
+                                setIsReadOnly(false); 
+                                setHasSubmitted(false); 
+                                setCurrentStep(1); // Reset to start of review if needed or just unlock
+                            }}
+                            className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        >
+                            <FiUnlock className="w-6 h-6" />
+                            <span>Unlock to Edit Profile</span>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

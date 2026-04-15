@@ -1068,20 +1068,28 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900 overflow-hidden">
             
-            {/* Minimal Header */}
-            {!isReadOnly && (
-                <header className="px-6 py-5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
-                            <FiArrowLeft className="w-6 h-6" />
-                        </button>
-                    </div>
+            <header className="px-6 py-5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => isReviewMode ? navigate("/modular-dashboard") : handleBack()} 
+                        className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors"
+                    >
+                        <FiArrowLeft className="w-6 h-6" />
+                    </button>
+                    {isReviewMode && (
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">Reviewing</span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">School Identity</span>
+                        </div>
+                    )}
+                </div>
+                {!isReadOnly && (
                     <div className="flex-1 max-w-[120px] mx-4 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                         <motion.div className="h-full bg-blue-600 rounded-full" initial={{ width: 0 }} animate={{ width: `${progressPercentage}%` }} transition={{ duration: 0.8, ease: "circOut" }} />
                     </div>
-                    <span className="text-xs font-black tracking-widest text-gray-300 uppercase">Step {currentStep + 1}/{TOTAL_STEPS}</span>
-                </header>
-            )}
+                )}
+                {!isReadOnly && <span className="text-xs font-black tracking-widest text-gray-300 uppercase">Step {currentStep + 1}/{TOTAL_STEPS}</span>}
+            </header>
 
             {/* Welcome Back Toast */}
             <AnimatePresence>
@@ -1358,31 +1366,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 </div>
                             </section>
 
-                            {/* Unlock Action */}
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.3 }}
-                                className="mt-12"
-                            >
-                                {!propReadOnly && (
-                                    <button 
-                                        onClick={() => { setIsReviewMode(false); setCurrentStep(0); }}
-                                        className="group relative w-full py-6 rounded-[2rem] bg-white border-4 border-indigo-100 text-indigo-700 font-black text-lg shadow-xl shadow-indigo-100/50 hover:border-indigo-200 hover:bg-indigo-50 transition-all duration-300 overflow-hidden flex items-center justify-center gap-3"
-                                    >
-                                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <FiUnlock className="w-5 h-5 text-indigo-700" />
-                                        </div>
-                                        <span>Unlock to Edit Profile</span>
-                                    </button>
-                                )}
-                                {!propReadOnly && (
-                                    <p className="text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-4 px-8">
-                                        Data is currently synced with the regional cloud registry. 
-                                    </p>
-                                )}
-                            </motion.div>
+                                 {/* Fixed bottom button will handle this */}
+
                         </div>
                     ) : (
                         <motion.div key={currentStep} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.4, ease: "circOut" }}
@@ -2596,6 +2581,21 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Fixed bottom Unlock button for Review Mode */}
+            {!propReadOnly && isReviewMode && (
+                <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">
+                    <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
+                        <button
+                            onClick={() => { setIsReviewMode(false); setCurrentStep(0); }}
+                            className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        >
+                            <FiUnlock className="w-6 h-6" />
+                            <span>Unlock to Edit Profile</span>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

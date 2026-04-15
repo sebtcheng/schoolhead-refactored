@@ -474,21 +474,18 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
     if (isReviewMode) {
         return (
             <div className="min-h-screen bg-slate-50/50 font-sans">
-                {/* Exit Header */}
-                {!propReadOnly && (
-                    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                        <div className="max-w-md mx-auto flex items-center gap-3">
-                            <button onClick={() => navigate("/modular-dashboard")} className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
-                                <FiArrowLeft className="w-6 h-6" />
-                            </button>
-                            <div className="flex-1 text-center">
-                                <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 5</div>
-                                <h1 className="text-sm font-black text-gray-800">Shifting & Modality</h1>
-                            </div>
-                            <div className="w-10" />
+                <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
+                    <div className="max-w-md mx-auto flex items-center gap-3">
+                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+                            <FiArrowLeft className="w-6 h-6" />
+                        </button>
+                        <div className="flex-1 text-center">
+                            <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 5</div>
+                            <h1 className="text-sm font-black text-gray-800">Shifting & Modality</h1>
                         </div>
-                    </header>
-                )}
+                        <div className="w-10" />
+                    </div>
+                </header>
 
                 <div className="max-w-md mx-auto pb-32 mt-4 px-4 space-y-8">
                     <UnitRemarkAlert unitId="u5" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
@@ -613,26 +610,23 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                         )}
                     </section>
 
-                    {!propReadOnly && (
-                        <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="mt-12"
-                        >
-                            <button 
+                        {/* Fixed bottom button will handle this */}
+
+                </div>
+                {/* Fixed bottom Unlock button for Review Mode */}
+                {!propReadOnly && (
+                    <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">
+                        <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
+                            <button
                                 onClick={() => { setIsReviewMode(false); setCurrentChapter(1); setIsVerified(false); }}
-                                className="group relative w-full py-6 rounded-[2rem] bg-white border-4 border-indigo-100 text-indigo-700 font-black text-lg shadow-xl shadow-indigo-100/50 hover:border-indigo-200 hover:bg-indigo-50 transition-all duration-300 overflow-hidden flex items-center justify-center gap-3"
+                                className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"
                             >
-                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                    <FiUnlock className="w-5 h-5 text-indigo-700" />
-                                </div>
+                                <FiUnlock className="w-6 h-6" />
                                 <span>Unlock to Edit Modality</span>
                             </button>
-                        </motion.div>
-                    )}
-                </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

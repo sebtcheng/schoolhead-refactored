@@ -1101,21 +1101,21 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
         return (
             <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans pb-52">
-                {/* Top Navigation */}
-                {(!isReadOnly && !propReadOnly) && (
-                    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                        <div className="max-w-md mx-auto flex items-center gap-3">
-                            <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
-                                <FiArrowLeft className="w-6 h-6" />
-                            </button>
-                            <div className="flex-1 text-center">
-                                <div className="text-[10px] font-black tracking-widest text-indigo-500 uppercase">Unit 7</div>
-                                <h1 className="text-sm font-black text-gray-800">Physical Facilities</h1>
-                            </div>
-                            <div className="w-10" />
+                <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
+                    <div className="max-w-md mx-auto flex items-center gap-3">
+                        <button 
+                            onClick={() => isReadOnly ? navigate("/modular-dashboard") : handleBack()} 
+                            className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+                        >
+                            <FiArrowLeft className="w-6 h-6" />
+                        </button>
+                        <div className="flex-1 text-center">
+                            <div className="text-[10px] font-black tracking-widest text-indigo-500 uppercase">Unit 7</div>
+                            <h1 className="text-sm font-black text-gray-800">Physical Facilities</h1>
                         </div>
-                    </header>
-                )}
+                        <div className="w-10" />
+                    </div>
+                </header>
 
                 <div className="max-w-md mx-auto mt-4 px-4 space-y-10">
                     <UnitRemarkAlert unitId="u7" schoolId={targetSchoolId || localStorage.getItem('schoolId')} />
@@ -1173,9 +1173,22 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                         </div>
                         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden p-2">
                             <div className="h-[220px] rounded-[2rem] overflow-hidden bg-slate-50 relative">
-                                {centerMap ? (
-                                    <MapContainer center={centerMap} zoom={18} scrollWheelZoom={false} dragging={false} doubleClickZoom={false} zoomControl={false} className="h-full w-full">
-                                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                {centerMap && centerMap[0] !== 0 ? (
+                                    <MapContainer 
+                                        key={`summary-map-${centerMap[0]}-${centerMap[1]}-${spaces.length}`}
+                                        center={centerMap} 
+                                        zoom={18} 
+                                        scrollWheelZoom={false} 
+                                        dragging={false} 
+                                        doubleClickZoom={false} 
+                                        zoomControl={false} 
+                                        className="h-full w-full"
+                                    >
+                                        <TileLayer 
+                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                            maxZoom={20}
+                                        />
                                         <RecenterMap center={centerMap} />
                                         {spaces.map((s, idx) => {
                                             const poly = calculateRotatedPolygon(parseFloat(s.center_lat), parseFloat(s.center_lng), parseFloat(s.length_m) || 0, parseFloat(s.width_m) || 0, parseFloat(s.rotation_deg) || 0);
@@ -1400,11 +1413,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 </div>
 
                 {!propReadOnly && (
-                    <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-40">
-                        <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
-                            <button onClick={() => setShowDraftModal(true)} className="w-16 h-16 rounded-3xl bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none">
-                                <FiSave className="w-6 h-6" />
-                            </button>
+                    <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">
+                        <div className="w-full max-w-sm flex pointer-events-auto px-4">
                             <button
                                 onClick={() => {
                                     setIsReadOnly(false);
@@ -1426,7 +1436,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans overflow-x-hidden pb-52">
             {/* Header / Nav */}
-            {!propReadOnly && (
+            {(!propReadOnly && !isReadOnly) && (
                 <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-4">
                     <div className="max-w-md mx-auto flex items-center justify-between">
                         <button onClick={handleBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
@@ -2207,14 +2217,12 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             {!isReadOnly && (
                 <footer className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-30 pointer-events-none">
                     <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
-                        <button onClick={handleBack} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
+                        <button onClick={handleBack} className="flex-none w-16 h-16 rounded-3xl bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
                             <FiArrowLeft className="w-6 h-6" />
-                            <span className="text-sm font-bold text-gray-500">Back</span>
                         </button>
 
-                        <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
+                        <button onClick={() => setShowDraftModal(true)} className="flex-none w-16 h-16 rounded-3xl bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
                             <FiSave className="w-6 h-6" />
-                            <span className="text-sm font-bold text-gray-500">Save Draft</span>
                         </button>
 
                         {currentPage === 4 ? (

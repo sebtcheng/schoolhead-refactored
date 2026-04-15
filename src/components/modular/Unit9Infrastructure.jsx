@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
     FiX, FiCheckCircle, FiChevronRight, FiChevronLeft, FiCheck, FiArrowLeft, 
-    FiSave, FiAlertTriangle, FiZap, FiShield, FiCamera, FiBox, FiPhone, FiInfo, FiTrash2, FiPlus, FiMinus
+    FiSave, FiAlertTriangle, FiZap, FiShield, FiCamera, FiBox, FiPhone, FiInfo, FiTrash2, FiPlus, FiMinus, FiUnlock
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
@@ -281,37 +281,7 @@ const SummaryView = ({
             </div>
         </section>
 
-        {/* Unlock Button for Review Mode */}
-        {setIsReviewMode && (
-            <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-12"
-            >
-                <button 
-                    type="button"
-                    onClick={() => { setIsReviewMode(false); setIsReadOnly(false); setCurrentPage(1); }}
-                    className="group relative w-full py-6 rounded-[2rem] bg-white border-4 border-indigo-100 text-indigo-700 font-black text-lg shadow-xl shadow-indigo-100/50 hover:border-indigo-200 hover:bg-indigo-50 transition-all duration-300 overflow-hidden flex items-center justify-center gap-3"
-                >
-                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                    <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <FiZap className="w-5 h-5 text-indigo-700" />
-                    </div>
-                    <span>Unlock to Edit Infrastructure Data</span>
-                </button>
-                <p className="text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-4 px-8">
-                    The current record is finalized and synced with the cloud registry.
-                </p>
-            </motion.div>
-        )}
-
-        <button 
-            type="button"
-            onClick={() => navigate("/modular-dashboard")}
-            className="w-full py-6 rounded-[2rem] bg-indigo-600 text-white font-black text-lg shadow-xl shadow-indigo-100 active:scale-95 transition-all mt-8"
-        >
-            Return to Dashboard
-        </button>
+        {/* Fixed bottom button will handle this */}
     </div>
 );
 
@@ -768,7 +738,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
             <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between">
                 <button 
                     type="button"
-                    onClick={handleSaveDraft} 
+                    onClick={() => isReviewMode ? navigate("/modular-dashboard") : handleSaveDraft()} 
                     className="p-2 -ml-2 rounded-full hover:bg-slate-50 text-slate-400"
                 >
                     <FiArrowLeft size={24} />
@@ -1155,6 +1125,20 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     </>
                 )}
             </main>
+            {/* Fixed bottom Unlock button for Review Mode */}
+            {isReviewMode && !propReadOnly && (
+                <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">
+                    <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
+                        <button
+                            onClick={() => { setIsReviewMode(false); setIsReadOnly(false); setCurrentPage(1); }}
+                            className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        >
+                            <FiUnlock className="w-6 h-6" />
+                            <span>Unlock to Edit Infrastructure</span>
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <AnimatePresence>
                 {showSuccess && (

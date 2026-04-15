@@ -8124,18 +8124,12 @@ app.put('/api/users/update', authMiddleware, async (req, res) => {
 
     // 2. Handle Email Change Security Checks
     if (email && email.toLowerCase() !== currentUser.email?.toLowerCase()) {
-      // a. Check if Password and Passcode are provided
-      if (!currentPassword || !currentPasscode) {
-        return res.status(400).json({ error: "Password and Passcode are required to change email." });
+      // a. Check if Passcode is provided
+      if (!currentPasscode) {
+        return res.status(400).json({ error: "Passcode is required to change email." });
       }
 
-      // b. Verify Password
-      const isPasswordValid = await bcrypt.compare(currentPassword, currentUser.password_hash);
-      if (!isPasswordValid) {
-        return res.status(401).json({ error: "Incorrect password confirmation." });
-      }
-
-      // c. Verify Passcode
+      // b. Verify Passcode (Password requirement removed as requested)
       if (currentPasscode !== currentUser.passcode) {
         return res.status(401).json({ error: "Incorrect passcode confirmation." });
       }

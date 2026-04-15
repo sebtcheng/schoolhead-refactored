@@ -258,7 +258,6 @@ const UserProfile = () => {
 
             const payload = {
                 ...formData,
-                currentPassword: securityData.password,
                 currentPasscode: securityData.passcode
             };
 
@@ -281,7 +280,7 @@ const UserProfile = () => {
 
             setIsEditing(false);
             setShowSecurityModal(false);
-            setSecurityData({ password: '', passcode: '', confirmText: '' });
+            setSecurityData({ passcode: '', confirmText: '' });
             alert("Profile updated successfully!");
             
             if (result.emailChanged) {
@@ -885,16 +884,6 @@ const UserProfile = () => {
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 mb-1.5">Login Password</label>
-                            <input
-                                type="password"
-                                placeholder="Enter your current password"
-                                className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all"
-                                value={securityData.password}
-                                onChange={(e) => setSecurityData({ ...securityData, password: e.target.value })}
-                            />
-                        </div>
 
                         <div>
                             <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 mb-1.5">6-Digit Passcode</label>
@@ -917,7 +906,7 @@ const UserProfile = () => {
                                 placeholder="CONFIRM"
                                 className="w-full p-3.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all uppercase"
                                 value={securityData.confirmText}
-                                onChange={(e) => setSecurityData({ ...securityData, confirmText: e.target.value })}
+                                onChange={(e) => setSecurityData({ ...securityData, confirmText: e.target.value.toUpperCase() })}
                             />
                         </div>
                     </div>
@@ -925,7 +914,7 @@ const UserProfile = () => {
                     <div className="flex flex-col gap-3">
                         <button
                             onClick={() => handleSaveProfile(true)}
-                            disabled={loading || !securityData.password || securityData.passcode.length < 6 || securityData.confirmText !== 'CONFIRM'}
+                            disabled={loading || securityData.passcode.length < 6 || securityData.confirmText.toUpperCase().trim() !== 'CONFIRM'}
                             className="w-full py-4 bg-[#004A99] hover:bg-blue-800 text-white rounded-2xl font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100 flex justify-center items-center gap-2"
                         >
                             {loading ? <FiRefreshCw className="animate-spin" /> : <FiCheckCircle />}
@@ -935,7 +924,7 @@ const UserProfile = () => {
                         <button
                             onClick={() => {
                                 setShowSecurityModal(false);
-                                setSecurityData({ password: '', passcode: '', confirmText: '' });
+                                setSecurityData({ passcode: '', confirmText: '' });
                             }}
                             className="w-full py-4 bg-transparent text-slate-500 dark:text-slate-400 font-bold hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                         >

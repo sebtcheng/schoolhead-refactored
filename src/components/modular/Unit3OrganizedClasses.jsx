@@ -760,26 +760,8 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
 
 
-                {/* Unlock Action */}
-                {!propReadOnly && isReadOnly && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mt-12 px-6"
-                    >
-                        <button 
-                            onClick={() => setIsReadOnly(false)}
-                            className="group relative w-full py-6 rounded-[2rem] bg-white border-4 border-teal-100 text-teal-700 font-black text-lg shadow-xl shadow-teal-100/50 hover:border-teal-200 hover:bg-teal-50 transition-all duration-300 overflow-hidden flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
-                        >
-                            <div className="absolute inset-0 bg-gradient-to-r from-teal-500/0 via-teal-500/5 to-teal-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                            <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <FiUnlock className="w-5 h-5 text-teal-700" />
-                            </div>
-                            <span>Unlock to Audit Registry</span>
-                        </button>
-                    </motion.div>
-                )}
+                {/* Fixed bottom button will handle this */}
+
             </motion.div>
         );
     };
@@ -803,36 +785,36 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
             </AnimatePresence>
 
             {/* Header */}
-            {!effectiveReadOnly && (
-                <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
-                    <div className="max-w-md mx-auto px-5 py-4 flex items-center justify-between relative">
-                        <div className="flex items-center gap-2 z-10">
-                            <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-50 transition-colors">
-                                <FiArrowLeft className="w-6 h-6" />
-                            </button>
-                        </div>
-                        <div className="absolute left-0 right-0 text-center pointer-events-none">
-                            <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 3</div>
-                            <h1 className="text-sm font-black text-gray-800">Section Registry</h1>
-                        </div>
-                        <div className="w-10 z-10 text-right">
+            <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
+                <div className="max-w-md mx-auto px-5 py-4 flex items-center justify-between relative">
+                    <div className="flex items-center gap-2 z-10">
+                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-50 transition-colors">
+                            <FiArrowLeft className="w-6 h-6" />
+                        </button>
+                    </div>
+                    <div className="absolute left-0 right-0 text-center pointer-events-none">
+                        <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 3</div>
+                        <h1 className="text-sm font-black text-gray-800">Section Registry</h1>
+                    </div>
+                    <div className="w-10 z-10 text-right">
+                        {!effectiveReadOnly && (
                             <span className="text-xs font-bold text-slate-400">
                                 {currentStep > totalSteps ? 'Final' : currentStep > 0 ? `${currentStep} / ${totalSteps}` : 'Intro'}
                             </span>
-                        </div>
+                        )}
                     </div>
+                </div>
 
-                    {/* Progress Bar */}
-                    {!isReadOnly && !isFetching && !fetchError && (
-                        <div className="w-full h-1 bg-slate-100">
-                            <div 
-                                className="h-full bg-indigo-500 transition-all duration-300 ease-out"
-                                style={{ width: `${progressPercent}%` }}
-                            />
-                        </div>
-                    )}
-                </header>
-            )}
+                {/* Progress Bar */}
+                {!effectiveReadOnly && (
+                    <div className="w-full h-1 bg-slate-100">
+                        <div 
+                            className="h-full bg-indigo-500 transition-all duration-300 ease-out"
+                            style={{ width: `${progressPercent}%` }}
+                        />
+                    </div>
+                )}
+            </header>
 
             <main className="max-w-md mx-auto p-5 pb-10 mt-4">
                 
@@ -1216,6 +1198,21 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Fixed bottom Unlock button for Read-Only Summary Mode */}
+            {(!propReadOnly && isReadOnly) && (
+                <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">
+                    <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
+                        <button
+                            onClick={() => setIsReadOnly(false)}
+                            className="flex-1 py-5 rounded-[2rem] bg-teal-600 text-white font-black text-xl shadow-xl shadow-teal-100/50 hover:bg-teal-700 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        >
+                            <FiUnlock className="w-6 h-6" />
+                            <span>Unlock to Audit Registry</span>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

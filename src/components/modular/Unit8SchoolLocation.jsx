@@ -19,7 +19,6 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [iern, setIern] = React.useState("");
     const [showDraftModal, setShowDraftModal] = React.useState(false);
     const [showSuccess, setShowSuccess] = React.useState(false);
-    const [isCertified, setIsCertified] = React.useState(false);
     const [isReadOnly, setIsReadOnly] = React.useState(propReadOnly || false);
     const [loading, setLoading] = React.useState(true);
     const [showOfflineSuccess, setShowOfflineSuccess] = React.useState(false);
@@ -410,28 +409,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 </section>
 
-                {/* Certification Checkbox */}
-                <section className="px-4 mt-8">
-                    <div 
-                        onClick={() => setIsCertified(!isCertified)}
-                        className={`p-6 rounded-[2rem] border-2 transition-all cursor-pointer flex items-start gap-4 ${
-                            isCertified 
-                                ? 'bg-emerald-50 border-emerald-200' 
-                                : 'bg-white border-slate-100 hover:border-slate-200'
-                        }`}
-                    >
-                        <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${
-                            isCertified 
-                                ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                : 'border-slate-300 bg-white'
-                        }`}>
-                            {isCertified && <FiCheck className="w-4 h-4" />}
-                        </div>
-                        <p className={`text-[10px] font-bold leading-relaxed ${isCertified ? 'text-emerald-900' : 'text-slate-500'}`}>
-                            I hereby certify that all data and information provided in this module/unit is true and correct
-                        </p>
-                    </div>
-                </section>
+
             </div>
         );
     };
@@ -442,22 +420,22 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             animate={{ opacity: 1 }} 
             className="min-h-screen bg-slate-50/50 font-sans"
         >
-            {!propReadOnly && (
-                <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-4">
-                    <div className="max-w-md mx-auto flex items-center justify-between">
-                        <button onClick={handleBack} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
-                            <FiArrowLeft className="w-5 h-5" />
-                        </button>
-                        <div className="flex-1 text-center">
-                            <div className="text-[10px] font-black tracking-widest text-[#004A99] uppercase">Unit 8</div>
-                            <h1 className="text-sm font-black text-gray-800 uppercase tracking-tight">School Terrain</h1>
-                        </div>
+            <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-4">
+                <div className="max-w-md mx-auto flex items-center justify-between">
+                    <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                        <FiArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="flex-1 text-center">
+                        <div className="text-[10px] font-black tracking-widest text-[#004A99] uppercase">Unit 8</div>
+                        <h1 className="text-sm font-black text-gray-800 uppercase tracking-tight">School Terrain</h1>
+                    </div>
+                    {!propReadOnly && (
                         <button onClick={() => setShowDraftModal(true)} className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
                             <FiSave className="w-5 h-5" />
                         </button>
-                    </div>
-                </header>
-            )}
+                    )}
+                </div>
+            </header>
 
             <AnimatePresence>
                 {showWelcomeBack && (
@@ -499,8 +477,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
                         <button
                             onClick={() => setIsReadOnly(false)}
-                            disabled={!isCertified}
-                            className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
+                            className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"
                         >
                             <FiUnlock className="w-6 h-6" />
                             <span>Unlock to Audit</span>
