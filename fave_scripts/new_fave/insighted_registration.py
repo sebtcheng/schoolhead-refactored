@@ -9,7 +9,7 @@ import psycopg2
 from dotenv import load_dotenv
 
 def main():
-    load_dotenv()
+    load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         print("ERROR: DATABASE_URL not found in .env", file=sys.stderr)

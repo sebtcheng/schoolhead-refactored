@@ -291,8 +291,8 @@ const RegisterBetaSchema = z.object({
 });
 
 // --- DATABASE CONNECTION ---
-const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd';
-const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd';
+const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('20.24.58.49');
 
 console.log(`🔌 Database Connection: ${isLocal ? 'Local' : 'Remote'} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
 
@@ -6013,6 +6013,57 @@ app.post('/api/sdo/convert-school', async (req, res) => {
   }
 });
 
+
+// POST - Update School Status (SDO)
+app.post('/api/sdo/update-school-status', async (req, res) => {
+  const { school_id, status, reason } = req.body;
+
+  if (!school_id || !status) {
+    return res.status(400).json({ error: "School ID and Status are required" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Fetch school details from schools_IERN
+    const schoolRes = await client.query('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1', [school_id]);
+    
+    if (schoolRes.rows.length === 0) {
+      throw new Error(`School record (${school_id}) not found.`);
+    }
+    const school = schoolRes.rows[0];
+
+    const newStatus = status === 'Closed' ? 'Archived' : 'Active';
+
+    // 2. If closed, insert into ph_schools_archived
+    if (status === 'Closed') {
+      await client.query(`
+        INSERT INTO ph_schools_archived (
+          region, division, district, iern, school_id, school_name, reason
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        school.Region, school.Division, school.District, school.iern, school.SchoolID, school.School_Name, reason
+      ]);
+    }
+
+    // 3. Update status in schools_IERN
+    await client.query('UPDATE "schools_IERN" SET "status" = $1, "updated_at" = CURRENT_TIMESTAMP WHERE "SchoolID" = $2', [newStatus, school_id]);
+
+    await client.query('COMMIT');
+    console.log(`✅ [SDO-STATUS-UPDATE] School ${school_id} set to ${newStatus}`);
+    res.json({ success: true, message: `School status updated to ${newStatus}` });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Status Update Error:", err);
+    res.status(500).json({ error: err.message || "Failed to update school status" });
+  } finally {
+    client.release();
+  }
+});
+
 // GET - Master List of Schools (DEPRECATED)
 app.get('/api/master-list/schools-deprecated', async (req, res) => {
   const { division, region } = req.query;
@@ -8363,7 +8414,7 @@ app.get('/api/locations/regions', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT region
-      FROM all_locations
+      FROM all_locations_regprov
       WHERE region IS NOT NULL AND region != ''
       ORDER BY region ASC
     `);
@@ -8384,7 +8435,7 @@ app.get('/api/locations/divisions', async (req, res) => {
     const normRegion = normalizeLocationField(region);
     const result = await pool.query(`
       SELECT DISTINCT division 
-      FROM all_locations 
+      FROM all_locations_regdiv 
       WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
       AND division IS NOT NULL AND division != '' 
       ORDER BY division ASC
@@ -8403,7 +8454,7 @@ app.get('/api/locations/districts', async (req, res) => {
     
     let query = `
       SELECT DISTINCT district 
-      FROM all_locations 
+      FROM all_locations_district 
       WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
       AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(division)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
     `;
@@ -8463,22 +8514,17 @@ app.get('/api/locations/municipalities', async (req, res) => {
     const normLD = normalizeLocationField(legislative_district);
 
     let query = `
-      SELECT DISTINCT municipality FROM all_locations
+      SELECT DISTINCT municipality FROM all_locations_barangay
       WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
-      AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(division)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
     `;
-    let params = [normRegion, normDivision];
+    let params = [normRegion];
 
-    if (normDistrict) {
-      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
-      params.push(normDistrict);
-    }
-
-    if (normLD) {
-      query += ` AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(legislative_district)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $${params.length + 1}`;
-      params.push(normLD);
-    }
-
+    // If division/district/LD are provided, we should ideally use all_locations
+    // but many municipalities like 'QUEZON' are missing there.
+    // So we use all_locations_barangay for the primary list of municipalities 
+    // and if division is provided, we join or fallback.
+    // For now, let's keep it simple: all_locations_barangay for Region-based lookup.
+    
     query += ` AND municipality IS NOT NULL AND municipality != '' ORDER BY municipality ASC`;
 
     const result = await pool.query(query, params);
@@ -8492,7 +8538,7 @@ app.get('/api/locations/provinces', async (req, res) => {
   try {
     const nr = normalizeLocationField(region);
     const result = await pool.query(
-      `SELECT DISTINCT province FROM all_locations
+      `SELECT DISTINCT province FROM all_locations_regprov
        WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
        AND province IS NOT NULL AND province != ''
        ORDER BY province ASC`,
@@ -8515,7 +8561,7 @@ app.get('/api/locations/municipalities-by-province', async (req, res) => {
     const nr = normalizeLocationField(region);
     const np = normalizeLocationField(province);
     const result = await pool.query(
-      `SELECT DISTINCT municipality FROM all_locations
+      `SELECT DISTINCT municipality FROM all_locations_barangay
        WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
        AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(province)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
        AND municipality IS NOT NULL AND municipality != ''
@@ -8572,7 +8618,7 @@ app.get('/api/locations/barangays', async (req, res) => {
     const np = normalizeLocationField(province);
     const nm = normalizeLocationField(municipality);
     const result = await pool.query(
-      `SELECT id, barangay FROM ph_barangays
+      `SELECT DISTINCT barangay FROM all_locations_barangay
        WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
        AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(province)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
        AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(municipality)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $3
@@ -8580,13 +8626,38 @@ app.get('/api/locations/barangays', async (req, res) => {
       [nr, np, nm]
     );
     const barangays = result.rows
-      .map(r => ({ id: r.id, barangay: normalizeLocationOutput(r.barangay) }))
+      .map(r => ({ id: normalizeLocationOutput(r.barangay), barangay: normalizeLocationOutput(r.barangay) }))
       .filter(b => b.barangay !== 'BLANK BARANGAY');
 
     if (nm === 'BLANK MUNICIPALITY' && !barangays.some(b => b.barangay === 'BLANK BARANGAY')) {
-      barangays.unshift({ id: -1, barangay: 'BLANK BARANGAY' });
+      barangays.unshift({ id: 'BLANK BARANGAY', barangay: 'BLANK BARANGAY' });
     }
     res.json(barangays);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- Legislative District lookup ---
+app.get('/api/locations/legislative-districts', async (req, res) => {
+  const { region, province } = req.query;
+  try {
+    const nr = normalizeLocationField(region);
+    const np = normalizeLocationField(province);
+    const result = await pool.query(
+      `SELECT DISTINCT legislative_district FROM all_locations_legdist
+       WHERE REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(region)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $1
+       AND REGEXP_REPLACE(REGEXP_REPLACE(UPPER(TRIM(province)), '(\\?|' || CHR(65533) || ')+', 'Ñ', 'g'), '\\s+', ' ', 'g') = $2
+       AND legislative_district IS NOT NULL AND legislative_district != ''
+       ORDER BY legislative_district ASC`,
+      [nr, np]
+    );
+    const legDistricts = result.rows
+      .map(r => normalizeLocationOutput(r.legislative_district))
+      .filter(ld => ld !== 'BLANK LEGISLATIVE DISTRICT');
+
+    if (np === 'BLANK PROVINCE' && !legDistricts.includes('BLANK LEGISLATIVE DISTRICT')) {
+      legDistricts.unshift('BLANK LEGISLATIVE DISTRICT');
+    }
+    res.json(legDistricts);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -8602,21 +8673,77 @@ const checkLocationAuth = (req, res, next) => {
 
 app.post('/api/locations/all_locations', authMiddleware, checkLocationAuth, async (req, res) => {
   const { region, division, district, province, municipality, legislative_district } = req.body;
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    
+    const nr = normalizeLocationField(region);
+    const nd = normalizeLocationField(division);
+    const nt = normalizeLocationField(district);
+    const np = normalizeLocationField(province);
+    const nm = normalizeLocationField(municipality);
+    const nld = normalizeLocationField(legislative_district);
+
+    // 1. Legacy all_locations sync
     const query = `
       INSERT INTO all_locations (region, division, district, province, municipality, legislative_district)
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (region, division, district, province, municipality, legislative_district) DO NOTHING
       RETURNING *;
     `;
-    const values = [
-      normalizeLocationField(region), normalizeLocationField(division), normalizeLocationField(district),
-      normalizeLocationField(province), normalizeLocationField(municipality), normalizeLocationField(legislative_district)
-    ];
-    const result = await pool.query(query, values);
-    if (result.rowCount === 0) return res.status(409).json({ error: "Location already exists." });
+    const result = await client.query(query, [nr, nd, nt, np, nm, nld]);
+    
+    // 2. Specialized Table Sync
+    // all_locations_regprov
+    if (nr && np && nm && nm !== 'NOT SPECIFIED') {
+      await client.query(
+        `INSERT INTO all_locations_regprov (region, province, municipality) 
+         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+        [nr, np, nm]
+      );
+    }
+    // all_locations_regdiv
+    if (nr && nd && nd !== 'NOT SPECIFIED') {
+      await client.query(
+        `INSERT INTO all_locations_regdiv (region, division) 
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [nr, nd]
+      );
+    }
+    // all_locations_district
+    if (nr && nd && nt && nt !== 'NOT SPECIFIED') {
+      // Sync to all_locations_district (hierarchical)
+      await client.query(
+        `INSERT INTO all_locations_district (region, division, district, legislative_district, municipality) 
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+        [nr, nd, nt, nld, nm]
+      ).catch(e => console.warn("all_locations_district sync partial fail (likely missing cols):", e.message));
+    }
+    // all_locations_legdist
+    if (nr && np && nld && nld !== 'NOT SPECIFIED') {
+      await client.query(
+        `INSERT INTO all_locations_legdist (region, province, legislative_district) 
+         VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+        [nr, np, nld]
+      );
+    }
+
+    await client.query('COMMIT');
+    
+    if (result.rowCount === 0) {
+      const existing = await pool.query(
+        `SELECT * FROM all_locations WHERE region=$1 AND division=$2 AND district=$3 AND province=$4 AND municipality=$5 AND legislative_district=$6`,
+        [nr, nd, nt, np, nm, nld]
+      );
+      return res.json(existing.rows[0]);
+    }
     res.json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
 });
 
 app.put('/api/locations/all_locations/:id', authMiddleware, checkLocationAuth, async (req, res) => {
@@ -8649,53 +8776,106 @@ app.delete('/api/locations/all_locations/:id', authMiddleware, checkLocationAuth
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/locations/ph_barangays', authMiddleware, checkLocationAuth, async (req, res) => {
+app.post('/api/locations/barangays', authMiddleware, checkLocationAuth, async (req, res) => {
   const { region, province, municipality, barangay } = req.body;
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    const nr = normalizeLocationField(region);
+    const np = normalizeLocationField(province);
+    const nm = normalizeLocationField(municipality);
+    const nb = normalizeLocationField(barangay);
+
+    // Check for duplicate
+    const checkQuery = `SELECT 1 FROM all_locations_barangay WHERE region = $1 AND province = $2 AND municipality = $3 AND barangay = $4`;
+    const checkResult = await client.query(checkQuery, [nr, np, nm, nb]);
+    if (checkResult.rowCount > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: "Barangay already exists." });
+    }
+
     const query = `
-      INSERT INTO ph_barangays (region, province, municipality, barangay)
+      INSERT INTO all_locations_barangay (region, province, municipality, barangay)
       VALUES ($1, $2, $3, $4)
-      ON CONFLICT (region, province, municipality, barangay) DO NOTHING
       RETURNING *;
     `;
-    const values = [
-      normalizeLocationField(region), normalizeLocationField(province),
-      normalizeLocationField(municipality), normalizeLocationField(barangay)
-    ];
-    const result = await pool.query(query, values);
-    if (result.rowCount === 0) return res.status(409).json({ error: "Barangay already exists." });
-    res.json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const result = await client.query(query, [nr, np, nm, nb]);
+
+    await client.query('COMMIT');
+    res.json(result.rows[0] ? result.rows[0] : { region: nr, province: np, municipality: nm, barangay: nb });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
 });
 
-app.put('/api/locations/ph_barangays/:id', authMiddleware, checkLocationAuth, async (req, res) => {
-  const { id } = req.params;
+app.put('/api/locations/barangays/:id', authMiddleware, checkLocationAuth, async (req, res) => {
+  const oldBarangayName = normalizeLocationField(decodeURIComponent(req.params.id));
   const { region, province, municipality, barangay } = req.body;
+  
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    const nr = normalizeLocationField(region);
+    const np = normalizeLocationField(province);
+    const nm = normalizeLocationField(municipality);
+    const nb = normalizeLocationField(barangay);
+
     const query = `
-      UPDATE ph_barangays 
-      SET region = $1, province = $2, municipality = $3, barangay = $4
-      WHERE id = $5
+      UPDATE all_locations_barangay 
+      SET barangay = $1
+      WHERE region = $2 AND province = $3 AND municipality = $4 AND barangay = $5
       RETURNING *;
     `;
-    const values = [
-      normalizeLocationField(region), normalizeLocationField(province),
-      normalizeLocationField(municipality), normalizeLocationField(barangay),
-      id
-    ];
-    const result = await pool.query(query, values);
-    if (result.rowCount === 0) return res.status(404).json({ error: "Barangay not found." });
+    const result = await client.query(query, [nb, nr, np, nm, oldBarangayName]);
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Barangay not found." });
+    }
+
+    // Keep schools_IERN in sync
+    try {
+      await client.query(`UPDATE "schools_IERN" SET "Barangay" = $1 WHERE "Region" = $2 AND "Province" = $3 AND "Municipality" = $4 AND "Barangay" = $5`, [nb, nr, np, nm, oldBarangayName]);
+    } catch (e) { console.warn("Skip schools_IERN update:", e.message); }
+
+    await client.query('COMMIT');
     res.json(result.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
 });
 
-app.delete('/api/locations/ph_barangays/:id', authMiddleware, checkLocationAuth, async (req, res) => {
-  const { id } = req.params;
+app.delete('/api/locations/barangays/:id', authMiddleware, checkLocationAuth, async (req, res) => {
+  const oldBarangayName = normalizeLocationField(decodeURIComponent(req.params.id));
+  const { region, province, municipality } = req.body;
+
+  const client = await pool.connect();
   try {
-    const result = await pool.query('DELETE FROM ph_barangays WHERE id = $1 RETURNING *', [id]);
-    if (result.rowCount === 0) return res.status(404).json({ error: "Barangay not found." });
+    await client.query('BEGIN');
+    const nr = normalizeLocationField(region);
+    const np = normalizeLocationField(province);
+    const nm = normalizeLocationField(municipality);
+
+    const query = `DELETE FROM all_locations_barangay WHERE region = $1 AND province = $2 AND municipality = $3 AND barangay = $4 RETURNING *`;
+    const result = await client.query(query, [nr, np, nm, oldBarangayName]);
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Barangay not found in all_locations_barangay." });
+    }
+
+    await client.query('COMMIT');
     res.json({ message: "Barangay deleted successfully." });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
 });
 
 app.put('/api/locations/rename', authMiddleware, checkLocationAuth, async (req, res) => {
@@ -8716,49 +8896,102 @@ app.put('/api/locations/rename', authMiddleware, checkLocationAuth, async (req, 
     const ov = normalizeLocationField(oldValue);
     const nv = normalizeLocationField(newValue);
 
-    let whereClause = 'region = $2 AND division = $3';
+    let baseWhere = 'region = $2 AND division = $3';
     let params = [nv, nr, nd];
-    let colName = type;
     
-    // Build filter based on level
     if (type === 'municipality' || type === 'legislative_district') {
-      whereClause += ' AND province = $4';
+      baseWhere += ' AND province = $4';
       params.push(np);
     }
     if (type === 'legislative_district') {
-      whereClause += ' AND municipality = $5';
+      baseWhere += ' AND municipality = $5';
       params.push(nm);
     }
 
     params.push(ov);
     const updateIndex = params.length;
 
-    // 1. Update all_locations
-    const q1 = `UPDATE all_locations SET ${type} = $1 WHERE ${whereClause} AND ${type} = $${updateIndex} RETURNING *`;
-    const res1 = await client.query(q1, params);
+    // --- MERGE LOGIC FOR LOOKUP TABLES ---
+    // We delete rows that would cause a collision upon update.
 
-    // 2. Update ph_schools (if it exists and has columns) - Best Effort
-    try {
-      // Map frontend types to DB columns
-      const dbCol = type === 'legislative_district' ? 'legislative_district' : type;
-      const q2 = `UPDATE ph_schools SET ${dbCol} = $1 WHERE region = $2 AND division = $3 AND ${dbCol} = $${updateIndex}`;
-      await client.query(q2, [nv, nr, nd, ov]);
-    } catch (e) { console.warn("Skip ph_schools update:", e.message); }
+    // 1. all_locations (Highest risk of collision)
+    const allLocsMatch = `region = $2 AND division = $3 AND province = province AND (municipality = municipality OR municipality IS NULL) AND (legislative_district = legislative_district OR legislative_district IS NULL)`;
+    await client.query(
+      `DELETE FROM all_locations WHERE region = $2 AND division = $3 AND ${type} = $${updateIndex} 
+       AND EXISTS (SELECT 1 FROM all_locations al2 WHERE al2.region = $2 AND al2.division = $3 AND al2.${type} = $1 
+       AND al2.province = all_locations.province AND al2.municipality = all_locations.municipality 
+       AND al2.legislative_district = all_locations.legislative_district)`,
+      [nv, nr, nd, ov]
+    );
+    await client.query(`UPDATE all_locations SET ${type} = $1 WHERE region = $2 AND division = $3 AND ${type} = $${updateIndex}`, [nv, nr, nd, ov]);
 
-    // 3. Update schools_IERN - Best Effort
-    try {
-      const iernColMap = {
-        district: 'District',
-        municipality: 'Municipality',
-        legislative_district: 'Legislative_District'
-      };
-      const iernCol = iernColMap[type];
-      const q3 = `UPDATE "schools_IERN" SET "${iernCol}" = $1 WHERE "Region" = $2 AND "Division" = $3 AND "${iernCol}" = $${updateIndex}`;
-      await client.query(q3, [nv, nr, nd, ov]);
-    } catch (e) { console.warn("Skip schools_IERN update:", e.message); }
+    // 2. Specialized Location Tables
+    if (type === 'district') {
+      await client.query(
+        `DELETE FROM all_locations_district WHERE region = $2 AND division = $3 AND district = $4
+         AND EXISTS (SELECT 1 FROM all_locations_district d2 WHERE d2.region = $2 AND d2.division = $3 AND d2.district = $1)`,
+        [nv, nr, nd, ov]
+      );
+      await client.query(
+        `UPDATE all_locations_district SET district = $1 WHERE region = $2 AND division = $3 AND district = $4`,
+        [nv, nr, nd, ov]
+      );
+    } else if (type === 'municipality') {
+      // all_locations_regprov
+      await client.query(
+        `DELETE FROM all_locations_regprov WHERE region = $2 AND province = $3 AND municipality = $4
+         AND EXISTS (SELECT 1 FROM all_locations_regprov rp2 WHERE rp2.region = $2 AND rp2.province = $3 AND rp2.municipality = $1)`,
+        [nv, nr, np, ov]
+      );
+      await client.query(
+        `UPDATE all_locations_regprov SET municipality = $1 WHERE region = $2 AND province = $3 AND municipality = $4`,
+        [nv, nr, np, ov]
+      );
+      
+      // all_locations_barangay
+      await client.query(
+        `DELETE FROM all_locations_barangay WHERE region = $2 AND province = $3 AND municipality = $4
+         AND EXISTS (SELECT 1 FROM all_locations_barangay b2 WHERE b2.region = $2 AND b2.province = $3 AND b2.municipality = $1 AND b2.barangay = all_locations_barangay.barangay)`,
+        [nv, nr, np, ov]
+      );
+      await client.query(
+        `UPDATE all_locations_barangay SET municipality = $1 WHERE region = $2 AND province = $3 AND municipality = $4`,
+        [nv, nr, np, ov]
+      );
+    } else if (type === 'legislative_district') {
+      await client.query(
+        `DELETE FROM all_locations_legdist WHERE region = $2 AND province = $3 AND legislative_district = $4
+         AND EXISTS (SELECT 1 FROM all_locations_legdist ld2 WHERE ld2.region = $2 AND ld2.province = $3 AND ld2.legislative_district = $1)`,
+        [nv, nr, np, ov]
+      );
+      await client.query(
+        `UPDATE all_locations_legdist SET legislative_district = $1 WHERE region = $2 AND province = $3 AND legislative_district = $4`,
+        [nv, nr, np, ov]
+      );
+    }
+
+    // 3. Update Core Data Tables (No unique constraints on name strings here, simple update is safe)
+    const dbCol = type === 'legislative_district' ? 'leg_district' : type;
+    await client.query(`UPDATE ph_schools SET ${dbCol} = $1 WHERE region = $2 AND division = $3 AND ${dbCol} = $4`, [nv, nr, nd, ov]);
+    
+    if (['region', 'division', 'district'].includes(type)) {
+       await client.query(`UPDATE school_summary SET ${type} = $1 WHERE region = $2 AND division = $3 AND ${type} = $4`, [nv, nr, nd, ov]);
+    }
+
+    const profCol = type === 'legislative_district' ? 'leg_district' : type;
+    await client.query(`UPDATE school_profiles SET ${profCol} = $1 WHERE region = $2 AND division = $3 AND ${profCol} = $4`, [nv, nr, nd, ov]);
+
+    // 4. Update schools_IERN (Case Sensitive / Quoted Columns)
+    const iernColMap = {
+      district: 'District',
+      municipality: 'Municipality',
+      legislative_district: 'Legislative_District'
+    };
+    const iernCol = iernColMap[type];
+    await client.query(`UPDATE "schools_IERN" SET "${iernCol}" = $1 WHERE "Region" = $2 AND "Division" = $3 AND "${iernCol}" = $4`, [nv, nr, nd, ov]);
 
     await client.query('COMMIT');
-    res.json({ message: "Location renamed successfully.", updatedCount: res1.rowCount });
+    res.json({ message: "Location renamed and merged successfully across all modules." });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error("Rename failed:", err);
@@ -15305,13 +15538,21 @@ app.get('/api/monitoring/schools', async (req, res) => {
     const result = await pool.query(dataQuery, queryParams);
 
     // Return structured response
-    let finalData = result.rows;
-    if (isRestricted) {
-      finalData = result.rows.map(r => {
-        const { school_head_validation, data_health_description, data_health_score, data_quality_issues, ...rest } = r;
+    let finalData = result.rows.map(r => {
+      // Harden output by normalizing location fields to fix any potential encoding artifacts
+      const hardenedRow = {
+        ...r,
+        region: normalizeLocationOutput(r.region),
+        division: normalizeLocationOutput(r.division),
+        district: normalizeLocationOutput(r.district)
+      };
+
+      if (isRestricted) {
+        const { school_head_validation, data_health_description, data_health_score, data_quality_issues, ...rest } = hardenedRow;
         return rest;
-      });
-    }
+      }
+      return hardenedRow;
+    });
 
     res.json({
       data: finalData,

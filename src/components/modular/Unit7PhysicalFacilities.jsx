@@ -636,8 +636,11 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             return;
         }
 
-        const isCondemned = buildingFormData.status === 'For Condemnation' || buildingFormData.status === 'Condemned';
-        if (isCondemned) {
+        const statusLower = (buildingFormData.status || "").toLowerCase();
+        const isBuildingCondemned = statusLower === 'for condemnation' || statusLower === 'condemned';
+        const isBuildingRepair = statusLower === 'for major repairs' || statusLower === 'for minor repairs';
+
+        if (isBuildingCondemned) {
             const hasReason = buildingFormData.condemn_age || buildingFormData.condemn_hazard || buildingFormData.condemn_calamity || buildingFormData.condemn_upgrade;
             if (!hasReason) {
                 alert("Please select at least one justification for condemnation.");
@@ -671,13 +674,15 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     building_name: buildingFormData.building_name,
                     room_name: r.room_name.startsWith(buildings.find(b => b.id === bId).building_name)
                         ? r.room_name.replace(buildings.find(b => b.id === bId).building_name, buildingFormData.building_name)
-                        : r.room_name
+                        : r.room_name,
+                    // SYNC: Ensure room condition reflects building status if condemned
+                    condition: isBuildingCondemned ? buildingFormData.status : (isBuildingRepair && r.condition !== 'Repair' ? 'Repair' : r.condition),
+                    grade_level: isBuildingCondemned ? "Non-Instructional" : r.grade_level,
+                    seats: isBuildingCondemned ? "0" : r.seats
                 }));
             } else if (numClassrooms > currentCount) {
                 // Add new rooms
                 const roomsToAdd = numClassrooms - currentCount;
-                const isBuildingCondemned = buildingFormData.status === "For Condemnation" || buildingFormData.status === "Condemned";
-                const isBuildingRepair = buildingFormData.status === "For Major Repairs" || buildingFormData.status === "For Minor Repairs";
                 
                 const newRooms = [];
                 for (let i = 1; i <= roomsToAdd; i++) {
@@ -707,7 +712,6 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             // Generate new rooms (Initial Creation)
             const roomsPerFloor = Math.ceil(numClassrooms / numStoreys);
             let roomCount = 0;
-            const isBuildingCondemned = buildingFormData.status === "For Condemnation" || buildingFormData.status === "Condemned";
 
             for (let floor = 1; floor <= numStoreys; floor++) {
                 for (let r = 0; r < roomsPerFloor && roomCount < numClassrooms; r++) {
@@ -715,7 +719,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     const roomLetter = String.fromCharCode(65 + r);
                     const roomName = `${buildingFormData.building_name} ${floor}-${roomLetter}`;
 
-                    const isBuildingRepair = buildingFormData.status === "For Major Repairs" || buildingFormData.status === "For Minor Repairs";
+                    // No local re-definition needed
                     
                     finalRooms.push({
                         id: `${bId}-room-${roomCount}`,
@@ -992,12 +996,37 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             const build_classrooms_repair = roomsData.filter(r => r.condition === 'Repair').length;
             const build_classrooms_demolition = roomsData.filter(r => {
                 const b = buildings.find(bld => bld.id === r.building_local_id);
-                return b && (b.status === "For Condemnation" || b.status === "Condemned");
+                const bStatus = (b?.status || "").toLowerCase();
+                return b && (bStatus === "for condemnation" || bStatus === "condemned");
             }).length;
+
+            // Generate Demolition Entries for justifications
+            const demolitionEntries = buildings
+                .filter(b => {
+                    const bStatus = (b.status || "").toLowerCase();
+                    return bStatus === "for condemnation" || bStatus === "condemned";
+                })
+                .map(b => ({
+                    building_name: b.building_name,
+                    reason_age: b.condemn_age,
+                    reason_safety: b.condemn_hazard,
+                    reason_calamity: b.condemn_calamity,
+                    reason_upgrade: b.condemn_upgrade,
+                    // Backward compatibility fields for backend loop
+                    age: b.condemn_age,
+                    safety: b.condemn_hazard,
+                    calamity: b.condemn_calamity,
+                    upgrade: b.condemn_upgrade,
+                    // Include counts from roomsData for the backend multiplier
+                    less_than_7x9: roomsData.filter(r => r.building_local_id === b.id && r.dimension === 'less than 7x9').length,
+                    "7x9": roomsData.filter(r => r.building_local_id === b.id && r.dimension === '7x9').length,
+                    above_7x9: roomsData.filter(r => r.building_local_id === b.id && r.dimension === 'above 7x9').length
+                }));
 
             const payload = {
                 schoolId, school_id: schoolId, iern: schoolData?.iern,
                 inventoryEntries: inventoryPayload, rooms: roomsData, repairEntries: repairPayload,
+                demolitionEntries: demolitionEntries, // Add this line
                 build_classrooms_total, build_classrooms_new, build_classrooms_good,
                 build_classrooms_repair, build_classrooms_demolition,
                 // Reconstruction Metadata
@@ -1273,7 +1302,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {buildings.map(b => (
-                                <div key={b.id} className={`bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden group ${b.status === 'Condemned' || b.status === 'For Condemnation' ? 'border-rose-100 shadow-rose-50/50' : ''}`}>
+                                <div key={b.id} className={`bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden group ${((b.status || "").toLowerCase() === 'condemned' || (b.status || "").toLowerCase() === 'for condemnation') ? 'border-rose-100 shadow-rose-50/50' : ''}`}>
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <h4 className="font-black text-slate-800 text-lg tracking-tight uppercase">{b.building_name || b.building_no || 'Building N/A'}</h4>
@@ -1987,7 +2016,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                             <div className="space-y-4">
                                                                 {buildingRooms.map((room) => {
                                                                     const isDuplicate = duplicateNames.has((room.room_name || "").trim().toLowerCase());
-                                                                    const isBuildingCondemned = building?.status === "For Condemnation" || building?.status === "Condemned";
+                                                                    const bStatus = (building?.status || "").toLowerCase();
+                                                                    const isBuildingCondemned = bStatus === "for condemnation" || bStatus === "condemned";
 
                                                                     return (
                                                                         <motion.div 
@@ -2651,7 +2681,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                     </select>
                                 </div>
 
-                                {(buildingFormData.status === 'For Condemnation' || buildingFormData.status === 'Condemned') && (
+                                {((buildingFormData.status || "").toLowerCase() === 'for condemnation' || (buildingFormData.status || "").toLowerCase() === 'condemned') && (
                                     <div className="p-5 bg-rose-50 rounded-2xl border-2 border-rose-100 space-y-4">
                                         <h4 className="text-sm font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
                                             <FiAlertTriangle className="w-4 h-4" /> Justification for Condemnation

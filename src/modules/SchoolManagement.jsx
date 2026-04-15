@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
-import { FiMapPin, FiCheck, FiX, FiClock, FiSave, FiList, FiAlertTriangle, FiShield, FiUsers, FiCopy, FiSearch } from 'react-icons/fi';
+import { FiMapPin, FiCheck, FiX, FiClock, FiSave, FiList, FiAlertTriangle, FiShield, FiUsers, FiCopy, FiSearch, FiRefreshCcw, FiPlusCircle, FiFilePlus } from 'react-icons/fi';
 import { TbSchool } from 'react-icons/tb';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -45,12 +46,118 @@ const searchNominatim = async (query) => {
     return null;
 };
 
+const TabButton = ({ active, onClick, icon: Icon, label, color }) => {
+    const colorMap = {
+        blue: {
+            active: 'bg-[#004A99] text-white shadow-[#004A99]/20',
+            inactive: 'text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+            icon: 'bg-blue-50 dark:bg-blue-900/30 text-[#004A99] dark:text-blue-400'
+        },
+        indigo: {
+            active: 'bg-indigo-600 text-white shadow-indigo-600/20',
+            inactive: 'text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20',
+            icon: 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+        },
+        slate: {
+            active: 'bg-slate-800 text-white shadow-slate-800/20',
+            inactive: 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50',
+            icon: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+        },
+        amber: {
+            active: 'bg-blue-600 text-white shadow-blue-600/20', // Kept blue as active for primary action consistency
+            inactive: 'text-slate-600 dark:text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-900/10',
+            icon: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+        }
+    };
+
+    const theme = colorMap[color] || colorMap.blue;
+
+    return (
+        <motion.button
+            whileHover={{ y: -4, scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onClick}
+            className={`relative flex flex-col items-center justify-center p-6 rounded-[2.5rem] transition-all duration-300 border-2 ${
+                active 
+                ? `${theme.active} border-transparent shadow-2xl scale-105` 
+                : `${theme.inactive} bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none`
+            }`}
+        >
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform duration-500 ${active ? 'bg-white/20 text-white scale-110' : theme.icon}`}>
+                <Icon size={24} />
+            </div>
+            <span className={`text-xs font-black uppercase tracking-tighter text-center leading-tight ${active ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
+                {label}
+            </span>
+            {active && (
+                <motion.div 
+                    layoutId="activeTabGlow"
+                    className="absolute inset-0 rounded-[2.5rem] bg-current opacity-20 blur-xl -z-10"
+                />
+            )}
+        </motion.button>
+    );
+};
+
+const ActionModal = ({ isOpen, onClose, title, subtitle, icon: Icon, children, maxWidth = 'max-w-4xl' }) => {
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="fixed inset-0 bg-slate-900/80 backdrop-blur-md"
+                    />
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        className={`bg-white dark:bg-slate-800 w-full ${maxWidth} rounded-[2.5rem] shadow-[0_32px_128px_-12px_rgba(0,0,0,0.5)] relative z-20 overflow-hidden border border-white/10 my-auto`}
+                    >
+                        <div className="absolute top-0 right-0 p-6 z-30">
+                            <motion.button
+                                whileHover={{ rotate: 90, scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={onClose}
+                                className="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                            >
+                                <FiX size={18} />
+                            </motion.button>
+                        </div>
+
+                        <div className="p-6 sm:p-10">
+                            <div className="flex items-center gap-5 mb-8">
+                                <div className="p-4 bg-[#004A99]/10 text-[#004A99] dark:bg-blue-400/10 dark:text-blue-400 rounded-[1.4rem]">
+                                    <Icon size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight leading-none mb-1">
+                                        {title}
+                                    </h2>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{subtitle}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+                                {children}
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+};
+
 const SchoolManagement = () => {
     const { user, token } = useAuth();
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [activeView, setActiveView] = useState('form'); // 'form', 'converted', or 'requests'
+    const [activeView, setActiveView] = useState(null); // null, 'form', 'converted', 'requests', or 'updateStatus'
 
     // Form State - matching exact schools table schema
     const [formData, setFormData] = useState({
@@ -97,6 +204,14 @@ const SchoolManagement = () => {
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [lastSubmissionDetails, setLastSubmissionDetails] = useState(null);
+    const [updateStatusData, setUpdateStatusData] = useState({
+        school_id: '',
+        status: 'Open',
+        reason: ''
+    });
+    const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [searchingStatusSchool, setSearchingStatusSchool] = useState(false);
+    const [searchedSchoolDetails, setSearchedSchoolDetails] = useState(null);
 
 
 
@@ -215,6 +330,22 @@ const SchoolManagement = () => {
             const res = await fetch(`/api/master-list/school/${selectedMasterSchool}`);
             if (res.ok) {
                 const school = await res.json();
+
+                // Scope Validation: Restrict by Division (SDO) or Region (RO)
+                if (user.role === 'School Division Office') {
+                    if (school.division !== user.division) {
+                        alert(`Access Denied: This school belongs to ${school.division}. You can only manage schools within ${user.division}.`);
+                        setSearchLoading(false);
+                        return;
+                    }
+                } else if (user.role === 'Regional Office') {
+                    if (school.region !== user.region) {
+                        alert(`Access Denied: This school belongs to Region ${school.region}. You can only manage schools within Region ${user.region}.`);
+                        setSearchLoading(false);
+                        return;
+                    }
+                }
+
                 // Autofill Form
                 setFormData(prev => ({
                     ...prev,
@@ -359,22 +490,38 @@ const SchoolManagement = () => {
         return [...new Set(filtered.map(item => item.barangay).filter(Boolean))].sort();
     }, [locationOptions, formData.municipality, formData.district]);
 
-    const legDistrictOptions = useMemo(() => {
-        // Hard-coded Legislative Districts (Standardized 1st to 8th)
-        const HARD_CODED_LEGS = [
-            '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
-            '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
-        ];
-        
-        let options = [...HARD_CODED_LEGS];
-        
-        // Ensure current value is in list even if not in the 1st-8th range (fallback for old data)
-        if (formData.leg_district && !options.some(opt => opt.toUpperCase() === formData.leg_district.toUpperCase())) {
-            options.push(formData.leg_district.toUpperCase());
-        }
-        
-        return options;
-    }, [formData.leg_district]);
+    const [legDistrictOptions, setLegDistrictOptions] = useState([]);
+
+    useEffect(() => {
+        const fetchLegDistricts = async () => {
+            if (!formData.province) {
+                setLegDistrictOptions([]);
+                return;
+            }
+            try {
+                const region = userData?.region || '';
+                const province = formData.province;
+                const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    let options = Array.isArray(data) ? data : [];
+                    // Ensure current value is in list even if not in the 1st-8th range (fallback for old data)
+                    if (formData.leg_district && !options.some(opt => opt.toUpperCase() === formData.leg_district.toUpperCase())) {
+                        options.push(formData.leg_district.toUpperCase());
+                    }
+                    setLegDistrictOptions(options);
+                }
+            } catch (err) {
+                console.error("Failed to fetch legislative districts:", err);
+                // Fallback
+                setLegDistrictOptions([
+                    '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+                    '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+                ]);
+            }
+        };
+        fetchLegDistricts();
+    }, [formData.province, formData.leg_district, userData?.region]);
 
 
     const MapClickHandler = () => {
@@ -729,6 +876,88 @@ const SchoolManagement = () => {
     };
 
 
+    const handleSearchSchoolForStatus = async () => {
+        if (!updateStatusData.school_id || updateStatusData.school_id.length !== 6) {
+            alert("Please enter a valid 6-digit School ID.");
+            return;
+        }
+
+        setSearchingStatusSchool(true);
+        try {
+            const res = await fetch(`/api/master-list/school/${updateStatusData.school_id}`);
+            if (res.ok) {
+                const school = await res.json();
+                
+                // Scope Validation: Restrict by Division (SDO) or Region (RO)
+                if (user.role === 'School Division Office') {
+                    if (school.division !== user.division) {
+                        alert(`Access Denied: This school belongs to ${school.division}. You can only manage schools within ${user.division}.`);
+                        setSearchingStatusSchool(false);
+                        return;
+                    }
+                } else if (user.role === 'Regional Office') {
+                    if (school.region !== user.region) {
+                        alert(`Access Denied: This school belongs to Region ${school.region}. You can only manage schools within Region ${user.region}.`);
+                        setSearchingStatusSchool(false);
+                        return;
+                    }
+                }
+
+                setSearchedSchoolDetails(school);
+                // Pre-set status from searched school if available
+                setUpdateStatusData(prev => ({
+                    ...prev,
+                    status: school.status === 'Archived' ? 'Closed' : 'Open'
+                }));
+            } else {
+                alert("School not found in Master List.");
+                setSearchedSchoolDetails(null);
+            }
+        } catch (err) {
+            console.error("Search failed:", err);
+            alert("An error occurred while searching for the school.");
+        } finally {
+            setSearchingStatusSchool(true); // Wait, should be false
+            setSearchingStatusSchool(false);
+        }
+    };
+
+
+    const handleUpdateStatus = async (e) => {
+        e.preventDefault();
+        if (!updateStatusData.school_id || updateStatusData.school_id.length !== 6) {
+            alert("Please enter a valid 6-digit School ID.");
+            return;
+        }
+        if (updateStatusData.status === 'Closed' && !updateStatusData.reason) {
+            alert("Please provide a reason for closure.");
+            return;
+        }
+
+        setUpdatingStatus(true);
+        try {
+            const res = await fetch('/api/sdo/update-school-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateStatusData)
+            });
+
+            if (res.ok) {
+                alert(`✅ School ${updateStatusData.school_id} status updated to ${updateStatusData.status === 'Closed' ? 'Archived' : 'Active'}`);
+                setUpdateStatusData({ school_id: '', status: 'Open', reason: '' });
+                setActiveView('requests');
+                fetchPendingSchools();
+            } else {
+                const data = await res.json();
+                alert("❌ Failed to update status: " + (data.error || "Unknown error"));
+            }
+        } catch (err) {
+            console.error("Status update error:", err);
+            alert("❌ An error occurred while updating status.");
+        } finally {
+            setUpdatingStatus(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -742,30 +971,50 @@ const SchoolManagement = () => {
         <PageTransition>
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-32">
                 {/* Header */}
-                <div className="bg-gradient-to-br from-[#004A99] to-[#002D5C] p-8 pb-20 rounded-b-[3rem] shadow-2xl text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-5">
-                        <TbSchool size={200} />
+                <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-br from-[#004A99] to-[#002D5C] p-8 pb-24 rounded-b-[3.5rem] shadow-2xl text-white relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 p-8 opacity-10 blur-sm">
+                        <TbSchool size={240} />
                     </div>
-                    <div className="relative z-20 mb-4">
+                    <div className="relative z-20 mb-6">
                         <button
                             onClick={() => navigate('/monitoring-dashboard')}
-                            className="flex items-center gap-2 text-white/80 hover:text-white transition-colors text-sm font-bold uppercase tracking-wider"
+                            className="flex items-center gap-2 text-white/70 hover:text-white transition-all text-xs font-black uppercase tracking-[0.2em] group"
                         >
-                            <FiX size={18} /> Back to Dashboard
+                            <FiX size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
+                            <span>Back to Dashboard</span>
                         </button>
                     </div>
                     <div className="relative z-10">
-                        <h1 className="text-4xl font-black tracking-tighter">School Management</h1>
-                        <p className="text-blue-200 text-lg font-medium mt-1">
+                        <motion.h1 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="text-5xl font-black tracking-tighter leading-none"
+                        >
+                            School <br />
+                            <span className="text-blue-400 italic">Management</span>
+                        </motion.h1>
+                        <motion.p 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            className="text-blue-100/80 text-sm font-bold mt-4 uppercase tracking-[0.3em] flex items-center gap-2"
+                        >
+                            <span className="w-8 h-px bg-blue-400/50"></span>
                             {userData?.division || 'Division Office'}
-                        </p>
+                        </motion.p>
                     </div>
-                </div>
+                </motion.div>
 
-                <div className="max-w-5xl mx-auto px-6 -mt-12 space-y-6 relative z-30">
-                    {/* Tab Switcher */}
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-2 flex flex-wrap gap-2">
-                        <button
+                <div className="max-w-5xl mx-auto px-6 -mt-16 space-y-8 relative z-30 pb-20">
+                    {/* Action Cards Grid - Refactored from simple tabs */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <TabButton 
+                            active={activeView === 'form' && !isConverting}
                             onClick={() => {
                                 setActiveView('form');
                                 setIsConverting(false);
@@ -785,49 +1034,50 @@ const SchoolManagement = () => {
                                 setDocumentPayload(null);
                                 setMapPosition([14.5995, 120.9842]);
                             }}
-                            className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeView === 'form'
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                }`}
-                        >
-                            <FiSave size={20} />
-                            Add New School
-                        </button>
-                        <button
+                            icon={FiFilePlus}
+                            label="Add New School"
+                            color="blue"
+                        />
+                        <TabButton 
+                            active={activeView === 'converted'}
                             onClick={() => setActiveView('converted')}
-                            className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeView === 'converted'
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                }`}
-                        >
-                            <TbSchool size={20} />
-                            Register Converted School
-                        </button>
-                        <button
+                            icon={TbSchool}
+                            label="Register Converted School"
+                            color="indigo"
+                        />
+                        <TabButton 
+                            active={activeView === 'requests'}
                             onClick={() => setActiveView('requests')}
-                            className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeView === 'requests'
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                                }`}
-                        >
-                            <FiList size={20} />
-                            My Submissions ({pendingSchools.length})
-                        </button>
+                            icon={FiList}
+                            label={`My Submissions (${pendingSchools.length})`}
+                            color="slate"
+                        />
+                        <TabButton 
+                            active={activeView === 'updateStatus'}
+                            onClick={() => setActiveView('updateStatus')}
+                            icon={FiRefreshCcw}
+                            label="Update School Status"
+                            color="amber"
+                        />
                     </div>
 
 
 
-                    {/* Converted School Selection View */}
-                    {activeView === 'converted' && !isConverting && (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 space-y-6">
-                            <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-6">Register Converted School</h2>
-                            <p className="text-slate-600 dark:text-slate-300 mb-6">
-                                Enter the current school ID of the school that you would like to convert
+                    <ActionModal 
+                        isOpen={activeView === 'converted' && !isConverting}
+                        onClose={() => setActiveView(null)}
+                        title="Register Converted School"
+                        subtitle="Enter legacy identity to begin"
+                        icon={TbSchool}
+                    >
+                        <div className="space-y-6">
+                            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
+                                Enter the current 6-digit school ID of the school that you would like to convert.
                             </p>
 
-                            <div className="flex flex-col md:flex-row gap-4 items-end">
+                            <div className="flex flex-col md:flex-row gap-5 items-end bg-slate-50 dark:bg-slate-900/50 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800">
                                 <div className="flex-1 w-full">
-                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">School ID</label>
+                                    <label className="block text-[9px] font-black text-blue-600 dark:text-blue-400 mb-1.5 uppercase tracking-[0.2em] ml-1">Legacy School ID</label>
                                     <input
                                         type="text"
                                         value={selectedMasterSchool}
@@ -836,70 +1086,65 @@ const SchoolManagement = () => {
                                             if (val.length <= 6) setSelectedMasterSchool(val);
                                         }}
                                         placeholder="e.g. 100000"
-                                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl focus:border-blue-500 focus:outline-none dark:bg-slate-700 dark:text-white"
+                                        className="w-full px-5 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none dark:text-white font-mono text-lg tracking-widest text-blue-600 dark:text-blue-400 shadow-sm"
                                     />
                                 </div>
-                                <button
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={handleSearchSchool}
                                     disabled={selectedMasterSchool.length !== 6 || searchLoading}
-                                    className="w-full md:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    className="w-full md:w-auto px-10 py-4 bg-[#004A99] hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl shadow-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
                                 >
                                     {searchLoading ? (
                                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                     ) : (
-                                        <FiList size={20} />
+                                        <>
+                                            <FiSearch size={20} />
+                                            Search Records
+                                        </>
                                     )}
-                                    Search School
-                                </button>
+                                </motion.button>
                             </div>
                         </div>
-                    )}
+                    </ActionModal>
 
-                    {/* Form View (Shared for New and Converted) */}
-                    {(activeView === 'form' || (activeView === 'converted' && isConverting)) && (
-                        <form onSubmit={handleInitialSubmit} className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 space-y-6">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-black text-slate-800 dark:text-white">
-                                    {isConverting ? 'Register Converted School' : 'Submit New School'}
-                                </h2>
-                                {isConverting && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsConverting(false);
-                                            setFormData({
-                                                school_id: '',
-                                                school_name: '',
-                                                district: '',
-                                                province: '',
-                                                municipality: '',
-                                                leg_district: '',
-                                                barangay: '',
-                                                street_address: '',
-                                                mother_school_id: 'NA',
-                                                curricular_offering: '',
-                                                special_order: '',
-                                            });
-                                            setDocumentPayload(null);
-                                            setMapPosition([14.5995, 120.9842]);
-                                        }}
-                                        className="text-sm font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                                    >
-                                        Cancel / Search Again
-                                    </button>
-                                )}
-                            </div>
-
+                    <ActionModal
+                        isOpen={activeView === 'form' || (activeView === 'converted' && isConverting)}
+                        onClose={() => {
+                            setActiveView(null);
+                            setIsConverting(false);
+                            setFormData({
+                                school_id: '',
+                                school_name: '',
+                                district: '',
+                                province: '',
+                                municipality: '',
+                                leg_district: '',
+                                barangay: '',
+                                street_address: '',
+                                mother_school_id: 'NA',
+                                curricular_offering: '',
+                                special_order: '',
+                            });
+                            setDocumentPayload(null);
+                            setMapPosition([14.5995, 120.9842]);
+                        }}
+                        title={isConverting ? "Convert School" : "New Registration"}
+                        subtitle="Complete mandatory identity form"
+                        icon={isConverting ? TbSchool : FiFilePlus}
+                    >
+                        <form onSubmit={handleInitialSubmit} className="space-y-6">
                             {/* Grid Layout for Inputs */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {isConverting && (
-                                    <div className="md:col-span-2 bg-blue-50 dark:bg-blue-900/20 p-5 rounded-2xl border border-blue-100 dark:border-blue-800 flex items-center justify-between animate-in slide-in-from-top-1">
+                                    <div className="md:col-span-2 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 flex items-center justify-between animate-in slide-in-from-top-1">
                                         <div>
-                                            <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1 leading-none">CURRENT IDENTITY</p>
-                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase leading-tight">Legacy School ID</p>
+                                            <p className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1 leading-none">CURRENT IDENTITY</p>
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase leading-tight">Legacy School ID</p>
                                         </div>
-                                        <div className="bg-white dark:bg-slate-800 px-6 py-2 rounded-xl shadow-sm border border-blue-200 dark:border-blue-700">
-                                            <span className="text-xl font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">{formData.old_school_id}</span>
+                                        <div className="bg-white dark:bg-slate-800 px-4 py-1.5 rounded-lg shadow-sm border border-blue-200 dark:border-blue-700">
+                                            <span className="text-lg font-black text-blue-600 dark:text-blue-400 font-mono tracking-tighter">{formData.old_school_id}</span>
                                         </div>
                                     </div>
                                 )}
@@ -1175,7 +1420,7 @@ const SchoolManagement = () => {
                                     </span>
                                 </div>
 
-                                <div className="rounded-2xl overflow-hidden shadow-md ring-4 ring-slate-100 dark:ring-slate-700" style={{ height: '400px' }}>
+                                <div className="rounded-xl overflow-hidden shadow-md ring-4 ring-slate-100 dark:ring-slate-700" style={{ height: '300px' }}>
                                     <MapContainer
                                         center={mapPosition}
                                         zoom={mapZoom}
@@ -1258,21 +1503,17 @@ const SchoolManagement = () => {
                                     </>
                                 )}
                             </button>
-                            {!isFormValid && !submitting && (
-                                <div className="text-center">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                        {!documentPayload ? '⚠️ PDF Document Required' : '⚠️ Please fill all required fields (*)'}
-                                    </p>
-                                </div>
-                            )}
                         </form>
-                    )}
+                    </ActionModal>
 
-                    {/* My Submissions List */}
-                    {activeView === 'requests' && (
-                        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8">
-                            <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-6">My Submissions</h2>
-
+                    <ActionModal
+                        isOpen={activeView === 'requests'}
+                        onClose={() => setActiveView(null)}
+                        title="My Submissions"
+                        subtitle="Track your registration requests"
+                        icon={FiList}
+                    >
+                        <div className="space-y-6">
                             {pendingSchools.length === 0 ? (
                                 <div className="text-center py-12 text-slate-400">
                                     <FiClock size={48} className="mx-auto mb-4 opacity-50" />
@@ -1283,41 +1524,48 @@ const SchoolManagement = () => {
                                     {pendingSchools.map((school) => (
                                         <div
                                             key={school.pending_id}
-                                            className="border-2 border-slate-200 dark:border-slate-700 rounded-2xl p-6 hover:shadow-lg transition-all"
+                                            className="border-[1.5px] border-slate-200 dark:border-slate-700/50 rounded-xl p-4 hover:shadow-md transition-all bg-white dark:bg-slate-800/20"
                                         >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <h3 className="text-xl font-black text-slate-800 dark:text-white">{school.school_name}</h3>
-                                                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{school.school_id}</p>
-                                                    <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
-                                                        {school.municipality}, {school.district}
-                                                    </p>
-                                                    <p className="text-xs text-slate-400 mt-2">
+                                            <div className="flex justify-between items-start gap-4">
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="text-lg font-black text-slate-800 dark:text-white truncate leading-tight">{school.school_name}</h3>
+                                                    <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 tracking-wider">{school.school_id}</p>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                                                        <span className="text-[10px] text-slate-500 flex items-center gap-1 font-bold uppercase tracking-tight">
+                                                            <FiMapPin size={10} className="text-slate-400" />
+                                                            {school.municipality}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500 flex items-center gap-1 font-bold uppercase tracking-tight">
+                                                            <FiList size={10} className="text-slate-400" />
+                                                            {school.district}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-widest italic opacity-70">
                                                         Submitted: {new Date(school.submitted_at).toLocaleDateString()}
                                                     </p>
                                                 </div>
-                                                <div className="flex flex-col items-end gap-2">
+                                                <div className="flex flex-col items-end gap-1.5 shrink-0">
                                                     {school.status === 'pending' && (
-                                                        <span className="px-4 py-2 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-xl text-sm font-bold flex items-center gap-2">
-                                                            <FiClock size={16} />
+                                                        <span className="px-3 py-1.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm border border-amber-200/50 dark:border-amber-800/30">
+                                                            <FiClock size={12} />
                                                             Pending
                                                         </span>
                                                     )}
                                                     {school.status === 'approved' && (
-                                                        <span className="px-4 py-2 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center gap-2">
-                                                            <FiCheck size={16} />
+                                                        <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm border border-emerald-200/50 dark:border-emerald-800/30">
+                                                            <FiCheck size={12} />
                                                             Approved
                                                         </span>
                                                     )}
                                                     {school.status === 'rejected' && (
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="px-4 py-2 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-xl text-sm font-bold flex items-center gap-2">
-                                                                <FiX size={16} />
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            <span className="px-3 py-1.5 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm border border-rose-200/50 dark:border-rose-800/30">
+                                                                <FiX size={12} />
                                                                 Rejected
                                                             </span>
                                                             {school.rejection_reason && (
-                                                                <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 text-right max-w-[150px]">
-                                                                    Reason: {school.rejection_reason}
+                                                                <p className="text-[9px] text-rose-600 dark:text-rose-400 font-bold max-w-[120px] text-right leading-tight">
+                                                                    {school.rejection_reason}
                                                                 </p>
                                                             )}
                                                         </div>
@@ -1356,7 +1604,166 @@ const SchoolManagement = () => {
                                 </div>
                             )}
                         </div>
-                    )}
+                    </ActionModal>
+
+                    <ActionModal
+                        isOpen={activeView === 'updateStatus'}
+                        onClose={() => {
+                            setActiveView(null);
+                            setUpdateStatusData({ school_id: '', status: 'Open', reason: '' });
+                            setSearchedSchoolDetails(null);
+                        }}
+                        title="Update Status"
+                        subtitle="Modify existing school records"
+                        icon={FiRefreshCcw}
+                    >
+                        {!searchedSchoolDetails ? (
+                            <div className="space-y-8">
+                                <p className="text-slate-500 dark:text-slate-400 font-medium">
+                                    Enter the 6-digit School ID to modify its status.
+                                </p>
+
+                                <div className="flex flex-col md:flex-row gap-6 items-end bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                    <div className="flex-1 w-full">
+                                        <label className="block text-[10px] font-black text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-[0.2em] ml-1">School ID</label>
+                                        <input
+                                            type="text"
+                                            value={updateStatusData.school_id}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/\D/g, '');
+                                                if (val.length <= 6) setUpdateStatusData({ ...updateStatusData, school_id: val });
+                                            }}
+                                            placeholder="e.g. 100000"
+                                            className="w-full px-6 py-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl focus:border-blue-500 focus:outline-none dark:text-white font-mono text-xl tracking-widest text-blue-600 dark:text-blue-400 shadow-sm"
+                                        />
+                                    </div>
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleSearchSchoolForStatus}
+                                        disabled={updateStatusData.school_id.length !== 6 || searchingStatusSchool}
+                                        className="w-full md:w-auto px-10 py-4 bg-[#004A99] hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl shadow-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+                                    >
+                                        {searchingStatusSchool ? (
+                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <>
+                                                <FiSearch size={20} />
+                                                Search School
+                                            </>
+                                        )}
+                                    </motion.button>
+                                </div>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleUpdateStatus} className="space-y-6">
+                                {/* School Details Card */}
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-900/40 dark:to-slate-800/40 p-6 rounded-[2rem] border border-blue-100 dark:border-blue-800/50 shadow-sm">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2.5 py-1 bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest rounded-full">
+                                                    School Found
+                                                </span>
+                                                <span className="text-slate-400 font-mono text-[10px]">{searchedSchoolDetails.school_id}</span>
+                                            </div>
+                                            <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight leading-tight">
+                                                {searchedSchoolDetails.school_name}
+                                            </h3>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setSearchedSchoolDetails(null)}
+                                            className="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:underline flex items-center gap-1"
+                                        >
+                                            <FiRefreshCcw size={10} />
+                                            Change School
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700/50">
+                                        <div>
+                                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Region</label>
+                                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">{searchedSchoolDetails.region}</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Division</label>
+                                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">{searchedSchoolDetails.division}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Status Toggle Section */}
+                                <div className="space-y-3">
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 text-center">Update Operational Status</label>
+                                    
+                                    <div className="flex p-1.5 bg-slate-100 dark:bg-slate-900/50 rounded-[1.8rem] border border-slate-200 dark:border-slate-800">
+                                        <button
+                                            type="button"
+                                            onClick={() => setUpdateStatusData({ ...updateStatusData, status: 'Open' })}
+                                            className={`flex-1 py-3.5 rounded-[1.3rem] font-black text-[11px] uppercase tracking-widest transition-all ${
+                                                updateStatusData.status === 'Open'
+                                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Open / Active
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setUpdateStatusData({ ...updateStatusData, status: 'Closed' })}
+                                            className={`flex-1 py-3.5 rounded-[1.3rem] font-black text-[11px] uppercase tracking-widest transition-all ${
+                                                updateStatusData.status === 'Closed'
+                                                ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Closed / Archived
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {updateStatusData.status === 'Closed' && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="space-y-2"
+                                    >
+                                        <label className="block text-[9px] font-black text-rose-500 mb-1 uppercase tracking-[0.2em] ml-1">Reason for Closure *</label>
+                                        <textarea
+                                            value={updateStatusData.reason}
+                                            onChange={(e) => setUpdateStatusData({ ...updateStatusData, reason: e.target.value.substring(0, 100) })}
+                                            placeholder="Reason for archive..."
+                                            rows="3"
+                                            maxLength="100"
+                                            className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-900/50 border-2 border-slate-200 dark:border-slate-700 rounded-[1.5rem] focus:border-rose-500 focus:outline-none dark:text-white transition-all resize-none shadow-inner text-sm"
+                                            required
+                                        ></textarea>
+                                        <p className="text-[8px] text-slate-400 text-right font-bold uppercase tracking-widest">{updateStatusData.reason.length}/100</p>
+                                    </motion.div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={updatingStatus || (updateStatusData.status === 'Closed' && !updateStatusData.reason)}
+                                    className={`w-full py-4 font-black rounded-[1.5rem] shadow-2xl transition-all flex items-center justify-center gap-3 uppercase tracking-[0.15em] text-[12px] ${
+                                        updatingStatus || (updateStatusData.status === 'Closed' && !updateStatusData.reason)
+                                            ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                                            : 'bg-[#004A99] hover:bg-blue-700 text-white shadow-blue-900/20 shadow-xl'
+                                    }`}
+                                >
+                                    {updatingStatus ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            <FiSave size={16} />
+                                            Update Master Record
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        )}
+                    </ActionModal>
                 </div>
 
 

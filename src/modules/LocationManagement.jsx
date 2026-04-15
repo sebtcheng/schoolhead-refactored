@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from './BottomNav';
@@ -57,6 +58,17 @@ const LocationManagement = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalType, setAddModalType] = useState('');
     const [addModalValue, setAddModalValue] = useState('');
+
+    useEffect(() => {
+        if (showConfirm || showAddModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showConfirm, showAddModal]);
 
     useEffect(() => {
         if (user) {
@@ -179,17 +191,34 @@ const LocationManagement = () => {
         }
     }, [selectedMunicipality]);
 
-    const fetchLegislativeDistricts = async () => {
-        // Hard-coded Legislative Districts (Standardized 1st to 8th)
-        setLegislativeDistricts([
-            '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
-            '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
-        ]);
+    const fetchLegislativeDistricts = async (region, province) => {
+        if (!region || !province) {
+            setLegislativeDistricts([]);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
+            if (res.ok) {
+                const data = await res.json();
+                setLegislativeDistricts(data);
+            }
+        } catch (err) {
+            console.error("Fetch legislative districts failed", err);
+            // Fallback to hardcoded if API fails
+            setLegislativeDistricts([
+                '1ST DISTRICT', '2ND DISTRICT', '3RD DISTRICT', '4TH DISTRICT',
+                '5TH DISTRICT', '6TH DISTRICT', '7TH DISTRICT', '8TH DISTRICT'
+            ]);
+        }
     };
 
     useEffect(() => {
-        fetchLegislativeDistricts();
-    }, []);
+        if (selectedRegion && selectedProvince) {
+            fetchLegislativeDistricts(selectedRegion, selectedProvince);
+        } else {
+            setLegislativeDistricts([]);
+        }
+    }, [selectedRegion, selectedProvince]);
 
     const handleAdd = async (type) => {
         setAddModalType(type);
@@ -202,7 +231,7 @@ const LocationManagement = () => {
         let endpoint = '';
 
         if (type === 'barangay') {
-            endpoint = '/api/locations/ph_barangays';
+            endpoint = '/api/locations/barangays';
             body = {
                 region: selectedRegion,
                 province: selectedProvince,
@@ -281,7 +310,7 @@ const LocationManagement = () => {
         let endpoint = '';
 
         if (type === 'barangay') {
-            endpoint = `/api/locations/ph_barangays/${id}`;
+            endpoint = `/api/locations/barangays/${encodeURIComponent(id)}`;
             body = {
                 region: selectedRegion,
                 province: selectedProvince,
@@ -337,10 +366,14 @@ const LocationManagement = () => {
     };
 
     const handleDelete = async (type, id) => {
+        if (normalizeRole(user?.role) === 'School Division Office' && (type === 'barangay' || type === 'municipality')) {
+            alert("Your account does not have permission to delete this location level.");
+            return;
+        }
         if (!window.confirm(`Are you sure you want to delete this ${type.toUpperCase()}? This action cannot be undone.`)) return;
 
         let endpoint = '';
-        if (type === 'barangay') endpoint = `/api/locations/ph_barangays/${id}`;
+        if (type === 'barangay') endpoint = `/api/locations/barangays/${encodeURIComponent(id)}`;
         else {
             alert("Delete for this level is not yet fully implemented in UI.");
             return;
@@ -349,7 +382,15 @@ const LocationManagement = () => {
         try {
             const res = await fetch(endpoint, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    region: selectedRegion,
+                    province: selectedProvince,
+                    municipality: selectedMunicipality
+                })
             });
 
             if (res.ok) {
@@ -368,7 +409,7 @@ const LocationManagement = () => {
         <PageTransition>
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-32">
                 {/* Header */}
-                <div className="bg-gradient-to-br from-[#1E293B] to-[#0F172A] p-8 pb-20 rounded-b-[3rem] shadow-2xl text-white relative overflow-hidden">
+                <div className="bg-gradient-to-br from-[#1E293B] to-[#0F172A] p-6 sm:p-8 pb-20 rounded-b-[3rem] shadow-2xl text-white relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-8 opacity-5">
                         <FiMapPin size={200} />
                     </div>
@@ -388,8 +429,8 @@ const LocationManagement = () => {
                     </div>
                 </div>
 
-                <div className="max-w-3xl mx-auto px-6 -mt-12 space-y-6 relative z-30">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-8 space-y-10">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-12 space-y-6 relative z-30">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl p-5 sm:p-8 space-y-10">
                         
                         {/* ADMINISTRATIVE SECTION */}
                         <div className="space-y-6">
@@ -403,13 +444,13 @@ const LocationManagement = () => {
                                             value={selectedRegion}
                                             disabled={!!user?.division} // Disable if prefilled by division
                                             onChange={(e) => setSelectedRegion(e.target.value)}
-                                            className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                            className={`flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="">Select Region</option>
                                             {regions.map(r => <option key={r} value={r}>{r}</option>)}
                                         </select>
                                     {!user?.division && (
-                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                        <div className="flex items-center gap-1 shrink-0">
                                             <button 
                                                 onClick={() => handleAdd('region')}
                                                 className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
@@ -438,13 +479,13 @@ const LocationManagement = () => {
                                         <select 
                                             value={selectedDistrict}
                                             onChange={(e) => setSelectedDistrict(e.target.value)}
-                                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                            className="flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
                                         >
                                             <option value="">Select District</option>
                                             {districts.map(d => <option key={d} value={d}>{d}</option>)}
                                         </select>
                                     )}
-                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
                                         {editingItem?.type === 'district' ? (
                                             <>
                                                 <button 
@@ -490,35 +531,33 @@ const LocationManagement = () => {
                         </div>
 
                         {/* ELECTORAL SECTION */}
-                        {normalizeRole(user?.role) !== 'School Division Office' && (
-                            <div className="space-y-6">
-                                <h3 className="text-sm font-black text-indigo-400 uppercase tracking-[0.2em] pl-1">Electoral Hierarchy</h3>
+                        <div className="space-y-6">
+                            <h3 className="text-sm font-black text-indigo-400 uppercase tracking-[0.2em] pl-1">Electoral Hierarchy</h3>
 
-                                {/* LEGISLATIVE DISTRICT */}
-                                <div className={`space-y-2 pl-4 border-l-4 border-indigo-100 dark:border-indigo-800 transition-opacity ${!selectedRegion ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Legislative District</label>
-                                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                        <select 
-                                            value={selectedLegislativeDistrict}
-                                            onChange={(e) => setSelectedLegislativeDistrict(e.target.value)}
-                                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                            {/* LEGISLATIVE DISTRICT */}
+                            <div className={`space-y-2 pl-4 border-l-4 border-indigo-100 dark:border-indigo-800 transition-opacity ${!selectedRegion ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <label className="text-xs font-black text-slate-400 uppercase tracking-widest block pl-1">Legislative District</label>
+                                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                    <select 
+                                        value={selectedLegislativeDistrict}
+                                        onChange={(e) => setSelectedLegislativeDistrict(e.target.value)}
+                                        className="flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                    >
+                                        <option value="">Select Legislative District</option>
+                                        {legislativeDistricts.map(ld => <option key={ld} value={ld}>{ld}</option>)}
+                                    </select>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <button 
+                                            onClick={() => handleAdd('legislativeDistrict')}
+                                            className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                            title="Create New"
                                         >
-                                            <option value="">Select Legislative District</option>
-                                            {legislativeDistricts.map(ld => <option key={ld} value={ld}>{ld}</option>)}
-                                        </select>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                            <button 
-                                                onClick={() => handleAdd('legislativeDistrict')}
-                                                className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
-                                                title="Create New"
-                                            >
-                                                <FiPlus size={18} />
-                                            </button>
-                                        </div>
+                                            <FiPlus size={18} />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
 
                         {/* LGU SECTION */}
                         <div className="space-y-8">
@@ -532,13 +571,13 @@ const LocationManagement = () => {
                                             value={selectedProvince}
                                             disabled={!!user?.division} // Disable if prefilled by division
                                             onChange={(e) => setSelectedProvince(e.target.value)}
-                                            className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                            className={`flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none ${user?.division ? 'opacity-70 cursor-not-allowed' : ''}`}
                                         >
                                             <option value="">Select Province</option>
                                             {provinces.map(p => <option key={p} value={p}>{p}</option>)}
                                         </select>
                                     {!user?.division && (
-                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                        <div className="flex items-center gap-1 shrink-0">
                                             <button 
                                                 onClick={() => handleAdd('province')}
                                                 className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
@@ -567,53 +606,51 @@ const LocationManagement = () => {
                                         <select 
                                             value={selectedMunicipality}
                                             onChange={(e) => setSelectedMunicipality(e.target.value)}
-                                            className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
+                                            className="flex-1 min-w-0 px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl focus:border-blue-500 outline-none dark:text-white appearance-none"
                                         >
                                             <option value="">Select Municipality</option>
                                             {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
                                         </select>
                                     )}
-                                    {normalizeRole(user?.role) !== 'School Division Office' && (
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                            {editingItem?.type === 'municipality' ? (
-                                                <>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        {editingItem?.type === 'municipality' ? (
+                                            <>
+                                                <button 
+                                                    onClick={() => handleEdit('municipality', null, editValue)}
+                                                    className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                    title="Save"
+                                                >
+                                                    <FiCheck size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => setEditingItem(null)}
+                                                    className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
+                                                    title="Cancel"
+                                                >
+                                                    <FiX size={18} />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {selectedMunicipality && normalizeRole(user?.role) !== 'School Division Office' && (
                                                     <button 
-                                                        onClick={() => handleEdit('municipality', null, editValue)}
-                                                        className="p-3 bg-green-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                        title="Save"
+                                                        onClick={() => { setEditingItem({ type: 'municipality', value: selectedMunicipality }); setEditValue(selectedMunicipality); }}
+                                                        className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
+                                                        title="Edit Selected Municipality"
                                                     >
-                                                        <FiCheck size={18} />
+                                                        <FiEdit2 size={18} />
                                                     </button>
-                                                    <button 
-                                                        onClick={() => setEditingItem(null)}
-                                                        className="p-3 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-300 transition-all flex items-center justify-center"
-                                                        title="Cancel"
-                                                    >
-                                                        <FiX size={18} />
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    {selectedMunicipality && (
-                                                        <button 
-                                                            onClick={() => { setEditingItem({ type: 'municipality', value: selectedMunicipality }); setEditValue(selectedMunicipality); }}
-                                                            className="p-3 bg-amber-500 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center"
-                                                            title="Edit Selected Municipality"
-                                                        >
-                                                            <FiEdit2 size={18} />
-                                                        </button>
-                                                    )}
-                                                    <button 
-                                                        onClick={() => handleAdd('municipality')}
-                                                        className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
-                                                        title="Create New"
-                                                    >
-                                                        <FiPlus size={18} />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
+                                                )}
+                                                <button 
+                                                    onClick={() => handleAdd('municipality')}
+                                                    className="p-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center bg-blue-600 text-white"
+                                                    title="Create New"
+                                                >
+                                                    <FiPlus size={18} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -662,19 +699,21 @@ const LocationManagement = () => {
                                                 ) : (
                                                     <>
                                                         <span className="font-bold text-slate-700 dark:text-slate-200">{b.barangay}</span>
-                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button 
-                                                                onClick={() => {
-                                                                    setEditingItem({ id: b.id, type: 'barangay' });
-                                                                    setEditValue(b.barangay);
-                                                                }}
-                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                                title="Edit"
-                                                            >
-                                                                <FiEdit2 size={16} />
-                                                                <span className="text-xs font-bold ml-1">EDIT</span>
-                                                            </button>
-                                                        </div>
+                                                        {normalizeRole(user?.role) !== 'School Division Office' && (
+                                                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setEditingItem({ id: b.id, type: 'barangay' });
+                                                                        setEditValue(b.barangay);
+                                                                    }}
+                                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                    title="Edit"
+                                                                >
+                                                                    <FiEdit2 size={16} />
+                                                                    <span className="text-xs font-bold ml-1">EDIT</span>
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>
@@ -691,8 +730,8 @@ const LocationManagement = () => {
                 </div>
 
                 {/* CONFIRMATION MODAL */}
-                {showConfirm && confirmData && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                {showConfirm && confirmData && createPortal(
+                    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700 text-center">
                             <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <FiCheck className="text-blue-600 dark:text-blue-400" size={40} />
@@ -719,14 +758,15 @@ const LocationManagement = () => {
                                 >
                                     Confirm
                                 </button>
-                            </div>
+                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
 
                 {/* ADD MODAL (FIXED) */}
-                {showAddModal && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                {showAddModal && createPortal(
+                    <div className="fixed inset-0 z-[1110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-700">
                             <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-6 leading-tight text-center">
                                 Add New {addModalType === 'legislativeDistrict' ? 'Legislative District' : addModalType.toUpperCase()}
@@ -765,7 +805,8 @@ const LocationManagement = () => {
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </div>
             <BottomNav />

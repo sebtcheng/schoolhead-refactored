@@ -12,6 +12,7 @@ description: Comprehensive skill for handling UI/UX, graphic design, advanced HT
 * **Component-Driven Structure:** Break the UI down into modular, highly reusable, and isolated components.
 * **Separation of Concerns:** Maintain a strict boundary between presentation (UI/styling) and business logic.
 * **Scalable Foundations:** Design file structures and design tokens to accommodate future feature expansions without requiring heavy refactoring.
+* **Modal Portals & Stacking Contexts:** Always render full-screen overlays, modals, and tooltips using `createPortal(..., document.body)`. This forces them to the root DOM level, breaking them out of nested stacking contexts (often created by animation wrappers, `opacity`, or fixed layouts) so they correctly layer on top of global elements like Bottom Navigation bars.
 
 ## 🎨 Graphic Design & UI/UX Principles
 * **Visual Hierarchy:** Use scale, contrast, color, and typography purposefully to guide the user's attention to primary actions.

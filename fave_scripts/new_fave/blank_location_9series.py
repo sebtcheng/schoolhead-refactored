@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 def main():
     # Load environment variables
-    load_dotenv()
+    load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
     database_url = os.getenv('DATABASE_URL')
     
     if not database_url:

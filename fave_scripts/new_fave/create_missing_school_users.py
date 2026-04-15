@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit the number of accounts to create.")
     args = parser.parse_args()
 
-    load_dotenv()
+    load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         print("ERROR: DATABASE_URL not found in .env", file=sys.stderr)
