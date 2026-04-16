@@ -107,3 +107,14 @@ This document outlines the core competencies and methodologies required for a Se
 ### 5. SSL & Local Development
 *   **Problem:** Backend fails with `server does not support SSL connections` when connecting to PgBouncer.
 *   **Fix:** Ensure the `isLocal` regex in `api/index.js` includes the VM IP (`20.24.58.49`) to disable client-side SSL when routing through the pooler, as PgBouncer often terminates SSL or is configured for non-TLS internal traffic.
+
+### 6. Stride Dashboard Multi-Project Dependency
+*   **Critical Dependency:** The `stride-app` (Port 3002) MUST be online for the entire ecosystem to function correctly.
+*   **Symptom:** If `stride-app` is down or missing from PM2, Nginx will return **502 Bad Gateway** for BOTH `insighted-backend` and `insighted-staging` request paths, as the root upstream failure can cascade through the shared configuration.
+*   **Maintenance Rule:** Never delete or stop the `stride-app` PM2 process without first re-mapping the Nginx root to a temporary static landing page or health responder.
+
+### 7. Tier 2 Recovery: Forensic Deep Relief
+*   **Symptom:** Tier 1 (`relief_db_locks.py`) runs but `vm_diagnostics.py` still shows **DB: 0** or app errors persist (ECONNREFUSED).
+*   **The Problem:** The app is bypassing the pool entirely due to `.env` drift, or "Zombie" PM2 processes are stuck on a stale configuration.
+*   **Fix:** Run `fave_scripts/deep_relief_db.py`.
+*   **Action:** This script autonomously audits `.env` for the PgBouncer Bypass Trap, SIGKILLs non-responsive workers, and triggers the Tier 1 relief protocol.

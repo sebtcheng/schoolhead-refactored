@@ -299,7 +299,7 @@ const RegisterBetaSchema = z.object({
 const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd';
 const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('20.24.58.49');
 
-console.log(`🔌 Database Connection: ${isLocal ? 'Local' : 'Remote'} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
+console.log(`🔌 Database Connection: ${dbUrl.includes('20.24.58.49') ? 'Remote VM (Azure Proxy)' : (isLocal ? 'Local Loopback' : 'Remote')} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
 
 const { Pool } = pg;
 // [Hawkeye Protocol v4.0 — Unified Cloud Scaling]
@@ -578,6 +578,17 @@ app.use(cors({
 
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
+
+// --- [Status Check] Friendly Root Message ---
+app.get('/', (req, res) => {
+  res.status(200).send(`
+    <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+      <h1>🚀 InsightEd API is Online</h1>
+      <p>This is the backend server (Port 3000).</p>
+      <p>To access the app interface, go to: <a href="http://localhost:5173">http://localhost:5173</a></p>
+    </div>
+  `);
+});
 
 // --- [Admission Control] Load Shedding & Resource Monitoring ---
 // Protects the event loop from locking up during traffic spikes by returning 503 Service Unavailable
@@ -1698,8 +1709,9 @@ const initDB = async () => {
       const dbLabel = targetPool === pool ? "Primary" : "Secondary";
       try {
         console.log(`     -> Initializing ${dbLabel} Database...`);
-        // Set a lock timeout to prevent hanging forever on busy tables
-        await targetPool.query('SET lock_timeout = 15000').catch(() => {});
+        // NOTE: 'SET lock_timeout' removed — setting session params on a pooled
+        // connection poisons that backend for all future queries routed through it by
+        // PgBouncer (transaction mode does not reset session state between clients).
 
         currentSegment = `${dbLabel} Seg 0.1: project_documents table`;
         await targetPool.query(`
@@ -2163,7 +2175,10 @@ const initFinanceDB = async () => {
 const initMasterlistDB = async () => {
   console.log("   [initMasterlistDB] Starting...");
   try {
-    await pool.query('SET lock_timeout = 15000');
+    // NOTE: 'SET lock_timeout' must NOT be sent on a pooled connection — it persists
+    // on the backend and poisons future queries routed to that backend by PgBouncer.
+    // Lock timeout is enforced by PgBouncer's server_idle_timeout and Azure's statement
+    // timeout config instead. Removed here.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS masterlist_26_30 (
           "Index" integer PRIMARY KEY,
@@ -20351,64 +20366,78 @@ const initUnit7Schema = async () => {
 
 const startServer = async () => {
   try {
-    console.log("🚀 Starting database initialization...");
-    
-    // [Hawkeye Protocol] Distributed Lock to prevent concurrent migrations in cluster mode
-    const migClient = await pool.connect();
-    try {
-      const lockRes = await migClient.query('SELECT pg_try_advisory_lock(654321)');
-      const isMigrator = lockRes.rows[0].pg_try_advisory_lock;
-
-      if (isMigrator) {
-        console.log("🔒 [Cluster] Migration lock ACQUIRED. Running schema auto-hardening...");
-        await hardenSchoolsIernSchema(migClient);
-        await runAutoMigrations();
-        await initDB();
-        await initUnit7Schema(); // One-time Unit 7 DDL (moved from hot request handler)
-        await runMigrations(migClient, "Primary");
-        console.log("🔓 [Cluster] Migrations complete. Lock will be released on disconnect.");
-      } else {
-        console.log("⏭️ [Cluster] Migration lock already held by another worker. Skipping redundant schema check.");
-      }
-    } finally {
-      migClient.release();
-    }
-
-    console.log("✅ Primary DB Init finished. Running secondary modules in parallel...");
-
-    await initFinanceDB();
-    console.log("   [Sequential] initFinanceDB completed.");
-    
-    await initMasterlistDB();
-    console.log("   [Sequential] initMasterlistDB completed.");
     const PORT = process.env.PORT || 3000;
 
+    // [Hawkeye Protocol v5] Listen-First, Migrate-Background
+    //
+    // Root cause of "0 connections" cascade:
+    //   ecosystem.config.cjs sets listen_timeout: 10000 (10s). Migrations take 20-60s.
+    //   PM2 was SIGKILLing instance 0 before it reached app.listen(), causing a restart
+    //   loop. Each restart created 5 new pool connections (min: 5) and abandoned them
+    //   without pool.end() → zombie connections accumulated in PgBouncer → max_client_conn
+    //   saturated → ALL workers lost DB access → "connections: 0".
+    //
+    // Fix: Start HTTP server first → fire process.send('ready') immediately (< 1s) →
+    //   run migrations in background on the primary worker. listen_timeout is never hit.
 
-
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n================================================`);
-      console.log(`🚀 SERVER RUNNING - PID: ${process.pid}`);
-      console.log(`🚀 Port: ${PORT}`);
-      console.log(`🚀 Time: ${new Date().toLocaleString()}`);
-      console.log(`🔗 APP READY: http://localhost:5173/`);
-      console.log(`================================================\n`);
-      
-      // Signal PM2 that the application is ready (supports wait_ready: true)
-      if (process.send) {
-        process.send('ready');
-      }
+    // ── Step 1: Start HTTP listener immediately (all workers) ─────────────
+    const server = await new Promise((resolve, reject) => {
+      const s = app.listen(PORT, '0.0.0.0', () => {
+        console.log(`\n================================================`);
+        console.log(`🚀 SERVER RUNNING - PID: ${process.pid}`);
+        console.log(`🚀 Backend (API): http://localhost:${PORT}`);
+        console.log(`🚀 Frontend (UI): http://localhost:5173`);
+        console.log(`🚀 Instance: ${process.env.NODE_APP_INSTANCE ?? 'solo'}`);
+        console.log(`🚀 Time: ${new Date().toLocaleString()}`);
+        console.log(`================================================\n`);
+        // Signal PM2 immediately — before migrations, not after
+        if (process.send) process.send('ready');
+        resolve(s);
+      });
+      s.on('error', reject);
     });
 
-    // Graceful Shutdown Handlers (Hardened for Cluster Mode)
+    // ── Step 2: Background migrations (primary worker only) ───────────────
+    // NODE_APP_INSTANCE is injected by PM2 cluster mode: '0' for primary, '1'+ for others.
+    // Undefined in dev / direct node invocation — treated as primary.
+    const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
+
+    if (isPrimaryWorker) {
+      console.log(`🔒 [Cluster] Primary worker — starting background schema migrations...`);
+      // setImmediate ensures at least one event-loop tick for HTTP to begin accepting
+      // connections before the migration work starts.
+      setImmediate(async () => {
+        try {
+          const migClient = await pool.connect();
+          try {
+            await hardenSchoolsIernSchema(migClient);
+            await runAutoMigrations();
+            await initDB();
+            await initUnit7Schema();
+            await runMigrations(migClient, "Primary");
+            // Finance and masterlist DDL kept inside primary gate — they contain
+            // DROP TABLE CASCADE, CREATE INDEX (blocking), and RENAME COLUMN which
+            // must never run concurrently across workers.
+            await initFinanceDB();
+            await initMasterlistDB();
+          } finally {
+            migClient.release();
+          }
+          console.log("✅ [Cluster] Background migrations complete.");
+        } catch (migErr) {
+          console.error("❌ [Cluster] Background migration error (non-fatal):", migErr.message);
+        }
+      });
+    } else {
+      console.log(`⏭️ [Cluster] Non-primary worker (instance ${process.env.NODE_APP_INSTANCE}). Skipping DDL migrations.`);
+    }
+
+    // ── Graceful Shutdown Handlers (Hardened for Cluster Mode) ────────────
     const gracefulShutdown = async (signal) => {
       console.log(`🛑 Received ${signal}. Shutting down gracefully...`);
-      
-      // Stop accepting new requests
       server.close(async () => {
         console.log('👋 HTTP server closed.');
-        
         try {
-          // Close DB Pools
           if (pool) {
             console.log('💾 Closing Primary DB pool...');
             await pool.end();
@@ -20426,7 +20455,6 @@ const startServer = async () => {
           process.exit(0);
         }
       });
-
       // Force exit after 10s if graceful shutdown hangs
       setTimeout(() => {
         console.error('⚠️ Shutdown timed out, forcing exit.');

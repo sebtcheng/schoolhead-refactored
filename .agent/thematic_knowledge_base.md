@@ -19,6 +19,16 @@ This document serves as the **Intelligent Clustering Engine** for InsightEd, as 
 
 ## Database
 
+### 🔥 Aspect: Configuration Drift (P0 Pattern)
+| Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Wrong DB name in .env** | Config Drift | High | P0 | [RCA-2026-04-16](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/rca/2026-04-16_Total-Connectivity-Loss-Wrong-DB-Name.md) | `.env` had `insight_pooled` instead of `insightEd`. PgBouncer had no route for it → auth failure on every connection → 1000+ PM2 restart loops → zombie connections exhausted PgBouncer → 0 connections. **Correct URL:** `postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd`. Run `fix_db_credentials.py` as first response to auth failures. |
+
+### 🔥 Aspect: Boot-time Contention (P0 Pattern)
+| Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Boot DDL Race Condition** | Startup Lock | High | P0 | [RCA-2026-04-16](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/rca/2026-04-16_Boot-DDL-Lock-Contention-Fix.md) | `pg_try_advisory_lock` fails in PgBouncer tx mode — all workers acquired "the same" lock on different backends and ran DDL simultaneously. Fixed by gating all boot DDL behind `NODE_APP_INSTANCE === '0'`. `initFinanceDB`/`initMasterlistDB` must be inside this gate or they race. `SET lock_timeout` on pooled connections is forbidden — poisons the backend for future queries. |
+
 ### 🗃️ Aspect: Migration / Lifecycle
 | Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -85,6 +95,7 @@ This document serves as the **Intelligent Clustering Engine** for InsightEd, as 
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Building Collapse Fix** | Consistency | Medium | P1 | [unit7_building_collapse_fix.md](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/claude/unit7_building_collapse_fix.md) | Fixed race condition where multiple buildings merged during re-edit. |
 | **Condemnation Scope Fix** | Stability | Low | P2 | [2026-04-15 Session](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/sessions/2026-04-15_School-Management-UI-Refinement.md) | Resolved `ReferenceError` in `handleSaveBuilding` by consolidating status check variables. |
+| **Repair Validation Fix** | Consistency | Medium | P1 | [RCA-2026-04-16](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/rca/2026-04-16_Unit7-Repair-Validation-Fix.md) | Fixed room-building condition desync causing false validation errors. |
 
 ### 🌍 Unit 8/9: Location & Safety
 | Incident/Decision | Aspect | Complexity | Priority | Source | Summary |

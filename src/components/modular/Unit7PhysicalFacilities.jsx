@@ -639,6 +639,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         const statusLower = (buildingFormData.status || "").toLowerCase();
         const isBuildingCondemned = statusLower === 'for condemnation' || statusLower === 'condemned';
         const isBuildingRepair = statusLower === 'for major repairs' || statusLower === 'for minor repairs';
+        const isBuildingGood = statusLower === 'good condition' || statusLower === 'newly built';
 
         if (isBuildingCondemned) {
             const hasReason = buildingFormData.condemn_age || buildingFormData.condemn_hazard || buildingFormData.condemn_calamity || buildingFormData.condemn_upgrade;
@@ -675,8 +676,10 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     room_name: r.room_name.startsWith(buildings.find(b => b.id === bId).building_name)
                         ? r.room_name.replace(buildings.find(b => b.id === bId).building_name, buildingFormData.building_name)
                         : r.room_name,
-                    // SYNC: Ensure room condition reflects building status if condemned
-                    condition: isBuildingCondemned ? buildingFormData.status : (isBuildingRepair && r.condition !== 'Repair' ? 'Repair' : r.condition),
+                    // SYNC: Ensure room condition reflects building status
+                    condition: isBuildingCondemned ? buildingFormData.status : 
+                               (isBuildingRepair && r.condition !== 'Repair' ? 'Repair' : 
+                               (isBuildingGood && r.condition === 'Repair' ? buildingFormData.status : r.condition)),
                     grade_level: isBuildingCondemned ? "Non-Instructional" : r.grade_level,
                     seats: isBuildingCondemned ? "0" : r.seats
                 }));
@@ -756,6 +759,18 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             ...prev.filter(r => r.building_local_id !== bId),
             ...finalRooms
         ]);
+
+        // Cleanup: Remove repair assessments for rooms that are no longer in 'Repair' condition
+        const finalRoomIds = new Set(finalRooms.map(r => r.id));
+        const repairRoomNames = new Set(finalRooms.filter(r => r.condition === 'Repair').map(r => r.room_name));
+        const bName = buildingFormData.building_name;
+        
+        setRepairAssessments(prev => prev.filter(a => {
+            // Keep assessments for OTHER buildings
+            if (a.building_name !== bName) return true;
+            // For THIS building, only keep if the room still exists AND is still in repair
+            return repairRoomNames.has(a.room_name);
+        }));
 
         setShowBuildingModal(false);
         setEditingBuildingId(null);

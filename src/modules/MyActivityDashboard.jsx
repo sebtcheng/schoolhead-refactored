@@ -6,13 +6,14 @@ import {
 } from 'recharts';
 import { 
     FiCheckCircle, FiClock, FiTrendingUp, FiPlay, FiLock, FiActivity,
-    FiZap, FiAward, FiTarget, FiStar, FiShield, FiRefreshCcw, FiWifiOff
+    FiZap, FiAward, FiTarget, FiStar, FiShield, FiRefreshCcw, FiWifiOff, FiPrinter
 } from 'react-icons/fi';
 import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { DASHBOARD_METADATA } from '../config/dashboardMetadata';
 import { useAuth } from '../context/AuthContext';
 import { getModularOutbox } from '../db';
+import { downloadPrintableReport } from '../utils/PrintableExportGenerator';
 
 // --- Circular Progress Ring ---
 const ProgressRing = ({ percentage = 0, size = 160, strokeWidth = 10 }) => {
@@ -111,6 +112,7 @@ const MyActivityDashboard = () => {
     const [targetSchoolId, setTargetSchoolId] = useState(null);
     const [pendingCount, setPendingCount] = useState(0);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [exporting, setExporting] = useState(false);
 
     const unitMap = useMemo(() => DASHBOARD_METADATA.units.map(u => ({
         id: u.id,
@@ -176,6 +178,40 @@ const MyActivityDashboard = () => {
             window.removeEventListener('offline', handleStatus);
         };
     }, [user, impersonatedUid]);
+
+    const handleExportPrintable = async () => {
+        if (!targetSchoolId || exporting) return;
+        setExporting(true);
+        try {
+            // 1. Fetch ph_schools full data
+            const phRes = await fetch(`/api/ph_schools/${targetSchoolId}`);
+            const phJson = await phRes.json();
+            
+            // 2. Fetch Unit 7 Child Tables (Master)
+            const u7Res = await fetch(`/api/ph_schools/unit10/${targetSchoolId}/master`);
+            const u7Json = await u7Res.json();
+            
+            // 3. Fetch Unit 8 (Terrain) Data
+            const u8Res = await fetch(`/api/school-location/${targetSchoolId}`);
+            const u8Json = await u8Res.json();
+
+            if (phJson.exists && phJson.data) {
+                downloadPrintableReport(
+                    phJson, 
+                    u7Json.data?.inventory || [], 
+                    u8Json.data,
+                    user?.role
+                );
+            } else {
+                alert("Failed to retrieve school data for export.");
+            }
+        } catch (err) {
+            console.error('Export Error:', err);
+            alert("An error occurred while generating the printable report.");
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const xp = useMemo(() => getXPForUnits(data?.progress?.completedUnits, data?.progress?.flags), [data]);
     const maxXP = useMemo(() => DASHBOARD_METADATA.units.reduce((sum, u) => sum + u.xp, 0), []);
@@ -269,20 +305,37 @@ const MyActivityDashboard = () => {
                                 <p className="text-slate-400 text-[10px] font-bold mt-1.5 uppercase tracking-widest">Loading...</p>
                             )}
                         </div>
-                        <motion.div 
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: "spring", bounce: 0.5 }}
-                            onClick={() => navigate('/sync-center')}
-                            className="bg-white p-3 rounded-2xl border border-slate-100 shadow-lg shadow-indigo-100/50 relative cursor-pointer active:scale-95 group transition-all"
-                        >
-                            <FiRefreshCcw className={`text-emerald-500 text-2xl transition-transform duration-700 ${pendingCount > 0 ? 'animate-spin-slow' : 'group-hover:rotate-180'}`} />
-                            {pendingCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                                    {pendingCount}
-                                </span>
-                            )}
-                        </motion.div>
+                        <div className="flex items-center gap-3">
+                            <motion.div 
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", bounce: 0.5, delay: 0.1 }}
+                                onClick={handleExportPrintable}
+                                className={`bg-white p-3 rounded-2xl border border-slate-100 shadow-lg shadow-indigo-100/50 relative cursor-pointer active:scale-95 group transition-all ${exporting ? 'opacity-50' : ''}`}
+                            >
+                                <FiPrinter className={`text-indigo-600 text-2xl ${exporting ? 'animate-pulse' : ''}`} />
+                                {exporting && (
+                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                                        ...
+                                    </span>
+                                )}
+                            </motion.div>
+
+                            <motion.div 
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: "spring", bounce: 0.5 }}
+                                onClick={() => navigate('/sync-center')}
+                                className="bg-white p-3 rounded-2xl border border-slate-100 shadow-lg shadow-indigo-100/50 relative cursor-pointer active:scale-95 group transition-all"
+                            >
+                                <FiRefreshCcw className={`text-emerald-500 text-2xl transition-transform duration-700 ${pendingCount > 0 ? 'animate-spin-slow' : 'group-hover:rotate-180'}`} />
+                                {pendingCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                                        {pendingCount}
+                                    </span>
+                                )}
+                            </motion.div>
+                        </div>
                     </div>
 
                     {/* XP Bar */}
