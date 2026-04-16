@@ -20658,6 +20658,11 @@ app.post('/api/esf7/stage', async (req, res) => {
   try {
     client = await pool.connect();
     await client.query('BEGIN');
+    
+    // Fetch School metadata for audit consistency
+    const schoolMeta = await client.query('SELECT school_name FROM ph_schools WHERE school_id = $1', [school_id]);
+    const schoolName = schoolMeta.rows[0]?.school_name || "Unknown School";
+    const uploadedAt = new Date().toISOString();
 
     // Ensure staging table exists as a structured replica if not already present
     await client.query(`
@@ -20679,7 +20684,13 @@ app.post('/api/esf7/stage', async (req, res) => {
 
     // Batch Insert Logic
     for (const record of records) {
-        const entry = { ...record, school_id, status: 'PENDING_SDO' };
+        const entry = { 
+            ...record, 
+            school_id, 
+            school_name: schoolName,
+            status: 'PENDING_SDO',
+            uploaded_at: uploadedAt
+        };
         
         const keys = Object.keys(entry)
             .map(k => k.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
@@ -20698,7 +20709,14 @@ app.post('/api/esf7/stage', async (req, res) => {
     }
 
     // Update ph_schools status
-    await client.query("UPDATE ph_schools SET unit7 = 0.5, unit7_completed = FALSE, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+    await client.query(`
+        UPDATE ph_schools 
+        SET unit7 = 0.5, 
+            unit7_completed = FALSE, 
+            uploaded_at = $1,
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE school_id = $2
+    `, [uploadedAt, school_id]);
 
     await client.query('COMMIT');
     
@@ -20995,19 +21013,28 @@ app.post('/api/esf7/approve', async (req, res) => {
     // 3. Migrate from Staging to Database using column discovery
     const columnsRes = await client.query(`
         SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'esf7_database' AND column_name NOT IN ('id', 'id_serial', 'created_at')
+        WHERE table_name = 'esf7_database' 
+        AND column_name NOT IN ('id', 'id_serial', 'created_at', 'status', 'approved_at')
     `);
     const cols = columnsRes.rows.map(r => `"${r.column_name}"`).join(', ');
+    const approvedAt = new Date().toISOString();
 
     await client.query(`
-        INSERT INTO ESF7_Database (${cols}, status)
-        SELECT ${cols}, 'VERIFIED' FROM ESF7_Staging WHERE school_id = $1
-    `, [school_id]);
+        INSERT INTO ESF7_Database (${cols}, status, approved_at)
+        SELECT ${cols}, 'VERIFIED', $1 FROM ESF7_Staging WHERE school_id = $2
+    `, [approvedAt, school_id]);
 
     // 4. Update status and delete staging
     await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
 
-    await client.query("UPDATE ph_schools SET unit7_completed = TRUE, unit7 = 1, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+    await client.query(`
+        UPDATE ph_schools 
+        SET unit7_completed = TRUE, 
+            unit7 = 1, 
+            approved_at = $1,
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE school_id = $2
+    `, [approvedAt, school_id]);
 
     await client.query('COMMIT');
     
@@ -21019,7 +21046,11 @@ app.post('/api/esf7/approve', async (req, res) => {
   } catch (err) {
     if (client) await client.query('ROLLBACK');
     console.error("Approve/Migrate ESF7 Error:", err);
-    res.status(500).json({ error: "Failed to verify and migrate records." });
+    res.status(500).json({ 
+      success: false,
+      error: err.message || "Failed to verify and migrate records.",
+      details: err.toString()
+    });
   } finally {
     if (client) client.release();
   }
