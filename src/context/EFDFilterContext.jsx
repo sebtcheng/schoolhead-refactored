@@ -25,6 +25,9 @@ export const EFDFilterProvider = ({ children }) => {
     // Accomplishment Percentage Range [min, max]
     const [accomplishmentRange, setAccomplishmentRange] = useState(() => JSON.parse(localStorage.getItem('efd_accomplishmentRange') || '[0,100]'));
 
+    // Min Photos in Gallery
+    const [minPhotos, setMinPhotos] = useState(() => parseInt(localStorage.getItem('efd_minPhotos') || '0', 10));
+
 
     // Persistence Layer
     useEffect(() => {
@@ -41,9 +44,10 @@ export const EFDFilterProvider = ({ children }) => {
         localStorage.setItem('efd_selectedDonated', selectedDonated);
         localStorage.setItem('efd_selectedDocStatus', selectedDocStatus);
         localStorage.setItem('efd_accomplishmentRange', JSON.stringify(accomplishmentRange));
+        localStorage.setItem('efd_minPhotos', String(minPhotos));
     }, [
         selectedDistrict, selectedSource, selectedDonated, selectedDocStatus,
-        searchHistory, accomplishmentRange
+        searchHistory, accomplishmentRange, minPhotos
     ]);
 
     const addToSearchHistory = useCallback((query) => {
@@ -70,6 +74,7 @@ export const EFDFilterProvider = ({ children }) => {
         setSelectedDonated('All');
         setSelectedDocStatus('All');
         setAccomplishmentRange([0, 100]);
+        setMinPhotos(0);
 
         // Clean storage
         const keys = [
@@ -77,7 +82,7 @@ export const EFDFilterProvider = ({ children }) => {
             'efd_selectedBatches', 'efd_searchQuery', 'efd_selectedDivision',
             'efd_selectedProvince', 'efd_selectedMunicipality', 'efd_selectedDistrict',
             'efd_selectedSource', 'efd_selectedDonated', 'efd_selectedDocStatus',
-            'efd_accomplishmentRange'
+            'efd_accomplishmentRange', 'efd_minPhotos'
         ];
         keys.forEach(k => localStorage.removeItem(k));
     }, []);
@@ -97,6 +102,7 @@ export const EFDFilterProvider = ({ children }) => {
         selectedDocStatus, setSelectedDocStatus,
         searchHistory, addToSearchHistory,
         accomplishmentRange, setAccomplishmentRange,
+        minPhotos, setMinPhotos,
         clearFilters
     };
 

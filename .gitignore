@@ -70,3 +70,9 @@ verify_*.mjs
 *.tar.gz
 *.zip
 *.tmp.tar.gz
+
+# Python cache
+__pycache__/
+
+# Document exports (often very large)
+*.docx
