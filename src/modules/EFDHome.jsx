@@ -149,6 +149,7 @@ const EFDHome = () => {
         selectedDonated, setSelectedDonated,
         selectedDocStatus, setSelectedDocStatus,
         searchHistory, addToSearchHistory,
+        accomplishmentRange, setAccomplishmentRange,
         clearFilters
     } = useEFDFilters();
 
@@ -233,7 +234,7 @@ const EFDHome = () => {
         navigate(`/project-details/${id}`);
     }, [navigate]);
 
-    const handleFilterApply = useCallback(({ regions, divisions, categories, years, province, municipality, district, batches }) => {
+    const handleFilterApply = useCallback(({ regions, divisions, categories, years, province, municipality, district, batches, accRange }) => {
         setSelectedRegions(regions || []);
         setSelectedDivision(divisions?.[0] || '');
         setSelectedProvince(province || '');
@@ -242,8 +243,9 @@ const EFDHome = () => {
         setSelectedCategories(categories || []);
         setSelectedYears(years || []);
         setSelectedBatches(batches || []);
+        setAccomplishmentRange(accRange || [0, 100]);
         setCurrentPage(1);
-    }, []);
+    }, [setAccomplishmentRange]);
 
     const allCategories = [
         "New Construction",
@@ -566,23 +568,26 @@ const EFDHome = () => {
     const filteredProjects = useMemo(() => {
         if (!Array.isArray(projects)) return [];
         return projects.filter(p => {
-            const matchesSearch = !searchQuery || 
+            const matchesSearch = !searchQuery ||
                 p.projectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.schoolId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.division?.toLowerCase().includes(searchQuery.toLowerCase());
-            
-            const matchesRegion = selectedRegions.length === 0 || 
+
+            const matchesRegion = selectedRegions.length === 0 ||
                 selectedRegions.some(reg => p.region?.toUpperCase() === reg.toUpperCase());
-            
-            const matchesDivision = !selectedDivision || 
+
+            const matchesDivision = !selectedDivision ||
                 p.division?.toUpperCase() === selectedDivision.toUpperCase();
 
             const matchesCategory = selectedCategories.length === 0 ||
-                selectedCategories.includes(p.category || p.project_category);
+                selectedCategories.includes(p.category || p.project_category || p.projectCategory);
 
-            return matchesSearch && matchesRegion && matchesDivision && matchesCategory;
+            const acc = parseInt(p.accomplishmentPercentage ?? p.accomplishment_percentage ?? 0);
+            const matchesAccRange = acc >= accomplishmentRange[0] && acc <= accomplishmentRange[1];
+
+            return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesAccRange;
         });
-    }, [projects, searchQuery, selectedRegions, selectedDivision, selectedCategories]);
+    }, [projects, searchQuery, selectedRegions, selectedDivision, selectedCategories, accomplishmentRange]);
 
     const totalABC = useMemo(() => {
         // Prioritize aggregate budget from summary API, fallback to 0
@@ -1828,6 +1833,7 @@ const EFDHome = () => {
                 initialCategories={selectedCategories}
                 initialYears={selectedYears}
                 initialBatches={selectedBatches}
+                initialAccRange={accomplishmentRange}
                 yearOptions={allYears}
                 batchOptions={allBatches}
                 categoryOptions={projectCategories}

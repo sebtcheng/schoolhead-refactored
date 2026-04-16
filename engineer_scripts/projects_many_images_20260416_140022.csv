@@ -1,0 +1,88 @@
+project_id,ipc,total_images,internal_count,external_count,other_count,school_name,project_name,division,region
+1000325,INF-12-2024-01035,43,17,26,0,Bogna Elementary School,Upgrading of Electrical System (Overhead System),LEGASPI CITY,REGION V
+1000249,INF-12-2024-00825,36,14,22,0,Julio Ledesma National High School,Upgrading of Electrical System,SAN CARLOS CITY,NIR
+1000288,INF-02-2024-00925,32,15,17,0,Dawan NHS,Repair / Rehabilitation of Classrooms,MATI CITY,REGION XI
+1009949,INF-01-2024-01596,22,15,7,0,MALAGNAT NATIONAL HIGH SCHOOL,3STY9CL,KALINGA,CAR
+1010089,INF-02-2024-01987,22,9,13,0,La Union NHS,Repair of Classrooms,BOHOL,REGION VII
+1000473,INF-01-2025-00991,20,10,10,0,Bato NHS,Construction of  1STY3CL and 2STY12CL,DAVAO DEL SUR,REGION XI
+1010084,INF-02-2024-01962,17,7,10,0,Anoling National High School,Repair of Classrooms,BOHOL,REGION VII
+1009867,INF-02-2024-02002,17,4,13,0,Bonkokan ES,Repair of Classrooms,BOHOL,REGION VII
+1000297,INF-02-2024-00896,17,14,3,0,Catumbalon ES,Repair of Classrooms,VALENCIA CITY,REGION X
+1010090,INF-02-2024-01982,17,4,13,0,Lungsodaan ES,Repair of Classrooms,BOHOL,REGION VII
+1010011,INF-02-2024-02009,17,5,12,0,La Union Elementary School,Repair of Classrooms,BOHOL,REGION VII
+1000407,INF-01-2024-00765,15,7,8,0,Blanca-Aurora Integrated School,1STY3CL,SAMAR (WESTERN SAMAR),REGION VIII
+1000309,INF-04-2024-00542,14,9,5,0,Bolbok Integrated National High School,CONSTRUCTION OF SCHOOL CLINIC,LIPA CITY,REGION IV-A
+1000167,INF-07-2024-00040,14,13,1,0,Mariano Espina Memorial Central Elementary School,Conversion of SPED Centers Into Prototype Inclusive Learning Resource Center,SURIGAO CITY,CARAGA
+1009831,INF-07-2024-00041,14,7,7,0,Bacsay ES,Proposed Conversion of 9 Classrooms into Inclusive Learning Resource Center,APAYAO,CAR
+1009786,INF-07-2024-00115,14,11,3,0,Rabat Rocamora Mati Central School SPED Center,Conversion of SPED Center to Inclusive Learrning Resource Center (ILRC),MATI CITY,REGION XI
+1000163,INF-12-2024-00810,14,7,7,0,Bongalonan Elementary School,Electrification of Un-Energized Schools and Modernization of Electrical Systems of On-Grid Schools,BAYAWAN CITY,NIR
+1009770,INF-02-2024-01958,14,8,6,0,Ili National High School,Repair of Classrooms,APAYAO,CAR
+1010091,INF-02-2024-02031,13,3,10,0,Panadtaran ES,Repair of Classrooms,BOHOL,REGION VII
+1009834,INF-04-2024-00541,13,5,8,0,Pudtol Vocational High School,Construction of School Clinic,APAYAO,CAR
+1009690,INF-12-2024-01806,12,1,11,0,SANTA CRUZ CES,Energization of Electrical System (Overhead System),DAVAO DEL SUR,REGION XI
+1000284,INF-02-2025-00838,12,8,4,0,Colonia ELEMENTARY SCHOOL,Repair / Rehabilitation of Classrooms,VALENCIA CITY,REGION X
+1010033,INF-01-2025-00066,12,6,6,0,Cristina David Pascual National High School,Construction of School Building,GAPAN CITY,REGION III
+1009977,INF-01-2024-01258,12,12,0,0,Barasoain Memorial Integrated School,3STY15CL,MALOLOS CITY,REGION III
+1009704,INF-02-2025-02731,12,6,6,0,Tagaskan ES,"REPAIR OF CLASSROOMS AT TAGASKAN ES, ROXAS, ORIENTAL MINDORO",ORIENTAL MINDORO,MIMAROPA
+1009819,INF-02-2024-00786,12,3,9,0,Kabugao Central School,Repair of Classrooms,APAYAO,CAR
+1009751,INF-06-2024-00487,12,6,6,0,Northern Tacloban City National High School,Construction of 1 Storey Library Hub Building (22.50m x 9.50m),TACLOBAN CITY,REGION VIII
+1010053,INF-01-2025-00559,12,6,6,0,Baso ES,CONSTRUCTION OF SCHOOL BUILDING,MATI CITY,REGION XI
+1000482,INF-01-2024-00960,12,8,4,0,Ivana NHS,1STY2CL,BATANES,REGION II
+1009818,INF-02-2024-02064,12,3,9,0,Kabugao Central School,Repair of Classrooms,APAYAO,CAR
+1009662,INF-04-2024-01019,11,5,6,0,Pudtol Vocational High School,Construction of School Clinic,APAYAO,CAR
+1000455,INF-04-2024-00528,11,5,6,0,Valencia City Central School,Construction/Repair of Health Facilities,VALENCIA CITY,REGION X
+1010088,INF-02-2024-01915,11,3,8,0,Anoling ES,Repair of Classrooms,BOHOL,REGION VII
+1009885,INF-02-2024-02169,11,5,6,0,Antonino Vicentino ES,Repair / Rehabilitation of Classrooms,MATI CITY,REGION XI
+1000300,INF-01-2024-01880,11,8,3,0,Lurugan Elementary School,2STY6CL,VALENCIA CITY,REGION X
+1000391,INF-02-2025-00701,11,4,7,0,Himyangan Elementary School,Repair / Rehabilitation of Classrooms,SAMAR (WESTERN SAMAR),REGION VIII
+1009754,INF-02-2025-02189,11,8,3,0,Conner National HS,Repair / Rehabilitation of Classrooms,APAYAO,CAR
+1009865,INF-02-2024-02075,10,3,7,0,Tocdog ES,Repair of Classrooms,BOHOL,REGION VII
+1000404,INF-01-2024-01657,10,7,3,0,Buenavista Elementary School,1STY3CL,SAMAR (WESTERN SAMAR),REGION VIII
+1000399,INF-03-2024-00257,10,4,6,0,Puhagan Elementary School,"CONSTRUCTION OF 1STY4CL (WITH TOILET) WITH PROVISION OF RAINWATER COLLECTOR, SCHOOL FURNITURE, SOLAR PV ENERGY SYSTEM, WATER SYSTEM AND FLOOD MARKER",SAMAR (WESTERN SAMAR),REGION VIII
+1000234,INF-01-2024-01822,10,5,5,0,Apolonia F. Rafael Elementary School,"3STY12CL
+Phase 1 of 4STY16CL",VALENZUELA CITY,NCR
+1010054,INF-01-2025-00560,10,5,5,0,Macambol ES,CONSTRUCTION OF SCHOOL BUILDING,MATI CITY,REGION XI
+1009793,INF-02-2025-02424,10,4,6,0,Bagongbanua ES,Repair / Rehabilitation of Classrooms,BOHOL,REGION VII
+1009707,INF-10-2025-01435,9,3,6,0,Pascuala P. Gabia Memorial School,"REPAIR OF 6 CLASSROOMS AT PASCUALA P. GABIA MEMORIAL SCHOOL, BONGABONG, ORIENTAL MINDORO",ORIENTAL MINDORO,MIMAROPA
+1010005,INF-02-2025-00700,9,3,6,0,Catungawan ES,Repair / Rehabilitation of Classrooms,BOHOL,REGION VII
+1009689,INF-03-2024-00850,9,6,3,0,Nodilla Elementary School,"CONSTRUCTION OF SCHOOL BUILDING (WITH TOILET) WITH PROVISION OF RAINWATER COLLECTOR, SCHOOL FURNITURE, SOLAR PV ENERGY SYSTEM, WATER SYSTEM AND FLOOD MARKER",DAVAO DEL SUR,REGION XI
+1000474,INF-12-2024-01002,9,4,5,0,Basco Central School,Energization of Electrical System (Underground System),BATANES,REGION II
+1009802,INF-02-2024-02057,9,3,6,0,Bogabongan ES,Repair of Classrooms,ZAMBOANGA DEL NORTE,REGION IX
+1010092,INF-11-2024-00919,9,2,7,0,San Juan ES,"Repair and Rehabilitation of School Building, San Juan Elementary School, Santa Marcela, Apayao",APAYAO,CAR
+1000420,INF-02-2024-00725,8,3,5,0,Northville 15 Integrated school,Repair of Classrooms,ANGELES CITY,REGION III
+1000536,INF-02-2024-00737,8,5,3,0,Dampay Elementary School,Repair of Classrooms,ZAMBALES,REGION III
+1009691,INF-01-2025-01696,8,2,6,0,Matanao National High School,Construction of 1STY4CL,DAVAO DEL SUR,REGION XI
+1000201,INF-12-2024-01039,8,7,1,0,Pastor Salazar National High School,Upgrading of Electrical System (Overhead System),LEYTE,REGION VIII
+1009866,INF-06-2024-00437,8,4,4,0,Quinoguitan ES,Construction of 1 Storey Library Hub Building (22.50m x 9.50m),BOHOL,REGION VII
+1000389,INF-02-2025-00990,8,4,4,0,Bonifacio NHS,Repair / Rehabilitation of Classrooms,MISAMIS OCCIDENTAL,REGION X
+1000615,INF-02-2025-00786,8,2,6,0,Bagongbanua ES,Repair / Rehabilitation of Classrooms,BOHOL,REGION VII
+1000610,INF-06-2024-00112,8,4,4,0,Quinoguitan ES,Construction of 1 Storey Library Hub Building (22.50m x 9.50m),BOHOL,REGION VII
+1000613,INF-02-2025-00866,8,4,4,0,Doljo ES,Repair / Rehabilitation of Classrooms,BOHOL,REGION VII
+1000405,INF-02-2024-00657,8,3,5,0,Tambongan Elementary School,Repair of Classrooms,SAMAR (WESTERN SAMAR),REGION VIII
+1009913,INF-02-2024-02191,8,2,6,0,Cararayan National High School,Repair of Classrooms,NAGA CITY,REGION V
+1000630,INF-04-2025-00001,8,2,6,0,Himamaylan NHS,CONSTRUCTION OF SCHOOL HEALTH FACILITY AT HIMAMAYLAN NHS,HIMAMAYLAN CITY,NIR
+108395,INF-06-2024-00182,7,5,2,0,Balawag Central School,Construction of 1 Storey Library Hub Building (22.50m x 9.50m),TABUK CITY,CAR
+1009688,INF-05-2024-00438,7,3,4,0,Malalag CES,Conservation and Restoration of Gabaldon School Building,DAVAO DEL SUR,REGION XI
+1000280,INF-06-2024-00148,7,4,3,0,San Juan CS (Kalayaan),Construction of 1 Storey Library Hub Building (22.50m x 9.50m),LAGUNA,REGION IV-A
+1000388,INF-02-2024-00890,7,4,3,0,Lusot Elementary School,Repair / Rehabilitation of Classrooms,MISAMIS OCCIDENTAL,REGION X
+1009679,INF-01-2025-01763,7,4,3,0,Bato NHS,Construction of  1STY3CL and 2STY12CL,DAVAO DEL SUR,REGION XI
+1000624,INF-11-2024-00638,7,5,2,0,Mahatao NHS,REPAIR OF CLASSROOMS,BATANES,REGION II
+1000539,INF-04-2024-00484,7,4,3,0,Bamban National High School,Construction of School Clinic,ZAMBALES,REGION III
+1000230,INF-06-2024-00131,6,3,3,0,Passi I Central School,Construction of 1 Storey Library Hub Building (22.50m x 9.50m),PASSI CITY,REGION VI
+1009798,INF-01-2024-02598,6,3,3,0,Roberta de Jesus Elementary School,4STY8CL,VALENZUELA CITY,NCR
+1000516,INF-01-2024-01797,6,3,3,0,J.P. Laurel ES,3STY9CL,DAVAO CITY,REGION XI
+1009681,INF-02-2025-01420,6,3,3,0,Masablang Elementary School,Repair / Rehabilitation of Classrooms,TABUK CITY,CAR
+1000159,INF-12-2024-00982,6,2,4,0,Baluarte ES,Electrification of Un-Energized Schools and Modernization of Electrical Systems of On-Grid Schools,SANTIAGO CITY,REGION II
+1009797,INF-01-2024-02598,6,3,3,0,Roberta de Jesus Elementary School,4STY8CL,VALENZUELA CITY,NCR
+1000165,INF-01-2024-01810,6,5,1,0,San Antonio Elementary School,2STY12CL,ISLAND GARDEN CITY OF SAMAL,REGION XI
+1009663,INF-02-2026-00002,6,2,4,0,Pag-asa NHS,"REPAIR OF CLASSROOM AT PAG-ASA NATIONAL HIGH SCHOOL, BANSUD, ORIENTAL MINDORO ",ORIENTAL MINDORO,MIMAROPA
+1009864,INF-02-2024-02076,6,1,5,0,Tiguis ES,Repair of Classrooms,BOHOL,REGION VII
+1000605,INF-01-2024-01289,6,3,3,0,Dasmarinas North National High School (Annex G),4STY16CL,DASMARINAS CITY,REGION IV-A
+1009868,INF-02-2024-01926,6,1,5,0,Malinao ES,Repair of Classrooms,BOHOL,REGION VII
+1009744,INF-01-2026-01176,6,2,4,0,Cocob ES,CONSTRUCTION OF 1 STOREY 2 CLASSROOMS,ZAMBOANGA DEL NORTE,REGION IX
+1009779,INF-02-2024-02148,6,3,3,0,La Libertad CS,Repair / Rehabilitation of Classrooms,ZAMBOANGA DEL NORTE,REGION IX
+1000625,INF-11-2024-00685,6,3,3,0,Mahatao Elementary School,REPAIR OF CLASSROOMS,BATANES,REGION II
+1000194,INF-02-2025-00981,6,1,5,0,Upland ES,Repair / Rehabilitation of Classrooms,CARCAR CITY,REGION VII
+1009993,INF-04-2025-00002,6,2,4,0,Antequera Central Elementary School,1 STOREY BUILDING,BOHOL,REGION VII
+1009943,INF-12-2024-00999,6,6,0,0,BAGTAYAN ELEMENTARY SCHOOL,Energization of Electrical System (Overhead System),KALINGA,CAR
+1000627,INF-02-2024-00547,6,3,3,0,Itbud Integrated School,Repair of Classrooms,BATANES,REGION II

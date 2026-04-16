@@ -11509,20 +11509,47 @@ app.get('/api/projects', async (req, res) => {
       queryParams.push(req.query.district);
       whereClauses.push(`TRIM(p.district) ILIKE TRIM($${queryParams.length})`);
     }
-    // NEW: Funding Year Filter
+    // Funding Year Filter — supports comma-separated multi-value
     if (req.query.year) {
-      queryParams.push(req.query.year);
-      whereClauses.push(`TRIM(p.funding_year::text) ILIKE TRIM($${queryParams.length})`);
+      const yearList = req.query.year.split(',').map(y => y.trim()).filter(Boolean);
+      if (yearList.length === 1) {
+        queryParams.push(yearList[0]);
+        whereClauses.push(`p.funding_year::text = $${queryParams.length}`);
+      } else if (yearList.length > 1) {
+        const placeholders = yearList.map(y => { queryParams.push(y); return `$${queryParams.length}`; });
+        whereClauses.push(`p.funding_year::text = ANY(ARRAY[${placeholders.join(',')}])`);
+      }
     }
-    // NEW: Batch of Funds Filter
+    // Batch of Funds Filter — supports comma-separated multi-value
     if (req.query.batch) {
-      queryParams.push(req.query.batch);
-      whereClauses.push(`TRIM(p.batch_of_funds::text) ILIKE TRIM($${queryParams.length})`);
+      const batchList = req.query.batch.split(',').map(b => b.trim()).filter(Boolean);
+      if (batchList.length === 1) {
+        queryParams.push(batchList[0]);
+        whereClauses.push(`TRIM(p.batch_of_funds) ILIKE $${queryParams.length}`);
+      } else if (batchList.length > 1) {
+        const placeholders = batchList.map(b => { queryParams.push(b.toUpperCase()); return `$${queryParams.length}`; });
+        whereClauses.push(`UPPER(TRIM(p.batch_of_funds)) = ANY(ARRAY[${placeholders.join(',')}])`);
+      }
     }
-    // NEW: Category Filter
+    // Project Category Filter — supports comma-separated multi-value
     if (req.query.category) {
-      queryParams.push(req.query.category);
-      whereClauses.push(`TRIM(p.project_category) ILIKE TRIM($${queryParams.length})`);
+      const catList = req.query.category.split(',').map(c => c.trim()).filter(Boolean);
+      if (catList.length === 1) {
+        queryParams.push(catList[0]);
+        whereClauses.push(`TRIM(p.project_category) ILIKE $${queryParams.length}`);
+      } else if (catList.length > 1) {
+        const placeholders = catList.map(c => { queryParams.push(c); return `$${queryParams.length}`; });
+        whereClauses.push(`TRIM(p.project_category) = ANY(ARRAY[${placeholders.join(',')}])`);
+      }
+    }
+    // Accomplishment Percentage Range Filter
+    if (req.query.acc_min !== undefined && req.query.acc_min !== '') {
+      queryParams.push(parseInt(req.query.acc_min, 10));
+      whereClauses.push(`p.accomplishment_percentage >= $${queryParams.length}`);
+    }
+    if (req.query.acc_max !== undefined && req.query.acc_max !== '') {
+      queryParams.push(parseInt(req.query.acc_max, 10));
+      whereClauses.push(`p.accomplishment_percentage <= $${queryParams.length}`);
     }
 
     // NEW: Program Type (Donated/BEFF) Filter

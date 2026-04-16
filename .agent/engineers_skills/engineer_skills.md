@@ -76,7 +76,36 @@ WHERE project_id != survivor_id;
 
 ---
 
-## 4. Future System Guardrails (Compliance Checklist)
+## 4. UI Changelog (April 2026)
+
+### IV. EFD Filter System Upgrade (April 16, 2026)
+Upgraded the `FilterDrawer` component used by both `EFDHome.jsx` and `EFDMonitoring.jsx`.
+
+**Files changed:**
+- `src/components/FilterDrawer.jsx`
+- `src/context/EFDFilterContext.jsx`
+- `src/modules/EFDHome.jsx`
+- `src/modules/EFDMonitoring.jsx`
+- `api/index.js` (GET /api/projects)
+
+**What changed:**
+- Replaced pill/chip multi-select (`MultiSelectField`) with `MultiSelectDropdown` for: **Region, Project Category, Funding Year, Batch of Funds**. Each dropdown shows a badge count, Select All / Deselect All, and individual checkboxes.
+- Added **Accomplishment % Range** filter: dual sliders (Min/Max) + direct number input fields with `onBlur`/`Enter` commit. Quick-select preset badges: Not Started, 1–25%, 26–50%, 51–75%, 76–99%, Completed.
+- `EFDFilterContext` now stores `accomplishmentRange [0, 100]` persisted to `localStorage` key `efd_accomplishmentRange`.
+- `EFDHome` filters client-side in `filteredProjects` useMemo using `acc >= range[0] && acc <= range[1]`.
+- `EFDMonitoring` sends `acc_min` / `acc_max` as query params to `GET /api/projects` (server-side).
+- Backend `GET /api/projects` upgraded: **year, batch, category** now support comma-separated multi-value using `ANY(ARRAY[...])` instead of single-value `ILIKE`. New `acc_min` / `acc_max` params added.
+
+### V. EFD Monitoring Delete Button Resize (April 16, 2026)
+**File changed:** `src/modules/EFDMonitoring.jsx` (card view, ~line 696)
+
+- Removed `flex-1` width expansion and "Delete" text label
+- Changed to icon-only: `p-2.5` padding, `rounded-xl`, `FiTrash2 size={14}`
+- Table view delete button (line ~563) was already icon-only — left untouched.
+
+---
+
+## 5. Future System Guardrails (Compliance Checklist)
 When modifying code for these accounts, the AI **MUST** verify:
 1. **Photo Categorization**: Ensure updates are blocked if photos are not tagged as 'Internal' or 'External'.
 2. **IPC Integrity**: Maintain the InsightEd Project Code (IPC) as the unique logical identifier during any data migrations.

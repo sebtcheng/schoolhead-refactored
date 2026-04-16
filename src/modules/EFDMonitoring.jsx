@@ -37,6 +37,7 @@ const EFDMonitoring = () => {
         selectedMunicipality, setSelectedMunicipality,
         selectedDistrict, setSelectedDistrict,
         searchHistory, addToSearchHistory,
+        accomplishmentRange, setAccomplishmentRange,
         clearFilters
     } = useEFDFilters();
     const [fundingYears, setFundingYears] = useState([]);
@@ -172,6 +173,8 @@ const EFDMonitoring = () => {
             if (selectedDistrict) params.append('district', selectedDistrict);
             if (selectedYears.length > 0) params.append('year', selectedYears.join(','));
             if (selectedBatches.length > 0) params.append('batch', selectedBatches.join(','));
+            if (accomplishmentRange[0] > 0) params.append('acc_min', accomplishmentRange[0]);
+            if (accomplishmentRange[1] < 100) params.append('acc_max', accomplishmentRange[1]);
 
             const res = await fetch(`/api/projects?${params.toString()}`);
             if (res.ok) {
@@ -190,7 +193,7 @@ const EFDMonitoring = () => {
             setIsRefreshing(false);
             setLoading(false);
         }
-    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches]);
+    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange]);
 
     useEffect(() => {
         const fetchInitial = async () => {
@@ -267,8 +270,9 @@ const EFDMonitoring = () => {
         setSelectedCategories(filters.categories || []);
         setSelectedYears(filters.years || []);
         setSelectedBatches(filters.batches || []);
+        setAccomplishmentRange(filters.accRange || [0, 100]);
         setCurrentPage(1);
-    }, [setSelectedRegions, setSelectedDivision, setSelectedProvince, setSelectedMunicipality, setSelectedDistrict, setSelectedCategories, setSelectedYears, setSelectedBatches]);
+    }, [setSelectedRegions, setSelectedDivision, setSelectedProvince, setSelectedMunicipality, setSelectedDistrict, setSelectedCategories, setSelectedYears, setSelectedBatches, setAccomplishmentRange]);
 
     const handleAssign = async () => {
         if (!selectedProject || selectedEngineers.length === 0) return;
@@ -691,10 +695,9 @@ const EFDMonitoring = () => {
                                                     )}
                                                     <button
                                                         onClick={(e) => handleDeleteProject(e, p.id)}
-                                                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-50 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-[0.98] border border-red-100/50"
+                                                        className="p-2.5 flex items-center justify-center bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-[0.98] border border-red-100/50"
                                                     >
                                                         <FiTrash2 size={14} />
-                                                        Delete
                                                     </button>
                                                 </div>
                                             </div>
@@ -896,6 +899,7 @@ const EFDMonitoring = () => {
                 initialCategories={selectedCategories}
                 initialYears={selectedYears}
                 initialBatches={selectedBatches}
+                initialAccRange={accomplishmentRange}
                 yearOptions={fundingYears}
                 batchOptions={allBatches}
                 categoryOptions={projectCategories}
