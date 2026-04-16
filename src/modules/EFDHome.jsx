@@ -150,6 +150,7 @@ const EFDHome = () => {
         selectedDocStatus, setSelectedDocStatus,
         searchHistory, addToSearchHistory,
         accomplishmentRange, setAccomplishmentRange,
+        minPhotos, setMinPhotos,
         clearFilters
     } = useEFDFilters();
 
@@ -234,7 +235,7 @@ const EFDHome = () => {
         navigate(`/project-details/${id}`);
     }, [navigate]);
 
-    const handleFilterApply = useCallback(({ regions, divisions, categories, years, province, municipality, district, batches, accRange }) => {
+    const handleFilterApply = useCallback(({ regions, divisions, categories, years, province, municipality, district, batches, accRange, minPhotos: mp }) => {
         setSelectedRegions(regions || []);
         setSelectedDivision(divisions?.[0] || '');
         setSelectedProvince(province || '');
@@ -244,8 +245,9 @@ const EFDHome = () => {
         setSelectedYears(years || []);
         setSelectedBatches(batches || []);
         setAccomplishmentRange(accRange || [0, 100]);
+        setMinPhotos(mp ?? 0);
         setCurrentPage(1);
-    }, [setAccomplishmentRange]);
+    }, [setAccomplishmentRange, setMinPhotos]);
 
     const allCategories = [
         "New Construction",
@@ -585,9 +587,12 @@ const EFDHome = () => {
             const acc = parseInt(p.accomplishmentPercentage ?? p.accomplishment_percentage ?? 0);
             const matchesAccRange = acc >= accomplishmentRange[0] && acc <= accomplishmentRange[1];
 
-            return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesAccRange;
+            const photoCount = parseInt(p.imagesCount ?? p.images_count ?? 0);
+            const matchesMinPhotos = minPhotos === 0 || photoCount >= minPhotos;
+
+            return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesAccRange && matchesMinPhotos;
         });
-    }, [projects, searchQuery, selectedRegions, selectedDivision, selectedCategories, accomplishmentRange]);
+    }, [projects, searchQuery, selectedRegions, selectedDivision, selectedCategories, accomplishmentRange, minPhotos]);
 
     const totalABC = useMemo(() => {
         // Prioritize aggregate budget from summary API, fallback to 0
@@ -1834,6 +1839,7 @@ const EFDHome = () => {
                 initialYears={selectedYears}
                 initialBatches={selectedBatches}
                 initialAccRange={accomplishmentRange}
+                initialMinPhotos={minPhotos}
                 yearOptions={allYears}
                 batchOptions={allBatches}
                 categoryOptions={projectCategories}

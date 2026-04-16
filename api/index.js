@@ -11535,6 +11535,11 @@ app.get('/api/projects', async (req, res) => {
       queryParams.push(parseInt(req.query.acc_max, 10));
       whereClauses.push(`p.accomplishment_percentage <= $${queryParams.length}`);
     }
+    // Min Photos Filter
+    if (req.query.min_photos !== undefined && req.query.min_photos !== '') {
+      queryParams.push(parseInt(req.query.min_photos, 10));
+      whereClauses.push(`(SELECT COUNT(*) FROM engineer_image ei WHERE ei.ipc = p.ipc OR ei.project_id = p.project_id) >= $${queryParams.length}`);
+    }
 
     // NEW: Program Type (Donated/BEFF) Filter
     if (is_donated !== undefined && is_donated !== null && is_donated !== '' && is_donated !== 'All') {

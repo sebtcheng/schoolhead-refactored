@@ -259,6 +259,82 @@ const AccomplishmentRange = ({ value, onChange }) => {
     );
 };
 
+// ─── Min Photos Filter ────────────────────────────────────────────────────────
+const PHOTO_PRESETS = [
+    { label: 'Any', value: 0 },
+    { label: '>5', value: 6 },
+    { label: '>10', value: 11 },
+    { label: '>20', value: 21 },
+    { label: '>50', value: 51 },
+];
+
+const MinPhotosFilter = ({ value, onChange }) => {
+    const [customInput, setCustomInput] = useState(value > 0 ? String(value) : '');
+    const isActive = value > 0;
+
+    useEffect(() => {
+        setCustomInput(value > 0 ? String(value) : '');
+    }, [value]);
+
+    const commitCustom = (raw) => {
+        const v = parseInt(raw, 10);
+        if (isNaN(v) || v <= 0) {
+            onChange(0);
+            setCustomInput('');
+        } else {
+            onChange(v);
+            setCustomInput(String(v));
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <label className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                Min. Photos in Gallery
+            </label>
+
+            {/* Preset badges */}
+            <div className="flex flex-wrap gap-1.5">
+                {PHOTO_PRESETS.map(({ label, value: pv }) => {
+                    const active = pv === 0 ? value === 0 : value === pv;
+                    return (
+                        <button
+                            key={label}
+                            onClick={() => { onChange(pv); setCustomInput(pv > 0 ? String(pv) : ''); }}
+                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black transition-all border ${
+                                active
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-500 hover:border-blue-200'
+                            }`}
+                        >
+                            {label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Custom input */}
+            <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black text-slate-400 uppercase shrink-0">Custom:</span>
+                <input
+                    type="number"
+                    min={1}
+                    placeholder="e.g. 15"
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    onBlur={(e) => commitCustom(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && commitCustom(e.target.value)}
+                    className={`w-24 text-center text-[11px] font-black rounded-xl border px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all
+                        ${isActive && !PHOTO_PRESETS.some(p => p.value === value)
+                            ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700 text-blue-600 dark:text-blue-400'
+                            : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300'}`}
+                />
+                <span className="text-[9px] text-slate-400">photos or more</span>
+            </div>
+        </div>
+    );
+};
+
 // ─── Main FilterDrawer ────────────────────────────────────────────────────────
 const FilterDrawer = ({
     isOpen,
@@ -272,6 +348,7 @@ const FilterDrawer = ({
     initialYears = [],
     initialBatches = [],
     initialAccRange = [0, 100],
+    initialMinPhotos = 0,
     yearOptions = [],
     batchOptions = [],
     categoryOptions = [],
@@ -289,6 +366,7 @@ const FilterDrawer = ({
     const [selectedYears, setSelectedYears] = useState(initialYears);
     const [selectedBatchFunds, setSelectedBatchFunds] = useState(initialBatches);
     const [accRange, setAccRange] = useState(initialAccRange);
+    const [minPhotos, setMinPhotos] = useState(initialMinPhotos);
 
     // Sync when drawer opens — intentional setState in effect to reset draft state
     // once per open. Array props excluded from deps to avoid infinite re-sync loop.
@@ -301,6 +379,7 @@ const FilterDrawer = ({
             setSelectedYears(initialYears || []);
             setSelectedBatchFunds(initialBatches || []);
             setAccRange(initialAccRange || [0, 100]);
+            setMinPhotos(initialMinPhotos || 0);
             /* eslint-enable react-hooks/set-state-in-effect */
         }
     }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -364,6 +443,7 @@ const FilterDrawer = ({
                 district: selectedDistrict,
                 batches: selectedBatchFunds,
                 accRange,
+                minPhotos,
             });
         }
         onClose();
@@ -379,6 +459,7 @@ const FilterDrawer = ({
         setSelectedYears([]);
         setSelectedBatchFunds([]);
         setAccRange([0, 100]);
+        setMinPhotos(0);
     };
 
     const activeCount = [
@@ -388,6 +469,7 @@ const FilterDrawer = ({
         selectedYears.length > 0,
         selectedBatchFunds.length > 0,
         accRange[0] > 0 || accRange[1] < 100,
+        minPhotos > 0,
     ].filter(Boolean).length;
 
     const drawer = (
@@ -462,6 +544,9 @@ const FilterDrawer = ({
 
                         {/* Accomplishment Range */}
                         <AccomplishmentRange value={accRange} onChange={setAccRange} />
+
+                        {/* Min Photos Filter */}
+                        <MinPhotosFilter value={minPhotos} onChange={setMinPhotos} />
 
                         {/* Location Hierarchy */}
                         <div className="space-y-4">

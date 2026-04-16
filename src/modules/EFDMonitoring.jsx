@@ -38,6 +38,7 @@ const EFDMonitoring = () => {
         selectedDistrict, setSelectedDistrict,
         searchHistory, addToSearchHistory,
         accomplishmentRange, setAccomplishmentRange,
+        minPhotos, setMinPhotos,
         clearFilters
     } = useEFDFilters();
     const [fundingYears, setFundingYears] = useState([]);
@@ -175,6 +176,7 @@ const EFDMonitoring = () => {
             if (selectedBatches.length > 0) params.append('batch', selectedBatches.join(','));
             if (accomplishmentRange[0] > 0) params.append('acc_min', accomplishmentRange[0]);
             if (accomplishmentRange[1] < 100) params.append('acc_max', accomplishmentRange[1]);
+            if (minPhotos > 0) params.append('min_photos', minPhotos);
 
             const res = await fetch(`/api/projects?${params.toString()}`);
             if (res.ok) {
@@ -193,7 +195,7 @@ const EFDMonitoring = () => {
             setIsRefreshing(false);
             setLoading(false);
         }
-    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange]);
+    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange, minPhotos]);
 
     useEffect(() => {
         const fetchInitial = async () => {
@@ -271,8 +273,9 @@ const EFDMonitoring = () => {
         setSelectedYears(filters.years || []);
         setSelectedBatches(filters.batches || []);
         setAccomplishmentRange(filters.accRange || [0, 100]);
+        setMinPhotos(filters.minPhotos ?? 0);
         setCurrentPage(1);
-    }, [setSelectedRegions, setSelectedDivision, setSelectedProvince, setSelectedMunicipality, setSelectedDistrict, setSelectedCategories, setSelectedYears, setSelectedBatches, setAccomplishmentRange]);
+    }, [setSelectedRegions, setSelectedDivision, setSelectedProvince, setSelectedMunicipality, setSelectedDistrict, setSelectedCategories, setSelectedYears, setSelectedBatches, setAccomplishmentRange, setMinPhotos]);
 
     const handleAssign = async () => {
         if (!selectedProject || selectedEngineers.length === 0) return;
@@ -900,6 +903,7 @@ const EFDMonitoring = () => {
                 initialYears={selectedYears}
                 initialBatches={selectedBatches}
                 initialAccRange={accomplishmentRange}
+                initialMinPhotos={minPhotos}
                 yearOptions={fundingYears}
                 batchOptions={allBatches}
                 categoryOptions={projectCategories}
