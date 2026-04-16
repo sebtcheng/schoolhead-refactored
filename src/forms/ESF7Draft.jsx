@@ -48,7 +48,7 @@ const ESF7Draft = () => {
     const { user } = useAuth();
     const fileInputRef = useRef(null);
     
-    const [uploadMode, setUploadMode] = useState('link'); // Default to link
+    const [uploadMode, setUploadMode] = useState('file'); // Default to file upload flow
     const [isParsing, setIsParsing] = useState(false);
     const [error, setError] = useState(null);
     const [parsedRecords, setParsedRecords] = useState([]);
@@ -64,13 +64,11 @@ const ESF7Draft = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    // New State for reflection
     const [existingStatus, setExistingStatus] = useState(null);
     const [existingCount, setExistingCount] = useState(0);
     const [isLoadingStatus, setIsLoadingStatus] = useState(true);
-    const [showResubmitInput, setShowResubmitInput] = useState(false);
-    const [showConfirmChallenge, setShowConfirmChallenge] = useState(false);
-    const [confirmInput, setConfirmInput] = useState('');
+    const [resubmitRequestStatus, setResubmitRequestStatus] = useState(null); // PENDING, APPROVED, etc.
+    const [resubmitReason, setResubmitReason] = useState('');
 
     React.useEffect(() => {
         if (user?.school_id) fetchExistingStatus();
@@ -79,17 +77,127 @@ const ESF7Draft = () => {
     const fetchExistingStatus = async () => {
         setIsLoadingStatus(true);
         try {
-            const res = await fetch(`/api/esf7/records/${user.school_id}`);
-            const data = await res.json();
-            if (data.success && data.data.length > 0) {
-                setExistingStatus(data.data[0].status);
-                setExistingCount(data.data.length);
+            const [statusRes, reqRes] = await Promise.all([
+                fetch(`/api/esf7/status/${user.school_id}`),
+                fetch(`/api/esf7/request-status/${user.school_id}`)
+            ]);
+
+            const statusData = await statusRes.json();
+            const reqData = await reqRes.json();
+
+            if (statusData.success) setExistingStatus(statusData.status);
+            setResubmitRequestStatus(reqData.status);
+
+            // If we have status, fetch records to get count
+            if (statusData.status !== 'NOT_STARTED') {
+                const recRes = await fetch(`/api/esf7/records/${user.school_id}`);
+                const recData = await recRes.json();
+                if (recData.success) setExistingCount(recData.data.length);
             }
         } catch (err) {
             console.error("Fetch Status Error:", err);
         } finally {
             setIsLoadingStatus(false);
         }
+    };
+
+    const handleRequestResubmit = async () => {
+        if (!resubmitReason.trim()) return alert("Please provide a reason.");
+        setIsSubmitting(true);
+        try {
+            const res = await fetch('/api/esf7/request-resubmit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    school_id: user.school_id,
+                    school_name: user?.school_name,
+                    reason: resubmitReason
+                })
+            });
+            if (res.ok) {
+                alert("Request sent successfully.");
+                fetchExistingStatus();
+            }
+        } catch (err) {
+            alert("Failed to send request.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Verify it's an .xlsb or .xlsx file (ideally .xlsb but xlsx also works for testing)
+        if (!file.name.endsWith('.xlsb') && !file.name.endsWith('.xlsx')) {
+            setError("Invalid file type. Please upload an .xlsb or .xlsx ESF7 master file.");
+            return;
+        }
+
+        setIsParsing(true);
+        setError(null);
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'array' });
+                
+                // Find DB_USER sheet
+                const dbUserSheet = wb.Sheets['DB_USER'];
+                if (!dbUserSheet) {
+                    throw new Error("Missing 'DB_USER' technical sheet. Please ensure you are uploading the correct ESF7 master file.");
+                }
+
+                // Get raw rows to handle blank headers and positional columns (like OB)
+                const rows = XLSX.utils.sheet_to_json(dbUserSheet, { header: 1, defval: "" });
+                if (rows.length < 2) throw new Error("The 'DB_USER' sheet is empty or invalid.");
+
+                // Row 0 usually contains headers
+                const rawHeaders = rows[0];
+                
+                // Process records from row 1 onwards
+                const records = rows.slice(1).filter(r => r.some(v => v !== null && v !== undefined && String(v).trim() !== "")).map(row => {
+                    const record = {};
+                    rawHeaders.forEach((h, i) => {
+                        let key = h ? String(h).trim() : `col_${i}`;
+                        record[key] = row[i] || "";
+                    });
+                    
+                    // Positional capture for OB (Index 391) which is blank in original file but is APPT_YYYY
+                    if (row[391] !== undefined) {
+                        record['appt_yyyy'] = row[391];
+                    }
+                    
+                    return record;
+                });
+
+                if (!records.length) {
+                    throw new Error("No valid personnel data found in the sheet.");
+                }
+
+                setParsedRecords(records);
+                setParsedData({
+                    totalRows: records.length,
+                    sample: records.slice(0, 5).map(r => Object.values(r)),
+                    headers: Object.keys(records[0])
+                });
+
+            } catch (err) {
+                console.error("Parsing Error:", err);
+                setError(err.message || "Failed to parse the workbook. Ensure it is a valid ESF7 file.");
+            } finally {
+                setIsParsing(false);
+            }
+        };
+
+        reader.onerror = () => {
+            setError("Failed to read file.");
+            setIsParsing(false);
+        };
+
+        reader.readAsArrayBuffer(file);
     };
 
     const handleLinkSubmit = async () => {
@@ -176,16 +284,16 @@ const ESF7Draft = () => {
                 </header>
 
                 <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
-                    {/* --- STATUS DASHBOARD (Reflection) --- */}
-                    {existingStatus && (
+                    {/* --- STATUS DASHBOARD (Reflection & Resubmission Request) --- */}
+                    {(existingStatus === 'PENDING_SDO' || existingStatus === 'VERIFIED' || existingStatus === 'REJECTED') && (
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="bg-white border-2 border-blue-50 rounded-[2.5rem] p-8 shadow-sm space-y-4"
+                            className="bg-white border-2 border-blue-50 rounded-[2.5rem] p-8 shadow-sm space-y-6"
                         >
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
-                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Current Database Status</h3>
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Submission Status</h3>
                                     <div className="flex items-center gap-2">
                                         <div className={`w-3 h-3 rounded-full animate-pulse ${existingStatus === 'VERIFIED' ? 'bg-emerald-500' : existingStatus === 'REJECTED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
                                         <span className={`text-xl font-black uppercase italic tracking-tighter ${existingStatus === 'VERIFIED' ? 'text-emerald-600' : existingStatus === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}`}>
@@ -194,64 +302,48 @@ const ESF7Draft = () => {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Records Staged</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Records Processed</p>
                                     <p className="text-2xl font-black text-slate-800 tracking-tighter">{existingCount}</p>
                                 </div>
                             </div>
                             
-                            <div className="pt-4 border-t border-slate-50 flex flex-col gap-4">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed text-center">
-                                    {existingStatus === 'VERIFIED' 
-                                        ? "Your ESF7 data is officially verified and committed to the master database." 
-                                        : existingStatus === 'REJECTED'
-                                        ? "This submission was returned by the SDO for corrections. Please re-upload the corrected file."
-                                        : "Your data is current pending SDO review."}
-                                </p>
-                                
-                                {(!showResubmitInput && !parsedData && (existingStatus !== 'VERIFIED' || showConfirmChallenge)) && (
-                                    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                                        {!showConfirmChallenge ? (
-                                            <button 
-                                                onClick={() => setShowConfirmChallenge(true)}
-                                                className="w-full py-4 bg-slate-900 text-white text-xs font-black rounded-2xl shadow-lg active:scale-95 transition-all uppercase italic tracking-widest flex items-center justify-center gap-3"
-                                            >
-                                                <FiFileText size={18} className="text-blue-400" />
-                                                <span>RESUBMIT DATA</span>
-                                            </button>
+                            <div className="pt-6 border-t border-slate-50 space-y-6">
+                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-start gap-4">
+                                    <FiShield className="text-indigo-600 w-6 h-6 shrink-0" />
+                                    <p className="text-[11px] font-bold text-slate-500 leading-relaxed uppercase">
+                                        {existingStatus === 'VERIFIED' 
+                                            ? "Module Locked: Your ESF7 has been officially verified by SGOD. Changes are no longer allowed without a formal resubmission request approval." 
+                                            : existingStatus === 'REJECTED'
+                                            ? "Submission Returned: The SDO has returned your data for correction. You may re-upload the corrected file below."
+                                            : "Locked for Audit: Your data is currently being reviewed by the Division Office. To ensure audit integrity, the module is locked."}
+                                    </p>
+                                </div>
+
+                                {existingStatus !== 'REJECTED' && (
+                                    <div className="space-y-4">
+                                        {resubmitRequestStatus === 'PENDING' ? (
+                                            <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 flex flex-col items-center gap-3 text-center">
+                                                <FiLoader className="text-amber-500 animate-spin" />
+                                                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest italic">Resubmission Request Awaiting SGOD Approval</p>
+                                                <p className="text-[9px] font-bold text-amber-600/70 leading-relaxed italic uppercase">Our system has notified the Division Office. You will be able to re-upload once they unlock this module for you.</p>
+                                            </div>
                                         ) : (
                                             <div className="space-y-4">
-                                                {/* --- CLOUD POLICY ADVISORY --- */}
-                                                <div className="bg-amber-50 border-2 border-amber-100/50 rounded-2xl p-5 flex items-start gap-4">
-                                                    <FiMonitor className="text-amber-500 shrink-0 w-5 h-5 mt-1" />
-                                                    <div className="space-y-1">
-                                                        <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-tighter italic">Cloud-Only Policy</h4>
-                                                        <p className="text-[9px] font-bold text-amber-700/70 leading-relaxed uppercase">
-                                                            InsightEd strictly uses cloud links. Keep your <span className="text-blue-600 underline">Google Drive</span> file restricted and share it only with the system email for security.
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Type 'CONFIRM' to unlock"
-                                                        className="bg-transparent border-none outline-none flex-1 text-[10px] font-black text-slate-700 placeholder:text-slate-200 uppercase italic"
-                                                        value={confirmInput}
-                                                        onChange={(e) => setConfirmInput(e.target.value.toUpperCase())}
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Justification for Resubmission</label>
+                                                    <textarea 
+                                                        value={resubmitReason}
+                                                        onChange={(e) => setResubmitReason(e.target.value)}
+                                                        placeholder="e.g. Correction of teacher loading entries, missing records in previous upload..."
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-[1.5rem] p-5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all outline-none min-h-[100px]"
                                                     />
-                                                    <button 
-                                                        onClick={() => {
-                                                            if (confirmInput === 'CONFIRM') {
-                                                                setShowResubmitInput(true);
-                                                                setConfirmInput('');
-                                                            }
-                                                        }}
-                                                        disabled={confirmInput !== 'CONFIRM'}
-                                                        className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black rounded-lg disabled:opacity-30 transition-all uppercase italic"
-                                                    >
-                                                        Unlock
-                                                    </button>
                                                 </div>
+                                                <button 
+                                                    onClick={handleRequestResubmit}
+                                                    className="w-full py-5 bg-indigo-600 text-white text-[10px] font-black rounded-3xl shadow-xl shadow-indigo-200 active:scale-95 transition-all uppercase italic tracking-widest flex items-center justify-center gap-3"
+                                                >
+                                                    Request Unlocking
+                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -261,7 +353,7 @@ const ESF7Draft = () => {
                     )}
 
                     {/* --- PHASE 1: UPLOAD --- */}
-                    {(!existingStatus || showResubmitInput) && !parsedData && (
+                    {(!existingStatus || existingStatus === 'NOT_STARTED' || existingStatus === 'REJECTED') && !parsedData && (
                         <div className="space-y-6">
                             <div className="text-center space-y-2">
                                 <h2 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">
@@ -279,62 +371,102 @@ const ESF7Draft = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 space-y-6"
                             >
-                                {/* Security Advisory */}
-                                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 space-y-4">
-                                    <div className="flex items-start gap-3">
-                                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl shrink-0">
-                                            <FiShield className="w-5 h-5" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest">Strictly Private File Sharing</h4>
-                                            <p className="text-[10px] font-bold text-indigo-700/70 leading-relaxed">
-                                                To protect sensitive personnel data, keep your Google Drive file <span className="font-black text-indigo-900">Restricted</span>. Grant viewer access <span className="underline decoration-indigo-300">only</span> to the system email below.
-                                            </p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-3 bg-white border-2 border-indigo-50 p-2.5 rounded-xl">
-                                        <div className="flex-1 px-2">
-                                            <span className="text-[10px] font-black text-slate-700 tracking-tight select-all leading-tight break-all">insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com</span>
-                                        </div>
-                                        <button 
-                                            onClick={handleCopyEmail}
-                                            className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2"
-                                        >
-                                            {copied ? <FiCheckCircle /> : <FiCopy />}
-                                            {copied ? 'Copied' : 'Copy'}
-                                        </button>
-                                    </div>
+                                {/* Mode Selection */}
+                                <div className="flex p-1 bg-slate-100 rounded-2xl">
+                                    <button 
+                                        onClick={() => setUploadMode('file')}
+                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${uploadMode === 'file' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                                    >
+                                        Direct Upload
+                                    </button>
+                                    <button 
+                                        onClick={() => setUploadMode('link')}
+                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${uploadMode === 'link' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                                    >
+                                        Cloud Link
+                                    </button>
                                 </div>
 
-                                <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:border-blue-300 transition-colors">
-                                    <FiLink className="text-blue-500 w-6 h-6" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Paste Google Drive Link"
-                                        className="bg-transparent border-none outline-none flex-1 text-sm font-bold text-slate-700 placeholder:text-slate-300"
-                                        value={driveLink}
-                                        onChange={(e) => setDriveLink(e.target.value)}
-                                        disabled={isParsing}
-                                    />
-                                </div>
-                                <button 
-                                    onClick={handleLinkSubmit}
-                                    disabled={isParsing || !driveLink}
-                                    className="w-full py-5 bg-[#004A99] text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 italic"
-                                >
-                                    {isParsing ? (
-                                        <>
-                                            <FiLoader className="animate-spin" />
-                                            <span>CONNECTING TO DRIVE...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FiUploadCloud />
-                                            <span>EXTRACT FROM CLOUD</span>
-                                        </>
-                                    )}
-                                </button>
+                                {uploadMode === 'file' ? (
+                                    <div 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center space-y-4 hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group"
+                                    >
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef} 
+                                            className="hidden" 
+                                            accept=".xlsb,.xlsx"
+                                            onChange={handleFileUpload}
+                                        />
+                                        <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                                            <FiUploadCloud size={32} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tighter italic">Upload Personnel Intelligence Sheet</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Supports .xlsb (Binary) or .xlsx</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {/* Security Advisory */}
+                                        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 space-y-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl shrink-0">
+                                                    <FiShield className="w-5 h-5" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest">Strictly Private File Sharing</h4>
+                                                    <p className="text-[10px] font-bold text-indigo-700/70 leading-relaxed">
+                                                        To protect sensitive personnel data, keep your Google Drive file <span className="font-black text-indigo-900">Restricted</span>. Grant viewer access <span className="underline decoration-indigo-300">only</span> to the system email below.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-3 bg-white border-2 border-indigo-50 p-2.5 rounded-xl">
+                                                <div className="flex-1 px-2">
+                                                    <span className="text-[10px] font-black text-slate-700 tracking-tight select-all leading-tight break-all">insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com</span>
+                                                </div>
+                                                <button 
+                                                    onClick={handleCopyEmail}
+                                                    className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2"
+                                                >
+                                                    {copied ? <FiCheckCircle /> : <FiCopy />}
+                                                    {copied ? 'Copied' : 'Copy'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:border-blue-300 transition-colors">
+                                            <FiLink className="text-blue-500 w-6 h-6" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Paste Google Drive Link"
+                                                className="bg-transparent border-none outline-none flex-1 text-sm font-bold text-slate-700 placeholder:text-slate-300"
+                                                value={driveLink}
+                                                onChange={(e) => setDriveLink(e.target.value)}
+                                                disabled={isParsing}
+                                            />
+                                        </div>
+                                        <button 
+                                            onClick={handleLinkSubmit}
+                                            disabled={isParsing || !driveLink}
+                                            className="w-full py-5 bg-[#004A99] text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 italic"
+                                        >
+                                            {isParsing ? (
+                                                <>
+                                                    <FiLoader className="animate-spin" />
+                                                    <span>CONNECTING TO DRIVE...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FiUploadCloud />
+                                                    <span>EXTRACT FROM CLOUD</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
                             </motion.div>
 
                             {error && (

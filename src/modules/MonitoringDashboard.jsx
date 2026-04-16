@@ -80,11 +80,13 @@ const slideVariants = {
   exit: (dir) => ({ x: dir > 0 ? '-60%' : '60%', opacity: 0 }),
 };
 
-const TopStatCard = ({ title, value, icon: Icon, color, subtext, secondaryValue }) => (
+const TopStatCard = ({ title, value, icon: Icon, color, subtext, secondaryValue, onClick }) => (
     <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group overflow-hidden relative"
+        whileTap={onClick ? { scale: 0.95 } : {}}
+        onClick={onClick}
+        className={`bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group overflow-hidden relative ${onClick ? 'cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition-all' : ''}`}
     >
         <div className="flex justify-between items-start mb-4 sm:mb-6">
             <div className={`p-2 sm:p-4 rounded-xl sm:rounded-2xl ${color} bg-opacity-10 dark:bg-opacity-20 text-current`}>
@@ -560,6 +562,10 @@ const MonitoringDashboard = () => {
                 icon={FiFileText} 
                 color="bg-indigo-600" 
                 subtext="Staged / Verified"
+                onClick={(user?.role === 'Super User' || (user?.office || '').toUpperCase() === 'SCHOOL GOVERNANCE AND OPERATIONS DIVISION (SGOD)') 
+                    ? () => navigate('/esf7/review') 
+                    : null
+                }
             />
             <motion.button
                 initial={{ opacity: 0, y: 20 }}

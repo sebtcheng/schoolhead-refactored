@@ -145,7 +145,7 @@ const NodesDashboard = () => {
             route: '/draft/esf7',
             badge: esf7Status === 'VERIFIED' ? 'VERIFIED' : (esf7Status === 'NOT_STARTED' ? 'BETA' : 'STAGED'),
             description: 'eSF7 will know about teacher and staff loading.',
-            isLocked: true, // Portal officially locked per user request
+            isLocked: false, // Portal unlocked for conference/presentation
         },
         {
             id: 'nspp',

@@ -1,3 +1,4 @@
+/* src/modules/ESF7Review.jsx */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -9,11 +10,9 @@ import {
     FiLoader,
     FiAlertCircle,
     FiSearch,
-    FiGrid,
-    FiArchive,
-    FiAlertTriangle,
+    FiActivity,
     FiFileText,
-    FiActivity
+    FiShield
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -36,23 +35,18 @@ const ESF7Review = () => {
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('queue'); // queue, verified, missing, all
+    const [activeTab, setActiveTab] = useState('queue'); 
+    const [requests, setRequests] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [hasDownloaded, setHasDownloaded] = useState(false);
 
     useEffect(() => {
         if (user) {
-            const effectiveRole = (user.role === 'Super User' && sessionStorage.getItem('impersonatedRole'))
-                ? sessionStorage.getItem('impersonatedRole')
-                : user.role;
-
-            if (effectiveRole !== 'School Division Office') {
-                navigate('/monitoring-dashboard');
-                return;
-            }
-
-            // Restrict SDO access to SGOD office only (Exempt Super Users)
-            if (user.role !== 'Super User' && user.office !== 'School Governance and Operations Division (SGOD)') {
+            // Verify access: Only SDO Personnel (specifically SGOD) and Super Users
+            const userOffice = (user.office || '').toUpperCase();
+            const isAuthorized = user.role === 'Super User' || userOffice === 'SCHOOL GOVERNANCE AND OPERATIONS DIVISION (SGOD)';
+            
+            if (!isAuthorized) {
                 navigate('/monitoring-dashboard');
                 return;
             }
@@ -63,22 +57,23 @@ const ESF7Review = () => {
     const fetchAllData = async () => {
         setLoading(true);
         try {
-            const region = user?.region || '';
-            const division = user?.division || '';
-            const query = `region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`;
+            const query = `region=${encodeURIComponent(user?.region || '')}&division=${encodeURIComponent(user?.division || '')}`;
             
-            const [statsRes, schoolsRes] = await Promise.all([
+            const [statsRes, schoolsRes, reqRes] = await Promise.all([
                 fetch(`/api/esf7/stats?${query}`),
-                fetch(`/api/esf7/all-schools?${query}`)
+                fetch(`/api/esf7/all-schools?${query}`),
+                fetch('/api/esf7/requests')
             ]);
 
             const statsData = await statsRes.json();
             const schoolsData = await schoolsRes.json();
+            const reqData = await reqRes.json();
 
             if (statsData.success) setStats(statsData.data);
             if (schoolsData.success) setAllSchools(schoolsData.data);
+            if (reqData.success) setRequests(reqData.data);
         } catch (err) {
-            setError("Failed to fetch dashboard data.");
+            setError("Connectivity error: Failed to fetch division data.");
         } finally {
             setLoading(false);
         }
@@ -101,7 +96,7 @@ const ESF7Review = () => {
     };
 
     const handleApprove = async () => {
-        if (!selectedSchool) return;
+        if (!selectedSchool || !hasDownloaded) return;
         setActionLoading(true);
         try {
             const res = await fetch('/api/esf7/approve', {
@@ -110,7 +105,6 @@ const ESF7Review = () => {
                 body: JSON.stringify({ school_id: selectedSchool })
             });
             if (res.ok) {
-                alert("Submission approved and verified!");
                 setSelectedSchool(null);
                 fetchAllData();
             }
@@ -121,18 +115,9 @@ const ESF7Review = () => {
         }
     };
 
-    const handleDownloadClean = () => {
-        if (!records.length) return;
-        const ws = XLSX.utils.json_to_sheet(records);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "DB_USER_CLEAN");
-        XLSX.writeFile(wb, `ESF7_Clean_${selectedSchool}.xlsx`);
-        setHasDownloaded(true);
-    };
-
     const handleReturn = async () => {
         if (!selectedSchool) return;
-        if (!window.confirm("Return this submission for correction? The School Head will be notified to resubmit.")) return;
+        if (!window.confirm("Return this ESF7 for correction?")) return;
         
         setActionLoading(true);
         try {
@@ -142,7 +127,6 @@ const ESF7Review = () => {
                 body: JSON.stringify({ school_id: selectedSchool })
             });
             if (res.ok) {
-                alert("Submission returned for correction.");
                 setSelectedSchool(null);
                 fetchAllData();
             }
@@ -153,6 +137,65 @@ const ESF7Review = () => {
         }
     };
 
+    const handleProcessRequest = async (schoolId, decision) => {
+        setActionLoading(true);
+        try {
+            const res = await fetch('/api/esf7/approve-resubmit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    school_id: schoolId, 
+                    decision, 
+                    processor_name: user?.full_name || user?.username 
+                })
+            });
+            if (res.ok) fetchAllData();
+        } catch (err) {
+            alert("Approval failed.");
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDownloadClean = () => {
+        console.log("Starting ESF7 Download for school:", selectedSchool);
+        console.log("Records to export:", records.length);
+        
+        if (!records.length) {
+            alert("No records found to download.");
+            return;
+        }
+
+        try {
+            // Ensure the data is flat and clean and capture ALL unique keys for headers
+            const allKeysSet = new Set();
+            const cleanRecords = records.map(r => {
+                const row = { ...r };
+                delete row.id; // Hide internal DB id
+                delete row.id_serial;
+                delete row.school_id;
+                delete row.status;
+                delete row.updated_at;
+                delete row.created_at;
+                
+                Object.keys(row).forEach(k => allKeysSet.add(k));
+                return row;
+            });
+
+            const headers = Array.from(allKeysSet);
+            const ws = XLSX.utils.json_to_sheet(cleanRecords, { header: headers });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Personnel_Audit");
+            
+            XLSX.writeFile(wb, `ESF7_Audit_${selectedSchool}.xlsx`);
+            setHasDownloaded(true);
+            console.log("Download triggered successfully with all detected columns.");
+        } catch (err) {
+            console.error("XLSX Export Error:", err);
+            alert("Download failed: " + err.message);
+        }
+    };
+
     const filteredSchools = allSchools.filter(s => {
         const matchesSearch = s.school_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              s.school_id.toLowerCase().includes(searchTerm.toLowerCase());
@@ -160,14 +203,14 @@ const ESF7Review = () => {
         if (activeTab === 'queue') return matchesSearch && (s.status === 'PENDING_SDO' || s.status === 'REJECTED');
         if (activeTab === 'verified') return matchesSearch && s.status === 'VERIFIED';
         if (activeTab === 'missing') return matchesSearch && s.status === 'NOT_STARTED';
-        if (activeTab === 'all') return matchesSearch;
         return matchesSearch;
     });
 
     if (loading && !selectedSchool) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <FiLoader className="w-8 h-8 text-blue-600 animate-spin" />
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+                <FiLoader className="w-8 h-8 text-indigo-600 animate-spin" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading Division Queue</p>
             </div>
         );
     }
@@ -175,14 +218,14 @@ const ESF7Review = () => {
     return (
         <PageTransition>
             <div className="min-h-screen bg-slate-50 pb-20">
-                <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+                <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => selectedSchool ? setSelectedSchool(null) : navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                        <button onClick={() => selectedSchool ? setSelectedSchool(null) : navigate('/monitoring-dashboard')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                             <FiArrowLeft className="w-6 h-6 text-slate-600" />
                         </button>
                         <div>
-                            <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">Review Center</h1>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">{user?.division || 'SDO'} Dashboard</p>
+                            <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">ESF7 Division Hub</h1>
+                            <p className="text-[10px] font-bold text-indigo-500 mt-1 uppercase tracking-widest leading-none">SGOD Administrative Review</p>
                         </div>
                     </div>
                 </header>
@@ -190,46 +233,19 @@ const ESF7Review = () => {
                 <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
                     {!selectedSchool ? (
                         <>
-                            {/* --- STATS CARDS --- */}
+                            {/* Division Status Overlay */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                <StatCard 
-                                    label="Pending Review" 
-                                    value={stats.pending_sdo} 
-                                    icon={<FiActivity size={20} />} 
-                                    color="bg-amber-500" 
-                                    onClick={() => setActiveTab('queue')}
-                                    isActive={activeTab === 'queue'}
-                                />
-                                <StatCard 
-                                    label="Verified" 
-                                    value={stats.verified} 
-                                    icon={<FiCheckCircle size={20} />} 
-                                    color="bg-emerald-500" 
-                                    onClick={() => setActiveTab('verified')}
-                                    isActive={activeTab === 'verified'}
-                                />
-                                <StatCard 
-                                    label="Returned" 
-                                    value={stats.rejected} 
-                                    icon={<FiXCircle size={20} />} 
-                                    color="bg-rose-500" 
-                                    onClick={() => setActiveTab('queue')}
-                                />
-                                <StatCard 
-                                    label="No Submission" 
-                                    value={stats.missing_esf7} 
-                                    icon={<FiAlertTriangle size={20} />} 
-                                    color="bg-slate-400" 
-                                    onClick={() => setActiveTab('missing')}
-                                    isActive={activeTab === 'missing'}
-                                />
+                                <StatCard label="Pending" value={stats.pending_sdo} icon={<FiActivity />} color="bg-amber-500" isActive={activeTab === 'queue'} onClick={() => setActiveTab('queue')} />
+                                <StatCard label="Verified" value={stats.verified} icon={<FiCheckCircle />} color="bg-emerald-500" isActive={activeTab === 'verified'} onClick={() => setActiveTab('verified')} />
+                                <StatCard label="Rejected" value={stats.rejected} icon={<FiXCircle />} color="bg-rose-500" />
+                                <StatCard label="Missing" value={stats.missing_esf7} icon={<FiAlertCircle />} color="bg-slate-400" isActive={activeTab === 'missing'} onClick={() => setActiveTab('missing')} />
                             </div>
 
-                            {/* --- CONTROLS & TABS --- */}
                             <div className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div className="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm self-start">
+                                    <div className="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm self-start overflow-x-auto max-w-full">
                                         <TabButton active={activeTab === 'queue'} onClick={() => setActiveTab('queue')} label="Queue" />
+                                        <TabButton active={activeTab === 'requests'} onClick={() => setActiveTab('requests')} label={`Requests (${requests.length})`} />
                                         <TabButton active={activeTab === 'verified'} onClick={() => setActiveTab('verified')} label="Verified" />
                                         <TabButton active={activeTab === 'missing'} onClick={() => setActiveTab('missing')} label="Missing" />
                                         <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All Schools" />
@@ -238,112 +254,88 @@ const ESF7Review = () => {
                                         <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input 
                                             type="text" 
-                                            placeholder="Search school name or ID..." 
+                                            placeholder="Search by ID or Name..." 
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="pl-11 pr-6 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 transition-all w-full md:w-64 tracking-tight"
+                                            className="pl-11 pr-6 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-bold w-full md:w-64"
                                         />
                                     </div>
                                 </div>
 
-                                {/* --- SCHOOL LIST --- */}
                                 <div className="grid gap-3">
-                                    <AnimatePresence mode="popLayout">
-                                        {filteredSchools.map((school) => (
-                                            <motion.div 
-                                                key={school.school_id}
-                                                layout
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, scale: 0.95 }}
-                                                onClick={() => school.status !== 'NOT_STARTED' && handleViewRecords(school.school_id)}
-                                                className={`bg-white border border-slate-200 p-5 rounded-3xl flex items-center justify-between transition-all group ${school.status !== 'NOT_STARTED' ? 'cursor-pointer hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/5' : 'opacity-60 grayscale'}`}
-                                            >
-                                                <div className="flex items-center gap-5">
-                                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-500' : school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-500' : school.status === 'REJECTED' ? 'bg-rose-50 text-rose-500' : 'bg-slate-100 text-slate-400'}`}>
-                                                        {school.status === 'VERIFIED' ? <FiCheckCircle size={24} /> : school.status === 'PENDING_SDO' ? <FiEye size={24} /> : school.status === 'REJECTED' ? <FiXCircle size={24} /> : <FiFileText size={24} />}
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <h3 className="font-black text-slate-800 uppercase tracking-tight leading-none group-hover:text-blue-600 transition-colors whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] md:max-w-sm">
-                                                            {school.school_name}
-                                                        </h3>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">ID: {school.school_id}</span>
-                                                            <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Last Sync: {new Date(school.updated_at).toLocaleDateString()}</span>
-                                                        </div>
+                                    {activeTab === 'requests' ? (
+                                        requests.map(req => (
+                                            <div key={req.id} className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm flex items-center justify-between gap-4">
+                                                <div>
+                                                    <h4 className="font-black text-slate-800 uppercase italic leading-none">{req.school_name}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">School ID: {req.school_id}</p>
+                                                    <div className="mt-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                                                        <p className="text-[11px] font-bold text-indigo-700 leading-relaxed italic">"{req.reason || 'No reason provided'}"</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-right hidden sm:block">
-                                                        <p className={`text-[10px] font-black uppercase tracking-widest ${school.status === 'VERIFIED' ? 'text-emerald-500' : school.status === 'PENDING_SDO' ? 'text-amber-500' : school.status === 'REJECTED' ? 'text-rose-500' : 'text-slate-300'}`}>
-                                                            {school.status.replace('_', ' ')}
-                                                        </p>
-                                                    </div>
-                                                    {school.status !== 'NOT_STARTED' && <FiArrowLeft className="rotate-180 text-slate-200 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />}
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleProcessRequest(req.school_id, 'REJECTED')} className="px-4 py-3 bg-rose-50 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-100">Reject</button>
+                                                    <button onClick={() => handleProcessRequest(req.school_id, 'APPROVED')} className="px-4 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200">Unlock Module</button>
                                                 </div>
-                                            </motion.div>
-                                        ))}
-                                    </AnimatePresence>
-                                    
-                                    {filteredSchools.length === 0 && (
-                                        <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
-                                            <FiArchive className="mx-auto text-slate-200 mb-4" size={48} />
-                                            <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">No schools found in this category.</p>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        filteredSchools.map((school) => (
+                                            <SchoolRow 
+                                                key={school.school_id} 
+                                                school={school} 
+                                                onClick={() => school.status !== 'NOT_STARTED' && handleViewRecords(school.school_id)} 
+                                            />
+                                        ))
+                                    )}
+                                    {activeTab === 'requests' && requests.length === 0 && (
+                                        <div className="text-center py-20 bg-white rounded-[2rem] border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No pending resubmission tickets</p>
+                                        </div>
+                                    )}
+                                    {activeTab !== 'requests' && filteredSchools.length === 0 && (
+                                        <div className="text-center py-20 bg-white rounded-[2rem] border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No matching records in this category</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                                <div className="space-y-4 relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                                            <FiEye size={20} />
-                                        </div>
-                                        <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Reviewing Records</h2>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-tighter max-w-md">
-                                            {allSchools.find(s => s.school_id === selectedSchool)?.school_name || `School ID: ${selectedSchool}`}
-                                        </h3>
-                                        <div className="flex items-center gap-3 mt-1">
-                                            <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">Master List Preview</span>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total: {records.length} Records</span>
-                                        </div>
+                        <div className="space-y-6">
+                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="space-y-2">
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase italic">
+                                        {allSchools.find(s => s.school_id === selectedSchool)?.school_name || "Detail View"}
+                                    </h2>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase">Staff Masterlist</span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Rows: {records.length}</span>
                                     </div>
                                 </div>
-                                <div className="flex gap-3 relative z-10">
-                                    <button 
-                                        onClick={handleDownloadClean}
-                                        className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 active:scale-95 shadow-xl shadow-slate-900/10"
-                                    >
-                                        <FiDownload /> Download Clean XLSX
-                                    </button>
-                                </div>
+                                <button 
+                                    onClick={handleDownloadClean}
+                                    className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10"
+                                >
+                                    <FiDownload /> Download for Audit
+                                </button>
                             </div>
 
-                            {/* Data Table */}
-                            <div className="bg-white border-2 border-slate-50 rounded-[3rem] overflow-hidden shadow-2xl shadow-slate-200/50">
+                            <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm">
                                 <div className="overflow-x-auto max-h-[500px]">
-                                    <table className="w-full text-left border-collapse sticky">
-                                        <thead className="sticky top-0 z-10">
-                                            <tr className="bg-slate-900 text-white">
-                                                {records.length > 0 && Object.keys(records[0]).slice(0, 10).map((key, i) => (
-                                                    <th key={i} className="px-6 py-5 text-[9px] font-black uppercase tracking-[0.2em] whitespace-nowrap">{key}</th>
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-100">
+                                                {records.length > 0 && Object.keys(records[0]).map((key, i) => (
+                                                    <th key={i} className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{key}</th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
                                             {records.map((row, i) => (
-                                                <tr key={i} className="hover:bg-blue-50/40 transition-colors">
-                                                    {Object.values(row).slice(0, 10).map((cell, ci) => (
-                                                        <td key={ci} className="px-6 py-4 text-[11px] font-bold text-slate-700 truncate max-w-[150px]">
-                                                            {cell || '-'}
-                                                        </td>
+                                                <tr key={i} className="hover:bg-blue-50/50 transition-colors">
+                                                    {Object.values(row).map((cell, ci) => (
+                                                        <td key={ci} className="px-6 py-3 text-[11px] font-bold text-slate-600 truncate max-w-[200px]">{cell || '-'}</td>
                                                     ))}
                                                 </tr>
                                             ))}
@@ -352,49 +344,19 @@ const ESF7Review = () => {
                                 </div>
                             </div>
 
-                            {/* Action Bar */}
-                            <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex gap-4">
+                                <button onClick={() => setSelectedSchool(null)} className="flex-1 py-5 bg-white border border-slate-200 text-slate-500 font-black rounded-3xl uppercase text-[10px]">Back</button>
                                 <button 
-                                    onClick={() => setSelectedSchool(null)}
-                                    className="flex-1 py-5 bg-white border-2 border-slate-100 text-slate-500 font-black rounded-[2.5rem] hover:bg-slate-50 transition-all uppercase italic tracking-tight"
-                                >
-                                    Go Back
-                                </button>
-                                <button 
-                                    onClick={handleApprove}
+                                    onClick={handleApprove} 
                                     disabled={actionLoading || !hasDownloaded}
-                                    className={`flex-[2] py-5 font-black rounded-[2.5rem] flex items-center justify-center gap-3 uppercase italic tracking-tight transition-all ${
-                                        !hasDownloaded 
-                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-2 border-slate-200' 
-                                            : 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-xl shadow-blue-500/20 active:scale-95'
-                                    }`}
+                                    className={`flex-[2] py-5 font-black rounded-3xl uppercase text-[10px] flex items-center justify-center gap-3 transition-all ${!hasDownloaded ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 text-white shadow-lg'}`}
                                 >
-                                    {actionLoading ? <FiLoader className="animate-spin" /> : <FiCheckCircle size={20} />}
-                                    <span>{!hasDownloaded ? "Download to Enable Verification" : "Verify & Commit to Cloud"}</span>
+                                    {actionLoading ? <FiLoader className="animate-spin" /> : <FiCheckCircle />}
+                                    {!hasDownloaded ? "Audit Required (Download)" : "Verify & Commit"}
                                 </button>
-                                <button 
-                                    onClick={handleReturn}
-                                    disabled={actionLoading}
-                                    className="flex-1 py-5 bg-rose-50 text-rose-600 border-2 border-rose-100 font-black rounded-[2.5rem] hover:bg-rose-100 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tight disabled:opacity-50"
-                                >
-                                    {actionLoading ? <FiLoader className="animate-spin" /> : <FiXCircle size={20} />}
-                                    <span>Return</span>
-                                </button>
+                                <button onClick={handleReturn} disabled={actionLoading} className="flex-1 py-5 bg-rose-50 text-rose-600 border border-rose-100 font-black rounded-3xl uppercase text-[10px]">Return</button>
                             </div>
                         </div>
-                    )}
-
-                    {error && (
-                        <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[2rem] flex items-center gap-4 text-rose-700"
-                        >
-                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
-                                <FiAlertCircle size={20} />
-                            </div>
-                            <p className="text-xs font-black uppercase tracking-tight">{error}</p>
-                        </motion.div>
                     )}
                 </div>
             </div>
@@ -403,28 +365,39 @@ const ESF7Review = () => {
 };
 
 const StatCard = ({ label, value, icon, color, onClick, isActive }) => (
-    <motion.div 
-        whileHover={{ y: -4 }}
-        onClick={onClick}
-        className={`bg-white border-2 p-6 rounded-[2.5rem] flex items-center gap-5 cursor-pointer transition-all ${isActive ? 'border-blue-500 shadow-lg shadow-blue-500/10' : 'border-slate-50 shadow-sm hover:border-slate-200'}`}
-    >
-        <div className={`w-14 h-14 ${color} rounded-[1.5rem] flex items-center justify-center text-white shadow-lg`}>
-            {icon}
+    <div onClick={onClick} className={`p-6 rounded-[2rem] bg-white border transition-all cursor-pointer flex items-center gap-4 ${isActive ? 'border-indigo-500 ring-4 ring-indigo-50 shadow-lg' : 'border-slate-100 hover:border-slate-200 shadow-sm'}`}>
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-xl ${color}`}>{icon}</div>
+        <div>
+            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{label}</h4>
+            <p className="text-2xl font-black text-slate-800">{value}</p>
         </div>
-        <div className="space-y-1">
-            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">{label}</h4>
-            <p className="text-3xl font-black text-slate-800 tracking-tighter leading-none">{value}</p>
-        </div>
-    </motion.div>
+    </div>
 );
 
 const TabButton = ({ active, onClick, label }) => (
-    <button 
-        onClick={onClick}
-        className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${active ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-    >
+    <button onClick={onClick} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${active ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-600'}`}>
         {label}
     </button>
+);
+
+const SchoolRow = ({ school, onClick }) => (
+    <div 
+        onClick={onClick}
+        className={`bg-white border border-slate-100 p-5 rounded-3xl flex items-center justify-between group transition-all ${school.status !== 'NOT_STARTED' ? 'cursor-pointer hover:border-indigo-200 hover:shadow-md' : 'opacity-60 grayscale'}`}
+    >
+        <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-500' : school.status === 'PENDING_SDO' ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-50 text-slate-300'}`}>
+                {school.status === 'VERIFIED' ? <FiShield size={20} /> : <FiFileText size={20} />}
+            </div>
+            <div>
+                <h3 className="font-black text-slate-800 uppercase tracking-tight leading-none group-hover:text-indigo-600 transition-colors uppercase">{school.school_name}</h3>
+                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">ID: {school.school_id}</p>
+            </div>
+        </div>
+        <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600' : school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
+            {school.status.replace('_', ' ')}
+        </div>
+    </div>
 );
 
 export default ESF7Review;

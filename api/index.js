@@ -107,9 +107,14 @@ function normalizeRole(role) {
 // --- LOCATION NORMALIZER (ensures system-wide casing consistency and fixes encoding artifacts) ---
 function normalizeLocationField(val) {
   if (!val || typeof val !== 'string') return val;
-  // Handle any sequence of encoding artifacts ('??', '?', or Unicode Replacement Character) as a single 'Ñ'
-  // Also collapse whitespace for consistency with SQL REGEXP_REPLACE
+  // Handle encoding artifacts ('??', '?', or Unicode Replacement Character) as a single 'Ñ'
   return val.replace(/[\?\uFFFD]+/g, 'Ñ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function normalizeBasicField(val) {
+  if (!val || typeof val !== 'string') return val;
+  // Preserves case but cleans encoding artifacts
+  return val.replace(/[\?\uFFFD]+/g, 'Ñ').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeLocationOutput(val) {
@@ -145,8 +150,8 @@ const RegisterUserSchema = z.object({
   province: z.string().optional().transform(normalizeLocationField),
   city: z.string().optional().transform(normalizeLocationField),
   barangay: z.string().optional().transform(normalizeLocationField),
-  office: z.string().optional().transform(normalizeLocationField),
-  position: z.string().optional(),
+  office: z.string().optional().transform(normalizeBasicField),
+  position: z.string().optional().transform(normalizeBasicField),
   contactNumber: z.string().optional(),
   altEmail: z.string().email().optional().or(z.literal("")),
   accountCategory: z.string().optional(),
@@ -1194,9 +1199,20 @@ async function updateSchoolTotalCompletion(iern) {
     let completedCount = 0;
     const boolValues = [];
     for (const idx of dbCols) {
-      const done = (parseInt(row[`unit${idx}`]) === 1 || row[`unit${idx}_completed`] === true);
-      boolValues.push(done);
-      if (done) completedCount++;
+      const val = parseFloat(row[`unit${idx}`]) || 0;
+      const isDone = row[`unit${idx}_completed`] === true || val >= 1;
+      
+      // If unit7 (ESF7) is 0.5, it counts as 0.5 completion.
+      // Other units typically use binary 0 or 1, but this logic is safe for them too.
+      let unitProgress = 0;
+      if (isDone) {
+        unitProgress = 1;
+      } else if (val > 0) {
+        unitProgress = val; // Support 0.5 for ESF7 staging
+      }
+      
+      completedCount += unitProgress;
+      boolValues.push(isDone);
     }
 
     const percentage = parseFloat(((completedCount / 9) * 100).toFixed(2));
@@ -15461,15 +15477,15 @@ app.get('/api/monitoring/schools', async (req, res) => {
     const selectFields = `
       ROUND(
         (
-          (CASE WHEN (COALESCE(sp.unit1, 0) > 0 OR sp.unit1_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit2, 0) > 0 OR sp.unit2_completed OR sp.total_enrollment > 0) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit3, 0) > 0 OR sp.unit3_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit4, 0) > 0 OR sp.unit4_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit5, 0) > 0 OR sp.unit5_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit6, 0) > 0 OR sp.unit6_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit7, 0) > 0 OR sp.unit7_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit9, 0) > 0 OR sp.unit9_completed) THEN 1 ELSE 0 END) +
-          (CASE WHEN (COALESCE(sp.unit10, 0) > 0 OR sp.unit10_completed) THEN 1 ELSE 0 END)
+          (CASE WHEN sp.unit1_completed THEN 1 ELSE COALESCE(sp.unit1::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit2_completed OR sp.total_enrollment > 0 THEN 1 ELSE COALESCE(sp.unit2::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit3_completed THEN 1 ELSE COALESCE(sp.unit3::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit4_completed THEN 1 ELSE COALESCE(sp.unit4::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit5_completed THEN 1 ELSE COALESCE(sp.unit5::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit6_completed THEN 1 ELSE COALESCE(sp.unit6::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit7_completed THEN 1 ELSE COALESCE(sp.unit7::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit9_completed THEN 1 ELSE COALESCE(sp.unit9::NUMERIC, 0) END) +
+          (CASE WHEN sp.unit10_completed THEN 1 ELSE COALESCE(sp.unit10::NUMERIC, 0) END)
         )::NUMERIC / 9.0 * 100, 2
       ) as completion_percentage,
       s."School_Name" as school_name,
@@ -17706,8 +17722,8 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
       // ── Unit 6: School Resources ──────────────────────────────────────────
       if (row.unit6_completed) { completedUnits.push(6); xp += 400; } else if (row.unit6 === 2) { incompleteUnits.push(6); }
 
-      // ── Unit 7: Physical Facilities ────────────────────────────────────────
-      if (row.unit7_completed) { completedUnits.push(7); xp += 450; } else if (row.unit7 === 2) { incompleteUnits.push(7); }
+      // ── Unit 7: ESF7 (Staged or Verified) ──────────────────────────────────
+      if (row.unit7_completed || parseFloat(row.unit7) >= 0.5) { completedUnits.push(7); xp += 450; } else if (row.unit7 === 2) { incompleteUnits.push(7); }
 
       // ── Unit 8: School Terrain (Old Unit 9) ─────────────────────────────
       let u9 = row.unit9_completed;
@@ -20471,55 +20487,50 @@ app.get('/api/admin/users', authMiddleware, async (req, res) => {
 //               ESF7 IMPLEMENTATION & MONITORING
 // ==================================================================
 
-// POST /api/esf7/extract-preview (Backend extraction to bypass CORS)
 app.post('/api/esf7/extract-preview', async (req, res) => {
-  const { driveLink } = req.body;
-  if (!driveLink) return res.status(400).json({ error: "Missing driveLink" });
+    const { driveLink } = req.body;
+    if (!driveLink) return res.status(400).json({ error: "Missing driveLink" });
 
-  try {
-    // 1. Extract File ID
-    let fileId = '';
-    if (driveLink.includes('/d/')) {
-        fileId = driveLink.split('/d/')[1].split('/')[0];
-    } else if (driveLink.includes('id=')) {
-        fileId = driveLink.split('id=')[1].split('&')[0];
-    }
-    if (!fileId) throw new Error("Could not extract File ID from link.");
-
-    // 2. Authenticate with Google Drive API
-    let credentialsObj;
     try {
-        credentialsObj = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    } catch (err) {
-        throw new Error("Server configuration error: GOOGLE_SERVICE_ACCOUNT_JSON in .env is invalid or missing.");
-    }
-    
-    // We try to authenticate impersonating support.stride@deped.gov.ph (requires Domain-Wide Delegation)
-    let auth = new google.auth.GoogleAuth({
-        credentials: {
-            client_email: credentialsObj.client_email,
-            private_key: credentialsObj.private_key,
-        },
-        scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-        clientOptions: {
-            subject: 'support.stride@deped.gov.ph'
+        // 1. Extract File ID
+        let fileId = '';
+        if (driveLink.includes('/d/')) {
+            fileId = driveLink.split('/d/')[1].split('/')[0];
+        } else if (driveLink.includes('id=')) {
+            fileId = driveLink.split('id=')[1].split('&')[0];
         }
-    });
+        if (!fileId) throw new Error("Could not extract File ID from link.");
 
-    const drive = google.drive({ version: 'v3', auth });
-    
-    let arrayBuffer;
-    try {
-        // Download the file contents
-        const response = await drive.files.get({
-            fileId: fileId,
-            alt: 'media'
-        }, { responseType: 'arraybuffer' });
-        arrayBuffer = response.data;
-    } catch (apiError) {
-        console.error("Google API Error:", apiError.message);
-        if (apiError.message.includes("unauthorized_client")) {
-            // Domain-wide delegation is not configured. Fallback to service account directly.
+        // 2. Authenticate
+        let credentialsObj;
+        try {
+            credentialsObj = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+        } catch (err) {
+            throw new Error("Server configuration error: GOOGLE_SERVICE_ACCOUNT_JSON in .env is invalid or missing.");
+        }
+        
+        let auth = new google.auth.GoogleAuth({
+            credentials: {
+                client_email: credentialsObj.client_email,
+                private_key: credentialsObj.private_key,
+            },
+            scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+            clientOptions: {
+                subject: 'support.stride@deped.gov.ph'
+            }
+        });
+
+        const drive = google.drive({ version: 'v3', auth });
+        let arrayBuffer;
+
+        try {
+            const response = await drive.files.get({
+                fileId: fileId,
+                alt: 'media'
+            }, { responseType: 'arraybuffer' });
+            arrayBuffer = response.data;
+        } catch (apiError) {
+            // Fallback for non-impersonated service account
             auth = new google.auth.GoogleAuth({
                 credentials: {
                     client_email: credentialsObj.client_email,
@@ -20528,98 +20539,88 @@ app.post('/api/esf7/extract-preview', async (req, res) => {
                 scopes: ['https://www.googleapis.com/auth/drive.readonly']
             });
             const driveFallback = google.drive({ version: 'v3', auth });
-            try {
-                const fbResponse = await driveFallback.files.get({
-                    fileId: fileId,
-                    alt: 'media'
-                }, { responseType: 'arraybuffer' });
-                arrayBuffer = fbResponse.data;
-            } catch (fbError) {
-                console.error("Fallback Google API Error:", fbError.message);
-                throw new Error("Cannot access the file. Ensure you shared it specifically with support.stride@deped.gov.ph as a Viewer.");
+            const fbResponse = await driveFallback.files.get({
+                fileId: fileId,
+                alt: 'media'
+            }, { responseType: 'arraybuffer' });
+            arrayBuffer = fbResponse.data;
+        }
+
+        // 3. Parse with SheetJS
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets['DB_USER'];
+
+        if (!worksheet) {
+            throw new Error("Missing 'DB_USER' sheet in the workbook.");
+        }
+
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+        if (jsonData.length < 1) throw new Error("Sheet is empty.");
+
+        // Find header row
+        let headerRowIdx = 0;
+        for (let i = 0; i < Math.min(jsonData.length, 25); i++) {
+            const row = jsonData[i];
+            if (row && row.some(cell => {
+                const val = String(cell).toLowerCase();
+                return val.includes('school') || val.includes('id') || val.includes('first');
+            })) {
+                headerRowIdx = i;
+                break;
             }
-        } else if (apiError.message.includes("File not found")) {
-             throw new Error("The file could not be found or access was denied. Ensure it is shared correctly.");
-        } else {
-             throw new Error("Google Drive refused the download. Ensure you shared it with the correct extraction email as a Viewer.");
         }
-    }
 
-    const data = new Uint8Array(arrayBuffer);
+        const headers = jsonData[headerRowIdx];
+        const rows = jsonData.slice(headerRowIdx + 1).filter(row => row.some(cell => String(cell).trim() !== ""));
 
-    // 3. Parse with SheetJS
-    const workbook = XLSX.read(data, { type: 'array' });
-    const sheetName = 'DB_USER';
-    const worksheet = workbook.Sheets[sheetName];
-
-    if (!worksheet) {
-        throw new Error("Missing 'DB_USER' sheet in the workbook. Please ensure the file follows the ESF7 standard.");
-    }
-
-    // 4. Convert to JSON (Full sheet)
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-    if (jsonData.length < 1) throw new Error("The 'DB_USER' sheet is completely empty.");
-
-    // Find where the actual data starts (looking for common headers like 'ID' or 'School')
-    let headerRowIdx = 0;
-    for (let i = 0; i < Math.min(jsonData.length, 25); i++) {
-        const row = jsonData[i];
-        if (row && row.some(cell => {
-          const val = String(cell).toLowerCase();
-          return val.includes('school') || val.includes('id') || val.includes('first');
-        })) {
-          headerRowIdx = i;
-          break;
-        }
-    }
-
-    const headers = jsonData[headerRowIdx];
-    // Capture ALL rows starting from the detected header row
-    const rows = jsonData.slice(headerRowIdx + 1).filter(row => row.some(cell => String(cell).trim() !== ""));
-
-    const records = rows.map(row => {
-        const record = {};
-        const headerCounts = {};
-        headers.forEach((h, i) => {
-            if (h) {
-                const headerRaw = String(h).trim();
+        const records = rows.map(row => {
+            const record = {};
+            const headerCounts = {};
+            
+            headers.forEach((h, i) => {
+                const headerRaw = h ? String(h).trim() : `col_${i}`;
                 const headerLower = headerRaw.toLowerCase();
                 
-                // Skip QA-QE columns as requested
+                // Skip QA-QE columns
                 if (['qa', 'qb', 'qc', 'qd', 'qe'].includes(headerLower)) return;
                 
-                // Handle duplicate headers by appending a suffix (matches DB: first is name, second is name_2, third is name_3...)
                 let key = headerRaw;
-                if (headerCounts[headerRaw]) {
-                    headerCounts[headerRaw]++;
-                    key = `${headerRaw}_${headerCounts[headerRaw]}`;
+                if (headerCounts[key]) {
+                    headerCounts[key]++;
+                    key = `${key}_${headerCounts[key]}`;
                 } else {
-                    headerCounts[headerRaw] = 1;
+                    headerCounts[key] = 1;
                 }
                 
-                record[key] = row[i];
+                record[key] = row[i] || "";
+            });
+
+            // Specific Positional mapping for OB (Index 391) -> appt_yyyy
+            if (row[391] !== undefined) {
+                record['appt_yyyy'] = row[391];
+            }
+
+            return record;
+        });
+
+        res.json({
+            success: true,
+            data: {
+                records,
+                headers,
+                totalRows: records.length,
+                sample: rows.slice(0, 5)
             }
         });
-        return record;
-    });
 
-    res.json({
-        success: true,
-        data: {
-            records,
-            headers,
-            totalRows: records.length,
-            sample: rows.slice(0, 5)
-        }
-    });
-
-  } catch (err) {
-    console.error("Backend Extraction Error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
+    } catch (err) {
+        console.error("Backend Extraction Error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// POST /api/esf7/stage
+// POST /api/esf7/stage - School Head uploads data to STAGING
 app.post('/api/esf7/stage', async (req, res) => {
   const { school_id, records } = req.body;
   if (!school_id || !records || !Array.isArray(records)) {
@@ -20631,69 +20632,59 @@ app.post('/api/esf7/stage', async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
 
-    // Clear existing records for this school to prevent duplicates (Draft, Pending, or Verified)
+    // Ensure staging table exists as a structured replica if not already present
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ESF7_Staging (LIKE ESF7_Database INCLUDING ALL);
+    `);
+    
+    // Add index if missing for performance
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_esf7_staging_school_id ON ESF7_Staging(school_id);`);
+
+    // Clear existing records for this school
+    await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
     await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
 
-    // 1. Fetch valid columns once
-    const columnRes = await client.query(`
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'esf7_database'
+    // Get valid columns for insertion
+    const colRes = await client.query(`
+        SELECT column_name FROM information_schema.columns WHERE table_name = 'esf7_staging'
     `);
-    const validColumns = new Set(columnRes.rows.map(r => r.column_name.toLowerCase()));
+    const validColumns = new Set(colRes.rows.map(r => r.column_name));
 
-    // 2. Prepare bulk insert
-    // We need to identify all unique sanitized keys across the entire set to build the column list
-    const allSanitizedKeys = new Set();
-    const mappedRecords = records.map(record => {
-        const sanitized = {};
-        const counts = {};
-        Object.keys(record).forEach(k => {
-            let name = k.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-            if (/^\d/.test(name)) name = 'col_' + name;
-            if (!name) name = 'col';
-            let finalKey = counts[name] ? `${name}_${++counts[name]}` : (counts[name] = 1, name);
-            if (validColumns.has(finalKey)) {
-                sanitized[finalKey] = record[k];
-                allSanitizedKeys.add(finalKey);
-            }
-        });
-        return sanitized;
-    });
-
-    const columnList = Array.from(allSanitizedKeys);
-    if (columnList.length === 0) throw new Error("No valid columns found in the records matching the database schema.");
-
-    // 3. Build the Multi-row INSERT
-    const fullColumns = ['school_id', 'status', 'updated_at', ...columnList.map(k => `"${k}"`)];
-    const valuePlaceholders = [];
-    const flatValues = [];
-    let pIdx = 1;
-
-    // PostgreSQL parameter limit is ~65535. For 400 columns, we can do ~150 rows per batch.
-    // Given ESF7 size, we'll process in one or two batches if needed.
-    for (const row of mappedRecords) {
-        const rowPlaceholders = [
-          `$${pIdx++}`, // school_id
-          `$${pIdx++}`, // status
-          `$${pIdx++}`, // updated_at
-          ...columnList.map(() => `$${pIdx++}`) // Dynamic columns
-        ];
-        valuePlaceholders.push(`(${rowPlaceholders.join(', ')})`);
+    // Batch Insert Logic
+    for (const record of records) {
+        const entry = { ...record, school_id, status: 'PENDING_SDO' };
         
-        flatValues.push(school_id, 'PENDING_SDO', new Date());
-        columnList.forEach(col => flatValues.push(row[col] || null));
+        const keys = Object.keys(entry)
+            .map(k => k.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+            .filter(k => validColumns.has(k));
+        
+        if (keys.length === 0) continue;
+
+        const values = keys.map(k => {
+            const originalKey = Object.keys(entry).find(ok => ok.toLowerCase().replace(/[^a-z0-9_]/g, '_') === k);
+            return entry[originalKey];
+        });
+
+        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+        const query = `INSERT INTO ESF7_Staging (${keys.join(', ')}) VALUES (${placeholders})`;
+        await client.query(query, values);
     }
 
-    const sql = `INSERT INTO ESF7_Database (${fullColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
-    await client.query(sql, flatValues);
+    // Update ph_schools status
+    await client.query("UPDATE ph_schools SET unit7 = 0.5, unit7_completed = FALSE, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
 
     await client.query('COMMIT');
-    res.json({ success: true, message: `Successfully staged ${records.length} records in bulk.` });
+    
+    // Total sync
+    const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
+    if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
+
+    res.json({ success: true, message: "Successfully staged for SDO Review. Data is pending verification." });
 
   } catch (err) {
     if (client) await client.query('ROLLBACK');
-    console.error("ESF7 Bulk Staging Error:", err.message);
-    res.status(500).json({ error: err.message || "Bulk staging failed." });
+    console.error("ESF7 Staging Error:", err.message);
+    res.status(500).json({ error: err.message || "Staging failed." });
   } finally {
     if (client) client.release();
   }
@@ -20732,31 +20723,142 @@ app.get('/api/esf7/pending', async (req, res) => {
 app.get('/api/esf7/status/:school_id', async (req, res) => {
   const { school_id } = req.params;
   try {
-    const result = await pool.query(
+    // 1. Check final database first
+    const dbRes = await pool.query(
       'SELECT status FROM ESF7_Database WHERE school_id = $1 LIMIT 1',
       [school_id]
     );
-    if (result.rows.length === 0) {
-      return res.json({ success: true, status: 'NOT_STARTED' });
+    if (dbRes.rows.length > 0) {
+      return res.json({ success: true, status: dbRes.rows[0].status });
     }
-    res.json({ success: true, status: result.rows[0].status });
+
+    // 2. Check staging area
+    const stageRes = await pool.query(
+      'SELECT status FROM ESF7_Staging WHERE school_id = $1 LIMIT 1',
+      [school_id]
+    );
+    if (stageRes.rows.length > 0) {
+      return res.json({ success: true, status: stageRes.rows[0].status });
+    }
+
+    res.json({ success: true, status: 'NOT_STARTED' });
   } catch (err) {
     console.error("Fetch ESF7 Status Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-// GET /api/esf7/records/:school_id
+// --- ESF7 RESUBMISSION REQUESTS ---
+
+// POST /api/esf7/request-resubmit - School Head requests to re-upload
+app.post('/api/esf7/request-resubmit', async (req, res) => {
+    const { school_id, school_name, reason } = req.body;
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ESF7_Resubmission_Requests (
+                id SERIAL PRIMARY KEY,
+                school_id TEXT NOT NULL,
+                school_name TEXT,
+                reason TEXT,
+                status TEXT DEFAULT 'PENDING',
+                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP,
+                processed_by TEXT
+            )
+        `);
+
+        // Check for existing pending request
+        const check = await pool.query('SELECT status FROM ESF7_Resubmission_Requests WHERE school_id = $1 AND status = $2', [school_id, 'PENDING']);
+        if (check.rows.length > 0) return res.status(400).json({ error: "A request is already pending for this school." });
+
+        await pool.query(
+            'INSERT INTO ESF7_Resubmission_Requests (school_id, school_name, reason) VALUES ($1, $2, $3)',
+            [school_id, school_name, reason]
+        );
+
+        res.json({ success: true, message: "Resubmission request sent to SDO." });
+    } catch (err) {
+        console.error("ESF7 Request Error:", err);
+        res.status(500).json({ error: "Failed to send request." });
+    }
+});
+
+// GET /api/esf7/requests - SDO fetches pending requests
+app.get('/api/esf7/requests', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM ESF7_Resubmission_Requests WHERE status = $1 ORDER BY requested_at DESC', ['PENDING']);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error("Fetch ESF7 Requests Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// GET /api/esf7/request-status/:school_id
+app.get('/api/esf7/request-status/:school_id', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT status FROM ESF7_Resubmission_Requests WHERE school_id = $1 ORDER BY requested_at DESC LIMIT 1', [req.params.school_id]);
+        res.json({ success: true, status: result.rows[0]?.status || null });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/esf7/approve-resubmit - SDO Approves Request
+app.post('/api/esf7/approve-resubmit', async (req, res) => {
+    const { school_id, decision, processor_name } = req.body; // decision: APPROVED or REJECTED
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query('BEGIN');
+
+        // 1. Update request record
+        await client.query(
+            'UPDATE ESF7_Resubmission_Requests SET status = $1, processed_at = CURRENT_TIMESTAMP, processed_by = $2 WHERE school_id = $3 AND status = $4',
+            [decision, processor_name, school_id, 'PENDING']
+        );
+
+        if (decision === 'APPROVED') {
+            // 2. RESET WORKFLOW: Delete staging AND final DB records
+            await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
+            await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
+            
+            // 3. Reset progress to 0 (unit7 = 0)
+            await client.query('UPDATE ph_schools SET unit7 = 0, unit7_completed = FALSE, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1', [school_id]);
+            
+            const iernRes = await client.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
+            if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: `Request ${decision.toLowerCase()} for school ${school_id}.` });
+    } catch (err) {
+        if (client) await client.query('ROLLBACK');
+        console.error("Approve Resubmit Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// GET /api/esf7/records/:school_id - Pull from STAGING or DATABASE for review
 app.get('/api/esf7/records/:school_id', async (req, res) => {
   const { school_id } = req.params;
   try {
+    // 1. Try staging first
+    const stagedRes = await pool.query('SELECT * FROM ESF7_Staging WHERE school_id = $1', [school_id]);
+    if (stagedRes.rows.length > 0) {
+      return res.json({ success: true, data: stagedRes.rows });
+    }
+
+    // 2. Fallback to database
     const result = await pool.query(
       'SELECT * FROM ESF7_Database WHERE school_id = $1',
       [school_id]
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
-    console.error("Fetch ESF7 Records Error:", err);
+    console.error("Fetch records error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -20769,26 +20871,23 @@ app.get('/api/esf7/stats', async (req, res) => {
     const params = [];
     if (region && region !== 'All') {
       params.push(region);
-      whereClause += ` AND s.region = $${params.length}`;
+      whereClause += ` AND UPPER(TRIM(s.region)) = UPPER(TRIM($${params.length}))`;
     }
     if (division && division !== 'All Divisions') {
       params.push(division);
-      whereClause += ` AND s.division = $${params.length}`;
-    }
-    if (district && district !== 'All') {
-      params.push(district);
-      whereClause += ` AND s.district = $${params.length}`;
+      whereClause += ` AND UPPER(TRIM(s.division)) = UPPER(TRIM($${params.length}))`;
     }
 
     const query = `
       SELECT 
         COUNT(DISTINCT s.school_id)::int as total_registered,
-        COUNT(DISTINCT CASE WHEN e.status = 'PENDING_SDO' THEN s.school_id END)::int as pending_sdo,
+        COUNT(DISTINCT CASE WHEN st.status = 'PENDING_SDO' THEN s.school_id END)::int as pending_sdo,
         COUNT(DISTINCT CASE WHEN e.status = 'VERIFIED' THEN s.school_id END)::int as verified,
-        COUNT(DISTINCT CASE WHEN e.status = 'REJECTED' THEN s.school_id END)::int as rejected,
-        COUNT(DISTINCT s.school_id) - COUNT(DISTINCT e.school_id)::int as missing_esf7
+        COUNT(DISTINCT CASE WHEN st.status = 'REJECTED' THEN s.school_id END)::int as rejected,
+        COUNT(DISTINCT s.school_id) - (COUNT(DISTINCT e.school_id) + COUNT(DISTINCT st.school_id))::int as missing_esf7
       FROM ph_schools s
       LEFT JOIN ESF7_Database e ON s.school_id = e.school_id
+      LEFT JOIN ESF7_Staging st ON s.school_id = st.school_id
       ${whereClause}
     `;
 
@@ -20808,23 +20907,24 @@ app.get('/api/esf7/all-schools', async (req, res) => {
       SELECT 
         s.school_id, 
         s.school_name, 
-        COALESCE(e.status, 'NOT_STARTED') as status, 
-        COALESCE(MAX(e.updated_at), s.updated_at) as updated_at
+        COALESCE(e.status, st.status, 'NOT_STARTED') as status, 
+        COALESCE(MAX(e.updated_at), MAX(st.updated_at), s.updated_at) as updated_at
       FROM ph_schools s
       LEFT JOIN ESF7_Database e ON s.school_id = e.school_id
+      LEFT JOIN ESF7_Staging st ON s.school_id = st.school_id
       WHERE 1=1
     `;
     const params = [];
     if (region && region !== 'All') {
       params.push(region);
-      query += ` AND s.region = $${params.length}`;
+      query += ` AND UPPER(TRIM(s.region)) = UPPER(TRIM($${params.length}))`;
     }
     if (division && division !== 'All Divisions') {
       params.push(division);
-      query += ` AND s.division = $${params.length}`;
+      query += ` AND UPPER(TRIM(s.division)) = UPPER(TRIM($${params.length}))`;
     }
 
-    query += ` GROUP BY s.school_id, s.school_name, e.status ORDER BY s.school_name ASC`;
+    query += ` GROUP BY s.school_id, s.school_name, s.updated_at, e.status, st.status ORDER BY s.school_name ASC`;
 
     const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
@@ -20838,17 +20938,8 @@ app.get('/api/esf7/all-schools', async (req, res) => {
 app.post('/api/esf7/return', async (req, res) => {
   const { school_id } = req.body;
   try {
-    // Attempt to find IERN first
-    const sRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-    const iern = sRes.rows[0]?.iern;
-
-    if (iern) {
-      await pool.query("UPDATE ESF7_Database SET status = 'REJECTED' WHERE iern = $1 OR school_id = $2", [iern, school_id]);
-      await pool.query("UPDATE ph_schools /* ph_schools decommissioned */ SET f7_resources = 0, updated_at = CURRENT_TIMESTAMP WHERE iern = $1 OR school_id = $2", [iern, school_id]);
-    } else {
-      await pool.query("UPDATE ESF7_Database SET status = 'REJECTED' WHERE school_id = $1", [school_id]);
-      await pool.query("UPDATE ph_schools /* ph_schools decommissioned */ SET f7_resources = 0, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-    }
+    await pool.query("UPDATE ESF7_Staging SET status = 'REJECTED' WHERE school_id = $1", [school_id]);
+    await pool.query("UPDATE ph_schools SET unit7 = 0, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
 
     res.json({ success: true, message: "ESF7 submission returned for correction." });
   } catch (err) {
@@ -20857,29 +20948,53 @@ app.post('/api/esf7/return', async (req, res) => {
   }
 });
 
-// POST /api/esf7/approve
+// POST /api/esf7/approve - Final Migration from STAGING to DATABASE
 app.post('/api/esf7/approve', async (req, res) => {
   const { school_id } = req.body;
+  let client;
   try {
-    // Attempt to find IERN first
-    const sRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-    const iern = sRes.rows[0]?.iern;
-
-    if (iern) {
-      await pool.query("UPDATE ESF7_Database SET status = 'VERIFIED' WHERE iern = $1 OR school_id = $2", [iern, school_id]);
-      await pool.query("UPDATE ph_schools SET unit7_completed = TRUE, unit7 = 1, unit7_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE iern = $1 OR school_id = $2", [iern, school_id]);
-      updateSchoolTotalCompletion(iern);
-    } else {
-      await pool.query("UPDATE ESF7_Database SET status = 'VERIFIED' WHERE school_id = $1", [school_id]);
-      await pool.query("UPDATE ph_schools SET unit7_completed = TRUE, unit7 = 1, unit7_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-      const iernLookup = (await pool.query('SELECT iern FROM ph_schools WHERE school_id=$1', [school_id])).rows[0]?.iern;
-      if (iernLookup) updateSchoolTotalCompletion(iernLookup);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    
+    // 1. Verify staging records exist
+    const checkRes = await client.query('SELECT 1 FROM ESF7_Staging WHERE school_id = $1 LIMIT 1', [school_id]);
+    if (checkRes.rows.length === 0) {
+      throw new Error("No staged records found for this school.");
     }
 
-    res.json({ success: true, message: "ESF7 submission verified and committed." });
+    // 2. Clear existing entries in final DB
+    await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
+
+    // 3. Migrate from Staging to Database using column discovery
+    const columnsRes = await client.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'esf7_database' AND column_name NOT IN ('id', 'id_serial', 'created_at')
+    `);
+    const cols = columnsRes.rows.map(r => `"${r.column_name}"`).join(', ');
+
+    await client.query(`
+        INSERT INTO ESF7_Database (${cols}, status)
+        SELECT ${cols}, 'VERIFIED' FROM ESF7_Staging WHERE school_id = $1
+    `, [school_id]);
+
+    // 4. Update status and delete staging
+    await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
+
+    await client.query("UPDATE ph_schools SET unit7_completed = TRUE, unit7 = 1, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+
+    await client.query('COMMIT');
+    
+    const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
+    if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
+
+    res.json({ success: true, message: "ESF7 successfully verified and committed to database." });
+
   } catch (err) {
-    console.error("Approve ESF7 Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    if (client) await client.query('ROLLBACK');
+    console.error("Approve/Migrate ESF7 Error:", err);
+    res.status(500).json({ error: "Failed to verify and migrate records." });
+  } finally {
+    if (client) client.release();
   }
 });
 
