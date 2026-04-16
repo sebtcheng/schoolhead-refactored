@@ -22,6 +22,9 @@ export const EFDFilterProvider = ({ children }) => {
     const [selectedDocStatus, setSelectedDocStatus] = useState(() => localStorage.getItem('efd_selectedDocStatus') || 'All');
     const [searchHistory, setSearchHistory] = useState(() => JSON.parse(localStorage.getItem('efd_searchHistory') || '[]'));
 
+    // Accomplishment Percentage Range [min, max]
+    const [accomplishmentRange, setAccomplishmentRange] = useState(() => JSON.parse(localStorage.getItem('efd_accomplishmentRange') || '[0,100]'));
+
 
     // Persistence Layer
     useEffect(() => {
@@ -37,9 +40,10 @@ export const EFDFilterProvider = ({ children }) => {
         localStorage.setItem('efd_selectedSource', selectedSource);
         localStorage.setItem('efd_selectedDonated', selectedDonated);
         localStorage.setItem('efd_selectedDocStatus', selectedDocStatus);
+        localStorage.setItem('efd_accomplishmentRange', JSON.stringify(accomplishmentRange));
     }, [
         selectedDistrict, selectedSource, selectedDonated, selectedDocStatus,
-        searchHistory
+        searchHistory, accomplishmentRange
     ]);
 
     const addToSearchHistory = useCallback((query) => {
@@ -65,13 +69,15 @@ export const EFDFilterProvider = ({ children }) => {
         setSelectedSource('All');
         setSelectedDonated('All');
         setSelectedDocStatus('All');
-        
+        setAccomplishmentRange([0, 100]);
+
         // Clean storage
         const keys = [
-            'efd_selectedRegions', 'efd_selectedCategories', 'efd_selectedYears', 
+            'efd_selectedRegions', 'efd_selectedCategories', 'efd_selectedYears',
             'efd_selectedBatches', 'efd_searchQuery', 'efd_selectedDivision',
             'efd_selectedProvince', 'efd_selectedMunicipality', 'efd_selectedDistrict',
-            'efd_selectedSource', 'efd_selectedDonated', 'efd_selectedDocStatus'
+            'efd_selectedSource', 'efd_selectedDonated', 'efd_selectedDocStatus',
+            'efd_accomplishmentRange'
         ];
         keys.forEach(k => localStorage.removeItem(k));
     }, []);
@@ -90,6 +96,7 @@ export const EFDFilterProvider = ({ children }) => {
         selectedDonated, setSelectedDonated,
         selectedDocStatus, setSelectedDocStatus,
         searchHistory, addToSearchHistory,
+        accomplishmentRange, setAccomplishmentRange,
         clearFilters
     };
 
