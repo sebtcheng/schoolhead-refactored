@@ -40,8 +40,9 @@ schema_out.json
 nohup.out
 scripts
 
-# Ignore uploads directory
+# Ignore uploads and extracted data
 uploads/
+extracted_images/
 
 # Temporary audit and setup scripts
 tmp/

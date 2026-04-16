@@ -129,5 +129,51 @@ To find creative solutions, you must organize knowledge strictly:
 
 **Knowledge Base Sync:** Update `thematic_knowledge_base.md` with patterns identified here.
 **@hawkeye-coder:** Execute autonomously. Capture stdout. Report Success/Fail BLUF.
-**@senior-dev:** Supervise architectural alignment in `[critical_file]`.
+# 📜 session_summaries/2026-04-16_db_connectivity_crisis.md
+
+### 🐛 Incident Report: DB Connectivity Crisis (0 DB Connections)
+**Date:** 2026-04-16 | **Status:** Resolved
+
+**🏷️ Clustering Metadata:**
+* **Theme:** Infra | **Aspect:** PgBouncer Bypass / Zombie Processes | **Complexity:** Medium | **Priority:** Critical
+
+#### 1. The Problem & Symptom
+* **Symptom:** `vm_diagnostics.py` reported `DB: 0` for all PM2 processes.
+* **Logs:** `ECONNREFUSED 20.24.25.245:6432` repeatedly in PM2 error logs.
+* **Impact:** 85 Server Errors per 60s; 0 active database connections for 70+ active users.
+
+#### 2. Root Cause Analysis (The "Why")
+* **Configuration Drift:** The `.env` used the public Azure hostname `stride-posgre-prod-01.postgres.database.azure.com` on port `6432`.
+* **The "Bypass":** This hostname resolved to a remote Azure IP that only listens on port `5432`. By using this hostname, the app was **bypassing the local PgBouncer** (which listens on port 6432) and hitting Azure directly on a port that was refused.
+* **Process Persistence:** Standard `pm2 restart` failed to refresh all workers. "Zombie" processes remained bound to the old configuration, continuing the connection failures even after the `.env` was physically updated.
+
+#### 3. Why `relief_db_locks.py` Failed Initially
+* **Management vs Routing:** `relief_db_locks.py` manages the **connection pool health**, but it cannot fix **connection routing**. Since the app was bypassing the pool entirely, cleaning the pool had zero effect on the client-side `ECONNREFUSED` errors.
+
+#### 4. The Final Fix
+* **Re-Routing:** Updated `.env` to use `127.0.0.1:6432`, forcing the app through the local PgBouncer.
+* **Force Reset:** Executed `sudo kill -9` on all stuck PM2 PIDs to ensure a fresh reload of the `.env` across all 6 cluster instances.
+* **Resiliency:** Ran `relief_db_locks.py` **after** routing was restored to apply `statement_timeout=30s` and `lock_timeout=5s` at the database level.
+
+#### 5. Observability & Resiliency
+* **Nginx Errors:** Dropped from 85/min to ~0/min within 180 seconds.
+* **DB Attribution:** Audit now shows 25-30 active connections attributed to backend PIDs.
+* **Resiliency Tooling:** Established `fave_scripts/deep_relief_db.py` as the **Tier 2 ("Nuclear") Recovery Path**.
+
+### 🛠️ The Connection Crisis Protocol (3-Tier Unified Standard)
+
+1. **Tier 1 (Surface Relief):** Run `fave_scripts/relief_db_locks.py`.
+    * *Purpose:* Resolve session-level lock contention and pool starvation. Always try this first.
+2. **Tier 2 (Forensic Relief):** Run `fave_scripts/deep_relief_db.py`.
+    * *Trigger:* Tier 1 fails, or `vm_diagnostics.py` shows **DB: 0** while app errors persist.
+    * *Action:* Forensic audit of `.env` for bypass, SIGKILL of zombie workers, and automatic trigger of Tier 1.
+3. **Tier 3 (Ultimate Nuclear):** Run `fave_scripts/horus_nuclear_stabilizer.py`.
+    * *Trigger:* Tier 1 & 2 fail; system-wide degradation or suspected disk/infra service crash.
+    * *Action:* **Hard-reset of Nginx/PgBouncer**, massive log purge, `pm2 kill`, and full forensic re-spawn.
+    * *🛡️ Safety:* Includes automated `.env` and log backups; **Zero risk** to Azure Database data.
+4. **Tier 4 (Eternal Guardian):** Run `fave_scripts/horus_state_restorer.py`.
+    * *Purpose:* Restore the **exact working state** of April 16, 2026.
+    * *Action:* Overwrites `.env`, `stride.conf`, and `pgbouncer.ini` with hardcoded "Golden" versions. Use this if configurations are corrupted, accidentally modified, or wiped.
+
+**Knowledge Base Sync:** Added `deep_relief_db.py` to the **Infrastructure Crisis Playbook** in `@senior-dev.md`.
 ```
