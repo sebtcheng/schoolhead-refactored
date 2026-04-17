@@ -93,6 +93,7 @@ const BottomNav = ({ userRole: propRole }) => {
         ],
         'Regional Engineer': [
             { label: 'Home', path: '/regional-engineer-dashboard', icon: TbHomeEdit },
+            { label: 'Lookup', path: '/regional-engineer-lookup', icon: FiUsers },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
         'School Division Office': [

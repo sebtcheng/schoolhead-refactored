@@ -2752,7 +2752,9 @@ app.post('/api/auth/migrate-login', async (req, res) => {
       {
         uid: user.uid,
         email: user.email,
-        role: user.role
+        role: user.role,
+        region: user.region || null,
+        division: user.division || null
       },
       process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
       { expiresIn: '30d' }
@@ -2922,7 +2924,9 @@ app.post('/api/auth/pin-login', async (req, res) => {
       {
         uid: user.uid,
         email: user.email,
-        role: user.role
+        role: user.role,
+        region: user.region || null,
+        division: user.division || null
       },
       process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
       { expiresIn: '30d' }
@@ -6757,6 +6761,36 @@ app.post('/api/sdo/set-passcode', async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+// GET - Regional Engineer: lookup Division Engineer/Architect by email (restricted to same region)
+app.get('/api/regional-engineer/lookup-engineer', async (req, res) => {
+  const { email, region } = req.query;
+
+  if (!email || !region) {
+    return res.status(400).json({ error: "Email and region are required." });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT uid, email, role, region, division, first_name, last_name, passcode
+       FROM users
+       WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+         AND UPPER(TRIM(region)) = UPPER(TRIM($2))
+         AND LOWER(TRIM(role)) IN ('division engineer', 'architect', 'deped engineer', 'engineer')`,
+      [email.trim(), region.trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Engineer not found or is outside your regional jurisdiction." });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Regional Engineer Lookup Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // POST - admin Approve School
 // --- CHATBOT KNOWLEDGE TEACHING ---
 app.post('/api/admin/teach', async (req, res) => {
@@ -10275,7 +10309,8 @@ app.put('/api/update-project/:id', upload.fields([
       'final inspection': 'For Final Inspection',
       'under procurement': 'Under procurement',
       'not yet started': 'Not Yet Started',
-      'not yet procured': 'Not yet procured'
+      'not yet procured': 'Not yet procured',
+      'reverted': 'Reverted',
     };
 
     const rawStatus = (data.statusOfConstructionPhase !== undefined) ? data.statusOfConstructionPhase : (data.status !== undefined ? data.status : oldData.status_of_construction_phase);
@@ -10781,6 +10816,58 @@ app.get('/api/variation-orders/:projectId', async (req, res) => {
   }
 });
 
+// --- 9b. PUT: Revert Project (bypasses Pending approval block) ---
+app.put('/api/revert-project/:id', async (req, res) => {
+  const { id } = req.params;
+  const { uid, revertReason } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query('SELECT * FROM engineer_form WHERE project_id = $1', [id]);
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Project not found' });
+    }
+    const old = rows[0];
+
+    if (old.status_of_construction_phase === 'Reverted') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Project is already reverted.' });
+    }
+
+    const reason = (revertReason || 'Funds reverted to National Treasury due to non-utilization within the fiscal year.').trim();
+    const now = new Date().toISOString();
+
+    await client.query(`
+      UPDATE engineer_form
+      SET status_of_construction_phase = 'Reverted',
+          actions = 'Revert',
+          other_remarks = $1,
+          status_as_of = $2
+      WHERE project_id = $3
+    `, [reason, now, id]);
+
+    await logActivity(
+      uid || null,
+      null,
+      null,
+      'Revert',
+      `engineer_form:${id}`,
+      `Project reverted: ${old.project_name || id}. Reason: ${reason}`
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Project marked as Reverted.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('❌ Revert project error:', err.message);
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // --- 10. REALIGNMENT ROUTES ---
 app.get('/api/projects/realignment-candidates/:id', async (req, res) => {
   const { id } = req.params;
@@ -11201,30 +11288,64 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
     let queryParams = [];
     let whereClauses = [];
 
+    const DEBUG_MODE = process.env.NODE_ENV !== 'production';
+
+    // Inline optional JWT decode — eliminates DB round-trip for authenticated clients
+    if (!req.user) {
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          req.user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD');
+        } catch (_) {}
+      }
+    }
+
+    // [DIAG] Division Engineer Query Telemetry
+    if (DEBUG_MODE && engineer_id) {
+      console.time(`[DIAG] /api/dashboard/efd-summary query — uid:${engineer_id}`);
+    }
+
     // Shared Filtering Logic (MUST match /api/projects)
     if (engineer_id) {
-      const userResult = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [engineer_id]);
-      const userProfile = userResult.rows[0];
-      if (userProfile) {
-        const role = userProfile.role?.trim().toLowerCase();
-        const isAdmin = ['central office', 'hrodi', 'super user', 'super admin', 'admin', 'efd', 'efd engineer', 'hrodi engineer', 'central office finance'].includes(role);
-        const isDivEng = ['division engineer', 'architect', 'sdo', 'ro', 'regional office', 'school division office', 'deped engineer', 'engineer'].includes(role);
+      let jurisdictionRole, jurisdictionRegion, jurisdictionDivision;
+
+      if (req.user) {
+        jurisdictionRole = req.user.role?.trim().toLowerCase();
+        jurisdictionRegion = req.user.region;
+        jurisdictionDivision = req.user.division;
+      } else {
+        const userResult = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [engineer_id]);
+        const userProfile = userResult.rows[0];
+        if (userProfile) {
+          jurisdictionRole = userProfile.role?.trim().toLowerCase();
+          jurisdictionRegion = userProfile.region;
+          jurisdictionDivision = userProfile.division;
+        }
+      }
+
+      if (jurisdictionRole) {
+        const isAdmin = ['central office', 'hrodi', 'super user', 'super admin', 'admin', 'efd', 'efd engineer', 'hrodi engineer', 'central office finance'].includes(jurisdictionRole);
+        const isDivEng = ['division engineer', 'architect', 'sdo', 'ro', 'regional office', 'school division office', 'deped engineer', 'engineer'].includes(jurisdictionRole);
 
         if (isAdmin) {
           // admin/HRODI sees all summary stats; skip engineer_id/region/division filters
         } else if (isDivEng) {
-          if (userProfile.region) {
-            queryParams.push(userProfile.region.trim());
+          if (jurisdictionRegion) {
+            queryParams.push(jurisdictionRegion.trim());
             whereClauses.push(`TRIM(e.region) ILIKE TRIM($${queryParams.length})`);
           }
-          if (userProfile.division) {
-            const normalizedDivision = userProfile.division.trim().replace(/^(SDO|Division of)[-\s]+/i, '').trim();
-            queryParams.push(normalizedDivision);
-            whereClauses.push(`regexp_replace(TRIM(e.division), '^(SDO|Division of)[-\\s]+', '', 'i') ILIKE $${queryParams.length}`);
+          if (jurisdictionDivision) {
+            const normalizedDivisionParam = jurisdictionDivision.trim().replace(/^(SDO|Division of)[-\s]+/i, '').trim().toLowerCase();
+            queryParams.push(normalizedDivisionParam);
+            whereClauses.push(`LOWER(TRIM(regexp_replace(e.division, '^(SDO|Division of)[-\\s]+', '', 'i'))) = $${queryParams.length}`);
           }
         } else {
           queryParams.push(engineer_id);
           whereClauses.push(`e.engineer_id = $${queryParams.length}`);
+        }
+
+        if (DEBUG_MODE && engineer_id) {
+          console.log(`[DIAG] JWT role: ${jurisdictionRole} | region: ${jurisdictionRegion} | division: ${jurisdictionDivision}`);
         }
       }
     }
@@ -11248,9 +11369,9 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
       }
     }
     if (division) {
-      const normDiv = division.replace(/^(SDO|Division of)\s+/i, '').trim();
+      const normDiv = division.replace(/^(SDO|Division of)[-\s]+/i, '').trim().toLowerCase();
       queryParams.push(normDiv);
-      whereClauses.push(`regexp_replace(TRIM(e.division), '^(SDO|Division of)\\s+', '', 'i') ILIKE $${queryParams.length}`);
+      whereClauses.push(`LOWER(TRIM(regexp_replace(e.division, '^(SDO|Division of)[-\\s]+', '', 'i'))) = $${queryParams.length}`);
     }
     if (req.query.province) {
       queryParams.push(req.query.province);
@@ -11335,8 +11456,14 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
     `;
 
     const result = await pool.query(sql, queryParams);
+
+    if (DEBUG_MODE && engineer_id) {
+      console.timeEnd(`[DIAG] /api/dashboard/efd-summary query — uid:${engineer_id}`);
+      console.log(`[DIAG] Active WHERE clauses:`, whereClauses);
+    }
+
     res.json(result.rows[0].summary || {});
-    
+
   } catch (err) {
     console.error("❌ Error fetching EFD summary:", err.message);
     res.status(500).json({ error: "Internal Server Error" });
@@ -11354,11 +11481,11 @@ app.get('/api/projects', async (req, res) => {
 
     let sql = `
       WITH RankedProjects AS (
-          SELECT 
+          SELECT
             e.project_id, e.school_name, e.project_name, e.school_id, e.division, e.region, e.status_of_construction_phase AS status, e.ipc, e.engineer_name, e.engineer_id,
             e.accomplishment_percentage,
             LAG(e.accomplishment_percentage) OVER (
-                PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name) 
+                PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name)
                 ORDER BY e.project_id ASC
             ) as previous_percentage,
             e.approved_budget_for_contract, e.contract_amount, e.batch_of_funds, e.contractor_name, e.other_remarks,
@@ -11383,8 +11510,9 @@ app.get('/api/projects', async (req, res) => {
             COALESCE(f.liquidated_tranche_1, 0) as liquidated_tranche_1,
             COALESCE(f.liquidated_tranche_2, 0) as liquidated_tranche_2,
             COALESCE(f.liquidated_tranche_3, 0) as liquidated_tranche_3,
+            COALESCE(img_agg.img_count, 0) AS images_count,
             ROW_NUMBER() OVER (
-                PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name) 
+                PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name)
                 ORDER BY e.project_id DESC
             ) as rn
           FROM engineer_form e
@@ -11398,6 +11526,12 @@ app.get('/api/projects', async (req, res) => {
               ORDER BY created_at DESC
               LIMIT 1
           ) d ON true
+          LEFT JOIN (
+              SELECT ipc, COUNT(*) AS img_count
+              FROM engineer_image
+              WHERE ipc IS NOT NULL
+              GROUP BY ipc
+          ) img_agg ON img_agg.ipc = e.ipc
       ),
       LatestProjects AS (
           SELECT * FROM RankedProjects WHERE rn = 1
@@ -11407,7 +11541,7 @@ app.get('/api/projects', async (req, res) => {
         p.school_id AS "schoolId", p.school_id AS "school_id", p.division, p.region, p.province, p.city, p.municipality, p.status AS "status", p.ipc, p.engineer_name AS "engineerName",
         p.accomplishment_percentage AS "accomplishmentPercentage", p.accomplishment_percentage AS "accomplishment_percentage",
         p.previous_percentage AS "previousPercentage",
-        p.approved_budget_for_contract AS "projectAllocation", p.approved_budget_for_contract AS "amount", 
+        p.approved_budget_for_contract AS "projectAllocation", p.approved_budget_for_contract AS "amount",
         p.contract_amount AS "contractAmount", p.contract_amount AS "contract_amount",
         p.batch_of_funds AS "batchOfFunds",
         p.contractor_name AS "contractorName", p.other_remarks AS "otherRemarks",
@@ -11446,39 +11580,71 @@ app.get('/api/projects', async (req, res) => {
         p.tranche_1, p.tranche_2, p.tranche_3,
         p.liquidated_tranche_1, p.liquidated_tranche_2, p.liquidated_tranche_3,
         p.approval_status AS "approvalStatus",
-        (SELECT COUNT(*) FROM engineer_image ei WHERE ei.ipc = p.ipc OR ei.project_id = p.project_id) AS "imagesCount"
+        p.images_count AS "imagesCount",
+        COUNT(*) OVER() AS total_count
       FROM LatestProjects p
     `;
 
+    const DEBUG_MODE = process.env.NODE_ENV !== 'production';
+
+    // Inline optional JWT decode — eliminates DB round-trip for authenticated clients
+    if (!req.user) {
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          req.user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD');
+        } catch (_) {}
+      }
+    }
+
+    // [DIAG] Division Engineer Query Telemetry
+    if (DEBUG_MODE && engineer_id) {
+      console.time(`[DIAG] /api/projects query — uid:${engineer_id}`);
+    }
+
     // 1. ADD FILTER: Robust Jurisdiction Filtering for Division Engineers
     if (engineer_id) {
-      const userResult = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [engineer_id]);
-      const userProfile = userResult.rows[0];
+      let jurisdictionRole, jurisdictionRegion, jurisdictionDivision;
 
-      if (userProfile) {
-        const role = userProfile.role?.trim().toLowerCase();
-        const isAdmin = ['central office', 'hrodi', 'super user', 'super admin', 'admin', 'efd', 'efd engineer', 'hrodi engineer', 'central office finance'].includes(role);
-        const isJurisdictionRestricted = ['division engineer', 'regional engineer', 'architect', 'sdo', 'ro', 'regional office', 'school division office', 'deped engineer', 'engineer'].includes(role);
+      if (req.user) {
+        jurisdictionRole = req.user.role?.trim().toLowerCase();
+        jurisdictionRegion = req.user.region;
+        jurisdictionDivision = req.user.division;
+      } else {
+        const userResult = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [engineer_id]);
+        const userProfile = userResult.rows[0];
+        if (userProfile) {
+          jurisdictionRole = userProfile.role?.trim().toLowerCase();
+          jurisdictionRegion = userProfile.region;
+          jurisdictionDivision = userProfile.division;
+        }
+      }
+
+      if (jurisdictionRole) {
+        const isAdmin = ['central office', 'hrodi', 'super user', 'super admin', 'admin', 'efd', 'efd engineer', 'hrodi engineer', 'central office finance'].includes(jurisdictionRole);
+        const isJurisdictionRestricted = ['division engineer', 'regional engineer', 'architect', 'sdo', 'ro', 'regional office', 'school division office', 'deped engineer', 'engineer'].includes(jurisdictionRole);
 
         if (isAdmin) {
           // admin/HRODI can see all projects; don't add engineer_id or region/division filters
-          console.log(`[AUTH] admin bypass for role: ${role}`);
+          if (DEBUG_MODE) console.log(`[AUTH] admin bypass for role: ${jurisdictionRole}`);
         } else if (isJurisdictionRestricted) {
-          if (userProfile.region) {
-            queryParams.push(userProfile.region.trim());
+          if (jurisdictionRegion) {
+            queryParams.push(jurisdictionRegion.trim());
             whereClauses.push(`TRIM(p.region) ILIKE TRIM($${queryParams.length})`);
           }
           // Regional Engineer oversees all divisions in their region — skip division filter
-          if (userProfile.division && role !== 'regional engineer') {
-            // Normalize both sides: strip "SDO " / "SDO-" / "Division of " prefixes so
-            // "SDO Benguet" / "SDO-Benguet" in users matches "Benguet" in engineer_form (and vice-versa).
-            const normalizedDivision = userProfile.division.trim().replace(/^(SDO|Division of)[-\s]+/i, '').trim();
-            queryParams.push(normalizedDivision);
-            whereClauses.push(`regexp_replace(TRIM(p.division), '^(SDO|Division of)[-\\s]+', '', 'i') ILIKE $${queryParams.length}`);
+          if (jurisdictionDivision && jurisdictionRole !== 'regional engineer') {
+            const normalizedDivisionParam = jurisdictionDivision.trim().replace(/^(SDO|Division of)[-\s]+/i, '').trim().toLowerCase();
+            queryParams.push(normalizedDivisionParam);
+            whereClauses.push(`LOWER(TRIM(regexp_replace(p.division, '^(SDO|Division of)[-\\s]+', '', 'i'))) = $${queryParams.length}`);
           }
         } else {
           queryParams.push(engineer_id);
           whereClauses.push(`p.engineer_id = $${queryParams.length}`);
+        }
+
+        if (DEBUG_MODE) {
+          console.log(`[DIAG] JWT role: ${jurisdictionRole} | region: ${jurisdictionRegion} | division: ${jurisdictionDivision}`);
         }
       } else {
         queryParams.push(engineer_id);
@@ -11510,9 +11676,9 @@ app.get('/api/projects', async (req, res) => {
       }
     }
     if (division) {
-      const normDiv = division.replace(/^(SDO|Division of)[-\s]+/i, '').trim();
+      const normDiv = division.replace(/^(SDO|Division of)[-\s]+/i, '').trim().toLowerCase();
       queryParams.push(normDiv);
-      whereClauses.push(`regexp_replace(TRIM(p.division), '^(SDO|Division of)[-\\s]+', '', 'i') ILIKE $${queryParams.length}`);
+      whereClauses.push(`LOWER(TRIM(regexp_replace(p.division, '^(SDO|Division of)[-\\s]+', '', 'i'))) = $${queryParams.length}`);
     }
     // NEW: Province Filter
     if (req.query.province) {
@@ -11598,6 +11764,11 @@ app.get('/api/projects', async (req, res) => {
       whereClauses.push(`(p.school_name ILIKE $${queryParams.length} OR p.project_name ILIKE $${queryParams.length})`);
     }
 
+    if (req.query.approval_status) {
+      queryParams.push(req.query.approval_status);
+      whereClauses.push(`p.approval_status = $${queryParams.length}`);
+    }
+
     if (sty) {
       queryParams.push(Number(sty));
       whereClauses.push(`p.number_of_storeys = $${queryParams.length}`);
@@ -11616,11 +11787,6 @@ app.get('/api/projects', async (req, res) => {
       sql += ` WHERE ` + whereClauses.join(' AND ');
     }
 
-    // Get Total Count for Pagination
-    const countSql = `SELECT COUNT(*) FROM (${sql}) AS total`;
-    const countResult = await pool.query(countSql, queryParams);
-    const totalCount = parseInt(countResult.rows[0].count);
-
     if (limit === 'all') {
       sql += ` ORDER BY p.project_id DESC`;
     } else {
@@ -11629,6 +11795,15 @@ app.get('/api/projects', async (req, res) => {
     }
 
     const result = await pool.query(sql, queryParams);
+    const totalCount = parseInt(result.rows[0]?.total_count ?? 0, 10);
+    result.rows.forEach(r => delete r.total_count);
+
+    if (DEBUG_MODE && engineer_id) {
+      console.timeEnd(`[DIAG] /api/projects query — uid:${engineer_id}`);
+      console.log(`[DIAG] Rows returned: ${result.rows.length} | Total count: ${totalCount}`);
+      console.log(`[DIAG] Active WHERE clauses:`, whereClauses);
+    }
+
     res.json({
       data: result.rows,
       pagination: {
@@ -11639,7 +11814,7 @@ app.get('/api/projects', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error("â Œ Error fetching projects:", err.message);
+    console.error("❌ Error fetching projects:", err.message);
     res.status(500).json({ message: "Server error" });
   }
 });

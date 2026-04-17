@@ -369,7 +369,6 @@ const RegionalEngineerDashboard = () => {
                 </div>
 
                 <div className="px-4 mt-6 space-y-5 pb-4">
-                    {/* Pending Approval Alert */}
                     {overallStats.pendingApproval > 0 && (
                         <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 flex items-center gap-3">
                             <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
@@ -384,7 +383,6 @@ const RegionalEngineerDashboard = () => {
                         </div>
                     )}
 
-                    {/* Bar Chart */}
                     {chartData.length > 0 && (
                         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Projects by Division</p>
@@ -403,14 +401,12 @@ const RegionalEngineerDashboard = () => {
                         </div>
                     )}
 
-                    {/* Section Label */}
                     <div className="flex items-center justify-between">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             {filteredDivisions.length} Division{filteredDivisions.length !== 1 ? 's' : ''}
                         </p>
                     </div>
 
-                    {/* Division Cards */}
                     {loading ? (
                         <div className="space-y-4">
                             {[1, 2, 3].map(i => (
