@@ -560,9 +560,12 @@ const MonitoringDashboard = () => {
                 title="ESF7 Submissions" 
                 value={stats.esf7Submissions.toLocaleString()} 
                 icon={FiFileText} 
-                color="bg-slate-400" 
-                subtext="Locked for Maintenance"
-                onClick={null}
+                color="bg-indigo-600" 
+                subtext="Staged / Verified"
+                onClick={(user?.role === 'Super User' || (user?.office || '').toUpperCase() === 'SCHOOL GOVERNANCE AND OPERATIONS DIVISION (SGOD)') 
+                    ? () => navigate('/esf7/review') 
+                    : null
+                }
             />
             <motion.button
                 initial={{ opacity: 0, y: 20 }}

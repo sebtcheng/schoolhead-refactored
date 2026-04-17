@@ -37,6 +37,7 @@ import busboy from 'busboy'; // --- FAST FILE PARSER ---
 import multer from 'multer';
 import { createRequire } from "module"; // Added for JSON import
 const require = createRequire(import.meta.url);
+const { PgBoss } = require('pg-boss');
 import { exec } from 'child_process';
 import util from 'util';
 const execAsync = util.promisify(exec);
@@ -300,6 +301,15 @@ const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD
 const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('20.24.58.49');
 
 console.log(`🔌 Database Connection: ${dbUrl.includes('20.24.58.49') ? 'Remote VM (Azure Proxy)' : (isLocal ? 'Local Loopback' : 'Remote')} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
+
+// [Job Queue Architecture] Initialize PgBoss for ESF7 scaling
+const boss = new PgBoss({
+  connectionString: dbUrl,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
+  max: 10, // Max internal queue metadata connections
+});
+
+boss.on('error', error => console.error('💥 [PG-BOSS] Error:', error));
 
 const { Pool } = pg;
 // [Hawkeye Protocol v4.0 — Unified Cloud Scaling]
@@ -20420,6 +20430,13 @@ const startServer = async () => {
             // must never run concurrently across workers.
             await initFinanceDB();
             await initMasterlistDB();
+
+            // Initialize and start pg-boss
+            console.log("💼 [JobQueue] Starting pg-boss instance...");
+            await boss.start();
+            await boss.createQueue('esf7-approve').catch(() => {});
+            await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
+            console.log("💼 [JobQueue] Worker Registered for 'esf7-approve' (Concurrency: 1)");
           } finally {
             migClient.release();
           }
@@ -20447,6 +20464,11 @@ const startServer = async () => {
             console.log('💾 Closing Secondary DB pool...');
             await poolNew.end();
             console.log('✅ Secondary DB pool closed.');
+          }
+          if (boss) {
+            console.log('💼 Stopping pg-boss...');
+            await boss.stop();
+            console.log('✅ pg-boss stopped.');
           }
         } catch (err) {
           console.error('❌ Error during shutdown:', err.message);
@@ -21026,9 +21048,37 @@ app.post('/api/esf7/return', async (req, res) => {
   }
 });
 
-// POST /api/esf7/approve - Final Migration from STAGING to DATABASE
+// POST /api/esf7/approve - Final Migration from STAGING to DATABASE (Queued)
 app.post('/api/esf7/approve', async (req, res) => {
   const { school_id } = req.body;
+  if (!school_id) return res.status(400).json({ error: "Missing school_id" });
+
+  try {
+    // 1. Mark as QUEUED in ph_schools immediately
+    await pool.query("UPDATE ph_schools SET unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+
+    // 2. Publish JOB to pg-boss
+    const jobId = await boss.send('esf7-approve', { school_id });
+    
+    console.log(`[Queue] ESF7 Approval job ${jobId} published for school ${school_id}`);
+    
+    res.json({ 
+      success: true, 
+      message: "Approval request queued. The system is processing data migration in the background.",
+      job_id: jobId
+    });
+
+  } catch (err) {
+    console.error("Queue ESF7 Approve Error:", err);
+    res.status(500).json({ error: "Failed to queue approval request." });
+  }
+});
+
+// [Job Queue Background Worker] - Process ESF7 Approvals sequentially
+async function handleEsf7ApproveJob(job) {
+  const { school_id } = job.data;
+  console.log(`[Worker] Starting ESF7 Approval for school: ${school_id}`);
+  
   let client;
   try {
     client = await pool.connect();
@@ -21064,6 +21114,7 @@ app.post('/api/esf7/approve', async (req, res) => {
         UPDATE ph_schools 
         SET unit7_completed = TRUE, 
             unit7 = 1, 
+            unit7_status = 'VERIFIED',
             approved_at = $1,
             updated_at = CURRENT_TIMESTAMP 
         WHERE school_id = $2
@@ -21074,20 +21125,20 @@ app.post('/api/esf7/approve', async (req, res) => {
     const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
     if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
 
-    res.json({ success: true, message: "ESF7 successfully verified and committed to database." });
-
+    console.log(`[Worker] ✅ ESF7 Successfully processed for school ${school_id}`);
+    
   } catch (err) {
     if (client) await client.query('ROLLBACK');
-    console.error("Approve/Migrate ESF7 Error:", err);
-    res.status(500).json({ 
-      success: false,
-      error: err.message || "Failed to verify and migrate records.",
-      details: err.toString()
-    });
+    console.error(`[Worker] ❌ ESF7 Approval Job Failed for ${school_id}:`, err);
+    
+    // Update school status back to ERROR or staged to allow retry
+    await pool.query("UPDATE ph_schools SET unit7_status = 'ERROR', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+    
+    throw err; // Bubbling to let pg-boss handle internal retry if configured
   } finally {
     if (client) client.release();
   }
-});
+}
 
 
 // --- AUDIT FEEDBACK ENDPOINTS (New Table: audit_feedback_tasks) ---

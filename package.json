@@ -51,6 +51,7 @@
     "pdf-parse": "^1.1.1",
     "pdf-parse-new": "^2.0.0",
     "pg": "^8.20.0",
+    "pg-boss": "^12.15.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.2",

@@ -51,35 +51,36 @@ School Heads can choose between two upload methods:
 
 ---
 
-## 4. Phase 3: Commitment & Migration (`api/index.js`)
+## 4. Phase 3: Commitment & Migration (Job Queue Architecture)
 
-### Approval Logic (`/api/esf7/approve`)
+### The Queue Strategy (`pg-boss`)
 
-1.  **Validation**: Ensures staging records exist for the `school_id`.
-2.  **Column Discovery**: Dynamically queries the database schema to find all valid columns (excluding internal IDs).
-3.  **Migration**:
-    - Executes a `DELETE` on any existing production records for the school.
-    - Executes `INSERT INTO ... SELECT` to move data from `ESF7_Staging` to `ESF7_Database` with a `VERIFIED` status.
-4.  **Finalization**:
-    - Purges staging data.
-    - Sets `ph_schools.unit7 = 1.0` and `unit7_completed = true`.
-    - Triggers `updateSchoolTotalCompletion` to recalculate the global progress.
+To handle peak traffic (e.g., 500+ simultaneous approvals), the system utilizes `pg-boss` to queue operations. This prevents database connection exhaustion and lock contention.
 
-### Rejection Logic (`/api/esf7/reject`)
+1.  **Publishing**: When an auditor clicks "Verify", the API publishes an `esf7-approval` job.
+2.  **Queuing**: The job is stored in the database's internal queue tables.
+3.  **Processing**: A background worker pulls jobs **one at a time** (`concurrency: 1`).
+4.  **Execution**: The worker performs the dynamic column migration (Migrate -> Clear Staging -> Update Status).
+5.  **Resilience**: If a migration fails due to a temporary lock, `pg-boss` automatically retries it.
 
-- **Action**: Resets the school's unit status to `NOT_STARTED` or `REJECTED`.
-- **Result**: Unlocks the `ESF7Draft` component for the school head to allow a new upload.
+### Status Lifecycle (With Queue)
+
+| Status | Progress | Meaning |
+| :--- | :--- | :--- |
+| `PENDING_SDO` | 0.5 | School Head has staged the data. |
+| `QUEUED` | 0.5 | Auditor has clicked Verify; job is waiting in queue. |
+| `VERIFIED` | 1.0 | Background worker has successfully committed the data. |
 
 ---
 
-## 5. Metadata Tracking (Recent Update)
+## 5. Metadata Tracking
 
-The following columns have been added to track the audit timeline:
+The following columns track the audit timeline:
 
-- `school_name`: Captured in both staging and production for readable reporting.
+- `school_name`: Captured in both staging and production.
 - `uploaded_at`: Precision timestamp when the school head staged the file.
 - `approved_at`: Precision timestamp when the auditor committed the data.
 
 ---
 
-_Maintained by Antigravity AI — Last Updated: 2026-04-16_
+_Maintained by Antigravity AI — Last Updated: 2026-04-17_

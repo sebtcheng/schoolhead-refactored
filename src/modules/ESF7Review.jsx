@@ -105,6 +105,8 @@ const ESF7Review = () => {
                 body: JSON.stringify({ school_id: selectedSchool })
             });
             if (res.ok) {
+                const data = await res.json();
+                alert(data.message || "Approval request queued.");
                 setSelectedSchool(null);
                 fetchAllData();
             }
@@ -200,7 +202,7 @@ const ESF7Review = () => {
         const matchesSearch = s.school_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              s.school_id.toLowerCase().includes(searchTerm.toLowerCase());
         
-        if (activeTab === 'queue') return matchesSearch && (s.status === 'PENDING_SDO' || s.status === 'REJECTED');
+        if (activeTab === 'queue') return matchesSearch && (s.status === 'PENDING_SDO' || s.status === 'REJECTED' || s.status === 'QUEUED' || s.status === 'ERROR');
         if (activeTab === 'verified') return matchesSearch && s.status === 'VERIFIED';
         if (activeTab === 'missing') return matchesSearch && s.status === 'NOT_STARTED';
         return matchesSearch;
@@ -394,7 +396,13 @@ const SchoolRow = ({ school, onClick }) => (
                 <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">ID: {school.school_id}</p>
             </div>
         </div>
-        <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600' : school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+            school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600' : 
+            school.status === 'QUEUED' ? 'bg-blue-50 text-blue-600' :
+            school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-600' : 
+            'bg-slate-50 text-slate-400'
+        }`}>
+            {school.status === 'QUEUED' && <FiLoader className="animate-spin" />}
             {school.status.replace('_', ' ')}
         </div>
     </div>
