@@ -39,6 +39,7 @@ const EFDMonitoring = () => {
         searchHistory, addToSearchHistory,
         accomplishmentRange, setAccomplishmentRange,
         minPhotos, setMinPhotos,
+        pendingApprovalOnly, setPendingApprovalOnly,
         clearFilters
     } = useEFDFilters();
     const [fundingYears, setFundingYears] = useState([]);
@@ -177,6 +178,7 @@ const EFDMonitoring = () => {
             if (accomplishmentRange[0] > 0) params.append('acc_min', accomplishmentRange[0]);
             if (accomplishmentRange[1] < 100) params.append('acc_max', accomplishmentRange[1]);
             if (minPhotos > 0) params.append('min_photos', minPhotos);
+            if (pendingApprovalOnly) params.append('approval_status', 'Pending');
 
             const res = await fetch(`/api/projects?${params.toString()}`);
             if (res.ok) {
@@ -195,7 +197,7 @@ const EFDMonitoring = () => {
             setIsRefreshing(false);
             setLoading(false);
         }
-    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange, minPhotos]);
+    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange, minPhotos, pendingApprovalOnly]);
 
     useEffect(() => {
         const fetchInitial = async () => {
@@ -274,8 +276,9 @@ const EFDMonitoring = () => {
         setSelectedBatches(filters.batches || []);
         setAccomplishmentRange(filters.accRange || [0, 100]);
         setMinPhotos(filters.minPhotos ?? 0);
+        setPendingApprovalOnly(filters.pendingApprovalOnly ?? false);
         setCurrentPage(1);
-    }, [setSelectedRegions, setSelectedDivision, setSelectedProvince, setSelectedMunicipality, setSelectedDistrict, setSelectedCategories, setSelectedYears, setSelectedBatches, setAccomplishmentRange, setMinPhotos]);
+    }, [setSelectedRegions, setSelectedDivision, setSelectedProvince, setSelectedMunicipality, setSelectedDistrict, setSelectedCategories, setSelectedYears, setSelectedBatches, setAccomplishmentRange, setMinPhotos, setPendingApprovalOnly]);
 
     const handleAssign = async () => {
         if (!selectedProject || selectedEngineers.length === 0) return;
@@ -904,6 +907,8 @@ const EFDMonitoring = () => {
                 initialBatches={selectedBatches}
                 initialAccRange={accomplishmentRange}
                 initialMinPhotos={minPhotos}
+                initialPendingApproval={pendingApprovalOnly}
+                showPendingApproval={true}
                 yearOptions={fundingYears}
                 batchOptions={allBatches}
                 categoryOptions={projectCategories}

@@ -25,6 +25,7 @@ const ProjectStatus = {
   Completed: "Completed",
   Suspended: "Suspended",
   Terminated: "Terminated",
+  Reverted: "Reverted",
 };
 
 const DOC_TYPES = {
@@ -61,6 +62,8 @@ const getStatusColor = (status) => {
       return "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20";
     case "Terminated":
       return "bg-red-50 text-red-600 border-red-100 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20";
+    case "Reverted":
+      return "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20";
     default:
       return "bg-slate-50 text-slate-400 border-slate-100 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20";
   }
@@ -88,7 +91,7 @@ const formatDateTime = (dateString) => {
 
 // --- SUB-COMPONENTS ---
 
-const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariation, isLoading, searchQuery, readOnly, handleStatusChange, userRole }) => {
+const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariation, onRevert, isLoading, searchQuery, readOnly, handleStatusChange, userRole }) => {
 
   if (isLoading) {
     return (
@@ -126,8 +129,9 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6 pb-12">
       {projects.map((p, idx) => {
+        const isReverted = p?.status === 'Reverted';
         const isUpdateLocked =
-          ["Completed", "Terminated"].includes(p?.status) ||
+          ["Completed", "Terminated", "Reverted"].includes(p?.status) ||
           (p?.approvalStatus === "Pending" && ["Division Engineer", "Architect"].includes(userRole)) ||
           userRole === "Regional Engineer";
         const updateLabel = isUpdateLocked
@@ -137,9 +141,16 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
         <div
           key={p.id}
           onClick={() => onView(p)}
-          className="group bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-100 dark:border-slate-700 hover:border-[#004A99] dark:hover:border-blue-500 transition-all duration-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 cursor-pointer"
+          className={`group bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/40 dark:shadow-none border transition-all duration-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 cursor-pointer relative ${
+            isReverted
+              ? 'border-purple-200 dark:border-purple-900 opacity-70 hover:opacity-90'
+              : 'border-slate-100 dark:border-slate-700 hover:border-[#004A99] dark:hover:border-blue-500'
+          }`}
           style={{ animationDelay: `${idx * 100}ms` }}
         >
+          {isReverted && (
+            <div className="absolute inset-0 bg-purple-50/40 dark:bg-purple-900/10 rounded-3xl pointer-events-none z-10" />
+          )}
           {/* Card Header (Location & IPC) */}
           <div className="p-6 pb-0">
             <div className="flex justify-between items-start mb-2">
@@ -183,6 +194,11 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
                     {p?.status === "Terminated" && (
                       <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white animate-pulse">
                         🚫 TERMINATED
+                      </div>
+                    )}
+                    {p?.status === "Reverted" && (
+                      <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white">
+                        ↩ REVERTED
                       </div>
                     )}
                     {p?.approvalStatus === "Pending" && (
@@ -256,14 +272,27 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
                 <LuClipboardList size={14} /> LOGS
               </button>
             </div>
-            {!['Division Engineer', 'Architect', 'DepEd Engineer', 'Engineer', 'Regional Engineer'].includes(userRole) && (
-              <button
-                 onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
-                 className="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-              </button>
-            )}
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {/* Revert button — only for Division Engineer / Architect on active projects */}
+              {['Division Engineer', 'Architect'].includes(userRole) &&
+                !['Completed', 'Terminated', 'Reverted'].includes(p?.status) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRevert(p); }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-black text-purple-500 hover:text-white hover:bg-purple-500 border border-purple-200 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-600 dark:hover:text-white rounded-2xl transition-all active:scale-95"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+                  REVERT
+                </button>
+              )}
+              {!['Division Engineer', 'Architect', 'DepEd Engineer', 'Engineer', 'Regional Engineer'].includes(userRole) && (
+                <button
+                   onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                   className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
         );
@@ -335,10 +364,14 @@ const EngineerProjects = () => {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   // --- Checkbox Reason Modal State (Bugs 4 & 5) ---
-  const [checkboxModal, setCheckboxModal] = useState({ 
-    open: false, type: null, project: null, newValue: null, options: [], title: '' 
+  const [checkboxModal, setCheckboxModal] = useState({
+    open: false, type: null, project: null, newValue: null, options: [], title: ''
   });
   const [selectedReasons, setSelectedReasons] = useState([]);
+
+  // --- Revert Modal State ---
+  const [revertModal, setRevertModal] = useState({ open: false, project: null });
+  const [revertReason, setRevertReason] = useState('');
 
   // --- Variation Order Modal State ---
   const [variationModalOpen, setVariationModalOpen] = useState(false);
@@ -594,6 +627,37 @@ const EngineerProjects = () => {
 
     } catch (err) {
       console.error("Delete Error:", err);
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleRevertProject = (project) => {
+    setRevertReason('Funds reverted to National Treasury due to non-utilization within the fiscal year.');
+    setRevertModal({ open: true, project });
+  };
+
+  const handleConfirmRevert = async () => {
+    const { project } = revertModal;
+    setRevertModal({ open: false, project: null });
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/revert-project/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          uid: user?.uid,
+          revertReason: revertReason.trim() || 'Funds reverted to National Treasury.',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to revert project');
+      }
+      setProjects(prev => prev.map(p =>
+        p.id === project.id ? { ...p, status: 'Reverted', revertReason: revertReason.trim() } : p
+      ));
+    } catch (err) {
+      console.error('Revert error:', err);
       alert(`Error: ${err.message}`);
     }
   };
@@ -1103,6 +1167,7 @@ const EngineerProjects = () => {
             onView={handleViewProject}
             onViewLog={handleViewLog}
             onVariation={handleOpenVariationModal}
+            onRevert={handleRevertProject}
             isLoading={isLoading}
             searchQuery={searchQuery}
             readOnly={userRole === 'Super User'}
@@ -1219,6 +1284,47 @@ const EngineerProjects = () => {
              </div>
            </div>,
            document.body
+        )}
+
+        {/* --- REVERT MODAL --- */}
+        {revertModal.open && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-white/20">
+              <div className="px-8 pt-8 pb-4">
+                <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 dark:text-white mb-1">Revert Funds</h3>
+                <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">{revertModal.project?.projectName}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
+                  This marks the project as <strong>Reverted</strong> — funds are returned to the National Treasury due to non-utilization. A re-budget or re-allocation will be required to continue. COA may flag this for audit.
+                </p>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Reason</label>
+                <textarea
+                  value={revertReason}
+                  onChange={(e) => setRevertReason(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-xs text-slate-700 dark:text-slate-200 resize-none focus:outline-none focus:border-purple-400 transition-colors"
+                  placeholder="Enter reason for reverting funds..."
+                />
+              </div>
+              <div className="px-8 pb-8 flex flex-col gap-2 mt-2">
+                <button
+                  onClick={handleConfirmRevert}
+                  className="w-full py-3.5 bg-purple-500 hover:bg-purple-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-500/20 transition-all active:scale-95"
+                >
+                  Confirm Revert
+                </button>
+                <button
+                  onClick={() => setRevertModal({ open: false, project: null })}
+                  className="w-full py-3.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
 
         {/* --- VARIATION ORDER MODAL --- */}

@@ -349,13 +349,15 @@ const FilterDrawer = ({
     initialBatches = [],
     initialAccRange = [0, 100],
     initialMinPhotos = 0,
+    initialPendingApproval = false,
     yearOptions = [],
     batchOptions = [],
     categoryOptions = [],
     hideRegions = false,
     hideDivisions = false,
     hideProvinces = false,
-    hideMunicipalities = false
+    hideMunicipalities = false,
+    showPendingApproval = false,
 }) => {
     const [selectedRegions, setSelectedRegions] = useState(initialRegions);
     const [selectedCategories, setSelectedCategories] = useState(initialCategories);
@@ -367,6 +369,7 @@ const FilterDrawer = ({
     const [selectedBatchFunds, setSelectedBatchFunds] = useState(initialBatches);
     const [accRange, setAccRange] = useState(initialAccRange);
     const [minPhotos, setMinPhotos] = useState(initialMinPhotos);
+    const [pendingApprovalOnly, setPendingApprovalOnly] = useState(initialPendingApproval);
 
     // Sync when drawer opens — intentional setState in effect to reset draft state
     // once per open. Array props excluded from deps to avoid infinite re-sync loop.
@@ -380,6 +383,7 @@ const FilterDrawer = ({
             setSelectedBatchFunds(initialBatches || []);
             setAccRange(initialAccRange || [0, 100]);
             setMinPhotos(initialMinPhotos || 0);
+            setPendingApprovalOnly(initialPendingApproval || false);
             /* eslint-enable react-hooks/set-state-in-effect */
         }
     }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -444,6 +448,7 @@ const FilterDrawer = ({
                 batches: selectedBatchFunds,
                 accRange,
                 minPhotos,
+                pendingApprovalOnly,
             });
         }
         onClose();
@@ -460,6 +465,7 @@ const FilterDrawer = ({
         setSelectedBatchFunds([]);
         setAccRange([0, 100]);
         setMinPhotos(0);
+        setPendingApprovalOnly(false);
     };
 
     const activeCount = [
@@ -470,6 +476,7 @@ const FilterDrawer = ({
         selectedBatchFunds.length > 0,
         accRange[0] > 0 || accRange[1] < 100,
         minPhotos > 0,
+        pendingApprovalOnly,
     ].filter(Boolean).length;
 
     const drawer = (
@@ -547,6 +554,29 @@ const FilterDrawer = ({
 
                         {/* Min Photos Filter */}
                         <MinPhotosFilter value={minPhotos} onChange={setMinPhotos} />
+
+                        {/* Pending Approval Filter — EFD only */}
+                        {showPendingApproval && (
+                            <div className="space-y-2">
+                                <p className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Approval Status</p>
+                                <button
+                                    onClick={() => setPendingApprovalOnly(v => !v)}
+                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all font-bold text-sm ${
+                                        pendingApprovalOnly
+                                            ? 'bg-amber-50 border-amber-400 text-amber-700 dark:bg-amber-900/20 dark:border-amber-500 dark:text-amber-300'
+                                            : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-400'
+                                    }`}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <span className={`w-2 h-2 rounded-full ${pendingApprovalOnly ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
+                                        Pending Approval Only
+                                    </span>
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${pendingApprovalOnly ? 'bg-amber-400 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                        {pendingApprovalOnly ? 'ON' : 'OFF'}
+                                    </span>
+                                </button>
+                            </div>
+                        )}
 
                         {/* Location Hierarchy */}
                         <div className="space-y-4">

@@ -1587,8 +1587,19 @@ const runMigrations = async (client, dbLabel) => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_engineer_image_ipc     ON engineer_image(ipc);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_engineer_documents_ipc ON engineer_documents(ipc);`);
 
+        // Composite index to support LATERAL join sort on engineer_documents without per-row filesort
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_docs_ipc_created ON engineer_documents(ipc, created_at DESC) WHERE ipc IS NOT NULL;`).catch(e => console.warn(`⚠️ idx_engineer_docs_ipc_created skipped (already exists or concurrent restriction):`, e.message));
+
         // Partial index: most IPC queries exclude null rows; this index is smaller and faster
         await client.query(`CREATE INDEX IF NOT EXISTS idx_engineer_form_ipc_partial ON engineer_form(ipc) WHERE ipc IS NOT NULL;`);
+
+        // B-tree indexes on jurisdiction/filter hot columns — eliminate sequential scans on engineer_form
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_region ON engineer_form(LOWER(TRIM(region)));`).catch(e => console.warn(`⚠️ idx_engineer_form_region skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_division ON engineer_form(LOWER(TRIM(division)));`).catch(e => console.warn(`⚠️ idx_engineer_form_division skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_region_div ON engineer_form(LOWER(TRIM(region)), LOWER(TRIM(division)));`).catch(e => console.warn(`⚠️ idx_engineer_form_region_div skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_engineer_id ON engineer_form(engineer_id);`).catch(e => console.warn(`⚠️ idx_engineer_form_engineer_id skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_category ON engineer_form(project_category);`).catch(e => console.warn(`⚠️ idx_engineer_form_category skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_year ON engineer_form(funding_year);`).catch(e => console.warn(`⚠️ idx_engineer_form_year skipped:`, e.message));
 
         // Dedicated file_path column for disk-based images (image_data may still hold legacy base64)
         await client.query(`ALTER TABLE engineer_image ADD COLUMN IF NOT EXISTS file_path TEXT;`);

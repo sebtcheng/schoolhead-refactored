@@ -572,6 +572,8 @@ const EFDHome = () => {
         return projects.filter(p => {
             const matchesSearch = !searchQuery ||
                 p.projectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.schoolName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.school_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.schoolId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.division?.toLowerCase().includes(searchQuery.toLowerCase());
 

@@ -28,6 +28,9 @@ export const EFDFilterProvider = ({ children }) => {
     // Min Photos in Gallery
     const [minPhotos, setMinPhotos] = useState(() => parseInt(localStorage.getItem('efd_minPhotos') || '0', 10));
 
+    // Pending Approval filter
+    const [pendingApprovalOnly, setPendingApprovalOnly] = useState(() => localStorage.getItem('efd_pendingApprovalOnly') === 'true');
+
 
     // Persistence Layer
     useEffect(() => {
@@ -45,9 +48,10 @@ export const EFDFilterProvider = ({ children }) => {
         localStorage.setItem('efd_selectedDocStatus', selectedDocStatus);
         localStorage.setItem('efd_accomplishmentRange', JSON.stringify(accomplishmentRange));
         localStorage.setItem('efd_minPhotos', String(minPhotos));
+        localStorage.setItem('efd_pendingApprovalOnly', String(pendingApprovalOnly));
     }, [
         selectedDistrict, selectedSource, selectedDonated, selectedDocStatus,
-        searchHistory, accomplishmentRange, minPhotos
+        searchHistory, accomplishmentRange, minPhotos, pendingApprovalOnly
     ]);
 
     const addToSearchHistory = useCallback((query) => {
@@ -75,6 +79,7 @@ export const EFDFilterProvider = ({ children }) => {
         setSelectedDocStatus('All');
         setAccomplishmentRange([0, 100]);
         setMinPhotos(0);
+        setPendingApprovalOnly(false);
 
         // Clean storage
         const keys = [
@@ -82,7 +87,7 @@ export const EFDFilterProvider = ({ children }) => {
             'efd_selectedBatches', 'efd_searchQuery', 'efd_selectedDivision',
             'efd_selectedProvince', 'efd_selectedMunicipality', 'efd_selectedDistrict',
             'efd_selectedSource', 'efd_selectedDonated', 'efd_selectedDocStatus',
-            'efd_accomplishmentRange', 'efd_minPhotos'
+            'efd_accomplishmentRange', 'efd_minPhotos', 'efd_pendingApprovalOnly'
         ];
         keys.forEach(k => localStorage.removeItem(k));
     }, []);
@@ -103,6 +108,7 @@ export const EFDFilterProvider = ({ children }) => {
         searchHistory, addToSearchHistory,
         accomplishmentRange, setAccomplishmentRange,
         minPhotos, setMinPhotos,
+        pendingApprovalOnly, setPendingApprovalOnly,
         clearFilters
     };
 
