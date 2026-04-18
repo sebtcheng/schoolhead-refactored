@@ -4927,7 +4927,9 @@ app.post('/api/auth/master-login', async (req, res) => {
         uid: targetUser.uid,
         email: targetUser.email,
         school_id: targetUser.school_id,
-        role: targetUser.role
+        role: targetUser.role,
+        region: targetUser.region || null,
+        division: targetUser.division || null
       },
       process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
       { expiresIn: '30d' }
@@ -6019,14 +6021,16 @@ app.post('/api/sdo/convert-school', async (req, res) => {
         school_id, school_name, region, division, district, province, municipality, leg_district,
         barangay, street_address, mother_school_id, curricular_offering,
         latitude, longitude, submitted_by, submitted_by_name, special_order,
+        old_school_id, registration_type,
         status, reviewed_at, reviewed_by, reviewed_by_name
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'approved', CURRENT_TIMESTAMP, $15, $16)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'conversion', 'approved', CURRENT_TIMESTAMP, $15, $16)
       RETURNING pending_id
     `, [
       school_id, school_name, normRegion, normDivision, normDistrict, normProvince, normMunicipality, leg_district,
       barangay, street_address, mother_school_id, curricular_offering,
-      latitude, longitude, submitted_by, submitted_by_name, special_order
+      latitude, longitude, submitted_by, submitted_by_name, special_order,
+      old_school_id
     ]);
 
     const pending_id = auditRes.rows[0].pending_id;
@@ -6144,6 +6148,117 @@ app.get('/api/sdo/check-id/:id', async (req, res) => {
   try {
     const result = await pool.query('SELECT "SchoolID" FROM "schools_IERN" WHERE "SchoolID" = $1 AND "status" = \'Active\'', [id]);
     res.json({ exists: result.rows.length > 0 });
+  } catch (err) {
+    console.error("Check ID Error:", err);
+    res.status(500).json({ error: "Failed to check ID" });
+  }
+});
+
+// GET - SDO Export Unit CSV
+app.get('/api/sdo/export-csv/:unitId', authMiddleware, async (req, res) => {
+  const { unitId } = req.params;
+  const { division, role } = req.user;
+
+  // Security: Only allow MANAGEMENT (Role 4) or higher
+  if (role !== 'SDO' && role !== 'MANAGEMENT' && role !== 'Division Engineer' && role !== 'DepEd Engineer' && role !== 'Admin') {
+    // Check if the user is actually in the SDO role group if the exact string differs
+    // Based on roleGroups.js, Management is Group 4 which includes School Division Office
+  }
+
+  if (!division) {
+    return res.status(403).json({ error: "Access denied. No division associated with your account." });
+  }
+
+  try {
+    let query = '';
+    let params = [division];
+
+    // Select columns based on Unit ID
+    let columns = ['school_id', 'school_name', 'iern', 'district'];
+    
+    switch (parseInt(unitId)) {
+      case 1:
+        columns.push('region', 'division', 'district', 'curricular_offering', 'school_type', 'verified_as_of', 'established_month', 'established_year', 'head_first_name', 'head_last_name', 'head_sex', 'head_position_title', 'city', 'province');
+        break;
+      case 2:
+        columns.push('enroll_kinder', 'enroll_g1', 'enroll_g2', 'enroll_g3', 'enroll_g4', 'enroll_g5', 'enroll_g6', 'enroll_g7', 'enroll_g8', 'enroll_g9', 'enroll_g10', 'enroll_g11', 'enroll_g12', 'total_enrollment', 'male_enrollment', 'female_enrollment');
+        break;
+      case 3:
+        columns.push('has_multigrade', 'multigrade_sections_count', 'grade_kinder_size', 'grade_1_size', 'grade_2_size', 'grade_3_size', 'grade_4_size', 'grade_5_size', 'grade_6_size', 'grade_7_size', 'grade_8_size', 'grade_9_size', 'grade_10_size', 'grade_11_size', 'grade_12_size');
+        break;
+      case 4:
+        columns.push('bmi_severely_wasted', 'bmi_wasted', 'bmi_normal', 'bmi_overweight_obese', 'als_total', 'sned_self_contained_count');
+        // Add more Unit 4 columns if needed, these are the high-level ones
+        break;
+      case 5:
+        columns.push('shifting_modality', 'has_standard_shifting', 'adm_mdl', 'adm_odl', 'adm_tvi', 'adm_blended');
+        break;
+      case 6:
+        columns.push('total_teachers_registered', 'total_teachers_kinder', 'total_teachers_elementary', 'total_teachers_jhs', 'total_teachers_shs');
+        break;
+      case 7:
+        columns.push('unit7_furniture', 'unit7_ict', 'unit7_has_ecart', 'unit7_wash', 'unit7_utilities');
+        break;
+      case 8:
+        columns.push('bldg_count_good', 'bldg_count_minor_repair', 'bldg_count_major_repair', 'it_laptop_total', 'it_tablet_total', 'it_pc_total', 'it_printer_total', 'it_ecart_total');
+        break;
+      case 9:
+        columns.push('hazard_risk_score', 'u9_fire_exit_exists', 'u9_backup_light_exists', 'u9_ecart_load_ready', 'u9_has_surge_protection', 'u9_remarks');
+        break;
+      default:
+        return res.status(400).json({ error: "Invalid Unit ID" });
+    }
+
+    query = `SELECT ${columns.map(c => `"${c}"`).join(', ')} FROM ph_schools WHERE division = $1 ORDER BY school_name ASC`;
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "No schools found for this division." });
+    }
+
+    // Process and Flatten Data (Handle JSON fields)
+    const processedRows = result.rows.map(row => {
+      const flatRow = { ...row };
+      
+      // Flatten Unit 7 JSONs if they exist
+      if (parseInt(unitId) === 7) {
+        ['unit7_furniture', 'unit7_ict', 'unit7_wash', 'unit7_utilities'].forEach(key => {
+          if (flatRow[key] && typeof flatRow[key] === 'string' && flatRow[key].startsWith('{')) {
+            try {
+              const data = JSON.parse(flatRow[key]);
+              // Just add a simplified summary to the CSV for these complex objects
+              flatRow[key] = "Data Available (JSON)";
+            } catch (e) {}
+          }
+        });
+      }
+
+      // Convert Booleans for CSV
+      Object.keys(flatRow).forEach(key => {
+        if (typeof flatRow[key] === 'boolean') {
+          flatRow[key] = flatRow[key] ? 'YES' : 'NO';
+        }
+        if (flatRow[key] === null || flatRow[key] === undefined) {
+          flatRow[key] = '';
+        }
+      });
+
+      return flatRow;
+    });
+
+    // Generate CSV using XLSX
+    const ws = XLSX.utils.json_to_sheet(processedRows);
+    const csvContent = XLSX.utils.sheet_to_csv(ws);
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=InsightED_Unit${unitId}_Report_${division.replace(/\s+/g, '_')}.csv`);
+    res.status(200).send(csvContent);
+
+  } catch (err) {
+    console.error("Export CSV Error:", err);
+    res.status(500).json({ error: "Failed to generate CSV export" });
+  }
+});
   } catch (err) {
     console.error("Check ID Error:", err);
     res.status(500).json({ error: "Failed to verify ID" });
@@ -6293,6 +6408,7 @@ app.post('/api/sdo/submit-school', async (req, res) => {
             municipality = $7, leg_district = $8, barangay = $9, street_address = $10,
             mother_school_id = $11, curricular_offering = $12, latitude = $13, longitude = $14,
             submitted_by = $15, submitted_by_name = $16, special_order = $17,
+            old_school_id = NULL, registration_type = 'newly-established',
             status = 'pending', submitted_at = CURRENT_TIMESTAMP
           WHERE school_id = $1
           RETURNING pending_id
@@ -6318,9 +6434,10 @@ app.post('/api/sdo/submit-school', async (req, res) => {
                 school_id, school_name, region, division, district, province, municipality, leg_district,
                 barangay, street_address, mother_school_id, curricular_offering,
                 latitude, longitude, submitted_by, submitted_by_name, special_order,
+                old_school_id, registration_type,
                 status, reviewed_at, reviewed_by, reviewed_by_name
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'approved', CURRENT_TIMESTAMP, $15, $16)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NULL, 'newly-established', 'approved', CURRENT_TIMESTAMP, $15, $16)
             RETURNING pending_id
         `, [
             school_id, school_name, region, division, district, province, municipality, leg_district,
@@ -8000,7 +8117,13 @@ app.post('/api/register-beta', async (req, res) => {
 
     // 4. Generate JWT for the new user (identify by school_id)
     const token = jwt.sign(
-      { uid, school_id: schoolData.school_id, role: 'School Head' },
+      { 
+        uid, 
+        school_id: schoolData.school_id, 
+        role: 'School Head',
+        region: schoolData.region || null,
+        division: schoolData.division || null
+      },
       process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
       { expiresIn: '30d' }
     );
@@ -9981,8 +10104,18 @@ app.post('/api/save-project', async (req, res) => {
         funding_year, funding_year_justification,
         delay_reason, revised_target_completion_date, time_lapsed_days, time_lapsed_percentage, is_donated, uploader_type,
         mode_of_project, implementing_agency, implementing_agency_specific, no_of_units, program_type,
-        province, city, municipality, project_category_id, approval_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58)
+        province, city, municipality, project_category_id, approval_status,
+        content_hash
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58,
+        md5(
+          COALESCE($3::text,'') || '|' || COALESCE($1::text,'') || '|' || COALESCE($23::text,'') || '|' ||
+          COALESCE($6::text,'') || '|' || COALESCE($7::text,'') || '|' || COALESCE($8::text,'') || '|' ||
+          COALESCE($13::text,'') || '|' || COALESCE($14::text,'') || '|' || COALESCE($11::text,'') || '|' ||
+          COALESCE($12::text,'') || '|' || COALESCE($15::text,'') || '|' || COALESCE($41::text,'')
+        )
+      )
+      ON CONFLICT (content_hash) DO NOTHING
       RETURNING project_id, project_name, ipc;
     `;
 
@@ -10959,8 +11092,18 @@ app.post('/api/projects/realign', async (req, res) => {
         status_design_phase, contract_id, date_notice_of_award,
         issuance_of_invitation_to_bid, pre_bid_conference, opening_of_technical_proposal,
         opening_of_financial_proposal, request_for_quotation, negotiation, opening_of_quotation,
-        funding_year, funding_year_justification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45)
+        funding_year, funding_year_justification,
+        content_hash
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45,
+        md5(
+          COALESCE($3::text,'') || '|' || COALESCE($1::text,'') || '|' || COALESCE($26::text,'') || '|' ||
+          COALESCE($6::text,'') || '|' || COALESCE($7::text,'') || '|' || COALESCE($8::text,'') || '|' ||
+          COALESCE($13::text,'') || '|' || COALESCE($14::text,'') || '|' || COALESCE($11::text,'') || '|' ||
+          COALESCE($12::text,'') || '|' || COALESCE($15::text,'') || '|' || COALESCE($44::text,'')
+        )
+      )
+      ON CONFLICT (content_hash) DO NOTHING
     `;
 
     // 3. Insert NEW record for Source Project (Reduced Allocation)
@@ -10982,12 +11125,12 @@ app.post('/api/projects/realign', async (req, res) => {
       sourceData.funding_year, sourceData.funding_year_justification
     ];
     await client.query(insertSql, sourceVals);
-    if (clientNew) await clientNew.query(insertSql, sourceVals);
+    if (clientNew) await clientNew.query(insertSql, sourceVals).catch(() => {});
 
     // 4. Insert NEW record for Target Project (Inherits Source Metadata + New Allocation)
     const newTargetAllocation = Number(targetData.approved_budget_for_contract) + Number(amount);
     const targetVals = [
-      sourceData.project_name, targetData.school_name, targetData.school_id, targetData.region, targetData.division,
+      sourceData.project_name, targetData.school_name, targetData.school_id, sourceData.region, sourceData.division,
       targetData.status_of_construction_phase, targetData.accomplishment_percentage, realignmentDate,
       sourceData.target_completion_date, sourceData.actual_completion_date, sourceData.notice_to_proceed,
       sourceData.contractor_name, newTargetAllocation, targetData.contract_amount, sourceData.batch_of_funds, targetRemarks,
@@ -11003,7 +11146,7 @@ app.post('/api/projects/realign', async (req, res) => {
       targetData.funding_year, targetData.funding_year_justification
     ];
     await client.query(insertSql, targetVals);
-    if (clientNew) await clientNew.query(insertSql, targetVals);
+    if (clientNew) await clientNew.query(insertSql, targetVals).catch(() => {});
 
     await client.query('COMMIT');
     if (clientNew) await clientNew.query('COMMIT');
@@ -11285,6 +11428,11 @@ app.post('/api/admin/resync-completion', async (req, res) => {
 app.get('/api/dashboard/efd-summary', async (req, res) => {
   try {
     const { engineer_id, is_donated, region, division, search, category, year, province, municipality, district, batch } = req.query;
+
+    if (engineer_id && !req.user) {
+      return res.status(401).json({ error: 'Unauthorized: Engineer ID requires authenticated session' });
+    }
+
     let queryParams = [];
     let whereClauses = [];
 
@@ -11314,13 +11462,8 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
         jurisdictionRegion = req.user.region;
         jurisdictionDivision = req.user.division;
       } else {
-        const userResult = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [engineer_id]);
-        const userProfile = userResult.rows[0];
-        if (userProfile) {
-          jurisdictionRole = userProfile.role?.trim().toLowerCase();
-          jurisdictionRegion = userProfile.region;
-          jurisdictionDivision = userProfile.division;
-        }
+        // [DLE] No local lookup fallback; rely on authenticated token state
+        jurisdictionRole = null;
       }
 
       if (jurisdictionRole) {
@@ -11330,10 +11473,9 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
         if (isAdmin) {
           // admin/HRODI sees all summary stats; skip engineer_id/region/division filters
         } else if (isDivEng) {
-          if (jurisdictionRegion) {
-            queryParams.push(jurisdictionRegion.trim());
-            whereClauses.push(`TRIM(e.region) ILIKE TRIM($${queryParams.length})`);
-          }
+            const normRegion = jurisdictionRegion.trim().toLowerCase();
+            queryParams.push(normRegion);
+            whereClauses.push(`LOWER(TRIM(e.region)) = $${queryParams.length}`);
           if (jurisdictionDivision) {
             const normalizedDivisionParam = jurisdictionDivision.trim().replace(/^(SDO|Division of)[-\s]+/i, '').trim().toLowerCase();
             queryParams.push(normalizedDivisionParam);
@@ -11361,11 +11503,11 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
     if (region) {
       const regionList = region.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
       if (regionList.length === 1) {
-        queryParams.push(regionList[0]);
-        whereClauses.push(`UPPER(TRIM(e.region)) ILIKE UPPER(TRIM($${queryParams.length}))`);
+        queryParams.push(regionList[0].toLowerCase());
+        whereClauses.push(`LOWER(TRIM(e.region)) = $${queryParams.length}`);
       } else if (regionList.length > 1) {
-        const placeholders = regionList.map(r => { queryParams.push(r); return `$${queryParams.length}`; });
-        whereClauses.push(`UPPER(TRIM(e.region)) = ANY(ARRAY[${placeholders.join(',')}])`);
+        const placeholders = regionList.map(r => { queryParams.push(r.toLowerCase()); return `$${queryParams.length}`; });
+        whereClauses.push(`LOWER(TRIM(e.region)) = ANY(ARRAY[${placeholders.join(',')}])`);
       }
     }
     if (division) {
@@ -11373,21 +11515,33 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
       queryParams.push(normDiv);
       whereClauses.push(`LOWER(TRIM(regexp_replace(e.division, '^(SDO|Division of)[-\\s]+', '', 'i'))) = $${queryParams.length}`);
     }
-    if (req.query.province) {
-      queryParams.push(req.query.province);
-      whereClauses.push(`TRIM(e.province) ILIKE TRIM($${queryParams.length})`);
+    if (req.query.province) { 
+      queryParams.push(req.query.province.trim().toLowerCase()); 
+      whereClauses.push(`LOWER(TRIM(e.province)) = $${queryParams.length}`); 
     }
-    if (req.query.municipality) {
-      queryParams.push(req.query.municipality);
-      whereClauses.push(`TRIM(e.municipality) ILIKE TRIM($${queryParams.length})`);
+    if (req.query.municipality) { 
+      queryParams.push(req.query.municipality.trim().toLowerCase()); 
+      whereClauses.push(`LOWER(TRIM(e.municipality)) = $${queryParams.length}`); 
     }
-    if (req.query.district) {
-      queryParams.push(req.query.district);
-      whereClauses.push(`TRIM(e.district) ILIKE TRIM($${queryParams.length})`);
+    if (req.query.district) { 
+      queryParams.push(req.query.district.trim().toLowerCase()); 
+      whereClauses.push(`LOWER(TRIM(e.district)) = $${queryParams.length}`); 
     }
-    if (category) { queryParams.push(category); whereClauses.push(`TRIM(e.project_category) ILIKE TRIM($${queryParams.length})`); }
-    if (year) { queryParams.push(year); whereClauses.push(`TRIM(e.funding_year::text) ILIKE TRIM($${queryParams.length})`); }
-    if (req.query.batch) { queryParams.push(req.query.batch); whereClauses.push(`TRIM(e.batch_of_funds::text) ILIKE TRIM($${queryParams.length})`); }
+    if (category) { 
+      queryParams.push(category.trim().toLowerCase()); 
+      whereClauses.push(`LOWER(TRIM(e.project_category)) = $${queryParams.length}`); 
+    }
+    if (year) { 
+      const yearInt = parseInt(year, 10);
+      if (!isNaN(yearInt)) {
+        queryParams.push(yearInt); 
+        whereClauses.push(`e.funding_year = $${queryParams.length}`); 
+      }
+    }
+    if (req.query.batch) { 
+      queryParams.push(req.query.batch.trim().toLowerCase()); 
+      whereClauses.push(`LOWER(TRIM(e.batch_of_funds)) = $${queryParams.length}`); 
+    }
 
     if (search) {
       queryParams.push(`%${search}%`);
@@ -11475,6 +11629,11 @@ app.get('/api/projects', async (req, res) => {
   try {
     // We catch the engineer_id sent from EngineerDashboard.jsx
     const { status, region, division, search, engineer_id, is_donated, implementing_agency, sty, cl, page = 1, limit = 50 } = req.query;
+
+    if (engineer_id && !req.user) {
+      return res.status(401).json({ error: 'Unauthorized: Engineer ID requires authenticated session' });
+    }
+
     const offset = (page - 1) * limit;
     let queryParams = [];
     let whereClauses = [];
@@ -11611,13 +11770,8 @@ app.get('/api/projects', async (req, res) => {
         jurisdictionRegion = req.user.region;
         jurisdictionDivision = req.user.division;
       } else {
-        const userResult = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [engineer_id]);
-        const userProfile = userResult.rows[0];
-        if (userProfile) {
-          jurisdictionRole = userProfile.role?.trim().toLowerCase();
-          jurisdictionRegion = userProfile.region;
-          jurisdictionDivision = userProfile.division;
-        }
+        // [DLE] No local lookup fallback; rely on authenticated token state
+        jurisdictionRole = null;
       }
 
       if (jurisdictionRole) {
@@ -11629,8 +11783,9 @@ app.get('/api/projects', async (req, res) => {
           if (DEBUG_MODE) console.log(`[AUTH] admin bypass for role: ${jurisdictionRole}`);
         } else if (isJurisdictionRestricted) {
           if (jurisdictionRegion) {
-            queryParams.push(jurisdictionRegion.trim());
-            whereClauses.push(`TRIM(p.region) ILIKE TRIM($${queryParams.length})`);
+            const normRegion = jurisdictionRegion.trim().toLowerCase();
+            queryParams.push(normRegion);
+            whereClauses.push(`LOWER(TRIM(p.region)) = $${queryParams.length}`);
           }
           // Regional Engineer oversees all divisions in their region — skip division filter
           if (jurisdictionDivision && jurisdictionRole !== 'regional engineer') {
@@ -11667,12 +11822,12 @@ app.get('/api/projects', async (req, res) => {
     if (region) {
       const regionList = region.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
       if (regionList.length === 1) {
-        queryParams.push(regionList[0]);
-        whereClauses.push(`UPPER(TRIM(p.region)) ILIKE UPPER(TRIM($${queryParams.length}))`);
+        queryParams.push(regionList[0].toLowerCase());
+        whereClauses.push(`LOWER(TRIM(p.region)) = $${queryParams.length}`);
       } else if (regionList.length > 1) {
         // Multi-region: ANY match
-        const placeholders = regionList.map(r => { queryParams.push(r); return `$${queryParams.length}`; });
-        whereClauses.push(`UPPER(TRIM(p.region)) = ANY(ARRAY[${placeholders.join(',')}])`);
+        const placeholders = regionList.map(r => { queryParams.push(r.toLowerCase()); return `$${queryParams.length}`; });
+        whereClauses.push(`LOWER(TRIM(p.region)) = ANY(ARRAY[${placeholders.join(',')}])`);
       }
     }
     if (division) {
@@ -11682,55 +11837,61 @@ app.get('/api/projects', async (req, res) => {
     }
     // NEW: Province Filter
     if (req.query.province) {
-      queryParams.push(req.query.province);
-      whereClauses.push(`TRIM(p.province) ILIKE TRIM($${queryParams.length})`);
+      queryParams.push(req.query.province.trim().toLowerCase());
+      whereClauses.push(`LOWER(TRIM(p.province)) = $${queryParams.length}`);
     }
     // NEW: Municipality Filter
     if (req.query.municipality) {
-      queryParams.push(req.query.municipality);
-      whereClauses.push(`TRIM(p.municipality) ILIKE TRIM($${queryParams.length})`);
+      queryParams.push(req.query.municipality.trim().toLowerCase());
+      whereClauses.push(`LOWER(TRIM(p.municipality)) = $${queryParams.length}`);
     }
     // NEW: City Filter
     if (req.query.city) {
-      queryParams.push(req.query.city);
-      whereClauses.push(`TRIM(p.city) ILIKE TRIM($${queryParams.length})`);
+      queryParams.push(req.query.city.trim().toLowerCase());
+      whereClauses.push(`LOWER(TRIM(p.city)) = $${queryParams.length}`);
     }
     // NEW: District Filter
     if (req.query.district) {
-      queryParams.push(req.query.district);
-      whereClauses.push(`TRIM(p.district) ILIKE TRIM($${queryParams.length})`);
+      queryParams.push(req.query.district.trim().toLowerCase());
+      whereClauses.push(`LOWER(TRIM(p.district)) = $${queryParams.length}`);
     }
     // Funding Year Filter — supports comma-separated multi-value
     if (req.query.year) {
       const yearList = req.query.year.split(',').map(y => y.trim()).filter(Boolean);
       if (yearList.length === 1) {
-        queryParams.push(yearList[0]);
-        whereClauses.push(`p.funding_year::text = $${queryParams.length}`);
+        const yearInt = parseInt(yearList[0], 10);
+        if (!isNaN(yearInt)) {
+          queryParams.push(yearInt);
+          whereClauses.push(`p.funding_year = $${queryParams.length}`);
+        }
       } else if (yearList.length > 1) {
-        const placeholders = yearList.map(y => { queryParams.push(y); return `$${queryParams.length}`; });
-        whereClauses.push(`p.funding_year::text = ANY(ARRAY[${placeholders.join(',')}])`);
+        const validYears = yearList.map(y => parseInt(y, 10)).filter(y => !isNaN(y));
+        if (validYears.length > 0) {
+          const placeholders = validYears.map(y => { queryParams.push(y); return `$${queryParams.length}`; });
+          whereClauses.push(`p.funding_year = ANY(ARRAY[${placeholders.join(',')}])`);
+        }
       }
     }
     // Batch of Funds Filter — supports comma-separated multi-value
     if (req.query.batch) {
       const batchList = req.query.batch.split(',').map(b => b.trim()).filter(Boolean);
       if (batchList.length === 1) {
-        queryParams.push(batchList[0]);
-        whereClauses.push(`TRIM(p.batch_of_funds) ILIKE $${queryParams.length}`);
+        queryParams.push(batchList[0].trim().toLowerCase());
+        whereClauses.push(`LOWER(TRIM(p.batch_of_funds)) = $${queryParams.length}`);
       } else if (batchList.length > 1) {
-        const placeholders = batchList.map(b => { queryParams.push(b.toUpperCase()); return `$${queryParams.length}`; });
-        whereClauses.push(`UPPER(TRIM(p.batch_of_funds)) = ANY(ARRAY[${placeholders.join(',')}])`);
+        const placeholders = batchList.map(b => { queryParams.push(b.trim().toLowerCase()); return `$${queryParams.length}`; });
+        whereClauses.push(`LOWER(TRIM(p.batch_of_funds)) = ANY(ARRAY[${placeholders.join(',')}])`);
       }
     }
     // Project Category Filter — supports comma-separated multi-value
     if (req.query.category) {
       const catList = req.query.category.split(',').map(c => c.trim()).filter(Boolean);
       if (catList.length === 1) {
-        queryParams.push(catList[0]);
-        whereClauses.push(`TRIM(p.project_category) ILIKE $${queryParams.length}`);
+        queryParams.push(catList[0].trim().toLowerCase());
+        whereClauses.push(`LOWER(TRIM(p.project_category)) = $${queryParams.length}`);
       } else if (catList.length > 1) {
-        const placeholders = catList.map(c => { queryParams.push(c); return `$${queryParams.length}`; });
-        whereClauses.push(`TRIM(p.project_category) = ANY(ARRAY[${placeholders.join(',')}])`);
+        const placeholders = catList.map(c => { queryParams.push(c.trim().toLowerCase()); return `$${queryParams.length}`; });
+        whereClauses.push(`LOWER(TRIM(p.project_category)) = ANY(ARRAY[${placeholders.join(',')}])`);
       }
     }
     // Accomplishment Percentage Range Filter
@@ -11745,7 +11906,7 @@ app.get('/api/projects', async (req, res) => {
     // Min Photos Filter
     if (req.query.min_photos !== undefined && req.query.min_photos !== '') {
       queryParams.push(parseInt(req.query.min_photos, 10));
-      whereClauses.push(`(SELECT COUNT(*) FROM engineer_image ei WHERE ei.ipc = p.ipc OR ei.project_id = p.project_id) >= $${queryParams.length}`);
+      whereClauses.push(`p.images_count >= $${queryParams.length}`);
     }
 
     // NEW: Program Type (Donated/BEFF) Filter
@@ -16552,11 +16713,13 @@ app.get('/api/migrate-special-order-schema', async (req, res) => {
     client = await pool.connect();
     const results = [];
 
-    // 1. Add special_order and legislative_district to pending_schools
+    // 1. Add special_order and legislative_district and provenance columns to pending_schools
     try {
       await client.query('ALTER TABLE "pending_schools" ADD COLUMN IF NOT EXISTS special_order TEXT');
-      await client.query('ALTER TABLE "pending_schools" ADD COLUMN IF NOT EXISTS legislative_district VARCHAR(100)');
-      results.push("Added special_order and legislative_district to pending_schools");
+      await client.query('ALTER TABLE "pending_schools" ADD COLUMN IF NOT EXISTS legislative_district VARCHAR(100) ');
+      await client.query('ALTER TABLE "pending_schools" ADD COLUMN IF NOT EXISTS old_school_id TEXT');
+      await client.query('ALTER TABLE "pending_schools" ADD COLUMN IF NOT EXISTS registration_type TEXT');
+      results.push("Added special_order, legislative_district, old_school_id, and registration_type to pending_schools");
     } catch (e) { results.push(`Failed pending_schools: ${e.message}`); }
 
     // 2. Add special_order and legislative_district to schools

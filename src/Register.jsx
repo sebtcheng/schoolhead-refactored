@@ -231,6 +231,9 @@ const Register = () => {
             } else if (pathId === 'path_efd') {
                 setFormData(prev => ({ ...prev, role: 'EFD Engineer' }));
                 setActiveTab('internal');
+            } else if (pathId === 'path_central_office') {
+                setFormData(prev => ({ ...prev, role: 'Central Office' }));
+                setActiveTab('internal');
             }
         }
 
@@ -1109,16 +1112,20 @@ const Register = () => {
                                                             name="role"
                                                             value={formData.role}
                                                             onChange={handleRoleChange}
-                                                            disabled={pathId === 'path_school_head'}
-                                                            className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer ${pathId === 'path_school_head' ? 'opacity-70 bg-slate-50' : ''}`}
+                                                            disabled={pathId === 'path_school_head' || pathId === 'path_central_office'}
+                                                            className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer ${(pathId === 'path_school_head' || pathId === 'path_central_office') ? 'opacity-70 bg-slate-50' : ''}`}
                                                         >
                                                             {activeTab === 'internal' ? (
                                                                 <>
-                                                                    {(!pathId || pathId === 'path_ro_sd') && (
+                                                                    {(!pathId || pathId === 'path_ro_sd' || pathId === 'path_central_office') && (
                                                                         <>
                                                                             <option value="Central Office">CO Personnel</option>
-                                                                            <option value="Regional Office">RO Personnel</option>
-                                                                            <option value="School Division Office">SDO Personnel</option>
+                                                                            {pathId !== 'path_central_office' && (
+                                                                                <>
+                                                                                    <option value="Regional Office">RO Personnel</option>
+                                                                                    <option value="School Division Office">SDO Personnel</option>
+                                                                                </>
+                                                                            )}
                                                                             {/* <option value="Super User">Super User 2.0</option> */}
                                                                         </>
                                                                     )}

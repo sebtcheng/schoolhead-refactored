@@ -210,6 +210,13 @@ const LaunchPad = () => {
                                         color="bg-gradient-to-br from-blue-400 to-blue-600"
                                         onClick={() => handleSelectSubPath('path_ro_sd')}
                                     />
+                                    <SubRoleCard 
+                                        title="Central Office Portal" 
+                                        description="Access national monitoring dashboards and Central Office management tools."
+                                        icon={FiActivity} 
+                                        color="bg-gradient-to-br from-indigo-500 to-indigo-700"
+                                        onClick={() => handleSelectSubPath('path_central_office')}
+                                    />
 
                                 </>
                             ) : (

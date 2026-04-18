@@ -144,7 +144,8 @@ const AnimatedRoutes = () => {
         'Non-DepEd Engineer': 'path_engineers',
         'Implementing Agency': 'path_agencies',
         'PGO': 'path_agencies', 'CGO': 'path_agencies', 'MGO': 'path_agencies', 'DPWH': 'path_agencies', 'CSO': 'path_agencies',
-        'EFD': 'path_efd', 'EFD Engineer': 'path_efd', 'HRODI': 'path_efd', 'Central Office': 'path_efd'
+        'EFD': 'path_efd', 'EFD Engineer': 'path_efd', 'HRODI': 'path_efd',
+        'Central Office': 'path_central_office'
       };
 
       const pathId = lastRole ? roleToPathId[lastRole] : null;
