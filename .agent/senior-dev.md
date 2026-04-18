@@ -118,3 +118,24 @@ This document outlines the core competencies and methodologies required for a Se
 *   **The Problem:** The app is bypassing the pool entirely due to `.env` drift, or "Zombie" PM2 processes are stuck on a stale configuration.
 *   **Fix:** Run `fave_scripts/deep_relief_db.py`.
 *   **Action:** This script autonomously audits `.env` for the PgBouncer Bypass Trap, SIGKILLs non-responsive workers, and triggers the Tier 1 relief protocol.
+
+### 8. Tier 3 Recovery: Ultimate Nuclear Stabilizer
+*   **Symptom:** Tier 1 & 2 fail; system-wide degradation or suspected disk/infra service crash (e.g., PgBouncer or Nginx hung at OS level).
+*   **The Problem:** System services are "wedged," or disk I/O is blocked by massive logs.
+*   **Fix:** Run `fave_scripts/db-nginx-fixes/horus_nuclear_stabilizer.py`.
+*   **Action:** Truncates all logs, hard-restarts `pgbouncer` and `nginx` via systemctl, kills the PM2 daemon, and executes `forensic_heal.sh`.
+
+### 9. Tier 4 Recovery: Log Blockage Remedy
+*   **Symptom:** Infrastructure services are active (Tier 3 successful), but the connection is still "Slow but Connected" or timing out on simple queries.
+*   **The Problem:** **Sequential Scan Deadlock.** Large tables (e.g., `activity_logs` at 60M+ rows) are missing indexes, causing every write to trigger a full-table scan that "wedges" the database pool.
+*   **Fix:** Run `fave_scripts/db-nginx-fixes/log_blockage_remedy.py`.
+*   **Action:** Creates critical indexes `CONCURRENTLY` (zero-downtime) on high-growth tables to convert sequential scans into instant lookups.
+
+### 10. Tier 5 Recovery: Asynchronous & Automated Resiliency
+*   **Symptom:** Performance is restored but future growth threatens another "wedge."
+*   **The Problem:** Blocking logs. Every `await logActivity` in the code adds database latency to the user's request.
+*   **Fix:** **Asynchronous Backgrounding.**
+*   **Protocol:** 
+    - **Async Logging:** Refactored `api/index.js` to use `PgBoss` job queues. `logActivity()` is now a non-blocking background operation.
+    - **Auto-Pruning:** Scheduled daily `log-cleanup` job at 2:00 AM (90-day retention).
+    - **Manual Backlog Clear:** If logs exceed 10M rows, run `fave_scripts/db-nginx-fixes/safe_backlog_prune.py`.

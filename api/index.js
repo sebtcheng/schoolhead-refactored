@@ -311,6 +311,26 @@ const boss = new PgBoss({
 
 boss.on('error', error => console.error('💥 [PG-BOSS] Error:', error));
 
+const logActivity = (userUid, userName, role, actionType, targetEntity, details, superUserContext = null) => {
+  if (!boss) return;
+  
+  let dbDetails = details;
+  if (superUserContext) {
+    dbDetails = `[SUPER USER VIEW] ${details} (Context: ${superUserContext})`;
+  }
+
+  boss.send('activity-log', {
+    user_uid: userUid,
+    user_name: userName || 'System',
+    role: role || 'User',
+    action_type: actionType,
+    details: dbDetails,
+    target_entity: targetEntity,
+    timestamp: new Date().toISOString()
+  }).catch(err => console.error("⚠️ [AsyncLog-Fail] Could not queue log:", err.message));
+};
+
+
 const { Pool } = pg;
 // [Hawkeye Protocol v4.0 — Unified Cloud Scaling]
 // Azure DB supports 1718 connections. PgBouncer supports 2000 clients & 500 pool size.
@@ -4935,22 +4955,15 @@ app.post('/api/auth/master-login', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    // 4. Log the master password access
-    try {
-      await pool.query(`
-        INSERT INTO activity_logs(user_uid, user_name, role, action_type, target_entity, details)
-        VALUES($1, $2, $3, $4, $5, $6)
-      `, [
-        targetUser.uid,
-        `${targetUser.first_name || ''} ${targetUser.last_name || ''}`.trim() || 'Unknown',
-        'MASTER_ACCESS',
-        'MASTER_LOGIN',
-        targetUser.email || targetUser.school_id,
-        `Account accessed via master password at ${new Date().toISOString()}`
-      ]);
-    } catch (logError) {
-      console.warn("[AUTH] Failed to log master access:", logError.message);
-    }
+    // 4. Log the master password access (ASYNCHRONOUS)
+    logActivity(
+      targetUser.uid,
+      `${targetUser.first_name || ''} ${targetUser.last_name || ''}`.trim() || 'Unknown',
+      'MASTER_ACCESS',
+      'MASTER_LOGIN',
+      targetUser.email || targetUser.school_id,
+      `Account accessed via master password at ${new Date().toISOString()}`
+    );
 
     console.log(`[Master Login] Master password login successful for: ${targetUser.email || targetUser.school_id} (${targetUser.uid})`);
 
@@ -5076,29 +5089,10 @@ const getUserFullName = async (uid) => {
   return null;
 };
 
-/** Log Activity Helper */
-const logActivity = async (userUid, userName, role, actionType, targetEntity, details, superUserContext = null) => {
-  const query = `
-        INSERT INTO activity_logs(user_uid, user_name, role, action_type, target_entity, details)
-VALUES($1, $2, $3, $4, $5, $6)
-  `;
-  try {
-    let dbDetails = details;
-    if (superUserContext) {
-      dbDetails = `[SUPER USER VIEW] ${details} (Context: ${superUserContext})`;
-    }
-
-    await pool.query(query, [userUid, userName, role, actionType, targetEntity, dbDetails]);
-    console.log(`“  Audit Logged: ${actionType} - ${targetEntity} `);
-
-    // --- DUAL WRITE: LOG ACTIVITY ---
-    if (poolNew) {
-      poolNew.query(query, [userUid, userName, role, actionType, targetEntity, dbDetails])
-        .catch(e => console.error("â Œ Dual-Write Log Error:", e.message));
-    }
-  } catch (err) {
-    console.error("â Œ Failed to log activity:", err.message);
-  }
+/** Log Activity Helper (Legacy reference - logic moved to top level logActivity) */
+// This function is kept for backward compatibility with existing route parameters
+const legacyLogActivity = async (userUid, userName, role, actionType, targetEntity, details, superUserContext = null) => {
+  return logActivity(userUid, userName, actionType, targetEntity, details, role, superUserContext);
 };
 
 // ==================================================================
@@ -5233,12 +5227,9 @@ app.post('/api/upload-engineer-mother-moa', upload.fields([{ name: 'moa_pdf', ma
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [mId, region, province, municipality_city, lgu_type, lgu_name, moa_pdf_base64, srId, sr_base64, uid]);
 
-    // Activity logging
+    // Activity logging (ASYNCHRONOUS)
     const uName = await getUserFullName(uid);
-    await pool.query(`
-      INSERT INTO activity_logs (user_uid, user_name, action_type, details, target_entity)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [uid, uName || 'Engineer', 'UPLOAD', `Uploaded Mother MOA for ${lgu_name} (${lgu_type})`, 'Mother MOA']);
+    logActivity(uid, uName || 'Engineer', 'Engineer', 'UPLOAD', 'Mother MOA', `Uploaded Mother MOA for ${lgu_name} (${lgu_type})`);
 
     res.json({ success: true });
 
@@ -5446,12 +5437,9 @@ app.post('/api/upload-engineer-supplemental-moa', upload.single('moa_pdf'), asyn
       VALUES ($1, $2, $3, $4, $5)
     `, [sId, mother_moa_id, moa_pdf_base64, uid, JSON.stringify(parsedIpcIds)]);
 
-    // Activity logging
+    // Activity logging (ASYNCHRONOUS)
     const uName = await getUserFullName(uid);
-    await pool.query(`
-      INSERT INTO activity_logs (user_uid, user_name, action_type, details, target_entity)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [uid, uName || 'Engineer', 'UPLOAD', `Uploaded Supplemental MOA for Mother MOA ${mother_moa_id} (${motherMoa.lgu_name} - ${motherMoa.lgu_type})`, 'Supplemental MOA']);
+    logActivity(uid, uName || 'Engineer', 'Engineer', 'UPLOAD', 'Supplemental MOA', `Uploaded Supplemental MOA for Mother MOA ${mother_moa_id} (${motherMoa.lgu_name} - ${motherMoa.lgu_type})`);
 
     res.json({ success: true });
 
@@ -20773,8 +20761,16 @@ const startServer = async () => {
             console.log("💼 [JobQueue] Starting pg-boss instance...");
             await boss.start();
             await boss.createQueue('esf7-approve').catch(() => {});
+            await boss.createQueue('activity-log').catch(() => {});
+            await boss.createQueue('log-cleanup').catch(() => {});
             await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
-            console.log("💼 [JobQueue] Worker Registered for 'esf7-approve' (Concurrency: 1)");
+            await boss.work('activity-log', { concurrency: 10 }, handleActivityLogJob);
+            await boss.work('log-cleanup', handleLogCleanupJob);
+
+            // Schedule cleanup daily at 2:00 AM
+            await boss.schedule('log-cleanup', '0 2 * * *');
+            
+            console.log("💼 [JobQueue] Workers Registered and Cleanup Scheduled.");
           } finally {
             migClient.release();
           }
@@ -21413,6 +21409,36 @@ app.post('/api/esf7/approve', async (req, res) => {
 });
 
 // [Job Queue Background Worker] - Process ESF7 Approvals sequentially
+/**
+ * [Hawkeye Protocol] Activity Log Background Worker
+ */
+async function handleActivityLogJob(job) {
+  const { user_uid, user_name, role, action_type, details, target_entity, timestamp } = job.data;
+  try {
+    await pool.query(`
+      INSERT INTO activity_logs (user_uid, user_name, role, action_type, details, target_entity, timestamp)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [user_uid, user_name, role, action_type, details, target_entity, timestamp]);
+  } catch (err) {
+    console.error("❌ [AsyncLog-Worker] Database write failed:", err.message);
+    throw err;
+  }
+}
+
+/**
+ * [Hawkeye Protocol] Daily Log Cleanup
+ * Prunes logs older than 90 days to prevent table bloat.
+ */
+async function handleLogCleanupJob() {
+  console.log("🧹 [Cleanup] Starting daily activity_logs pruning...");
+  try {
+    const res = await pool.query("DELETE FROM activity_logs WHERE timestamp < NOW() - INTERVAL '90 days'");
+    console.log(`✅ [Cleanup] Pruned ${res.rowCount} old log entries.`);
+  } catch (err) {
+    console.error("❌ [Cleanup] Failed to prune logs:", err.message);
+  }
+}
+
 async function handleEsf7ApproveJob(job) {
   const { school_id } = job.data;
   console.log(`[Worker] Starting ESF7 Approval for school: ${school_id}`);

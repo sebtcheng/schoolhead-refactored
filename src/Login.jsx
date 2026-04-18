@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import logo from './assets/InsightEd1.png';
+import trafficErrorImg from './assets/traffic_error.png';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from './context/AuthContext';
@@ -108,6 +109,7 @@ const Login = () => {
     const [isPortalEnforced, setIsPortalEnforced] = useState(false); // NEW: Track if a portal is active
     const [showBackPrompt, setShowBackPrompt] = useState(false);
     const [showDialpadModal, setShowDialpadModal] = useState(false);
+    const [showTrafficModal, setShowTrafficModal] = useState(false);
     
     // UI flows
     const [rememberedUser, setRememberedUser] = useState(() => {
@@ -308,8 +310,24 @@ const Login = () => {
                 signal: loginAbort.signal
             });
 
+            // HANDLE SERVER ERRORS (500+)
+            if (response.status >= 500) {
+                setShowTrafficModal(true);
+                setLoading(false);
+                return;
+            }
+
             const text = await response.text();
-            const data = text ? JSON.parse(text) : {};
+            let data = {};
+            try {
+                data = text ? JSON.parse(text) : {};
+            } catch (e) {
+                console.error("Failed to parse response:", text);
+                // If parsing fails but it's not a 500, it's still likely a server-level issue
+                setShowTrafficModal(true);
+                setLoading(false);
+                return;
+            }
 
             if (response.ok && data.success) {
                 console.log("✅ Login Successful!");
@@ -345,10 +363,14 @@ const Login = () => {
             }
         } catch (error) {
             console.error("Login Error:", error);
-            const friendlyMsg = error.name === 'AbortError'
-                ? "The server is taking too long to respond (timeout after 30s). Please check your connection."
-                : (error.message || "Login Failed. Please check your credentials.");
-            alert(friendlyMsg);
+            
+            if (error.name === 'AbortError') {
+                setShowTrafficModal(true);
+            } else {
+                const friendlyMsg = error.message || "Login Failed. Please check your credentials.";
+                alert(friendlyMsg);
+            }
+            
             setPassword(''); // Clear field on error
             setLoading(false);
         } finally {
@@ -914,6 +936,45 @@ const Login = () => {
                                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-5 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-slate-100"
                                 >
                                     Stay on Login
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                {/* LONG QUEUE MODAL */}
+                {showTrafficModal && (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+                            <div className="p-8 text-center bg-white">
+                                <div className="w-full max-w-[200px] mx-auto mb-6">
+                                    <img 
+                                        src={trafficErrorImg} 
+                                        alt="Long Queue" 
+                                        className="w-full h-auto"
+                                    />
+                                </div>
+                                <h2 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Long Queue Detected</h2>
+                                <p className="text-slate-500 text-sm font-medium leading-relaxed px-4">
+                                    We're currently experiencing a long queue of users. To ensure a smooth experience for everyone, please wait a moment or come back later.
+                                </p>
+                            </div>
+
+                            <div className="p-8 pt-0 space-y-3">
+                                <button
+                                    onClick={() => {
+                                        setShowTrafficModal(false);
+                                        setPassword('');
+                                    }}
+                                    className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+                                >
+                                    Understood
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowTrafficModal(false);
+                                    }}
+                                    className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-blue-100"
+                                >
+                                    Try Again
                                 </button>
                             </div>
                         </div>
