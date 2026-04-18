@@ -1686,10 +1686,10 @@ const NewProjects = () => {
                                     <button
                                         key="btn-submit"
                                         type="submit"
-                                        disabled={isSubmitting}
-                                        className="flex-1 py-3 text-white font-bold text-sm bg-[#004A99] rounded-xl shadow-lg shadow-blue-900/20 hover:bg-blue-800 transition disabled:opacity-50"
+                                        disabled={true}
+                                        className="flex-1 py-3 text-white font-bold text-sm bg-slate-400 rounded-xl cursor-not-allowed transition"
                                     >
-                                        {isSubmitting ? 'Saving...' : 'CREATE PROJECT'}
+                                        DISABLED FOR MAINTENANCE
                                     </button>
                                 )
                         )}
