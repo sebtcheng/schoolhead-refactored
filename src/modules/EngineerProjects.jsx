@@ -1127,11 +1127,11 @@ const EngineerProjects = () => {
               </div>
               {!['Super User', 'EFD Engineer', 'EFD', 'HRODI'].includes(userRole) && (
                 <button
-                  onClick={() => navigate("/new-project")}
-                  className="group bg-white text-[#004A99] px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/40 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                  disabled={true}
+                  className="group bg-slate-300 text-slate-500 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl cursor-not-allowed flex items-center gap-2"
                 >
-                  <FiPlus size={16} className="group-hover:rotate-90 transition-transform" />
-                  New Project
+                  <FiPlus size={16} />
+                  New Project (Disabled)
                 </button>
               )}
             </div>

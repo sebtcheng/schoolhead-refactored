@@ -212,6 +212,8 @@ const Login = () => {
                 isRoleCompatible = ['Implementing Agency', 'PGO', 'CGO', 'MGO', 'DPWH', 'CSO', 'Super User', 'Super Admin'].includes(authUser.role);
             } else if (pathId === 'path_efd') {
                 isRoleCompatible = ['EFD', 'EFD Engineer', 'HRODI', 'Central Office', 'Super User', 'Super Admin'].includes(authUser.role);
+            } else if (pathId === 'path_central_office') {
+                isRoleCompatible = ['Central Office', 'Central Office Finance', 'Super User', 'Super Admin'].includes(authUser.role);
             }
 
 

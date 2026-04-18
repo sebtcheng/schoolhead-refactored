@@ -897,6 +897,8 @@ const runMigrations = async (client, dbLabel) => {
         await client.query(`
             CREATE TABLE IF NOT EXISTS pending_schools (
                 pending_id SERIAL PRIMARY KEY,
+                registration_type TEXT,
+                old_school_id TEXT,
                 
                 -- School Information (exact match to schools table)
                 school_id TEXT UNIQUE NOT NULL,
@@ -906,7 +908,7 @@ const runMigrations = async (client, dbLabel) => {
                 district TEXT,
                 province TEXT,
                 municipality TEXT,
-                legislative_district TEXT,
+                leg_district TEXT,
                 barangay TEXT,
                 street_address TEXT,
                 mother_school_id TEXT,
@@ -1600,6 +1602,15 @@ const runMigrations = async (client, dbLabel) => {
         await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_engineer_id ON engineer_form(engineer_id);`).catch(e => console.warn(`⚠️ idx_engineer_form_engineer_id skipped:`, e.message));
         await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_category ON engineer_form(project_category);`).catch(e => console.warn(`⚠️ idx_engineer_form_category skipped:`, e.message));
         await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_year ON engineer_form(funding_year);`).catch(e => console.warn(`⚠️ idx_engineer_form_year skipped:`, e.message));
+
+        // [Eye of Horus] Strategic Functional Indexes for peak performance
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_category_func ON engineer_form(LOWER(TRIM(project_category)));`).catch(e => console.warn(`⚠️ idx_engineer_form_category_func skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_batch_func ON engineer_form(LOWER(TRIM(batch_of_funds)));`).catch(e => console.warn(`⚠️ idx_engineer_form_batch_func skipped:`, e.message));
+
+        // [Last Mile] Administrative Unit Functional Indexes
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_province_func ON engineer_form(LOWER(TRIM(province)));`).catch(e => console.warn(`⚠️ idx_engineer_form_province_func skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_municipality_func ON engineer_form(LOWER(TRIM(municipality)));`).catch(e => console.warn(`⚠️ idx_engineer_form_municipality_func skipped:`, e.message));
+        await client.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_engineer_form_district_func ON engineer_form(LOWER(TRIM(district)));`).catch(e => console.warn(`⚠️ idx_engineer_form_district_func skipped:`, e.message));
 
         // Dedicated file_path column for disk-based images (image_data may still hold legacy base64)
         await client.query(`ALTER TABLE engineer_image ADD COLUMN IF NOT EXISTS file_path TEXT;`);
