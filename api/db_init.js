@@ -1705,6 +1705,27 @@ const runMigrations = async (client, dbLabel) => {
         console.error(`❌ [${dbLabel}] Unified Binaries Migration Failed:`, binErr.message);
     }
 
+    // --- 27. COMMAND CENTER USER REGISTRY ---
+    try {
+        // [Senior SDE Standard] Advisory lock to prevent migration race conditions (Lock ID: 20260418)
+        const lockRes = await client.query(`SELECT pg_try_advisory_lock(20260418) as lock_granted;`);
+        if (lockRes.rows[0].lock_granted) {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS command_center_user (
+                    uid TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    designation TEXT,
+                    role TEXT DEFAULT 'Executive',
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            console.log(`✅ [${dbLabel}] Command Center User Registry Initialized`);
+            await client.query(`SELECT pg_advisory_unlock(20260418);`);
+        }
+    } catch (migErr) {
+        console.error(`❌ [${dbLabel}] Failed to init command_center_user table:`, migErr.message);
+    }
+
     // --- 26. UNIT 7: PHYSICAL FACILITIES ---
     await initUnit7Schema(client, dbLabel);
 
