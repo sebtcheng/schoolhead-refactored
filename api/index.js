@@ -219,9 +219,14 @@ function isDuplicateSnapshot(newData, oldData) {
 async function checkIsDuplicateContent(client, ipc, newData) {
   if (!ipc) return false;
   try {
-    // [MOD] Search by school_id and project_name to have a global duplicate shield for that project
     const res = await client.query(
-      `SELECT * FROM engineer_form 
+      `SELECT * FROM (
+         SELECT * FROM engineer_form
+         UNION ALL
+         SELECT * FROM engineer_create
+         UNION ALL
+         SELECT * FROM engineer_create_updates
+       ) combined
        WHERE school_id = $1 AND project_name = $2 
        ORDER BY accomplishment_percentage DESC, project_id DESC LIMIT 1`,
       [newData.school_id, newData.project_name]
@@ -10106,8 +10111,22 @@ app.post('/api/save-project', async (req, res) => {
     const approvalStatus = divisionEngineerRoles.includes(submitterRole) ? 'Pending' : 'Approved';
     projectValues.push(approvalStatus); // $58
 
+    let targetTable = 'engineer_form';
+    if (approvalStatus === 'Pending' && (data.actions === 'Newly Created' || data.actions === 'Newly-Created')) {
+        targetTable = 'engineer_create';
+    } else {
+        // [MOD] Three-Tier Lifecycle: Route updates for projects originating in the creation-tier
+        const creationExistCheck = await client.query(
+            "SELECT 1 FROM engineer_create WHERE (ipc = $1 OR (school_id = $2 AND project_name = $3)) LIMIT 1",
+            [newIpc, data.schoolId, data.projectName]
+        );
+        if (creationExistCheck.rows.length > 0) {
+            targetTable = 'engineer_create_updates';
+        }
+    }
+
     const projectQuery = `
-      INSERT INTO "engineer_form" (
+      INSERT INTO "${targetTable}" (
         project_name, school_name, school_id, region, division,
         status_of_construction_phase, accomplishment_percentage, status_as_of,
         target_completion_date, actual_completion_date, notice_to_proceed,

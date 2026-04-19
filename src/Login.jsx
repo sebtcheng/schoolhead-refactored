@@ -940,7 +940,9 @@ const Login = () => {
                             </div>
                         </div>
                     </div>
+                )}
                 {/* LONG QUEUE MODAL */}
+
                 {showTrafficModal && (
                     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                         <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">

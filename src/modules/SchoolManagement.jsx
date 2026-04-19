@@ -1851,7 +1851,9 @@ const SchoolManagement = () => {
                                 </button>
                             </div>
                         </div>
+                    </div>
                 )}
+
                 {/* MODAL: Success Confirmation */}
                 {showSuccessModal && lastSubmissionDetails && (
                     <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
