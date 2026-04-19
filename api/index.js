@@ -219,9 +219,12 @@ function isDuplicateSnapshot(newData, oldData) {
 async function checkIsDuplicateContent(client, ipc, newData) {
   if (!ipc) return false;
   try {
+    // [MOD] Search by school_id and project_name to have a global duplicate shield for that project
     const res = await client.query(
-      `SELECT * FROM engineer_form WHERE ipc = $1 ORDER BY created_at DESC LIMIT 1`,
-      [ipc]
+      `SELECT * FROM engineer_form 
+       WHERE school_id = $1 AND project_name = $2 
+       ORDER BY accomplishment_percentage DESC, project_id DESC LIMIT 1`,
+      [newData.school_id, newData.project_name]
     );
     if (res.rows.length === 0) return false;
     return isDuplicateSnapshot(newData, res.rows[0]);
@@ -6247,11 +6250,6 @@ app.get('/api/sdo/export-csv/:unitId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to generate CSV export" });
   }
 });
-  } catch (err) {
-    console.error("Check ID Error:", err);
-    res.status(500).json({ error: "Failed to verify ID" });
-  }
-});
 
 // GET - SDO Validate ID for conversion (Unit 1 identity shift)
 app.get('/api/sdo/validate-conversion/:id', async (req, res) => {
@@ -9951,6 +9949,18 @@ app.post('/api/save-project', async (req, res) => {
     const catId = categoryMapping[data.projectCategory] || "10";
     let newIpc = data.ipc;
 
+    // [MOD] Search for existing project to reuse IPC
+    if (!newIpc) {
+        const existingProject = await client.query(
+            "SELECT ipc FROM engineer_form WHERE school_id = $1 AND project_name = $2 LIMIT 1",
+            [data.schoolId, data.projectName]
+        );
+        if (existingProject.rows.length > 0) {
+            newIpc = existingProject.rows[0].ipc;
+            console.log(`♻️  [IPCReuse] Reusing existing IPC: ${newIpc} for School: ${data.schoolId} | Project: ${data.projectName}`);
+        }
+    }
+
     // Only generate a NEW IPC if one isn't provided OR it's invalid
     if (!newIpc || !newIpc.startsWith('INF-')) {
         const year = data.fundingYear || new Date().getFullYear();
@@ -11660,7 +11670,7 @@ app.get('/api/projects', async (req, res) => {
             COALESCE(img_agg.img_count, 0) AS images_count,
             ROW_NUMBER() OVER (
                 PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name)
-                ORDER BY e.project_id DESC
+                ORDER BY e.accomplishment_percentage DESC, e.project_id DESC
             ) as rn
           FROM engineer_form e
           LEFT JOIN co_finance f ON e.project_id = f.project_id
