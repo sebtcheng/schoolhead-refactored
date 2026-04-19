@@ -220,8 +220,16 @@ async function checkIsDuplicateContent(client, ipc, newData) {
   if (!ipc) return false;
   try {
     const res = await client.query(
-      `SELECT * FROM engineer_form WHERE ipc = $1 ORDER BY created_at DESC LIMIT 1`,
-      [ipc]
+      `SELECT * FROM (
+         SELECT * FROM engineer_form
+         UNION ALL
+         SELECT * FROM engineer_create
+         UNION ALL
+         SELECT * FROM engineer_create_updates
+       ) combined
+       WHERE school_id = $1 AND project_name = $2 
+       ORDER BY accomplishment_percentage DESC, project_id DESC LIMIT 1`,
+      [newData.school_id, newData.project_name]
     );
     if (res.rows.length === 0) return false;
     return isDuplicateSnapshot(newData, res.rows[0]);
@@ -6247,11 +6255,6 @@ app.get('/api/sdo/export-csv/:unitId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Failed to generate CSV export" });
   }
 });
-  } catch (err) {
-    console.error("Check ID Error:", err);
-    res.status(500).json({ error: "Failed to verify ID" });
-  }
-});
 
 // GET - SDO Validate ID for conversion (Unit 1 identity shift)
 app.get('/api/sdo/validate-conversion/:id', async (req, res) => {
@@ -9951,6 +9954,38 @@ app.post('/api/save-project', async (req, res) => {
     const catId = categoryMapping[data.projectCategory] || "10";
     let newIpc = data.ipc;
 
+    // [MOD] Search for existing project to reuse IPC
+    if (!newIpc) {
+        let existingProject = await client.query(
+            "SELECT ipc FROM engineer_form WHERE school_id = $1 AND project_name = $2 LIMIT 1",
+            [data.schoolId, data.projectName]
+        );
+        
+        // [FALLBACK] Conceptual Project Key (CPK) Search (School, Category, Year, Budget)
+        if (existingProject.rows.length === 0) {
+            const year = data.fundingYear || new Date().getFullYear();
+            const budget = data.approved_budget_for_contract || data.projectAllocation;
+            
+            existingProject = await client.query(
+                `SELECT ipc FROM engineer_form 
+                 WHERE school_id = $1 
+                   AND project_category_id = $2 
+                   AND funding_year = $3 
+                   AND ABS(approved_budget_for_contract - $4) < 1 
+                 LIMIT 1`,
+                [data.schoolId, catId, year, budget]
+            );
+            if (existingProject.rows.length > 0) {
+                console.log(`♻️  [IPCReuse] CPK Match Found! Reusing IPC: ${existingProject.rows[0].ipc} for School: ${data.schoolId}`);
+            }
+        }
+
+        if (existingProject.rows.length > 0) {
+            newIpc = existingProject.rows[0].ipc;
+            console.log(`♻️  [IPCReuse] Reusing existing IPC: ${newIpc} for School: ${data.schoolId}`);
+        }
+    }
+
     // Only generate a NEW IPC if one isn't provided OR it's invalid
     if (!newIpc || !newIpc.startsWith('INF-')) {
         const year = data.fundingYear || new Date().getFullYear();
@@ -10076,8 +10111,22 @@ app.post('/api/save-project', async (req, res) => {
     const approvalStatus = divisionEngineerRoles.includes(submitterRole) ? 'Pending' : 'Approved';
     projectValues.push(approvalStatus); // $58
 
+    let targetTable = 'engineer_form';
+    if (approvalStatus === 'Pending' && (data.actions === 'Newly Created' || data.actions === 'Newly-Created')) {
+        targetTable = 'engineer_create';
+    } else {
+        // [MOD] Three-Tier Lifecycle: Route updates for projects originating in the creation-tier
+        const creationExistCheck = await client.query(
+            "SELECT 1 FROM engineer_create WHERE (ipc = $1 OR (school_id = $2 AND project_name = $3)) LIMIT 1",
+            [newIpc, data.schoolId, data.projectName]
+        );
+        if (creationExistCheck.rows.length > 0) {
+            targetTable = 'engineer_create_updates';
+        }
+    }
+
     const projectQuery = `
-      INSERT INTO "engineer_form" (
+      INSERT INTO "${targetTable}" (
         project_name, school_name, school_id, region, division,
         status_of_construction_phase, accomplishment_percentage, status_as_of,
         target_completion_date, actual_completion_date, notice_to_proceed,
@@ -11660,7 +11709,7 @@ app.get('/api/projects', async (req, res) => {
             COALESCE(img_agg.img_count, 0) AS images_count,
             ROW_NUMBER() OVER (
                 PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name)
-                ORDER BY e.project_id DESC
+                ORDER BY e.accomplishment_percentage DESC, e.project_id DESC
             ) as rn
           FROM engineer_form e
           LEFT JOIN co_finance f ON e.project_id = f.project_id
