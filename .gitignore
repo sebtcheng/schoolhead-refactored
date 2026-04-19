@@ -43,6 +43,7 @@ scripts
 # Ignore uploads and extracted data
 uploads/
 extracted_images/
+insighted_engr_photos/
 
 # Temporary audit and setup scripts
 tmp/

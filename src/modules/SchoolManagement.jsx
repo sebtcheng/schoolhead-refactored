@@ -99,58 +99,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, color }) => {
     );
 };
 
-const ActionModal = ({ isOpen, onClose, title, subtitle, icon: Icon, children, maxWidth = 'max-w-4xl' }) => {
-    return (
-        <AnimatePresence>
-            {isOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="fixed inset-0 bg-slate-900/80 backdrop-blur-md"
-                    />
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className={`bg-white dark:bg-slate-800 w-full ${maxWidth} rounded-[2.5rem] shadow-[0_32px_128px_-12px_rgba(0,0,0,0.5)] relative z-20 overflow-hidden border border-white/10 my-auto`}
-                    >
-                        <div className="absolute top-0 right-0 p-6 z-30">
-                            <motion.button
-                                whileHover={{ rotate: 90, scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={onClose}
-                                className="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"
-                            >
-                                <FiX size={18} />
-                            </motion.button>
-                        </div>
-
-                        <div className="p-6 sm:p-10">
-                            <div className="flex items-center gap-5 mb-8">
-                                <div className="p-4 bg-[#004A99]/10 text-[#004A99] dark:bg-blue-400/10 dark:text-blue-400 rounded-[1.4rem]">
-                                    <Icon size={24} />
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight leading-none mb-1">
-                                        {title}
-                                    </h2>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{subtitle}</p>
-                                </div>
-                            </div>
-                            
-                            <div className="max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-                                {children}
-                            </div>
-                        </div>
-                    </motion.div>
-                </div>
-            )}
-        </AnimatePresence>
-    );
-};
+import ActionModal from '../components/ActionModal';
 
 const SchoolManagement = () => {
     const { user, token } = useAuth();
@@ -196,10 +145,6 @@ const SchoolManagement = () => {
     const [checkingId, setCheckingId] = useState(false);
     const [nameError, setNameError] = useState('');
 
-    // Confirmation Modal State
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [showReportsModal, setShowReportsModal] = useState(false);
-    const [downloadingReport, setDownloadingReport] = useState(null);
     const [confirmTimer, setConfirmTimer] = useState(20);
     const [canConfirm, setCanConfirm] = useState(false);
 
@@ -877,35 +822,6 @@ const SchoolManagement = () => {
         }
     };
     
-    const handleDownloadReport = async (unitId) => {
-        setDownloadingReport(unitId);
-        try {
-            const res = await fetch(`/api/sdo/export-csv/${unitId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            if (res.ok) {
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `InsightED_Report_Unit${unitId}_${userData?.division?.replace(/\s+/g, '_') || 'Export'}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-            } else {
-                const err = await res.json();
-                alert(`Export failed: ${err.error || 'Unknown error'}`);
-            }
-        } catch (err) {
-            console.error("Report download failed:", err);
-            alert("Failed to connect to export service.");
-        } finally {
-            setDownloadingReport(null);
-        }
-    };
 
 
     const handleSearchSchoolForStatus = async () => {
@@ -1045,13 +961,6 @@ const SchoolManagement = () => {
                 <div className="max-w-5xl mx-auto px-6 -mt-16 space-y-8 relative z-30 pb-20">
                     {/* Action Cards Grid - Refactored from simple tabs */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <TabButton 
-                            active={false}
-                            onClick={() => setShowReportsModal(true)}
-                            icon={TbReportAnalytics}
-                            label="InsightED Reports"
-                            color="indigo"
-                        />
                         <TabButton 
                             active={activeView === 'form' && !isConverting}
                             onClick={() => {
@@ -1901,56 +1810,6 @@ const SchoolManagement = () => {
                     </div>
                 )}
             
-            {/* InsightED Reports Modal */}
-            <ActionModal
-                isOpen={showReportsModal}
-                onClose={() => setShowReportsModal(false)}
-                title="InsightED Reports"
-                subtitle="Division-wide Unit Data Export"
-                icon={TbReportAnalytics}
-                maxWidth="max-w-2xl"
-            >
-                <div className="space-y-4">
-                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800 mb-6 font-bold text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed italic">
-                        Select a modular unit to download a comprehensive CSV report of all schools within the <span className="underline decoration-indigo-400 decoration-2 underline-offset-2">{userData?.division || 'Division Office'}</span> jurisdiction.
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-6">
-                        {[
-                            { id: 1, label: "Unit 1: School Identity" },
-                            { id: 2, label: "Unit 2: Learner Profile" },
-                            { id: 3, label: "Unit 3: Organized Classes" },
-                            { id: 4, label: "Unit 4: Health & Groups" },
-                            { id: 5, label: "Unit 5: Shifting Modality" },
-                            { id: 6, label: "Unit 6: Teacher Personnel" },
-                            { id: 7, label: "Unit 7: School Resources" },
-                            { id: 8, label: "Unit 8: Physical Facilities" },
-                            { id: 9, label: "Unit 9: Infrastructure Audit" },
-                        ].map((unit) => (
-                            <button
-                                key={unit.id}
-                                disabled={downloadingReport !== null}
-                                onClick={() => handleDownloadReport(unit.id)}
-                                className={`flex items-center justify-between p-4 bg-white dark:bg-slate-700 border-2 border-slate-100 dark:border-slate-600 rounded-2xl hover:border-indigo-500 hover:shadow-lg transition-all group ${downloadingReport === unit.id ? 'animate-pulse' : ''}`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-500 group-hover:text-indigo-500 transition-colors">
-                                        <span className="font-black text-xs">{unit.id}</span>
-                                    </div>
-                                    <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-tighter">
-                                        {unit.label}
-                                    </span>
-                                </div>
-                                {downloadingReport === unit.id ? (
-                                    <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    <FiDownload className="text-slate-300 group-hover:text-indigo-500 transition-colors" size={16} />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </ActionModal>
 
             <BottomNav userRole={userData?.role} />
 
