@@ -9951,13 +9951,33 @@ app.post('/api/save-project', async (req, res) => {
 
     // [MOD] Search for existing project to reuse IPC
     if (!newIpc) {
-        const existingProject = await client.query(
+        let existingProject = await client.query(
             "SELECT ipc FROM engineer_form WHERE school_id = $1 AND project_name = $2 LIMIT 1",
             [data.schoolId, data.projectName]
         );
+        
+        // [FALLBACK] Conceptual Project Key (CPK) Search (School, Category, Year, Budget)
+        if (existingProject.rows.length === 0) {
+            const year = data.fundingYear || new Date().getFullYear();
+            const budget = data.approved_budget_for_contract || data.projectAllocation;
+            
+            existingProject = await client.query(
+                `SELECT ipc FROM engineer_form 
+                 WHERE school_id = $1 
+                   AND project_category_id = $2 
+                   AND funding_year = $3 
+                   AND ABS(approved_budget_for_contract - $4) < 1 
+                 LIMIT 1`,
+                [data.schoolId, catId, year, budget]
+            );
+            if (existingProject.rows.length > 0) {
+                console.log(`♻️  [IPCReuse] CPK Match Found! Reusing IPC: ${existingProject.rows[0].ipc} for School: ${data.schoolId}`);
+            }
+        }
+
         if (existingProject.rows.length > 0) {
             newIpc = existingProject.rows[0].ipc;
-            console.log(`♻️  [IPCReuse] Reusing existing IPC: ${newIpc} for School: ${data.schoolId} | Project: ${data.projectName}`);
+            console.log(`♻️  [IPCReuse] Reusing existing IPC: ${newIpc} for School: ${data.schoolId}`);
         }
     }
 
