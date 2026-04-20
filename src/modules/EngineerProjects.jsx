@@ -201,9 +201,9 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
                         ↩ REVERTED
                       </div>
                     )}
-                    {p?.approvalStatus === "Pending" && (
-                      <div className="absolute -top-2 -left-2 bg-orange-400 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white animate-pulse">
-                        ⏳ PENDING
+                    {(p?.approvalStatus === "Pending" || p?.is_duplicate) && (
+                      <div className="absolute -top-2 -left-2 bg-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white animate-pulse">
+                        ⚠️ FOR VALIDATION
                       </div>
                     )}
                   </div>
@@ -541,6 +541,7 @@ const EngineerProjects = () => {
             checklist: item.checklist,
             triangulated_percentage: item.triangulated_percentage,
             approvalStatus: item.approvalStatus,
+            is_duplicate: item.is_duplicate,
           }));
 
           // Update Cache on success
@@ -976,13 +977,29 @@ const EngineerProjects = () => {
         if (allFiles.length > 0) {
           for (const item of allFiles) {
             try {
-              const base64Image = await compressImage(item.file);
-              await addEngineerToOutbox({
-                url: `${API_BASE}/api/upload-image`,
-                method: 'POST',
-                body: { projectId: updatedProject.id, imageData: base64Image, uploadedBy: uid, category: item.category },
-                formName: `Photo (${item.category}): ${updatedProject.schoolName}`
-              });
+            const base64Image = await compressImage(item.file);
+            const imagePayload = { 
+              projectId: updatedProject.id, 
+              imageData: base64Image, 
+              uploadedBy: uid, 
+              category: item.category 
+            };
+
+            // Add photo metadata to offline payload if available
+            if (item.file.photoMetadata) {
+              const meta = item.file.photoMetadata;
+              if (meta.latitude) imagePayload.latitude = meta.latitude;
+              if (meta.longitude) imagePayload.longitude = meta.longitude;
+              if (meta.takenAt) imagePayload.takenAt = meta.takenAt;
+              if (meta.exif) imagePayload.exifMetadata = meta.exif;
+            }
+
+            await addEngineerToOutbox({
+              url: `${API_BASE}/api/upload-image`,
+              method: 'POST',
+              body: imagePayload,
+              formName: `Photo (${item.category}): ${updatedProject.schoolName}`
+            });
             } catch (err) {
               console.error("Compression failed for file:", item.file.name, err);
             }
@@ -1040,6 +1057,16 @@ const EngineerProjects = () => {
             formData.append('projectId', resData.project.project_id);
             formData.append('uploadedBy', uid);
             formData.append('category', item.category);
+
+            // Add photo metadata if available
+            if (item.file.photoMetadata) {
+              const meta = item.file.photoMetadata;
+              if (meta.latitude) formData.append('latitude', meta.latitude);
+              if (meta.longitude) formData.append('longitude', meta.longitude);
+              if (meta.takenAt) formData.append('takenAt', meta.takenAt);
+              if (meta.exif) formData.append('exifMetadata', JSON.stringify(meta.exif));
+            }
+
             const resp = await fetch(`${API_BASE}/api/upload-image`, { method: "POST", body: formData });
             
             if (!resp.ok) {

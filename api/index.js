@@ -11679,7 +11679,7 @@ app.get('/api/projects', async (req, res) => {
       WITH RankedProjects AS (
           SELECT
             e.project_id, e.school_name, e.project_name, e.school_id, e.division, e.region, e.status_of_construction_phase AS status, e.ipc, e.engineer_name, e.engineer_id,
-            e.accomplishment_percentage,
+            e.accomplishment_percentage, e.is_duplicate,
             LAG(e.accomplishment_percentage) OVER (
                 PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name)
                 ORDER BY e.project_id ASC
@@ -11747,7 +11747,7 @@ app.get('/api/projects', async (req, res) => {
         p.project_category AS "projectCategory", p.scope_of_work AS "scopeOfWork",
         p.number_of_classrooms AS "numberOfClassrooms", p.number_of_storeys AS "numberOfStoreys",
         p.number_of_sites AS "numberOfSites", p.funds_utilized AS "fundsUtilized",
-        p.status_design_phase AS "statusDesignPhase",
+        p.status_design_phase AS "statusDesignPhase", p.is_duplicate AS "is_duplicate",
         p.procurement_status AS "procurement_status",
         p.actions AS "updateType",
         (p.actions LIKE 'Realignment%') AS "isRealigned",
@@ -12559,7 +12559,7 @@ app.post('/api/upload-image', (req, res, next) => {
         next();
     }
 }, async (req, res) => {
-  const { projectId, uploadedBy, category, imageData } = req.body;
+  const { projectId, uploadedBy, category, imageData, latitude, longitude, takenAt, exifMetadata } = req.body;
   
   if (!projectId || (!req.file && !imageData)) {
       return res.status(400).json({ error: "Missing required data (projectId or image content)" });
@@ -12568,6 +12568,7 @@ app.post('/api/upload-image', (req, res, next) => {
   let finalFilePath = null;
   let finalImageValue = imageData; // Default to incoming base64 for legacy path
   let finalBinaryId = null;
+  let finalSize = 0;
 
   try {
     // 1. Storage Determination — Postgres Binary Storage (primary) or legacy fallback
@@ -12577,7 +12578,7 @@ app.post('/api/upload-image', (req, res, next) => {
             const { binary_id, deduplicated, stored_size } = await upsertBinary(pool, req.file.buffer, req.file.mimetype || 'image/jpeg');
             finalBinaryId = binary_id;
             finalImageValue = `/api/asset/${binary_id}`;
-            const finalSize = stored_size;
+            finalSize = stored_size;
             console.log(`🗄️ [BinaryStore] Stored asset ${binary_id} | size=${finalSize}B | dedup=${deduplicated}`);
         } catch (binErr) {
             console.error('⚠️ [BinaryStore] Pipeline failed, falling back to Azure:', binErr.message);
@@ -12591,6 +12592,7 @@ app.post('/api/upload-image', (req, res, next) => {
                 const blockBlobClient = blobServiceClient.getContainerClient(containerName).getBlockBlobClient(blobName);
                 await blockBlobClient.uploadData(req.file.buffer, { blobHTTPHeaders: { blobContentType: req.file.mimetype || 'image/jpeg' } });
                 finalImageValue = blockBlobClient.url;
+                finalSize = req.file.size;
                 console.log(`☁️ [AZURE Fallback] Image uploaded: ${finalImageValue}`);
             }
         }
@@ -12598,6 +12600,10 @@ app.post('/api/upload-image', (req, res, next) => {
         // Multer disk-storage fallback (should not normally occur in memory mode)
         finalFilePath = `/uploads/project_photos/${req.file.filename}`;
         finalImageValue = finalFilePath;
+        finalSize = req.file.size;
+    } else if (imageData) {
+        // Base64 estimation if size not provided
+        finalSize = Math.round((imageData.length * 3) / 4);
     }
 
     // 2. Database Persistence Coordination
@@ -12616,10 +12622,34 @@ app.post('/api/upload-image', (req, res, next) => {
       }
     }
 
-    const query = `INSERT INTO engineer_image (project_id, image_data, file_path, uploaded_by, category, ipc, binary_id, file_size) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;`;
-    const result = await pool.query(query, [finalProjectId, finalImageValue, finalFilePath, uploadedBy, category || 'Internal', ipc, finalBinaryId, typeof finalSize !== 'undefined' ? finalSize : (req.file ? req.file.size : 0)]);
+    // Prepare metadata values
+    const lat = latitude && latitude !== 'null' ? latitude : null;
+    const lng = longitude && longitude !== 'null' ? longitude : null;
+    const tAt = takenAt && takenAt !== 'null' ? takenAt : null;
+    const eMeta = exifMetadata ? (typeof exifMetadata === 'string' ? exifMetadata : JSON.stringify(exifMetadata)) : '{}';
 
-    await logActivity(uploadedBy, 'Engineer', 'Engineer', 'UPLOAD', `Project ID: ${projectId}`, `Uploaded optimized site image (${category || 'Internal'})`);
+    const query = `
+        INSERT INTO engineer_image 
+        (project_id, image_data, file_path, uploaded_by, category, ipc, binary_id, file_size, latitude, longitude, taken_at, exif_metadata) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+        RETURNING id;
+    `;
+    const result = await pool.query(query, [
+        finalProjectId, 
+        finalImageValue, 
+        finalFilePath, 
+        uploadedBy, 
+        category || 'Internal', 
+        ipc, 
+        finalBinaryId, 
+        finalSize,
+        lat,
+        lng,
+        tAt,
+        eMeta
+    ]);
+
+    await logActivity(uploadedBy, 'Engineer', 'Engineer', 'UPLOAD', `Project ID: ${projectId}`, `Uploaded optimized site image (${category || 'Internal'}) with metadata`);
 
     // 3. Dual-Write (Async/Non-blocking)
     if (poolNew && ipc) {

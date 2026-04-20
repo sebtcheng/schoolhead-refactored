@@ -1362,8 +1362,8 @@ const EFDHome = () => {
                                                                 <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-700 transition-colors">{p.projectName}</h4>
                                                                 <p className="text-[10px] text-slate-500 font-medium">{p.schoolName} • {p.schoolId}</p>
                                                                 {p.approvalStatus === 'Pending' && (
-                                                                    <span className="mt-1 inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200 tracking-widest animate-pulse">
-                                                                        ⏳ Pending Approval
+                                                                    <span className="mt-1 inline-block text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200 tracking-widest animate-pulse">
+                                                                        ⚠️ FOR VALIDATION
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1495,8 +1495,8 @@ const EFDHome = () => {
                                                                 IPC: {p.ipc || 'TBD'}
                                                             </span>
                                                             {p.approvalStatus === 'Pending' && (
-                                                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200 tracking-widest animate-pulse whitespace-nowrap">
-                                                                    ⏳ Pending Approval
+                                                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200 tracking-widest animate-pulse whitespace-nowrap">
+                                                                    ⚠️ FOR VALIDATION
                                                                 </span>
                                                             )}
                                                         </div>

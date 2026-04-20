@@ -1313,7 +1313,7 @@ const DetailedProjInfo = () => {
 
                         {/* Previous Photos Grid */}
                         {others.length > 0 && (
-                            <div className="grid grid-cols-2 gap-3 mt-4">
+                            <div className="grid grid-cols-3 gap-3 mt-4">
                                 {others.map((img, idx) => (
                                     <div
                                         key={idx}

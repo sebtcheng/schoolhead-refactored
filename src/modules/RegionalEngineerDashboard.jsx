@@ -19,8 +19,8 @@ const STATUS_COLORS = {
 
 const ApprovalBadge = ({ status }) => {
     if (status === 'Pending') return (
-        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-orange-50 text-orange-500 border border-orange-200 animate-pulse">
-            <FiClock size={9} /> Pending CO Approval
+        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200 animate-pulse">
+            <FiClock size={9} /> FOR VALIDATION
         </span>
     );
     if (status === 'Approved') return (

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { extractPhotoMetadata } from '../utils/exif';
 import { createPortal } from "react-dom";
 import {
   FiX,
@@ -432,13 +433,22 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
     return step - 1;
   };
 
-  const handlePhotoSelect = (e, category) => {
-    const files = Array.from(e.target.files);
-    if (category === "Internal")
-      setInternalFiles((prev) => [...prev, ...files]);
-    else setExternalFiles((prev) => [...prev, ...files]);
+  const handlePhotoSelect = async (e, category) => {
+    const rawFiles = Array.from(e.target.files);
+    
+    // Process EXIF metadata in parallel
+    const filesWithMeta = await Promise.all(rawFiles.map(async (file) => {
+      const metadata = await extractPhotoMetadata(file);
+      // Attach metadata directly to the file object for consumption by EngineerProjects
+      if (metadata) file.photoMetadata = metadata;
+      return file;
+    }));
 
-    const newPreviews = files.map((f) => URL.createObjectURL(f));
+    if (category === "Internal")
+      setInternalFiles((prev) => [...prev, ...filesWithMeta]);
+    else setExternalFiles((prev) => [...prev, ...filesWithMeta]);
+
+    const newPreviews = rawFiles.map((f) => URL.createObjectURL(f));
     setActivePreviews((prev) => ({
       ...prev,
       [category]: [...prev[category], ...newPreviews],
