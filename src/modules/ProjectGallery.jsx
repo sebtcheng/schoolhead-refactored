@@ -53,7 +53,7 @@ const LazyImage = ({ imageId, meta, index, onClick }) => {
 
     if (loading) {
         return (
-            <div className="bg-slate-50 w-full h-40 flex flex-col items-center justify-center animate-pulse border border-slate-100">
+            <div className="bg-slate-50 w-full aspect-square flex flex-col items-center justify-center animate-pulse border border-slate-100">
                 <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin"></div>
             </div>
         );
@@ -61,7 +61,7 @@ const LazyImage = ({ imageId, meta, index, onClick }) => {
 
     if (error || !src) {
         return (
-            <div className="bg-slate-50 w-full h-40 flex flex-col items-center justify-center text-slate-300">
+            <div className="bg-slate-50 w-full aspect-square flex flex-col items-center justify-center text-slate-300">
                 <span>⚠️ Failed</span>
             </div>
         );
@@ -75,7 +75,7 @@ const LazyImage = ({ imageId, meta, index, onClick }) => {
             <img
                 src={src}
                 alt="Site progress"
-                className="w-full h-40 object-cover cursor-pointer bg-slate-100"
+                className="w-full aspect-square object-cover cursor-pointer bg-slate-100"
                 loading="lazy"
                 onError={() => {
                     console.error(`[Gallery] FAILED TO LOAD: ${src}`, meta);
@@ -223,7 +223,7 @@ const ProjectGallery = () => {
                             </p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                             {images.map((meta, idx) => (
                                 <LazyImage
                                     key={meta.id}

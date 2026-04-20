@@ -563,15 +563,15 @@ const FilterDrawer = ({
                                     onClick={() => setPendingApprovalOnly(v => !v)}
                                     className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition-all font-bold text-sm ${
                                         pendingApprovalOnly
-                                            ? 'bg-amber-50 border-amber-400 text-amber-700 dark:bg-amber-900/20 dark:border-amber-500 dark:text-amber-300'
+                                            ? 'bg-red-50 border-red-400 text-red-700 dark:bg-red-900/20 dark:border-red-500 dark:text-red-300'
                                             : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-400'
                                     }`}
                                 >
                                     <span className="flex items-center gap-2">
-                                        <span className={`w-2 h-2 rounded-full ${pendingApprovalOnly ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
-                                        Pending Approval Only
+                                        <span className={`w-2 h-2 rounded-full ${pendingApprovalOnly ? 'bg-red-500 animate-pulse' : 'bg-slate-300'}`} />
+                                        Requires Validation
                                     </span>
-                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${pendingApprovalOnly ? 'bg-amber-400 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${pendingApprovalOnly ? 'bg-red-400 text-white' : 'bg-slate-200 text-slate-400'}`}>
                                         {pendingApprovalOnly ? 'ON' : 'OFF'}
                                     </span>
                                 </button>

@@ -687,7 +687,11 @@ const runMigrations = async (client, dbLabel) => {
             await client.query(`
                 ALTER TABLE engineer_image 
                 ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'Internal',
-                ADD COLUMN IF NOT EXISTS file_size BIGINT;
+                ADD COLUMN IF NOT EXISTS file_size BIGINT,
+                ADD COLUMN IF NOT EXISTS latitude NUMERIC(10, 7),
+                ADD COLUMN IF NOT EXISTS longitude NUMERIC(10, 7),
+                ADD COLUMN IF NOT EXISTS taken_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS exif_metadata JSONB DEFAULT '{}';
             `);
             console.log(`✅ [${dbLabel}] Engineer Image Schema Updated`);
         } catch (imgErr) {
