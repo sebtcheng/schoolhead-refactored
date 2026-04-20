@@ -21659,6 +21659,237 @@ app.put('/api/audit/remarks/:id/resolve', async (req, res) => {
 });
 
 
+// --- THIRD LEVEL OFFICIALS DIRECTORY ENDPOINTS ---
+app.get('/api/officials', async (req, res) => {
+  try {
+    const { strand, office, status = 'Active' } = req.query;
+    let query = 'SELECT * FROM third_level_officials WHERE status = $1';
+    const params = [status];
+    
+    if (strand) {
+      params.push(strand);
+      query += ` AND strand = $${params.length}`;
+    }
+    if (office) {
+      params.push(office);
+      query += ` AND office = $${params.length}`;
+    }
+    
+    query += ' ORDER BY sort_index ASC';
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("GET /api/officials error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get('/api/officials/history/:tlid', async (req, res) => {
+  const { tlid } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM officials_movement_log WHERE tlid = $1 ORDER BY created_at DESC',
+      [tlid]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("GET /api/officials/history error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// New Endpoint for Positional History (Suksesyon)
+app.get('/api/officials/position-history', async (req, res) => {
+  const { strand, office, position } = req.query;
+  try {
+    // Search movement log logs that mention this position
+    const result = await pool.query(`
+      SELECT oml.*, tlo.name as official_name, tlo.position as official_position
+      FROM officials_movement_log oml
+      JOIN third_level_officials tlo ON oml.tlid = tlo.tlid
+      WHERE (oml.details->'to'->>'strand' = $1 AND oml.details->'to'->>'office' = $2 AND oml.details->'to'->>'position' = $3)
+         OR (oml.details->>'strand' = $1 AND oml.details->>'office' = $2 AND (oml.details->>'successor_position' = $3 OR tlo.position = $3))
+      ORDER BY oml.created_at DESC
+    `, [strand, office, position]);
+
+    // Also just find all officials (including inactive) who held this specific position
+    const directResult = await pool.query(`
+       SELECT tlid, name, position, status, updated_at as effective_date
+       FROM third_level_officials
+       WHERE strand = $1 AND office = $2 AND position = $3
+       ORDER BY updated_at DESC
+    `, [strand, office, position]);
+
+    res.json({ success: true, data: directResult.rows });
+  } catch (err) {
+    console.error("GET /api/officials/position-history error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.get('/api/officials/career-path/:name', async (req, res) => {
+  const { name } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT tlid, name, strand, office, position, status, updated_at, created_at
+      FROM third_level_officials
+      WHERE name = $1
+      ORDER BY updated_at DESC
+    `, [name]);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("GET /api/officials/career-path error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post('/api/officials/move', authMiddleware, async (req, res) => {
+  const { tlid, new_strand, new_office, new_position, effective_date, remarks } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get current state for snapshot
+    const currentRes = await client.query('SELECT * FROM third_level_officials WHERE tlid = $1', [tlid]);
+    if (currentRes.rowCount === 0) throw new Error("Official not found");
+    const oldData = currentRes.rows[0];
+    
+    // Update official
+    await client.query(`
+      UPDATE third_level_officials 
+      SET strand = $1, office = $2, position = $3, updated_at = NOW() 
+      WHERE tlid = $4
+    `, [new_strand, new_office, new_position, tlid]);
+    
+    // Log movement
+    await client.query(`
+      INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
+      tlid, 
+      'REASSIGNMENT', 
+      JSON.stringify({ 
+        from: { strand: oldData.strand, office: oldData.office, position: oldData.position },
+        to: { strand: new_strand, office: new_office, position: new_position }
+      }),
+      remarks,
+      effective_date,
+      req.user.email
+    ]);
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: "Official reassigned successfully" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("POST /api/officials/move error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/officials/replace', authMiddleware, async (req, res) => {
+  const { 
+    tlid, // Old official to replace
+    successor_name, 
+    successor_email, 
+    successor_position, 
+    effective_date, 
+    remarks 
+  } = req.body;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Mark old official as inactive
+    const oldRes = await client.query('SELECT * FROM third_level_officials WHERE tlid = $1', [tlid]);
+    if (oldRes.rowCount === 0) throw new Error("Official to replace not found");
+    const oldData = oldRes.rows[0];
+    
+    await client.query('UPDATE third_level_officials SET status = $1, updated_at = NOW() WHERE tlid = $2', ['Inactive', tlid]);
+    
+    // 2. Generate new TLID
+    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials');
+    const newTlid = `TL-2026-${String(parseInt(countRes.rows[0].count) + 1).padStart(4, '0')}`;
+    
+    // 3. Insert successor (inherit strand/office AND sort_index from predecessor to preserve hierarchy)
+    await client.query(`
+      INSERT INTO third_level_officials (tlid, sort_index, strand, office, name, position, email, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [newTlid, oldData.sort_index, oldData.strand, oldData.office, successor_name.toUpperCase(), successor_position, successor_email, 'Active']);
+    
+    // 4. Log replacement on BOTH records
+    const details = JSON.stringify({
+      predecessor_tlid: tlid,
+      successor_tlid: newTlid,
+      strand: oldData.strand,
+      office: oldData.office
+    });
+    
+    await client.query(`
+      INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [tlid, 'REPLACEMENT_OUT', details, `Replaced by ${successor_name}`, effective_date, req.user.email]);
+    
+    await client.query(`
+      INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [newTlid, 'REPLACEMENT_IN', details, `Succeeding ${oldData.name}`, effective_date, req.user.email]);
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: "Official replacement successful", new_tlid: newTlid });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("POST /api/officials/replace error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/officials/vacate', authMiddleware, async (req, res) => {
+  const { tlid, remarks, effective_date } = req.body;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Mark existing as inactive
+    const oldRes = await client.query('SELECT * FROM third_level_officials WHERE tlid = $1', [tlid]);
+    if (oldRes.rowCount === 0) throw new Error("Official not found");
+    const oldData = oldRes.rows[0];
+    
+    await client.query('UPDATE third_level_officials SET status = $1, updated_at = NOW() WHERE tlid = $2', ['Inactive', tlid]);
+    
+    // 2. Generate new TLID for the Vacant record
+    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials');
+    const newTlid = `TL-2026-${String(parseInt(countRes.rows[0].count) + 1).padStart(4, '0')}`;
+    
+    // 3. Create Vacant record inheriting hierarchy
+    await client.query(`
+      INSERT INTO third_level_officials (tlid, sort_index, strand, office, name, position, email, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [newTlid, oldData.sort_index, oldData.strand, oldData.office, 'VACANT', oldData.position, null, 'Vacant']);
+    
+    // 4. Log movement
+    await client.query(`
+      INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [tlid, 'VACATED', JSON.stringify({ strand: oldData.strand, office: oldData.office }), remarks, effective_date, req.user.email]);
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: "Position is now vacant" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("POST /api/officials/vacate error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
 // --- FINAL GLOBAL ERROR HANDLER ---
 // Ensures all errors (including Multer limit errors) return JSON in production
 app.use((err, req, res, next) => {

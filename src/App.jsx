@@ -59,6 +59,8 @@ import EducationalDashboard from './modules/EducationalDashboard';
 import ProjectSummaryDashboard from './modules/ProjectSummaryDashboard';
 import { ROLE_GROUPS } from './config/roleGroups';
 import { EFDFilterProvider } from './context/EFDFilterContext';
+import CentralOfficeNexus from './modules/CentralOfficeNexus';
+import ThirdLevelDirectory from './modules/ThirdLevelDirectory';
 
 
 
@@ -241,6 +243,24 @@ const AnimatedRoutes = () => {
         <Route path="/lgu-dashboard" element={<LguDashboard />} />
         <Route path="/lgu-form" element={<LguForms />} /> {/* Mapped to LguForms */}
         <Route path="/lgu-project-details/:id" element={<LguProjectDetails />} />
+        
+        {/* Central Office Nexus */}
+        <Route 
+          path="/central-office-nexus" 
+          element={
+            <ProtectedRoute allowedRoles={['Central Office', 'Super User']}>
+              <CentralOfficeNexus />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/officials" 
+          element={
+            <ProtectedRoute allowedRoles={['Central Office', 'Super User']}>
+              <ThirdLevelDirectory />
+            </ProtectedRoute>
+          } 
+        />
 
       {/* Super User Selector (Protected) */}
       <Route
