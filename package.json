@@ -31,7 +31,7 @@
     "dotenv": "^17.2.3",
     "exif-js": "^2.3.0",
     "express": "^5.2.1",
-    "firebase": "^12.6.0",
+    "firebase": "^12.12.0",
     "firebase-admin": "^13.6.0",
     "firebase-scrypt": "^2.2.0",
     "framer-motion": "^12.24.12",

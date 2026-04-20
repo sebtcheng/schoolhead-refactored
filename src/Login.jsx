@@ -23,7 +23,7 @@ const getDashboardPath = (role, accountCategory) => {
         'School Head': '/nodes-dashboard',
         'Regional Office': '/monitoring-dashboard',
         'School Division Office': '/monitoring-dashboard',
-        'Central Office': '/monitoring-dashboard',
+        'Central Office': '/central-office-nexus',
         'Admin': '/admin-dashboard',
         'Human Resource': '/hr-dashboard',
         'Super User': '/super-user-selector',
