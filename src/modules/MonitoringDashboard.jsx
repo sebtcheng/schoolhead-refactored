@@ -541,12 +541,12 @@ const MonitoringDashboard = () => {
             </div>
 
             <TopStatCard 
-                title="ESF7 Submissions" 
+                title="ESF7 Review Center" 
                 value={stats.esf7Submissions.toLocaleString()} 
-                icon={FiFileText} 
-                color="bg-slate-400" 
-                subtext="Locked for Maintenance"
-                onClick={null}
+                icon={TbReportAnalytics} 
+                color="bg-indigo-600" 
+                subtext="System Active"
+                onClick={() => navigate('/esf7/review')}
             />
             <motion.button
                 initial={{ opacity: 0, y: 20 }}

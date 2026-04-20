@@ -1,20 +1,18 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     FiArrowLeft, 
-    FiUploadCloud, 
     FiLink, 
     FiCheckCircle, 
     FiAlertCircle, 
-    FiFileText,
     FiLoader,
     FiSearch,
-    FiMonitor,
     FiCopy,
-    FiShield
+    FiShield,
+    FiExternalLink,
+    FiDatabase
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
 import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from "../assets/loading.gif";
@@ -46,17 +44,36 @@ const SubmissionLoader = ({ message }) => (
 const ESF7Draft = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const fileInputRef = useRef(null);
     
-    const [uploadMode, setUploadMode] = useState('file'); // Default to file upload flow
-    const [isParsing, setIsParsing] = useState(false);
-    const [error, setError] = useState(null);
-    const [parsedRecords, setParsedRecords] = useState([]);
-    const [parsedData, setParsedData] = useState(null);
+    // Core State
     const [driveLink, setDriveLink] = useState('');
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanResult, setScanResult] = useState(null); // { rowCount, sampleRows, headers }
+    const [error, setError] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitSuccess, setSubmitSuccess] = useState(false);
+    
+    // Status State
+    const [statusData, setStatusData] = useState(null); // { status, uploaded_at, row_count, link }
+    const [isLoadingStatus, setIsLoadingStatus] = useState(true);
     const [copied, setCopied] = useState(false);
+
+    useEffect(() => {
+        if (user?.school_id) fetchStatus();
+    }, [user?.school_id]);
+
+    const fetchStatus = async () => {
+        setIsLoadingStatus(true);
+        try {
+            const res = await fetch(`/api/esf7/link-status/${user.school_id}`);
+            const data = await res.json();
+            if (data.success) setStatusData(data.data);
+        } catch (err) {
+            console.error("Status check failed:", err);
+        } finally {
+            setIsLoadingStatus(false);
+        }
+    };
 
     const handleCopyEmail = () => {
         navigator.clipboard.writeText('insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com');
@@ -64,188 +81,47 @@ const ESF7Draft = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const [existingStatus, setExistingStatus] = useState(null);
-    const [existingCount, setExistingCount] = useState(0);
-    const [isLoadingStatus, setIsLoadingStatus] = useState(true);
-    const [resubmitRequestStatus, setResubmitRequestStatus] = useState(null); // PENDING, APPROVED, etc.
-    const [resubmitReason, setResubmitReason] = useState('');
-
-    React.useEffect(() => {
-        if (user?.school_id) fetchExistingStatus();
-    }, [user?.school_id]);
-
-    const fetchExistingStatus = async () => {
-        setIsLoadingStatus(true);
-        try {
-            const [statusRes, reqRes] = await Promise.all([
-                fetch(`/api/esf7/status/${user.school_id}`),
-                fetch(`/api/esf7/request-status/${user.school_id}`)
-            ]);
-
-            const statusData = await statusRes.json();
-            const reqData = await reqRes.json();
-
-            if (statusData.success) setExistingStatus(statusData.status);
-            setResubmitRequestStatus(reqData.status);
-
-            // If we have status, fetch records to get count
-            if (statusData.status !== 'NOT_STARTED') {
-                const recRes = await fetch(`/api/esf7/records/${user.school_id}`);
-                const recData = await recRes.json();
-                if (recData.success) setExistingCount(recData.data.length);
-            }
-        } catch (err) {
-            console.error("Fetch Status Error:", err);
-        } finally {
-            setIsLoadingStatus(false);
-        }
-    };
-
-    const handleRequestResubmit = async () => {
-        if (!resubmitReason.trim()) return alert("Please provide a reason.");
-        setIsSubmitting(true);
-        try {
-            const res = await fetch('/api/esf7/request-resubmit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    school_id: user.school_id,
-                    school_name: user?.school_name,
-                    reason: resubmitReason
-                })
-            });
-            if (res.ok) {
-                alert("Request sent successfully.");
-                fetchExistingStatus();
-            }
-        } catch (err) {
-            alert("Failed to send request.");
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Verify it's an .xlsb or .xlsx file (ideally .xlsb but xlsx also works for testing)
-        if (!file.name.endsWith('.xlsb') && !file.name.endsWith('.xlsx')) {
-            setError("Invalid file type. Please upload an .xlsb or .xlsx ESF7 master file.");
-            return;
-        }
-
-        setIsParsing(true);
-        setError(null);
-
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            try {
-                const bstr = evt.target.result;
-                const wb = XLSX.read(bstr, { type: 'array' });
-                
-                // Find DB_USER sheet
-                const dbUserSheet = wb.Sheets['DB_USER'];
-                if (!dbUserSheet) {
-                    throw new Error("Missing 'DB_USER' technical sheet. Please ensure you are uploading the correct ESF7 master file.");
-                }
-
-                // Get raw rows to handle blank headers and positional columns (like OB)
-                const rows = XLSX.utils.sheet_to_json(dbUserSheet, { header: 1, defval: "" });
-                if (rows.length < 2) throw new Error("The 'DB_USER' sheet is empty or invalid.");
-
-                // Row 0 usually contains headers
-                const rawHeaders = rows[0];
-                
-                // Process records from row 1 onwards
-                const records = rows.slice(1).filter(r => r.some(v => v !== null && v !== undefined && String(v).trim() !== "")).map(row => {
-                    const record = {};
-                    rawHeaders.forEach((h, i) => {
-                        let key = h ? String(h).trim() : `col_${i}`;
-                        record[key] = row[i] || "";
-                    });
-                    
-                    // Positional capture for OB (Index 391) which is blank in original file but is APPT_YYYY
-                    if (row[391] !== undefined) {
-                        record['appt_yyyy'] = row[391];
-                    }
-                    
-                    return record;
-                });
-
-                if (!records.length) {
-                    throw new Error("No valid personnel data found in the sheet.");
-                }
-
-                setParsedRecords(records);
-                setParsedData({
-                    totalRows: records.length,
-                    sample: records.slice(0, 5).map(r => Object.values(r)),
-                    headers: Object.keys(records[0])
-                });
-
-            } catch (err) {
-                console.error("Parsing Error:", err);
-                setError(err.message || "Failed to parse the workbook. Ensure it is a valid ESF7 file.");
-            } finally {
-                setIsParsing(false);
-            }
-        };
-
-        reader.onerror = () => {
-            setError("Failed to read file.");
-            setIsParsing(false);
-        };
-
-        reader.readAsArrayBuffer(file);
-    };
-
-    const handleLinkSubmit = async () => {
+    const handleQuickScan = async () => {
         if (!driveLink.includes('drive.google.com')) {
             setError("Please provide a valid Google Drive link.");
             return;
         }
-        setIsParsing(true);
+        setIsScanning(true);
         setError(null);
+        setScanResult(null);
 
         try {
-            const res = await fetch('/api/esf7/extract-preview', {
+            // Rapid validation endpoint: checks service account access and returns metadata + small preview
+            const res = await fetch('/api/esf7/link-scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ driveLink })
+                body: JSON.stringify({ driveLink, school_id: user.school_id })
             });
 
             const result = await res.json();
-            if (!res.ok) throw new Error(result.error || "Failed to extract data from link.");
+            if (!res.ok) throw new Error(result.error || "Access Denied. Ensure the service account was added.");
 
-            const { records, headers, totalRows, sample } = result.data;
-
-            setParsedRecords(records);
-            setParsedData({
-                totalRows,
-                sample,
-                headers
-            });
-
+            setScanResult(result.data);
         } catch (err) {
-            console.error("Extraction Error:", err);
-            setError(err.message || "An error occurred during extraction.");
+            setError(err.message);
         } finally {
-            setIsParsing(false);
+            setIsScanning(false);
         }
     };
 
     const handleSubmit = async () => {
-        if (!parsedRecords.length || !user?.school_id) return;
-
+        if (!scanResult || !user?.school_id) return;
         setIsSubmitting(true);
         try {
-            const res = await fetch('/api/esf7/stage', {
+            const res = await fetch('/api/esf7/link-submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     school_id: user.school_id,
-                    records: parsedRecords
+                    driveLink,
+                    rowCount: scanResult.rowCount,
+                    previewData: scanResult.sampleRows,
+                    summary: scanResult.summary
                 })
             });
 
@@ -254,7 +130,7 @@ const ESF7Draft = () => {
                 setTimeout(() => navigate('/nodes-dashboard'), 2000);
             } else {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to stage data.");
+                throw new Error(data.error || "Submission failed.");
             }
         } catch (err) {
             setError(err.message);
@@ -263,13 +139,18 @@ const ESF7Draft = () => {
         }
     };
 
+    const isLocked = statusData && ['PENDING_SDO', 'QUEUED', 'VERIFIED'].includes(statusData.status);
+
     return (
         <PageTransition>
             <AnimatePresence>
-                {(isParsing || isLoadingStatus) && <SubmissionLoader message={isParsing ? "Extracting from Cloud..." : "Syncing with InsightEd Cloud..."} />}
-                {isSubmitting && <SubmissionLoader message="Staging your records..." />}
+                {(isScanning || isLoadingStatus) && (
+                    <SubmissionLoader message={isScanning ? "Scanning Cloud File..." : "Checking Link Registry..."} />
+                )}
+                {isSubmitting && <SubmissionLoader message="Finalizing Submission..." />}
             </AnimatePresence>
-            <div className="min-h-screen bg-slate-50 pb-24">
+
+            <div className="min-h-screen bg-slate-50 pb-24 font-sans">
                 {/* --- HEADER --- */}
                 <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
                     <div className="flex items-center gap-4">
@@ -277,254 +158,204 @@ const ESF7Draft = () => {
                             <FiArrowLeft className="w-6 h-6 text-slate-600" />
                         </button>
                         <div>
-                            <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">ESF7 Hub</h1>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Implementation & Monitoring</p>
+                            <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">ESF7 Connection Hub</h1>
+                            <p className="text-[10px] font-bold text-blue-500 mt-1 uppercase tracking-widest italic">National Scale Ingestion</p>
                         </div>
                     </div>
                 </header>
 
                 <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
-                    {/* --- STATUS DASHBOARD (Reflection & Resubmission Request) --- */}
-                    {(existingStatus === 'PENDING_SDO' || existingStatus === 'VERIFIED' || existingStatus === 'REJECTED') && (
+                    {/* --- CASE 1: MODULE LOCKED --- */}
+                    {isLocked && (
                         <motion.div 
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="bg-white border-2 border-blue-50 rounded-[2.5rem] p-8 shadow-sm space-y-6"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/40 relative overflow-hidden"
                         >
-                            <div className="flex items-center justify-between">
-                                <div className="space-y-1">
-                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Submission Status</h3>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-3 h-3 rounded-full animate-pulse ${existingStatus === 'VERIFIED' ? 'bg-emerald-500' : existingStatus === 'REJECTED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
-                                        <span className={`text-xl font-black uppercase italic tracking-tighter ${existingStatus === 'VERIFIED' ? 'text-emerald-600' : existingStatus === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'}`}>
-                                            {existingStatus.replace('_', ' ')}
-                                        </span>
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-10 -mt-10 blur-3xl opacity-50" />
+                            <div className="space-y-6 relative">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Current Status</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+                                            <span className="text-2xl font-black italic uppercase tracking-tighter text-blue-600 italic">
+                                                {statusData.status.replace('_', ' ')}
+                                            </span>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Records Processed</p>
-                                    <p className="text-2xl font-black text-slate-800 tracking-tighter">{existingCount}</p>
-                                </div>
-                            </div>
-                            
-                            <div className="pt-6 border-t border-slate-50 space-y-6">
-                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-start gap-4">
-                                    <FiShield className="text-indigo-600 w-6 h-6 shrink-0" />
-                                    <p className="text-[11px] font-bold text-slate-500 leading-relaxed uppercase">
-                                        {existingStatus === 'VERIFIED' 
-                                            ? "Module Locked: Your ESF7 has been officially verified by SGOD. Changes are no longer allowed without a formal resubmission request approval." 
-                                            : existingStatus === 'REJECTED'
-                                            ? "Submission Returned: The SDO has returned your data for correction. You may re-upload the corrected file below."
-                                            : "Locked for Audit: Your data is currently being reviewed by the Division Office. To ensure audit integrity, the module is locked."}
-                                    </p>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Personnel Count</p>
+                                        <p className="text-3xl font-black text-slate-800 tracking-tighter">{statusData.row_count || 0}</p>
+                                    </div>
                                 </div>
 
-                                {existingStatus !== 'REJECTED' && (
-                                    <div className="space-y-4">
-                                        {resubmitRequestStatus === 'PENDING' ? (
-                                            <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 flex flex-col items-center gap-3 text-center">
-                                                <FiLoader className="text-amber-500 animate-spin" />
-                                                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest italic">Resubmission Request Awaiting SGOD Approval</p>
-                                                <p className="text-[9px] font-bold text-amber-600/70 leading-relaxed italic uppercase">Our system has notified the Division Office. You will be able to re-upload once they unlock this module for you.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Justification for Resubmission</label>
-                                                    <textarea 
-                                                        value={resubmitReason}
-                                                        onChange={(e) => setResubmitReason(e.target.value)}
-                                                        placeholder="e.g. Correction of teacher loading entries, missing records in previous upload..."
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-[1.5rem] p-5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all outline-none min-h-[100px]"
-                                                    />
-                                                </div>
-                                                <button 
-                                                    onClick={handleRequestResubmit}
-                                                    className="w-full py-5 bg-indigo-600 text-white text-[10px] font-black rounded-3xl shadow-xl shadow-indigo-200 active:scale-95 transition-all uppercase italic tracking-widest flex items-center justify-center gap-3"
-                                                >
-                                                    Request Unlocking
-                                                </button>
-                                            </div>
-                                        )}
+                                <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100/50 flex items-start gap-4">
+                                    <FiShield className="text-blue-600 w-6 h-6 shrink-0 mt-1" />
+                                    <div className="space-y-1">
+                                        <h4 className="text-xs font-black text-blue-900 uppercase">Input Registry Locked</h4>
+                                        <p className="text-[10px] font-bold text-blue-700/70 leading-relaxed uppercase">
+                                            Your link has been submitted and is currently in the SDO Review queue. 
+                                            To maintain audit integrity, modifications are disabled.
+                                        </p>
                                     </div>
-                                )}
+                                </div>
+
+                                <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Submitted: {new Date(statusData.uploaded_at).toLocaleString()}</p>
+                                    <button 
+                                        className="text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase italic transition-all"
+                                        onClick={() => window.open(statusData.link, '_blank')}
+                                    >
+                                        View submitted link <FiExternalLink className="inline ml-1" />
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     )}
 
-                    {/* --- PHASE 1: UPLOAD --- */}
-                    {(!existingStatus || existingStatus === 'NOT_STARTED' || existingStatus === 'REJECTED') && !parsedData && (
+                    {/* --- CASE 2: NEW SUBMISSION / RESUBMIT --- */}
+                    {!isLocked && !scanResult && (
                         <div className="space-y-6">
                             <div className="text-center space-y-2">
-                                <h2 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">
-                                    {existingStatus ? 'Phase 1: Update Connection' : 'Phase 1: Cloud Connection'}
-                                </h2>
-                                <p className="text-sm font-medium text-slate-500">
-                                    {existingStatus 
-                                        ? "Resubmission Unlocked. Paste the new Google Drive link below." 
-                                        : "Paste your ESF7 Google Drive link to start the automated extraction."}
-                                </p>
+                                <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Phase 1: Cloud Link</h2>
+                                <p className="text-sm font-bold text-slate-400 uppercase tracking-[0.1em]">Automated Personnel Ingestion</p>
                             </div>
 
                             <motion.div 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 space-y-6"
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200/50 space-y-8"
                             >
-                                {/* Mode Selection */}
-                                <div className="flex p-1 bg-slate-100 rounded-2xl">
-                                    <button 
-                                        onClick={() => setUploadMode('file')}
-                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${uploadMode === 'file' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
-                                    >
-                                        Direct Upload
-                                    </button>
-                                    <button 
-                                        onClick={() => setUploadMode('link')}
-                                        className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${uploadMode === 'link' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
-                                    >
-                                        Cloud Link
-                                    </button>
-                                </div>
-
-                                {uploadMode === 'file' ? (
-                                    <div 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="border-2 border-dashed border-slate-200 rounded-[2rem] p-12 text-center space-y-4 hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group"
-                                    >
-                                        <input 
-                                            type="file" 
-                                            ref={fileInputRef} 
-                                            className="hidden" 
-                                            accept=".xlsb,.xlsx"
-                                            onChange={handleFileUpload}
-                                        />
-                                        <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                                            <FiUploadCloud size={32} />
+                                {/* Step 1: Shared Access */}
+                                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 space-y-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl shrink-0 shadow-sm">
+                                            <FiShield className="w-5 h-5" />
                                         </div>
                                         <div className="space-y-1">
-                                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-tighter italic">Upload Personnel Intelligence Sheet</h4>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Supports .xlsb (Binary) or .xlsx</p>
+                                            <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest">1. Share with Service Account</h4>
+                                            <p className="text-[10px] font-bold text-indigo-700/70 leading-relaxed uppercase">
+                                                Grant <span className="text-indigo-900">"Viewer"</span> access to our automated harvester to enable extraction.
+                                            </p>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="space-y-6">
-                                        {/* Security Advisory */}
-                                        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 space-y-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl shrink-0">
-                                                    <FiShield className="w-5 h-5" />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest">Strictly Private File Sharing</h4>
-                                                    <p className="text-[10px] font-bold text-indigo-700/70 leading-relaxed">
-                                                        To protect sensitive personnel data, keep your Google Drive file <span className="font-black text-indigo-900">Restricted</span>. Grant viewer access <span className="underline decoration-indigo-300">only</span> to the system email below.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-3 bg-white border-2 border-indigo-50 p-2.5 rounded-xl">
-                                                <div className="flex-1 px-2">
-                                                    <span className="text-[10px] font-black text-slate-700 tracking-tight select-all leading-tight break-all">insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com</span>
-                                                </div>
-                                                <button 
-                                                    onClick={handleCopyEmail}
-                                                    className="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2"
-                                                >
-                                                    {copied ? <FiCheckCircle /> : <FiCopy />}
-                                                    {copied ? 'Copied' : 'Copy'}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-5 hover:border-blue-300 transition-colors">
-                                            <FiLink className="text-blue-500 w-6 h-6" />
-                                            <input 
-                                                type="text" 
-                                                placeholder="Paste Google Drive Link"
-                                                className="bg-transparent border-none outline-none flex-1 text-sm font-bold text-slate-700 placeholder:text-slate-300"
-                                                value={driveLink}
-                                                onChange={(e) => setDriveLink(e.target.value)}
-                                                disabled={isParsing}
-                                            />
+                                    
+                                    <div className="flex items-center gap-3 bg-white border-2 border-indigo-50 p-3 rounded-xl shadow-sm">
+                                        <div className="flex-1 px-2 overflow-hidden">
+                                            <span className="text-[9px] font-black text-slate-700 tracking-tight select-all leading-tight break-all">insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com</span>
                                         </div>
                                         <button 
-                                            onClick={handleLinkSubmit}
-                                            disabled={isParsing || !driveLink}
-                                            className="w-full py-5 bg-[#004A99] text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 italic"
+                                            onClick={handleCopyEmail}
+                                            className="px-4 py-2.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center gap-2"
                                         >
-                                            {isParsing ? (
-                                                <>
-                                                    <FiLoader className="animate-spin" />
-                                                    <span>CONNECTING TO DRIVE...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <FiUploadCloud />
-                                                    <span>EXTRACT FROM CLOUD</span>
-                                                </>
-                                            )}
+                                            {copied ? <FiCheckCircle /> : <FiCopy />}
+                                            {copied ? 'Copied' : 'Copy'}
                                         </button>
                                     </div>
-                                )}
+                                </div>
+
+                                {/* Step 2: Paste Link */}
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5 ml-3">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Paste Google Drive Link</h4>
+                                    </div>
+                                    <div className="flex items-center gap-4 bg-slate-50 border-2 border-slate-100 rounded-2xl p-5 focus-within:border-blue-400 focus-within:bg-white transition-all">
+                                        <FiLink className="text-blue-500 w-6 h-6" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="https://drive.google.com/file/d/..."
+                                            className="bg-transparent border-none outline-none flex-1 text-sm font-bold text-slate-700 placeholder:text-slate-300"
+                                            value={driveLink}
+                                            onChange={(e) => setDriveLink(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={handleQuickScan}
+                                    disabled={!driveLink}
+                                    className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-900/20 disabled:opacity-50 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tighter"
+                                >
+                                    <FiSearch className="w-5 h-5" />
+                                    Verify Access & Quick Scan
+                                </button>
                             </motion.div>
 
                             {error && (
                                 <motion.div 
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 text-rose-700 text-xs font-bold"
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    className="bg-rose-50 border border-rose-100 p-5 rounded-2xl flex items-start gap-3 text-rose-700"
                                 >
-                                    <FiAlertCircle className="shrink-0" />
-                                    <p>{error}</p>
+                                    <FiAlertCircle className="shrink-0 mt-0.5" size={16} />
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-black uppercase tracking-widest">Validation Error</p>
+                                        <p className="text-[10px] font-bold opacity-80 uppercase leading-relaxed">{error}</p>
+                                    </div>
                                 </motion.div>
                             )}
                         </div>
                     )}
 
-                    {/* --- PHASE 2: PREVIEW & STAGING --- */}
-                    {parsedData && (
+                    {/* --- PHASE 2: QUICK SCAN RESULTS --- */}
+                    {scanResult && !isLocked && (
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             className="space-y-8"
                         >
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between px-2">
                                 <div className="space-y-1">
-                                    <h2 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Phase 2: X-Ray Preview</h2>
+                                    <h2 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Phase 2: Data Audit</h2>
                                     <div className="flex items-center gap-2">
-                                        <FiCheckCircle className="text-emerald-500" />
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest underline decoration-emerald-200 underline-offset-4 decoration-2">Successfully Mapped {parsedData.totalRows} Personnel</p>
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Found {scanResult.rowCount} Personnel Total</p>
                                     </div>
                                 </div>
                                 <button 
-                                    onClick={() => setParsedData(null)}
-                                    className="text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest border border-slate-200 px-3 py-1.5 rounded-full transition-colors"
+                                    onClick={() => setScanResult(null)}
+                                    className="text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest border border-slate-200 px-4 py-2 rounded-full transition-colors"
                                 >
-                                    Reset
+                                    Cancel
                                 </button>
                             </div>
 
-                            {/* Preview Grid */}
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
+                                        <FiDatabase />
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase">Sheet Detected</p>
+                                        <p className="text-sm font-black text-slate-800 italic">DB_USER</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                                        <FiSearch />
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase">File Format</p>
+                                        <p className="text-sm font-black text-slate-800 italic">Excel Binary</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Preview Table (First 5 Rows) */}
                             <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/50">
                                 <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
-                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Staging Database Preview (Draft)</span>
-                                    <FiSearch className="text-slate-500" />
+                                    <span className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Audit Preview (First 5 Items)</span>
+                                    <FiShield className="text-slate-600" />
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 border-b border-slate-100">
-                                                {parsedData.headers.slice(0, 5).map((h, i) => (
-                                                    <th key={i} className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{h || '-'}</th>
-                                                ))}
-                                            </tr>
-                                        </thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {parsedData.sample.map((row, i) => (
+                                            {scanResult.sampleRows.map((row, i) => (
                                                 <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                                                    {row.slice(0, 5).map((cell, ci) => (
-                                                        <td key={ci} className="px-6 py-4 text-xs font-bold text-slate-700 truncate max-w-[120px]">
+                                                    {row.slice(0, 4).map((cell, ci) => (
+                                                        <td key={ci} className="px-6 py-4 text-[10px] font-bold text-slate-700 truncate max-w-[150px] uppercase">
                                                             {cell || '-'}
                                                         </td>
                                                     ))}
@@ -534,7 +365,7 @@ const ESF7Draft = () => {
                                     </table>
                                 </div>
                                 <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
-                                    <p className="text-[10px] font-bold text-slate-400 italic">Showing 5 of {parsedData.totalRows} records extracted from cloud link.</p>
+                                    <p className="text-[9px] font-bold text-slate-400 italic uppercase">Showing top {scanResult.sampleRows.length} for audit • All {scanResult.rowCount} records are secured for harvesting</p>
                                 </div>
                             </div>
 
@@ -542,67 +373,30 @@ const ESF7Draft = () => {
                                 <button 
                                     onClick={handleSubmit}
                                     disabled={isSubmitting || submitSuccess}
-                                    className={`w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-black rounded-[2rem] shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tight ${isSubmitting || submitSuccess ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-black rounded-[2rem] shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tight"
                                 >
                                     {isSubmitting ? (
                                         <>
                                             <FiLoader className="animate-spin" />
-                                            <span>Staging Data...</span>
+                                            <span>Submitting Registry...</span>
                                         </>
                                     ) : submitSuccess ? (
                                         <>
                                             <FiCheckCircle />
-                                            <span>Successfully Staged!</span>
+                                            <span>Link Secured!</span>
                                         </>
                                     ) : (
                                         <>
-                                            <span>Submit for SDO Review</span>
+                                            <span>Confirm & Submit {scanResult.rowCount} Personnel</span>
                                             <FiCheckCircle size={20} />
                                         </>
                                     )}
                                 </button>
-                                <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                    {submitSuccess ? 'Redirecting to Nexus...' : 'Data will be staged as PENDING_SDO'}
+                                <p className="text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] italic">
+                                    Finalizing locks the form for SDO review.
                                 </p>
                             </div>
                         </motion.div>
-                    )}
-
-                    {/* --- HELP CARD / RESUBMIT --- */}
-                    {existingStatus === 'VERIFIED' ? (
-                        <div className="bg-emerald-50 border-2 border-emerald-100 rounded-[2.5rem] p-10 flex items-start gap-6 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-100/30 rounded-full blur-2xl"></div>
-                            <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-lg border border-emerald-50 shrink-0">
-                                <FiCheckCircle className="text-emerald-500 w-8 h-8" />
-                            </div>
-                            <div className="space-y-3 flex-1">
-                                <div className="space-y-1">
-                                    <h4 className="text-sm font-black text-emerald-700 uppercase tracking-tighter">Officially Verified</h4>
-                                    <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                                        Your ESF7 data has been committed to the master database by the SDO. No further action is required.
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => { setShowConfirmChallenge(true); setShowResubmitInput(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                                    className="text-[10px] font-black text-emerald-700 border border-emerald-200 bg-white px-4 py-2 rounded-full uppercase tracking-widest hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all"
-                                >
-                                    Request Resubmission
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-[#004A99]/5 border-2 border-blue-100 rounded-[2.5rem] p-10 flex items-start gap-6 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100/30 rounded-full blur-2xl"></div>
-                            <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-lg border border-blue-50 shrink-0">
-                                <FiMonitor className="text-blue-500 w-8 h-8" />
-                            </div>
-                            <div className="space-y-1">
-                                <h4 className="text-sm font-black text-[#004A99] uppercase tracking-tighter">Private Cloud Policy</h4>
-                                <p className="text-xs font-medium text-slate-500 leading-relaxed">
-                                    InsightEd uses cloud links for data integrity. Please ensure your ESF7 file is hosted on <span className="text-blue-600 font-bold">Google Drive</span> and shared <span className="font-bold text-slate-700">only</span> with the Google Service Account email shown above to maintain privacy.
-                                </p>
-                            </div>
-                        </div>
                     )}
                 </div>
             </div>
