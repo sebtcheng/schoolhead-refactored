@@ -21,8 +21,9 @@ const getDashboardPath = (role, accountCategory) => {
     // 1. SPECIFIC ROLE OVERRIDES (Highest Priority)
     const roleMap = {
         'School Head': '/nodes-dashboard',
-        'Regional Office': '/monitoring-dashboard',
-        'School Division Office': '/monitoring-dashboard',
+        'Regional Office': '/division-nexus',
+        'Regional Division Office': '/division-nexus',
+        'School Division Office': '/division-nexus',
         'Central Office': '/central-office-nexus',
         'Admin': '/admin-dashboard',
         'Human Resource': '/hr-dashboard',

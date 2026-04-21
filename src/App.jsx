@@ -103,6 +103,7 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 
 // Nexus & Drafts
 import NodesDashboard from './modules/NexusDashboard';
+import SDONexusDashboard from './modules/SDONexusDashboard';
 import ESF7Draft from './forms/ESF7Draft';
 import NSPPDraft from './forms/NSPPDraft';
 import ESF7Review from './modules/ESF7Review';
@@ -137,6 +138,7 @@ const AnimatedRoutes = () => {
         'School Head': 'path_school_head',
         'school_head': 'path_school_head',
         'Regional Office': 'path_ro_sd',
+        'Regional Division Office': 'path_ro_sd',
         'School Division Office': 'path_ro_sd',
         'DepEd Engineer': 'path_engineers',
         'Division Engineer': 'path_engineers',
@@ -240,6 +242,14 @@ const AnimatedRoutes = () => {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/division-nexus" 
+          element={
+            <ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Regional Division Office', 'Super User']}>
+              <SDONexusDashboard />
+            </ProtectedRoute>
+          } 
+        />
         <Route path="/lgu-dashboard" element={<LguDashboard />} />
         <Route path="/lgu-form" element={<LguForms />} /> {/* Mapped to LguForms */}
         <Route path="/lgu-project-details/:id" element={<LguProjectDetails />} />
@@ -288,7 +298,7 @@ const AnimatedRoutes = () => {
       <Route path="/jurisdiction-schools" element={<SchoolJurisdictionList />} />
       <Route path="/school-audit" element={<SchoolAuditView />} />
       <Route path="/esf7-review" element={<Navigate to="/esf7/review" replace />} />
-      <Route path="/esf7/review" element={<ProtectedRoute allowedRoles={['Super User', 'School Division Office']}><ESF7Review /></ProtectedRoute>} />
+      <Route path="/esf7/review" element={<ProtectedRoute allowedRoles={['Super User', 'School Division Office', 'Regional Office']}><ESF7Review /></ProtectedRoute>} />
       <Route path="/educational-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.EDUCATIONAL_ADMIN]}><EducationalDashboard /></ProtectedRoute>} />
       <Route path="/project-summary-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.TECHNICAL_FINANCE]}><ProjectSummaryDashboard /></ProtectedRoute>} />
 

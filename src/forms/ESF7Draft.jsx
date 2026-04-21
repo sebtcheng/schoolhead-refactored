@@ -10,13 +10,14 @@ import {
     FiCopy,
     FiShield,
     FiExternalLink,
-    FiDatabase,
-    FiClock
+    FiClock, FiUserCheck, FiUsers, FiX, FiActivity, FiAward, FiInfo, FiChevronDown, FiDatabase, FiLock
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from "../assets/loading.gif";
+import SuccessModal from '../components/SuccessModal';
+import FailureModal from '../components/FailureModal';
 
 const SubmissionLoader = ({ message }) => (
     <motion.div 
@@ -62,7 +63,27 @@ const ESF7Draft = () => {
     const [isFetchingData, setIsFetchingData] = useState(false);
     const [verifySearchTerm, setVerifySearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    
+    // Feedback Modals
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [showFailure, setShowFailure] = useState(false);
+    const [failureMessage, setFailureMessage] = useState('');
     const itemsPerPage = 10;
+
+    // Staff Detail Modal State
+    const [showStaffModal, setShowStaffModal] = useState(false);
+    const [staffModalTitle, setStaffModalTitle] = useState("");
+    const [staffModalData, setStaffModalData] = useState([]);
+    const [staffLoading, setStaffLoading] = useState(false);
+    const [staffCurrentPage, setStaffCurrentPage] = useState(1);
+    const [staffItemsPerPage] = useState(25);
+    const [staffSort, setStaffSort] = useState('name'); // 'name', 'fund', 'position'
+    const [categoryConfirmInput, setCategoryConfirmInput] = useState("");
+    const [confirmedCategories, setConfirmedCategories] = useState({}); // { "Teaching staff": true, ... }
+
+    // Submission Confirmation Safeguard
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmInput, setConfirmInput] = useState("");
 
     useEffect(() => {
         if (user?.school_id) fetchStatus();
@@ -75,7 +96,7 @@ const ESF7Draft = () => {
             const data = await res.json();
             if (data.success) {
                 setStatusData(data.data);
-                if (data.data.status === 'VERIFIED') fetchPersonnelData();
+                if (data.data.status === 'VERIFIED' || data.data.status === 'NEEDS_RESUBMISSION') fetchPersonnelData();
             }
         } catch (err) {
             console.error("Status check failed:", err);
@@ -96,6 +117,85 @@ const ESF7Draft = () => {
             setIsFetchingData(false);
         }
     };
+
+    const getComputedSummary = () => {
+        // High-integrity fallback: if statusData.summary is missing, calculate from personnelData
+        const s = statusData?.summary || {};
+        if (Object.keys(s).length > 0 && (s.teaching || s.nonTeaching)) return s;
+
+        if (!personnelData || personnelData.length === 0) return s;
+
+        const TEACHING = ["TEACHER I", "TEACHER II", "TEACHER III", "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV", "SPET I", "SPET II", "SPET III", "SPET IV", "SST I", "SST II", "SST III"];
+        const RELATED = ["PRINCIPAL I", "PRINCIPAL II", "PRINCIPAL III", "PRINCIPAL IV", "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III", "LIBRARIAN I", "LIBRARIAN II", "LIBRARIAN III"];
+        const SPEC_LIST = [
+            "GENERAL EDUCATION", "FAMILY LIFE AND CHILD DEVELOPMENT", "SPECIAL NEEDS EDUCATION",
+            "EARLY CHILDHOOD EDUCATION", "FILIPINO", "ENGLISH", "MATHEMATICS", "SCIENCE",
+            "ARALING PANLIPUNAN", "TLE/EPP", "MAPEH", "ESP/VALUES EDUCATION", "BIOLOGICAL SCIENCES",
+            "PHYSICAL SCIENCES", "AGRICULTURE AND FISHERY ARTS"
+        ];
+        
+        let teaching = 0;
+        let relatedTeaching = 0;
+        let nonTeaching = 0;
+        const specCounts = {};
+        SPEC_LIST.forEach(spec => specCounts[spec] = 0);
+        specCounts["OTHERS"] = 0;
+
+        personnelData.forEach(r => {
+            const pos = (r.position || "").toUpperCase();
+            
+            // Category Assignment (ALL ROWS)
+            if (TEACHING.some(t => pos.includes(t))) {
+                teaching++;
+                // Specialization Assignment (Only for Teaching)
+                const major = (r.major__specialization || r.specialization || "").toUpperCase().trim();
+                if (SPEC_LIST.includes(major)) specCounts[major]++;
+                else if (major) specCounts["OTHERS"]++;
+            }
+            else if (RELATED.some(r => pos.includes(r))) relatedTeaching++;
+            else nonTeaching++;
+        });
+
+        const admin = personnelData.find(p => {
+            const pos = (p.position || "").toUpperCase();
+            return pos.includes("PRINCIPAL") || pos.includes("HEAD TEACHER") || pos.includes("TIC") || pos.includes("OIC");
+        });
+        const schoolHead = admin ? `${admin.last}, ${admin.first}` : (user?.username || "N/A");
+        const schoolHeadPosition = admin?.position || "School Head";
+
+        return { 
+            teaching, 
+            relatedTeaching, 
+            nonTeaching, 
+            schoolHead, 
+            schoolHeadPosition: admin?.position || "School Head",
+            specializations: specCounts
+        };
+    };
+
+    const computedSummary = getComputedSummary();
+
+    const derivedDepEdCount = personnelData?.length > 0 
+        ? personnelData.filter(p => {
+            const f = (p.fund_source || p.funding_source || "").toUpperCase();
+            return f.includes("NATIONAL") || f.includes("DEPED");
+          }).length
+        : statusData?.row_count || 0;
+
+    const derivedLocalCount = personnelData?.length > 0
+        ? personnelData.length - derivedDepEdCount
+        : 0;
+
+    const otherFundSources = {};
+    if (personnelData?.length > 0) {
+        personnelData.forEach(p => {
+            const f = (p.fund_source || p.funding_source || "").toUpperCase();
+            if (!f.includes("NATIONAL") && !f.includes("DEPED")) {
+                const label = f || "UNSPECIFIED";
+                otherFundSources[label] = (otherFundSources[label] || 0) + 1;
+            }
+        });
+    }
 
     const handleCopyEmail = () => {
         navigator.clipboard.writeText('insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com');
@@ -125,10 +225,78 @@ const ESF7Draft = () => {
 
             setScanResult(result.data);
         } catch (err) {
-            setError(err.message);
+            setFailureMessage(err.message);
+            setShowFailure(true);
         } finally {
             setIsScanning(false);
         }
+    };
+
+    const handleCategoryClick = async (category) => {
+        setStaffModalTitle(category);
+        setShowStaffModal(true);
+        setStaffLoading(true);
+        setStaffModalData([]);
+        setStaffCurrentPage(1);
+        setCategoryConfirmInput("");
+
+        // If we are in the SCAN phase (Phase 2), use the scanResult data directly
+        if (scanResult && scanResult.scannedPersonnel) {
+            let filtered = [];
+            // Check Non-Teaching FIRST to avoid 'Teaching Staff' string overlap
+            if (category.includes("Non-Teaching")) {
+                filtered = scanResult.scannedPersonnel.nonTeaching || [];
+            } else if (category === "Teaching Staff" || category === "Teaching staff") {
+                filtered = scanResult.scannedPersonnel.teaching || [];
+            } else if (category === "Related-Teaching") {
+                filtered = scanResult.scannedPersonnel.related || [];
+            }
+            setStaffModalData(filtered);
+            setStaffLoading(false);
+            return;
+        }
+
+        // For Phase 3 (Verified), fetch from official database
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/esf7/data/${user.school_id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                const TEACHING = ["TEACHER I", "TEACHER II", "TEACHER III", "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV", "SPET I", "SPET II", "SPET III", "SPET IV", "SST I", "SST II", "SST III"];
+                const RELATED = ["PRINCIPAL I", "PRINCIPAL II", "PRINCIPAL III", "PRINCIPAL IV", "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III", "LIBRARIAN I", "LIBRARIAN II", "LIBRARIAN III"];
+
+                let filtered = [];
+                const raw = data.data || [];
+
+                if (category === "Teaching Staff" || category === "Teaching staff") {
+                    filtered = raw.filter(r => {
+                        const pos = (r.position || "").toUpperCase();
+                        return TEACHING.some(t => pos.includes(t));
+                    });
+                } else if (category === "Related-Teaching") {
+                    filtered = raw.filter(r => {
+                        const pos = (r.position || "").toUpperCase();
+                        return RELATED.some(t => pos.includes(t));
+                    });
+                } else { // Non-Teaching
+                    filtered = raw.filter(r => {
+                        const pos = (r.position || "").toUpperCase();
+                        const isTeaching = TEACHING.some(t => pos.includes(t));
+                        const isRelated = RELATED.some(t => pos.includes(t));
+                        return !isTeaching && !isRelated;
+                    });
+                }
+                setStaffModalData(filtered);
+            }
+        } catch (err) { console.error(err); }
+        setStaffLoading(false);
+    };
+
+    const handlePreSubmitTrigger = () => {
+        handleSubmit();
     };
 
     const handleSubmit = async () => {
@@ -148,14 +316,14 @@ const ESF7Draft = () => {
             });
 
             if (res.ok) {
-                setSubmitSuccess(true);
-                setTimeout(() => navigate('/nodes-dashboard'), 2000);
+                setShowSuccess(true);
             } else {
                 const data = await res.json();
                 throw new Error(data.error || "Submission failed.");
             }
         } catch (err) {
-            setError(err.message);
+            setFailureMessage(err.message);
+            setShowFailure(true);
         } finally {
             setIsSubmitting(false);
         }
@@ -183,9 +351,11 @@ const ESF7Draft = () => {
         }
     };
 
-    const isLocked = statusData && ['PENDING_SDO', 'QUEUED', 'HARVESTING', 'VERIFIED', 'PENDING_RESUBMISSION'].includes(statusData.status);
-    const isVerified = statusData && statusData.status === 'VERIFIED';
-    const isPendingResubmission = statusData && statusData.status === 'PENDING_RESUBMISSION';
+    const isLocked = statusData && ['QUEUED', 'HARVESTING', 'VERIFIED', 'PENDING_RESUBMISSION'].includes(statusData.status);
+    const isVerified = statusData && (statusData.status === 'VERIFIED' || statusData.status === 'NEEDS_RESUBMISSION');
+    const isPendingResubmission = statusData && (statusData.status === 'PENDING_RESUBMISSION' || (statusData.request_status === 'PENDING' && statusData.status === 'VERIFIED'));
+    const needsResubmission = statusData && (statusData.status === 'NEEDS_RESUBMISSION' || statusData.request_status === 'PENDING');
+    const canUpload = !isLocked || needsResubmission;
 
     return (
         <PageTransition>
@@ -197,6 +367,18 @@ const ESF7Draft = () => {
             </AnimatePresence>
 
             <div className="min-h-screen bg-[#fafbff] pb-24 font-sans relative overflow-hidden">
+                <SuccessModal 
+                    isOpen={showSuccess}
+                    onClose={() => setShowSuccess(false)}
+                    message="Final Registry Harvest Initiated! Your ESF7 link has been secured."
+                    redirectUrl="/nodes-dashboard"
+                />
+
+                <FailureModal 
+                    isOpen={showFailure}
+                    onClose={() => setShowFailure(false)}
+                    message={failureMessage}
+                />
                 {/* Decorative Background Elements */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-100/30 rounded-full blur-[120px] -mr-64 -mt-64" />
                 <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-100/20 rounded-full blur-[100px] -ml-48 -mb-48" />
@@ -218,6 +400,36 @@ const ESF7Draft = () => {
                 </header>
 
                 <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
+                    {/* --- AUDIT REMARKS BANNER (NEEDS_RESUBMISSION) --- */}
+                    {needsResubmission && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-rose-50 border-2 border-rose-200 rounded-[2rem] p-8 shadow-xl shadow-rose-500/10 space-y-4"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-rose-600 text-white rounded-2xl flex items-center justify-center shadow-lg">
+                                    <FiAlertCircle size={24} />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-black text-rose-800 tracking-tighter uppercase italic">Resubmission Required</h3>
+                                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest italic">SDO Auditor Feedback Received</p>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-rose-100 shadow-inner">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2 italic">Auditor Remarks:</p>
+                                <p className="text-sm font-bold text-slate-700 leading-relaxed italic">
+                                    "{statusData.audit_remarks || "No specific remarks provided. Please re-check your data and re-submit."}"
+                                </p>
+                            </div>
+
+                             <p className="text-[10px] font-bold text-rose-600/70 text-center uppercase tracking-widest leading-relaxed">
+                                 Form has been **FLAGGED**. Please review the remarks above. 
+                                 The resubmission upload field will be opened by the SDO on the last week of the deadline.
+                             </p>
+                        </motion.div>
+                    )}
                     {/* --- CASE 1: MODULE LOCKED (IN-PROGRESS) --- */}
                     {(isLocked && !isVerified && !isPendingResubmission) && (
                         <motion.div 
@@ -255,7 +467,15 @@ const ESF7Draft = () => {
                                 </div>
 
                                 <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Submitted: {new Date(statusData.uploaded_at).toLocaleString()}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">
+                                        Submitted: {(() => {
+                                            const d = statusData.uploaded_at;
+                                            if (!d) return 'N/A';
+                                            // Ensure UTC parsing by appending Z if missing
+                                            const date = new Date(d.toString().endsWith('Z') || d.toString().includes('+') ? d : d.toString().replace(' ', 'T') + 'Z');
+                                            return date.toLocaleString();
+                                        })()}
+                                    </p>
                                     <button 
                                         className="text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase italic transition-all"
                                         onClick={() => window.open(statusData.link, '_blank')}
@@ -268,145 +488,369 @@ const ESF7Draft = () => {
                     )}
 
                     {/* --- CASE 3: VERIFIED RECORDS VIEW --- */}
-                    {isVerified && (
-                        <div className="space-y-6">
+                    {(isVerified && !needsResubmission) && (
+                        <div className="space-y-8">
                             <div className="flex items-center justify-between px-2">
                                 <div className="space-y-1">
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Verified Personnel</h2>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Verified Registry</h2>
                                     <div className="flex items-center gap-2">
                                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Syncing Live with ESF7 Database</p>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Audited & Secure</p>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <div className="bg-emerald-50 px-5 py-2.5 rounded-2xl border border-emerald-100 flex items-center gap-2">
                                         <FiShield className="text-emerald-500" />
-                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none">Status: VERIFIED</span>
+                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none">STATUS: {statusData.status}</span>
                                     </div>
                                     <button 
                                         onClick={handleSubmitRequest}
                                         disabled={isSubmitting}
-                                        className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest underline decoration-slate-200 underline-offset-4 transition-all"
+                                        className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest underline underline-offset-4 transition-all"
                                     >
                                         {isSubmitting ? "Requesting..." : "Request Resubmission"}
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Policy Note */}
-                            <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100/50 flex items-start gap-4 mx-2">
-                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-500 shadow-sm shrink-0">
-                                    <FiClock />
+                            {/* School Head Banner (Aesthetic Match) */}
+                            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between gap-6 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl opacity-40 -mr-10 -mt-10 transition-all group-hover:scale-150" />
+                                <div className="flex items-center gap-6 relative">
+                                    <div className="w-20 h-20 rounded-3xl bg-slate-900 flex flex-col items-center justify-center text-white text-center shadow-2xl shadow-slate-900/20">
+                                        <FiShield className="text-blue-400 mb-1" />
+                                        <span className="text-[8px] font-black uppercase tracking-tighter">Harvested</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Authenticated School Head</h3>
+                                        <p className="text-2xl font-black text-slate-800 tracking-tight leading-none italic uppercase">{computedSummary?.schoolHead || "N/A"}</p>
+                                        <p className="text-[10px] font-bold text-blue-500 mt-2 uppercase tracking-widest italic">{computedSummary?.schoolHeadPosition || "No Position Assigned"}</p>
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <h4 className="text-[10px] font-black text-blue-900 uppercase tracking-widest">Resubmission Policy</h4>
-                                    <p className="text-[10px] font-bold text-blue-700/70 leading-relaxed uppercase italic">
-                                        NOTE: Resubmission will only be accommodated during the last week of the submission deadline.
+                            </div>
+
+                            <div className="px-8 py-5 bg-blue-50/50 rounded-[2rem] border border-blue-100 flex items-center gap-4 transition-all hover:bg-blue-50 group">
+                                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                                    <FiInfo className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">Full Registry Visibility</p>
+                                    <p className="text-[10px] font-bold text-blue-600/80 mt-1 uppercase italic tracking-tight">
+                                        Showing 100% of rows. **Red-flagged** items are National/DepEd funded records subject to SDO audit.
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="relative">
-                                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search Personnel Registry..." 
-                                    className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-100 rounded-3xl text-sm font-bold focus:border-emerald-400 transition-all outline-none shadow-sm"
-                                    value={verifySearchTerm}
-                                    onChange={(e) => {
-                                        setVerifySearchTerm(e.target.value);
-                                        setCurrentPage(1);
-                                    }}
+                            {/* Categorization Grid (Aesthetic Match) */}
+                            <div className="grid grid-cols-3 gap-4 sm:gap-6">
+                                <CategoryCard 
+                                    label="Teaching staff" 
+                                    value={computedSummary?.teaching || 0} 
+                                    icon={<FiActivity />} 
+                                    color="text-indigo-600 bg-indigo-50" 
+                                    onClick={() => handleCategoryClick("Teaching Staff")}
+                                />
+                                <CategoryCard 
+                                    label="Related-Teaching" 
+                                    value={computedSummary?.relatedTeaching || 0} 
+                                    icon={<FiUserCheck />} 
+                                    color="text-amber-600 bg-amber-50"
+                                    onClick={() => handleCategoryClick("Related-Teaching")}
+                                />
+                                <CategoryCard 
+                                    label="Non-Teaching" 
+                                    value={computedSummary?.nonTeaching || 0} 
+                                    icon={<FiUsers />} 
+                                    color="text-rose-600 bg-rose-50"
+                                    onClick={() => handleCategoryClick("Non-Teaching Staff")}
                                 />
                             </div>
 
-                            <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/40">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-900 text-white">
-                                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest italic">Personnel Name</th>
-                                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest italic">Position</th>
-                                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest italic text-right">Appointment</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {isFetchingData ? (
-                                                <tr>
-                                                    <td colSpan="3" className="px-6 py-20 text-center">
-                                                        <FiLoader className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-4" />
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Streaming registry data...</p>
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                (() => {
-                                                    const filtered = personnelData.filter(p => 
-                                                        `${p.first} ${p.last}`.toLowerCase().includes(verifySearchTerm.toLowerCase()) ||
-                                                        p.position?.toLowerCase().includes(verifySearchTerm.toLowerCase())
-                                                    );
-                                                    const totalPages = Math.ceil(filtered.length / itemsPerPage);
-                                                    const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                            <div className="grid md:grid-cols-3 gap-6">
+                                <div className="md:col-span-2 space-y-6">
+                                    {/* SPECIALIZATION SUMMARY (Synchronized with Review Hub) */}
+                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                                                    <FiAward />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Teaching Personnel</h3>
+                                                    <p className="text-lg font-black text-slate-800 tracking-tight leading-none mt-1 uppercase italic">Specialization Breakdown</p>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                                    return (
-                                                        <>
-                                                            {currentItems.map((person, idx) => (
-                                                                <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
-                                                                    <td className="px-6 py-5">
-                                                                        <p className="text-[11px] font-black text-slate-800 uppercase italic tracking-tight">{person.first} {person.last}</p>
-                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{person.gender || 'N/A'}</p>
-                                                                    </td>
-                                                                    <td className="px-6 py-5">
-                                                                        <p className="text-[10px] font-bold text-slate-600 uppercase leading-snug">{person.position}</p>
-                                                                        <p className="text-[8px] font-black text-blue-500 uppercase tracking-tighter mt-1">{person.fund_source}</p>
-                                                                    </td>
-                                                                    <td className="px-6 py-5 text-right">
-                                                                        <p className="text-[10px] font-black text-slate-700 uppercase italic">{person.appt_mm && person.appt_yyyy ? `${person.appt_mm}/${person.appt_yyyy}` : 'N/A'}</p>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                            {/* Paging Footer */}
-                                                            {totalPages > 1 && (
-                                                                <tr>
-                                                                    <td colSpan="3" className="px-6 py-4 bg-slate-50/50">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                                                Page {currentPage} of {totalPages}
-                                                                            </p>
-                                                                            <div className="flex items-center gap-2">
-                                                                                <button 
-                                                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                                                                    disabled={currentPage === 1}
-                                                                                    className="p-2 bg-white border border-slate-200 rounded-xl disabled:opacity-30 transition-all active:scale-90"
-                                                                                >
-                                                                                    <FiArrowLeft className="w-4 h-4" />
-                                                                                </button>
-                                                                                <button 
-                                                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                                                                    disabled={currentPage === totalPages}
-                                                                                    className="p-2 bg-white border border-slate-200 rounded-xl disabled:opacity-30 transition-all active:scale-90"
-                                                                                >
-                                                                                    <FiArrowLeft className="w-4 h-4 rotate-180" />
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </>
-                                                    );
-                                                })()
+                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                             {Object.entries(computedSummary.specializations || {})
+                                                 .filter(([_, count]) => count > 0)
+                                                 .sort((a, b) => b[1] - a[1])
+                                                 .map(([spec, count]) => (
+                                                     <div key={spec} className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:border-orange-200 transition-all">
+                                                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-tight leading-[1.1] pr-2 group-hover:text-orange-600 truncate">{spec.replace(/_/g, ' ')}</p>
+                                                         <span className="text-xs font-black text-slate-900 group-hover:scale-110 transition-transform">{count}</span>
+                                                     </div>
+                                                 ))
+                                             }
+                                         </div>
+                                         <div className="pt-2">
+                                             <p className="text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] italic">
+                                                 Click cards above to audit individual names.
+                                             </p>
+                                         </div>
+                                     </div>
+                                 </div>
+
+                                {/* Metadata Column */}
+                                <div className="space-y-6">
+                                    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+                                        <div className="space-y-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Total Row Registry</p>
+                                                <div className="flex items-baseline gap-2">
+                                                    <p className="text-5xl font-black text-slate-800 tracking-tighter">{derivedDepEdCount}</p>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase italic">
+                                                        Personnel <span className="font-black not-italic text-[10px] text-blue-500 tracking-widest ml-1">(DepEd Funded)</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {derivedLocalCount > 0 && (
+                                                <div className="pt-4 border-t border-slate-100 space-y-3">
+                                                    {Object.entries(otherFundSources).map(([fund, count]) => (
+                                                        <div key={fund} className="flex items-baseline gap-2">
+                                                            <p className="text-2xl font-black text-rose-600 tracking-tighter">{count}</p>
+                                                            <p className="text-[10px] font-bold text-rose-400 uppercase italic">
+                                                                Personnel <span className="font-black not-italic text-[9px] tracking-widest opacity-80">({fund})</span>
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                {!isFetchingData && personnelData.length === 0 && (
-                                    <div className="py-20 text-center uppercase tracking-[0.2em] font-black text-slate-300 text-[10px] italic">
-                                        No personnel matched your search criteria
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {statusData.uploaded_at && (
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm">
+                                                        <FiArrowLeft className="rotate-180" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 text-xs">Submission Log</p>
+                                                        <p className="text-[10px] font-bold text-slate-700 uppercase italic leading-none">
+                                                            {(() => {
+                                                                const d = statusData.uploaded_at;
+                                                                const date = new Date(d.toString().endsWith('Z') || d.toString().includes('+') ? d : d.toString().replace(' ', 'T') + 'Z');
+                                                                return date.toLocaleString();
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2">
+                                                <div className="flex items-center gap-2 text-blue-600">
+                                                    <FiClock className="w-4 h-4" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">System Ingestion</span>
+                                                </div>
+                                                <p className="text-[10px] font-bold text-blue-800/60 uppercase leading-relaxed">
+                                                    Data harvested and secured. Audit review is periodically updated by the SDO.
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     )}
+
+                    {/* Staff Detail Modal (Mirrored from Review) */}
+                    <AnimatePresence>
+                        {showStaffModal && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12">
+                                <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    onClick={() => setShowStaffModal(false)}
+                                    className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                                />
+                                <motion.div 
+                                    initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                                    exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                    className="relative w-full max-w-4xl max-h-[85vh] bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col"
+                                >
+                                    <div className="p-8 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-20">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/20">
+                                                <FiUsers className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">{staffModalTitle}</h3>
+                                                <div className="flex items-center gap-2 mt-1.5">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Order by:</p>
+                                                    <select 
+                                                        value={staffSort}
+                                                        onChange={(e) => {
+                                                            setStaffSort(e.target.value);
+                                                            setStaffCurrentPage(1);
+                                                        }}
+                                                        className="bg-blue-50 border-none text-[9px] font-black uppercase tracking-widest text-blue-600 py-1 px-2 rounded-lg focus:ring-0 cursor-pointer hover:bg-blue-100 transition-colors"
+                                                    >
+                                                        <option value="name">Name (A-Z)</option>
+                                                        <option value="fund">Audit Priority (Red First)</option>
+                                                        <option value="position">Position Title</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setShowStaffModal(false)}
+                                            className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 transition-colors"
+                                        >
+                                            <FiX />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                                        {staffLoading ? (
+                                            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                                <FiLoader className="w-10 h-10 text-blue-600 animate-spin" />
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Retrieving Registry...</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {staffModalData.length > 0 ? (
+                                                    <>
+                                                        {(() => {
+                                                            const sorted = [...staffModalData].sort((a, b) => {
+                                                                if (staffSort === 'name') {
+                                                                    return `${a.last}, ${a.first}`.localeCompare(`${b.last}, ${b.first}`);
+                                                                }
+                                                                if (staffSort === 'fund') {
+                                                                    const fA = (a.fund_source || a.funding_source || "").toUpperCase();
+                                                                    const fB = (b.fund_source || b.funding_source || "").toUpperCase();
+                                                                    const priorityA = (fA.includes("NATIONAL") || fA.includes("DEPED")) ? 0 : 1;
+                                                                    const priorityB = (fB.includes("NATIONAL") || fB.includes("DEPED")) ? 0 : 1;
+                                                                    return priorityA - priorityB || `${a.last}, ${a.first}`.localeCompare(`${b.last}, ${b.first}`);
+                                                                }
+                                                                if (staffSort === 'position') {
+                                                                    return (a.position || "").localeCompare(b.position || "") || `${a.last}, ${a.first}`.localeCompare(`${b.last}, ${b.first}`);
+                                                                }
+                                                                return 0;
+                                                            });
+                                                            return sorted.slice((staffCurrentPage - 1) * staffItemsPerPage, staffCurrentPage * staffItemsPerPage).map((staff, idx) => (
+                                                                <div key={idx} className="p-5 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:bg-blue-50 hover:border-blue-200 transition-all">
+                                                                    <div className="flex items-center gap-5">
+                                                                        <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 text-xs font-black group-hover:text-blue-600 group-hover:border-blue-100 transition-all">
+                                                                            {(staffCurrentPage - 1) * staffItemsPerPage + idx + 1}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-sm font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-900 transition-colors italic">{staff.last}, {staff.first}</p>
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{staff.position}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-4">
+                                                                         <div className="text-right">
+                                                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Fund Source</p>
+                                                                             <p className={`text-[10px] font-bold uppercase italic leading-none ${((staff.fund_source || staff.funding_source || "").toUpperCase().includes("NATIONAL") || (staff.fund_source || staff.funding_source || "").toUpperCase().includes("DEPED")) ? "text-red-500" : "text-blue-600"}`}>
+                                                                                 {staff.fund_source || staff.funding_source || "LOCAL"}
+                                                                             </p>
+                                                                         </div>
+                                                                        {staff.gender && (
+                                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${staff.gender === 'M' || staff.gender === 'MALE' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                                                {staff.gender.charAt(0)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ));
+                                                        })()}
+
+                                                        {staffModalData.length > staffItemsPerPage && (
+                                                            <div className="mt-8 flex items-center justify-center gap-2 pb-8 border-b border-slate-100">
+                                                                <button 
+                                                                    onClick={() => setStaffCurrentPage(prev => Math.max(1, prev - 1))}
+                                                                    disabled={staffCurrentPage === 1}
+                                                                    className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all"
+                                                                >
+                                                                    Prev
+                                                                </button>
+                                                                <div className="flex items-center gap-1">
+                                                                    {Array.from({ length: Math.ceil(staffModalData.length / staffItemsPerPage) }, (_, i) => i + 1)
+                                                                        .filter(p => p === 1 || p === Math.ceil(staffModalData.length / staffItemsPerPage) || (p >= staffCurrentPage - 1 && p <= staffCurrentPage + 1))
+                                                                        .map((p, i, arr) => (
+                                                                            <React.Fragment key={p}>
+                                                                                {i > 0 && p !== arr[i-1] + 1 && <span className="text-slate-300">...</span>}
+                                                                                <button 
+                                                                                    onClick={() => setStaffCurrentPage(p)}
+                                                                                    className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${staffCurrentPage === p ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white border border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                                                                >
+                                                                                    {p}
+                                                                                </button>
+                                                                            </React.Fragment>
+                                                                        ))
+                                                                    }
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => setStaffCurrentPage(prev => Math.min(Math.ceil(staffModalData.length / staffItemsPerPage), prev + 1))}
+                                                                    disabled={staffCurrentPage === Math.ceil(staffModalData.length / staffItemsPerPage)}
+                                                                    className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all"
+                                                                >
+                                                                    Next
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Category-Specific Safeguard at the bottom of the list (Only for New Submissions) */}
+                                                        {(!isVerified || statusData?.status === 'NEEDS_RESUBMISSION') && (
+                                                            <div className="mt-12 bg-white border-2 border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-6">
+                                                                <div className="text-center space-y-2">
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                                                                        Please acknowledge your review of these {staffModalData.length} records.
+                                                                    </p>
+                                                                    <h4 className="text-xs font-black text-slate-800 uppercase italic">Acknowledge Category Review</h4>
+                                                                </div>
+
+                                                                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 space-y-4">
+                                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">Type <span className="text-blue-600 font-bold">CONFIRM</span> to finish review</p>
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="..."
+                                                                        className="w-full bg-white border-2 border-slate-200 rounded-2xl py-4 px-6 text-center text-sm font-black tracking-[0.3em] uppercase transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                                                        value={categoryConfirmInput}
+                                                                        onChange={(e) => setCategoryConfirmInput(e.target.value)}
+                                                                    />
+                                                                </div>
+
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setConfirmedCategories(prev => ({ ...prev, [staffModalTitle]: true }));
+                                                                        setShowStaffModal(false);
+                                                                    }}
+                                                                    disabled={categoryConfirmInput.toUpperCase() !== "CONFIRM"}
+                                                                    className="w-full py-5 bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-slate-900/20 active:scale-95 flex items-center justify-center gap-3"
+                                                                >
+                                                                    {confirmedCategories[staffModalTitle] ? <FiCheckCircle /> : <FiLock />}
+                                                                    {confirmedCategories[staffModalTitle] ? "Category Reviewed" : "Acknowledge & Close"}
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">No filtered personnel found</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>
 
                     {/* --- CASE 4: PENDING RESUBMISSION --- */}
                     {isPendingResubmission && (
@@ -439,7 +883,7 @@ const ESF7Draft = () => {
                     )}
 
                     {/* --- CASE 2: NEW SUBMISSION / RESUBMIT --- */}
-                    {!isLocked && !scanResult && (
+                    {canUpload && !scanResult && (
                         <div className="space-y-6">
                             <div className="text-center space-y-2">
                                 <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Phase 1: Cloud Link</h2>
@@ -567,47 +1011,71 @@ const ESF7Draft = () => {
                                 </div>
                             </div>
 
-                            {/* Preview Table (First 5 Rows) */}
-                            <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/50">
-                                <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
-                                    <span className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em]">Audit Preview (First 5 Items)</span>
-                                    <FiShield className="text-slate-600" />
+                            {/* Categorization Grid (Aesthetic Match for Scan Results) */}
+                            <div className="grid grid-cols-3 gap-4 sm:gap-6">
+                                <CategoryCard 
+                                    label="Teaching staff" 
+                                    value={scanResult?.summary?.teaching || 0} 
+                                    icon={<FiActivity />} 
+                                    color="text-indigo-600 bg-indigo-50" 
+                                    onClick={() => handleCategoryClick("Teaching staff")}
+                                    isConfirmed={confirmedCategories["Teaching staff"]}
+                                />
+                                <CategoryCard 
+                                    label="Related-Teaching" 
+                                    value={scanResult?.summary?.relatedTeaching || 0} 
+                                    icon={<FiUserCheck />} 
+                                    color="text-amber-600 bg-amber-50"
+                                    onClick={() => handleCategoryClick("Related-Teaching")}
+                                    isConfirmed={confirmedCategories["Related-Teaching"]}
+                                />
+                                <CategoryCard 
+                                    label="Non-Teaching" 
+                                    value={scanResult?.summary?.nonTeaching || 0} 
+                                    icon={<FiUsers />} 
+                                    color="text-rose-600 bg-rose-50"
+                                    onClick={() => handleCategoryClick("Non-Teaching Staff")}
+                                    isConfirmed={confirmedCategories["Non-Teaching Staff"]}
+                                />
+                            </div>
+
+                            <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100/50 flex items-start gap-4">
+                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-500 shadow-sm shrink-0">
+                                    <FiShield />
                                 </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <tbody className="divide-y divide-slate-50">
-                                            {scanResult.sampleRows.map((row, i) => (
-                                                <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                                                    {row.slice(0, 4).map((cell, ci) => (
-                                                        <td key={ci} className="px-6 py-4 text-[10px] font-bold text-slate-700 truncate max-w-[150px] uppercase">
-                                                            {cell || '-'}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
-                                    <p className="text-[9px] font-bold text-slate-400 italic uppercase">Showing top {scanResult.sampleRows.length} for audit • All {scanResult.rowCount} records are secured for harvesting</p>
+                                <div className="space-y-1">
+                                    <h4 className="text-[10px] font-black text-blue-900 uppercase tracking-widest">System Audit Ready</h4>
+                                    <p className="text-[10px] font-bold text-blue-700/70 leading-relaxed uppercase italic">
+                                        Total of {scanResult.rowCount} records detected. The breakdown above represents valid **NATIONAL / DEPED** funded items found in your ESF7.
+                                    </p>
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <button 
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting || submitSuccess}
-                                    className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-black rounded-[2rem] shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tight"
+                                    onClick={handlePreSubmitTrigger}
+                                    disabled={
+                                        isSubmitting || 
+                                        (statusData && statusData.status === 'QUEUED') ||
+                                        (scanResult?.summary?.teaching > 0 && !confirmedCategories["Teaching staff"]) ||
+                                        (scanResult?.summary?.relatedTeaching > 0 && !confirmedCategories["Related-Teaching"]) ||
+                                        (scanResult?.summary?.nonTeaching > 0 && !confirmedCategories["Non-Teaching Staff"])
+                                    }
+                                    className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 disabled:from-slate-200 disabled:to-slate-300 text-white disabled:text-slate-400 font-black rounded-[2rem] shadow-xl shadow-blue-500/20 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center gap-3 uppercase italic tracking-tight"
                                 >
                                     {isSubmitting ? (
                                         <>
                                             <FiLoader className="animate-spin" />
                                             <span>Submitting Registry...</span>
                                         </>
-                                    ) : submitSuccess ? (
+                                    ) : (
+                                        (scanResult?.summary?.teaching > 0 && !confirmedCategories["Teaching staff"]) ||
+                                        (scanResult?.summary?.relatedTeaching > 0 && !confirmedCategories["Related-Teaching"]) ||
+                                        (scanResult?.summary?.nonTeaching > 0 && !confirmedCategories["Non-Teaching Staff"])
+                                    ) ? (
                                         <>
-                                            <FiCheckCircle />
-                                            <span>Link Secured!</span>
+                                            <FiLock className="w-5 h-5 opacity-50" />
+                                            <span>Finish Reviewing All Personnel First</span>
                                         </>
                                     ) : (
                                         <>
@@ -627,5 +1095,23 @@ const ESF7Draft = () => {
         </PageTransition>
     );
 };
+
+const CategoryCard = ({ label, value, icon, color, onClick, isConfirmed }) => (
+    <div onClick={onClick} className={`bg-white p-6 rounded-[2rem] border ${isConfirmed ? 'border-emerald-500 ring-4 ring-emerald-50' : 'border-slate-100'} shadow-sm space-y-3 cursor-pointer hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 transition-all group relative overflow-hidden`}>
+        {isConfirmed && (
+            <div className="absolute top-0 right-0 bg-emerald-500 text-white px-3 py-1.5 rounded-bl-2xl flex items-center gap-1 shadow-sm opacity-90">
+                <FiCheckCircle className="w-3 h-3" />
+                <span className="text-[8px] font-black uppercase tracking-widest pt-0.5">Reviewed</span>
+            </div>
+        )}
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${color} group-hover:scale-110 transition-transform shadow-sm`}>
+            {icon}
+        </div>
+        <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+            <p className="text-2xl font-black text-slate-800 tracking-tight group-hover:translate-x-1 transition-transform">{value}</p>
+        </div>
+    </div>
+);
 
 export default ESF7Draft;

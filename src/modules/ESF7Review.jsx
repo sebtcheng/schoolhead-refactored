@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     FiArrowLeft, FiSearch, FiShield, FiExternalLink, 
-    FiCheckCircle, FiAlertCircle, FiClock, FiDatabase,
-    FiXCircle, FiActivity, FiLoader 
+    FiCheckCircle, FiXCircle, FiDatabase, FiAward, FiLoader, 
+    FiX, FiInfo, FiChevronDown, FiActivity, FiAlertCircle, FiClock,
+    FiUserCheck, FiUsers
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
@@ -36,21 +37,47 @@ const ESF7Review = () => {
     const [activeTab, setActiveTab] = useState('queue'); // queue, verified, missing, all
     const [selectedSchool, setSelectedSchool] = useState(null);
     const [schoolDetail, setSchoolDetail] = useState(null);
+    const [specializationData, setSpecializationData] = useState(null);
+    const [showAuditPanel, setShowAuditPanel] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [regionalSummary, setRegionalSummary] = useState([]);
+    const [selectedDivision, setSelectedDivision] = useState('All Divisions');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
+    
+    // Staff Detail Modal State
+    const [showStaffModal, setShowStaffModal] = useState(false);
+    const [staffModalTitle, setStaffModalTitle] = useState("");
+    const [staffModalData, setStaffModalData] = useState([]);
+    const [staffLoading, setStaffLoading] = useState(false);
+    const [staffCurrentPage, setStaffCurrentPage] = useState(1);
+    const [staffItemsPerPage] = useState(25);
+
+    const isSDO = user?.role === 'School Division Office';
+    const isRO = user?.role === 'Regional Division Office' || user?.role === 'Regional Office';
+    const isSGOD = user?.office?.toUpperCase() === 'SCHOOL GOVERNANCE AND OPERATIONS DIVISION (SGOD)';
+    const isSuperUser = user?.role === 'Super User';
 
     useEffect(() => {
         if (user) {
+            if (isSDO && !isSGOD && !isSuperUser) {
+                console.warn("Unauthorized access attempt to ESF7 Review by non-SGOD office.");
+                navigate('/division-nexus');
+                return;
+            }
+
             fetchStats();
             fetchSchools();
+            if (isRO) fetchRegionalSummary();
         }
-    }, [user]);
+    }, [user, selectedDivision, isRO]);
 
     useEffect(() => {
         let list = [...allSchools];
         
         // Tab Filtering
-        if (activeTab === 'queue') list = list.filter(s => s.status === 'PENDING_SDO' || s.status === 'QUEUED');
-        else if (activeTab === 'verified') list = list.filter(s => s.status === 'VERIFIED');
+        if (activeTab === 'queue') list = list.filter(s => s.status === 'VERIFIED' || s.status === 'PENDING_SDO' || s.status === 'QUEUED');
+        else if (activeTab === 'needs_resubmission') list = list.filter(s => s.status === 'NEEDS_RESUBMISSION');
         else if (activeTab === 'missing') list = list.filter(s => s.status === 'NOT_STARTED');
 
         // Search Filtering
@@ -63,17 +90,30 @@ const ESF7Review = () => {
         }
 
         setFilteredSchools(list);
+        setCurrentPage(1);
     }, [searchTerm, activeTab, allSchools]);
+
+    const paginatedSchools = filteredSchools.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalPages = Math.ceil(filteredSchools.length / itemsPerPage);
 
     const fetchStats = async () => {
         try {
             const query = new URLSearchParams({
                 region: user?.region || 'All',
-                division: user?.division || 'All Divisions'
+                division: selectedDivision
             }).toString();
             const res = await fetch(`/api/esf7/stats?${query}`);
             const data = await res.json();
             if (data.success) setStats(data.data);
+        } catch (err) { console.error(err); }
+    };
+
+    const fetchRegionalSummary = async () => {
+        try {
+            const query = new URLSearchParams({ region: user?.region || 'All' }).toString();
+            const res = await fetch(`/api/esf7/regional-summary?${query}`);
+            const data = await res.json();
+            if (data.success) setRegionalSummary(data.data);
         } catch (err) { console.error(err); }
     };
 
@@ -82,25 +122,100 @@ const ESF7Review = () => {
         try {
             const query = new URLSearchParams({
                 region: user?.region || 'All',
-                division: user?.division || 'All Divisions'
+                division: selectedDivision
             }).toString();
             const res = await fetch(`/api/esf7/all-schools?${query}`);
             const data = await res.json();
+            console.log(`DEBUG [ESF7] Received ${data.data?.length} schools for ${selectedDivision}`);
             if (data.success) {
                 setAllSchools(data.data);
-                setFilteredSchools(data.data.filter(s => s.status === 'PENDING_SDO' || s.status === 'QUEUED'));
             }
         } catch (err) { console.error(err); }
         setLoading(false);
     };
 
+
+    const fetchSpecialization = async (sid) => {
+        try {
+            const res = await fetch(`/api/esf7/specialization-summary/${sid}`);
+            const data = await res.json();
+            if (data.success) {
+                setSpecializationData(data.data);
+                // OVERRIDE summary personnel counts with real-time NATIONAL-only counts
+                if (data.personnel) {
+                    setSchoolDetail(prev => ({
+                        ...prev,
+                        summary: {
+                            ...prev.summary,
+                            ...data.personnel
+                        },
+                        row_count: data.personnel.total
+                    }));
+                }
+            }
+        } catch (err) { console.error(err); }
+    };
+
+    const handleCategoryClick = async (category) => {
+        setStaffModalTitle(`${category} List`);
+        setShowStaffModal(true);
+        setStaffLoading(true);
+        setStaffModalData([]);
+        setStaffCurrentPage(1);
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/esf7/data/${selectedSchool}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                const TEACHING = ["TEACHER I", "TEACHER II", "TEACHER III", "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV", "SPET I", "SPET II", "SPET III", "SPET IV", "SST I", "SST II", "SST III"];
+                const RELATED = ["PRINCIPAL I", "PRINCIPAL II", "PRINCIPAL III", "PRINCIPAL IV", "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III", "LIBRARIAN I", "LIBRARIAN II", "LIBRARIAN III"];
+
+                let filtered = [];
+                const raw = data.data || [];
+
+                if (category === "Teaching Staff") {
+                    filtered = raw.filter(r => {
+                        const pos = (r.position || "").toUpperCase();
+                        const fund = (r.fund_source || r.funding_source || "").toUpperCase();
+                        return (fund === "NATIONAL" || fund === "DEPED") && TEACHING.some(t => pos.includes(t));
+                    });
+                } else if (category === "Related-Teaching") {
+                    filtered = raw.filter(r => {
+                        const pos = (r.position || "").toUpperCase();
+                        const fund = (r.fund_source || r.funding_source || "").toUpperCase();
+                        return (fund === "NATIONAL" || fund === "DEPED") && RELATED.some(t => pos.includes(t));
+                    });
+                } else { // Non-Teaching
+                    filtered = raw.filter(r => {
+                        const pos = (r.position || "").toUpperCase();
+                        const fund = (r.fund_source || r.funding_source || "").toUpperCase();
+                        const isTeaching = TEACHING.some(t => pos.includes(t));
+                        const isRelated = RELATED.some(t => pos.includes(t));
+                        return (fund === "NATIONAL" || fund === "DEPED") && !isTeaching && !isRelated;
+                    });
+                }
+                setStaffModalData(filtered);
+            }
+        } catch (err) { console.error(err); }
+        setStaffLoading(false);
+    };
+
     const handleViewDetails = async (school) => {
         setSelectedSchool(school.school_id);
+        setSpecializationData(null);
         setActionLoading(true);
         try {
             const res = await fetch(`/api/esf7/link-detail/${school.school_id}`);
             const data = await res.json();
-            if (data.success) setSchoolDetail(data.data);
+            if (data.success) {
+                setSchoolDetail(data.data);
+                // Always fetch dynamic to ensure NATIONAL filter is applied to legacy data
+                await fetchSpecialization(school.school_id);
+            }
         } catch (err) { console.error(err); }
         setActionLoading(false);
     };
@@ -143,24 +258,6 @@ const ESF7Review = () => {
         setActionLoading(false);
     };
 
-    const handleApproveResubmission = async () => {
-        if (!window.confirm("UNSEAL MODULE? This will DELETE current database records and allow the school to resubmit. Action is irreversible.")) return;
-        setActionLoading(true);
-        try {
-            const res = await fetch('/api/esf7/approve-resubmission', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ school_id: selectedSchool })
-            });
-            const data = await res.json();
-            if (data.success) {
-                await fetchStats();
-                await fetchSchools();
-                setSelectedSchool(null);
-            }
-        } catch (err) { console.error(err); }
-        setActionLoading(false);
-    };
 
     if (!user || (loading && !allSchools.length)) {
         return (
@@ -193,21 +290,36 @@ const ESF7Review = () => {
                 <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
                     {!selectedSchool ? (
                         <>
+                            {/* Regional Breadcrumbs if deep in drill-down */}
+                            {isRO && selectedDivision !== 'All Divisions' && (
+                                <div className="mb-6 flex items-center justify-between">
+                                    <button 
+                                        onClick={() => setSelectedDivision('All Divisions')}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-600 uppercase tracking-widest hover:border-blue-200 transition-all shadow-sm"
+                                    >
+                                        <FiArrowLeft /> Back to Divisions
+                                    </button>
+                                    <div className="px-4 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20">
+                                        Viewing: {selectedDivision}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Stats Summary */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                <StatCard label="Awaiting Review" value={stats.pending_sdo} icon={<FiActivity />} color="bg-amber-500" isActive={activeTab === 'queue'} onClick={() => setActiveTab('queue')} />
-                                <StatCard label="Fully Harvested" value={stats.verified} icon={<FiCheckCircle />} color="bg-emerald-500" isActive={activeTab === 'verified'} onClick={() => setActiveTab('verified')} />
-                                <StatCard label="Rejected" value={stats.rejected} icon={<FiXCircle />} color="bg-rose-500" />
-                                <StatCard label="Unsubmitted" value={stats.missing_esf7} icon={<FiAlertCircle />} color="bg-slate-400" isActive={activeTab === 'missing'} onClick={() => setActiveTab('missing')} />
+                                <StatCard label="Audit Center" value={stats.verified} icon={<FiActivity />} color="bg-blue-600" isActive={activeTab === 'queue'} onClick={() => setActiveTab('queue')} />
+                                <StatCard label="Action Required" value={allSchools.filter(s => s.status === 'NEEDS_RESUBMISSION').length} icon={<FiAlertCircle />} color="bg-rose-500" isActive={activeTab === 'needs_resubmission'} onClick={() => setActiveTab('needs_resubmission')} />
+                                <StatCard label="Unsubmitted" value={stats.missing_esf7} icon={<FiClock />} color="bg-slate-400" isActive={activeTab === 'missing'} onClick={() => setActiveTab('missing')} />
+                                <StatCard label="Total Registered" value={stats.total_registered} icon={<FiDatabase />} color="bg-slate-800" isActive={activeTab === 'all'} onClick={() => setActiveTab('all')} />
                             </div>
 
                             <div className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
                                     <div className="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm self-start">
-                                        <TabButton active={activeTab === 'queue'} onClick={() => setActiveTab('queue')} label="Active Queue" />
-                                        <TabButton active={activeTab === 'verified'} onClick={() => setActiveTab('verified')} label="Certified" />
+                                        <TabButton active={activeTab === 'queue'} onClick={() => setActiveTab('queue')} label="Harvested" />
+                                        <TabButton active={activeTab === 'needs_resubmission'} onClick={() => setActiveTab('needs_resubmission')} label="For Resubmission" />
                                         <TabButton active={activeTab === 'missing'} onClick={() => setActiveTab('missing')} label="Missing" />
-                                        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All Schools" />
+                                        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All" />
                                     </div>
                                     <div className="relative">
                                         <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -222,19 +334,110 @@ const ESF7Review = () => {
                                 </div>
 
                                 <div className="grid gap-3">
-                                    {filteredSchools.map((school) => (
-                                        <SchoolRow 
-                                            key={school.school_id} 
-                                            school={school} 
-                                            onClick={() => school.status !== 'NOT_STARTED' && handleViewDetails(school)} 
-                                        />
-                                    ))}
-                                    {filteredSchools.length === 0 && (
+                                    {/* REGIONAL DIVISION SUMMARY VIEW */}
+                                    {isRO && selectedDivision === 'All Divisions' ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {regionalSummary.map((div) => (
+                                                <div 
+                                                    key={div.division}
+                                                    onClick={() => setSelectedDivision(div.division)}
+                                                    className="bg-white border border-slate-100 p-8 rounded-[2.5rem] cursor-pointer hover:border-blue-200 hover:shadow-2xl hover:shadow-blue-500/5 transition-all group relative overflow-hidden"
+                                                >
+                                                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    <div className="relative">
+                                                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter leading-none mb-6 italic group-hover:text-blue-600 transition-colors">
+                                                            {div.division}
+                                                        </h3>
+                                                        <div className="space-y-4">
+                                                            <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Submitted</span>
+                                                                <span className="text-sm font-black text-slate-700">{div.harvested_schools} Schools</span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Personnel</span>
+                                                                <span className="text-sm font-black text-blue-600">{(div.total_rows || 0).toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-8 flex items-center gap-2 text-blue-500">
+                                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] italic">Open Division Audit</span>
+                                                            <FiArrowLeft className="rotate-180" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {paginatedSchools.map((school) => (
+                                                <SchoolRow 
+                                                    key={school.school_id} 
+                                                    school={school} 
+                                                    onClick={() => school.status !== 'NOT_STARTED' && handleViewDetails(school)} 
+                                                />
+                                            ))}
+                                        </>
+                                    )}
+                                    {filteredSchools.length === 0 && (isRO && selectedDivision !== 'All Divisions' || !isRO) && (
                                         <div className="text-center py-20 bg-white rounded-[2.5rem] border border-slate-100">
-                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No submission activity in this category</p>
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No activity in this category</p>
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {filteredSchools.length > 0 && (
+                                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-2 pt-4 border-t border-slate-200">
+                                        <div className="flex items-center gap-4">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                Page {currentPage} of {totalPages || 1} • {filteredSchools.length} schools
+                                            </p>
+                                            <select 
+                                                value={itemsPerPage}
+                                                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                                                className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-[10px] font-black text-slate-600 outline-none focus:ring-2 focus:ring-blue-100"
+                                            >
+                                                {[25, 50, 100].map(v => <option key={v} value={v}>{v} per page</option>)}
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            <button 
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                className="p-3 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                <FiArrowLeft className="w-4 h-4" />
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                                                    let pg = currentPage - 2 + i;
+                                                    if (currentPage <= 2) pg = i + 1;
+                                                    if (currentPage >= totalPages - 1) pg = totalPages - 4 + i;
+                                                    if (pg < 1 || pg > totalPages) return null;
+                                                    
+                                                    return (
+                                                        <button 
+                                                            key={pg}
+                                                            onClick={() => setCurrentPage(pg)}
+                                                            className={`w-10 h-10 rounded-xl text-[10px] font-black transition-all ${currentPage === pg ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white border border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+                                                        >
+                                                            {pg}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <button 
+                                                disabled={currentPage === totalPages || totalPages === 0}
+                                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                className="p-3 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                <FiArrowLeft className="w-4 h-4 rotate-180" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </>
                     ) : (
@@ -247,12 +450,12 @@ const ESF7Review = () => {
                             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl opacity-40 -mr-10 -mt-10" />
                                 <div className="space-y-2 relative">
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic leading-tight">
                                         {allSchools.find(s => s.school_id === selectedSchool)?.school_name}
                                     </h2>
                                     <div className="flex items-center gap-3">
                                         <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded-full uppercase tracking-widest">School ID: {selectedSchool}</span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">• Submitted Link Entry</span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">• Harvested Data Audit</span>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
@@ -260,7 +463,7 @@ const ESF7Review = () => {
                                         onClick={() => window.open(schoolDetail?.link, '_blank')}
                                         className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 italic"
                                     >
-                                        <FiExternalLink /> Open Source
+                                        <FiExternalLink /> Source Link
                                     </button>
                                 </div>
                             </div>
@@ -273,13 +476,25 @@ const ESF7Review = () => {
                                          <div className="flex items-center gap-6 relative">
                                              <div className="w-20 h-20 rounded-3xl bg-slate-900 flex flex-col items-center justify-center text-white text-center shadow-2xl shadow-slate-900/20">
                                                  <FiShield className="text-blue-400 mb-1" />
-                                                 <span className="text-[8px] font-black uppercase tracking-tighter">Verified</span>
+                                                 <span className="text-[8px] font-black uppercase tracking-tighter">Harvested</span>
                                              </div>
                                              <div>
                                                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Authenticated School Head</h3>
                                                  <p className="text-2xl font-black text-slate-800 tracking-tight leading-none italic uppercase">{schoolDetail?.summary?.schoolHead || "N/A"}</p>
                                                  <p className="text-[10px] font-bold text-blue-500 mt-2 uppercase tracking-widest italic">{schoolDetail?.summary?.schoolHeadPosition || "No Position Assigned"}</p>
                                              </div>
+                                         </div>
+                                     </div>
+
+                                     <div className="px-8 py-5 bg-blue-50/50 rounded-[2rem] border border-blue-100 flex items-center gap-4 transition-all hover:bg-blue-50 group">
+                                         <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                                             <FiInfo className="w-6 h-6" />
+                                         </div>
+                                         <div>
+                                             <p className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none">Funding Integrity Note</p>
+                                             <p className="text-sm font-bold text-blue-600/80 mt-1 uppercase italic tracking-tight">
+                                                 Only **NATIONAL / DEPED** funded personnel are counted in this specialized summary.
+                                             </p>
                                          </div>
                                      </div>
 
@@ -290,20 +505,182 @@ const ESF7Review = () => {
                                              value={schoolDetail?.summary?.teaching || 0} 
                                              icon={<FiActivity />} 
                                              color="text-indigo-600 bg-indigo-50" 
+                                             onClick={() => handleCategoryClick("Teaching Staff")}
                                          />
                                          <CategoryCard 
                                              label="Related-Teaching" 
                                              value={schoolDetail?.summary?.relatedTeaching || 0} 
-                                             icon={<FiCheckCircle />} 
-                                             color="text-emerald-600 bg-emerald-50" 
+                                             icon={<FiUserCheck />} 
+                                             color="text-amber-600 bg-amber-50"
+                                             onClick={() => handleCategoryClick("Related-Teaching")}
                                          />
                                          <CategoryCard 
                                              label="Non-Teaching" 
                                              value={schoolDetail?.summary?.nonTeaching || 0} 
-                                             icon={<FiAlertCircle />} 
-                                             color="text-slate-500 bg-slate-50" 
+                                             icon={<FiUsers />} 
+                                             color="text-rose-600 bg-rose-50"
+                                             onClick={() => handleCategoryClick("Non-Teaching Staff")}
                                          />
                                      </div>
+
+                                     {/* QUEUED STATE ILLUSTRATION */}
+                                     {(!specializationData || Object.values(specializationData).every(v => v === 0)) && schoolDetail?.status === 'QUEUED' && (
+                                         <div className="bg-amber-50/50 p-12 rounded-[3rem] border border-amber-100 flex flex-col items-center text-center space-y-6">
+                                             <div className="w-20 h-20 rounded-3xl bg-white flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/5">
+                                                 <FiLoader className="w-10 h-10 animate-spin" />
+                                             </div>
+                                             <div>
+                                                 <h3 className="text-xl font-black text-amber-800 uppercase italic tracking-tighter">Ingestion in Progress</h3>
+                                                 <p className="text-xs font-bold text-amber-600/70 mt-2 uppercase tracking-widest max-w-xs mx-auto">
+                                                     The system is currently harvesting individual personnel data from the school's ESF7 link. This usually takes 1-2 minutes.
+                                                 </p>
+                                             </div>
+                                         </div>
+                                     )}
+
+                                     {/* SPECIALIZATION SUMMARY */}
+                                     {specializationData && (
+                                         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                                             <div className="flex items-center justify-between">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                                                         <FiAward />
+                                                     </div>
+                                                     <div>
+                                                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Teaching Personnel</h3>
+                                                         <p className="text-lg font-black text-slate-800 tracking-tight leading-none mt-1 uppercase italic">Specialization Summary</p>
+                                                     </div>
+                                                 </div>
+                                             </div>
+
+                                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                                 {Object.entries(specializationData)
+                                                     .filter(([_, count]) => count > 0)
+                                                     .map(([spec, count]) => (
+                                                     <div key={spec} className="px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:border-orange-200 transition-all">
+                                                         <p className="text-[9px] font-black text-slate-500 uppercase tracking-tight leading-[1.1] pr-2 group-hover:text-orange-600">{spec.replace(/_/g, ' ')}</p>
+                                                         <span className="text-xs font-black text-slate-900 group-hover:scale-110 transition-transform">{count}</span>
+                                                     </div>
+                                                 ))}
+                                             </div>
+                                         </div>
+                                     )}
+                                     {/* AUDIT REMARKS PANEL */}
+                                     {!isRO && (
+                                         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                                            <button 
+                                                onClick={() => setShowAuditPanel(!showAuditPanel)}
+                                                className="w-full p-8 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${showAuditPanel ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'}`}>
+                                                        <FiActivity className="w-6 h-6" />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Auditor's Desk</h3>
+                                                        <p className="text-lg font-black text-slate-800 tracking-tight leading-none uppercase italic">Review Remarks & Feedback</p>
+                                                    </div>
+                                                </div>
+                                                <div className={`w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center transition-transform duration-300 ${showAuditPanel ? 'rotate-180' : ''}`}>
+                                                   <FiChevronDown className="text-slate-400" />
+                                                </div>
+                                            </button>
+
+                                            <AnimatePresence>
+                                                {showAuditPanel && (
+                                                    <motion.div 
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        className="px-8 pb-8 space-y-6"
+                                                    >
+                                                        <div className="h-px bg-slate-100 w-full" />
+                                                        
+                                                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 items-start">
+                                                            <FiAlertCircle className="text-amber-600 w-5 h-5 flex-shrink-0 mt-0.5" />
+                                                            <p className="text-xs font-bold text-amber-800 leading-relaxed">
+                                                                "In case of incomplete eSF7 data, return the submission and inform the concerned school for their appropriate action."
+                                                            </p>
+                                                        </div>
+
+                                                        <textarea 
+                                                            className="w-full min-h-[150px] p-6 bg-slate-50 border border-slate-200 rounded-[2rem] text-xs font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all resize-none"
+                                                            placeholder="Enter discrepancies or instructions for resubmission here..."
+                                                            value={schoolDetail?.audit_remarks || ''}
+                                                            onChange={(e) => setSchoolDetail(prev => ({ ...prev, audit_remarks: e.target.value }))}
+                                                        />
+                                                        
+                                                        {!isRO && (
+                                                            <div className="flex gap-4">
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        const remark = schoolDetail?.audit_remarks;
+                                                                        if (!remark) return alert("Please enter a remark first.");
+                                                                        if (!window.confirm("FLAG FOR RESUBMISSION? This will notify the school to verify and re-upload their ESF7.")) return;
+                                                                        
+                                                                        setActionLoading(true);
+                                                                        try {
+                                                                            const token = localStorage.getItem('token');
+                                                                            const res = await fetch('/api/esf7/audit-remark', {
+                                                                                method: 'POST',
+                                                                                headers: { 
+                                                                                    'Content-Type': 'application/json',
+                                                                                    'Authorization': `Bearer ${token}`
+                                                                                },
+                                                                                body: JSON.stringify({ school_id: selectedSchool, remark, status: 'NEEDS_RESUBMISSION' })
+                                                                            });
+                                                                            if (res.ok) {
+                                                                                alert("Audit remarks saved and school flagged for resubmission.");
+                                                                                await fetchSchools();
+                                                                                setSelectedSchool(null);
+                                                                            } else {
+                                                                                const errData = await res.json();
+                                                                                alert(`Error: ${errData.error || 'Failed to update status'}`);
+                                                                            }
+                                                                        } catch (err) { console.error(err); }
+                                                                        setActionLoading(false);
+                                                                    }}
+                                                                    disabled={actionLoading}
+                                                                    className="flex-1 py-5 bg-rose-600 text-white font-black rounded-2xl uppercase text-[10px] tracking-widest hover:bg-rose-700 transition-all shadow-xl shadow-rose-600/20 italic flex items-center justify-center gap-2"
+                                                                >
+                                                                     <FiAlertCircle /> Flag for Resubmission
+                                                                </button>
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        const remark = schoolDetail?.audit_remarks;
+                                                                        setActionLoading(true);
+                                                                        try {
+                                                                            const token = localStorage.getItem('token');
+                                                                            const res = await fetch('/api/esf7/audit-remark', {
+                                                                                method: 'POST',
+                                                                                headers: { 
+                                                                                    'Content-Type': 'application/json',
+                                                                                    'Authorization': `Bearer ${token}`
+                                                                                },
+                                                                                body: JSON.stringify({ school_id: selectedSchool, remark, status: 'VERIFIED' })
+                                                                            });
+                                                                            if (res.ok) {
+                                                                                alert("Remarks saved successfully.");
+                                                                            } else {
+                                                                                const errData = await res.json();
+                                                                                alert(`Error: ${errData.error || 'Failed to save remarks'}`);
+                                                                            }
+                                                                        } catch (err) { console.error(err); }
+                                                                        setActionLoading(false);
+                                                                    }}
+                                                                    disabled={actionLoading}
+                                                                    className="px-8 py-5 bg-white border-2 border-slate-200 text-slate-800 font-black rounded-2xl uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all italic"
+                                                                >
+                                                                     Save Only
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                         </div>
+                                     )}
+
                                 </div>
 
                                 {/* Metadata & Action */}
@@ -320,29 +697,20 @@ const ESF7Review = () => {
                                         <div className="space-y-4">
                                             {schoolDetail?.submitted_at && (
                                                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm transition-transform group-hover:scale-110">
+                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm">
                                                         <FiArrowLeft className="rotate-180" />
                                                     </div>
                                                     <div>
                                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 text-xs">Submission Log</p>
                                                         <div className="flex items-center gap-2">
-                                                            <p className="text-[10px] font-bold text-slate-700 uppercase italic leading-none">{new Date(schoolDetail.submitted_at).toLocaleString()}</p>
-                                                            <span className="w-1 h-1 bg-blue-400 rounded-full animate-pulse" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {schoolDetail?.approved_at && (
-                                                <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/50 flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-emerald-500 shadow-sm transition-transform group-hover:scale-110">
-                                                        <FiCheckCircle />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[9px] font-black text-emerald-600/60 uppercase tracking-widest leading-none mb-1 text-xs">Verification Log</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-[10px] font-bold text-emerald-700 uppercase italic leading-none">{new Date(schoolDetail.approved_at).toLocaleString()}</p>
-                                                            <FiShield className="text-emerald-400 w-3 h-3" />
+                                                            <p className="text-[10px] font-bold text-slate-700 uppercase italic leading-none">
+                                                                {(() => {
+                                                                    const d = schoolDetail.submitted_at;
+                                                                    if (!d) return 'N/A';
+                                                                    const date = new Date(d.toString().endsWith('Z') || d.toString().includes('+') ? d : d.toString().replace(' ', 'T') + 'Z');
+                                                                    return date.toLocaleString();
+                                                                })()}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -351,61 +719,161 @@ const ESF7Review = () => {
                                             <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2">
                                                 <div className="flex items-center gap-2 text-blue-600">
                                                     <FiClock className="w-4 h-4" />
-                                                    <span className="text-[10px] font-black uppercase tracking-widest">Ingestion Priority</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">System Ingestion</span>
                                                 </div>
                                                 <p className="text-[10px] font-bold text-blue-800/60 uppercase leading-relaxed">
-                                                    Approved schools are harvested **One-by-One** starting at 00:00 local time.
+                                                    Data was automatically harvested. SDO review focuses on **Audit Integrity** and **Resubmission Decisions**.
                                                 </p>
                                             </div>
                                         </div>
-
-                                        <div className="pt-4 space-y-3">
-                                            <button 
-                                                onClick={handleEnqueue} 
-                                                disabled={actionLoading || schoolDetail?.status === 'QUEUED'}
-                                                className={`w-full py-5 font-black rounded-3xl uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl italic ${schoolDetail?.status === 'QUEUED' ? 'bg-amber-100 text-amber-600 shadow-amber-100' : 'bg-indigo-600 text-white shadow-indigo-200 hover:scale-[1.02]'}`}
-                                            >
-                                                {actionLoading ? <FiLoader className="animate-spin" /> : <FiDatabase />}
-                                                {schoolDetail?.status === 'QUEUED' ? "Already Enqueued" : "Approve for Harvesting"}
-                                            </button>
-                                            <button 
-                                                onClick={handleRejectLink} 
-                                                disabled={actionLoading} 
-                                                className="w-full py-5 bg-white border-2 border-rose-100 text-rose-500 font-black rounded-3xl uppercase text-[10px] tracking-widest hover:bg-rose-50 transition-all italic"
-                                            >
-                                                Reject Submission
-                                            </button>
-
-                                            {(schoolDetail?.status === 'VERIFIED' || schoolDetail?.status === 'PENDING_RESUBMISSION') && (
-                                                <button 
-                                                    onClick={handleApproveResubmission} 
-                                                    disabled={actionLoading} 
-                                                    className="w-full py-5 bg-amber-500 text-white font-black rounded-3xl uppercase text-[10px] tracking-widest hover:bg-amber-600 transition-all shadow-xl shadow-amber-500/20 italic mt-6"
-                                                >
-                                                    {actionLoading ? <FiLoader className="animate-spin" /> : <FiShield />}
-                                                    Unlock for Resubmission
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
+                                         <div className="pt-4 space-y-4">
+                                             {schoolDetail?.status === 'QUEUED' && (
+                                                 <div className="w-full py-5 bg-amber-50 text-amber-600 font-black rounded-3xl uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 italic">
+                                                     <FiLoader className="animate-spin" /> Ingestion in Progress
+                                                 </div>
+                                             )}
+                                          </div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </motion.div>
                     )}
                 </div>
+
+                {/* Staff Detail Modal */}
+                <AnimatePresence>
+                    {showStaffModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12">
+                            <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setShowStaffModal(false)}
+                                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                            />
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                className="relative w-full max-w-4xl max-h-[85vh] bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col"
+                            >
+                                <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center">
+                                            <FiUsers className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Personnel Detail</h3>
+                                            <p className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">{staffModalTitle}</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowStaffModal(false)}
+                                        className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100 transition-colors"
+                                    >
+                                        <FiX />
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                                    {staffLoading ? (
+                                        <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                            <FiLoader className="w-10 h-10 text-blue-600 animate-spin" />
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Retrieving Registry...</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {staffModalData.length > 0 ? (
+                                                <>
+                                                    {staffModalData.slice((staffCurrentPage - 1) * staffItemsPerPage, staffCurrentPage * staffItemsPerPage).map((staff, idx) => (
+                                                        <div key={idx} className="p-5 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between group hover:bg-blue-50 hover:border-blue-200 transition-all">
+                                                            <div className="flex items-center gap-5">
+                                                                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 text-xs font-black group-hover:text-blue-600 group-hover:border-blue-100 transition-all">
+                                                                    {(staffCurrentPage - 1) * staffItemsPerPage + idx + 1}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight group-hover:text-blue-900 transition-colors italic">{staff.last}, {staff.first}</p>
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{staff.position}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="text-right">
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Fund Source</p>
+                                                                    <p className="text-[10px] font-bold text-blue-600 uppercase italic leading-none">{staff.fund_source || staff.funding_source || "NATIONAL"}</p>
+                                                                </div>
+                                                                {staff.gender && (
+                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${staff.gender === 'M' || staff.gender === 'MALE' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                                        {staff.gender.charAt(0)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+
+                                                    {/* Modal Pagination */}
+                                                    {staffModalData.length > staffItemsPerPage && (
+                                                        <div className="mt-8 flex items-center justify-center gap-2">
+                                                            <button 
+                                                                onClick={() => setStaffCurrentPage(prev => Math.max(1, prev - 1))}
+                                                                disabled={staffCurrentPage === 1}
+                                                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all"
+                                                            >
+                                                                Prev
+                                                            </button>
+                                                            <div className="flex items-center gap-1">
+                                                                {Array.from({ length: Math.ceil(staffModalData.length / staffItemsPerPage) }, (_, i) => i + 1)
+                                                                    .filter(p => p === 1 || p === Math.ceil(staffModalData.length / staffItemsPerPage) || (p >= staffCurrentPage - 1 && p <= staffCurrentPage + 1))
+                                                                    .map((p, i, arr) => (
+                                                                        <React.Fragment key={p}>
+                                                                            {i > 0 && p !== arr[i-1] + 1 && <span className="text-slate-300">...</span>}
+                                                                            <button 
+                                                                                onClick={() => setStaffCurrentPage(p)}
+                                                                                className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${staffCurrentPage === p ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white border border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+                                                                            >
+                                                                                {p}
+                                                                            </button>
+                                                                        </React.Fragment>
+                                                                    ))
+                                                                }
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => setStaffCurrentPage(prev => Math.min(Math.ceil(staffModalData.length / staffItemsPerPage), prev + 1))}
+                                                                disabled={staffCurrentPage === Math.ceil(staffModalData.length / staffItemsPerPage)}
+                                                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50 transition-all"
+                                                            >
+                                                                Next
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">No filtered personnel found in this category</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-center">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic leading-none">Showing {staffModalData.length} Personnel Registry Entries</p>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
             </div>
         </PageTransition>
     );
 };
 
-const CategoryCard = ({ label, value, icon, color }) => (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${color}`}>
+const CategoryCard = ({ label, value, icon, color, onClick }) => (
+    <div onClick={onClick} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-3 cursor-pointer hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 transition-all group">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${color} group-hover:scale-110 transition-transform`}>
             {icon}
         </div>
         <div>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-            <p className="text-2xl font-black text-slate-800 tracking-tight">{value}</p>
+            <p className="text-2xl font-black text-slate-800 tracking-tight group-hover:translate-x-1 transition-transform">{value}</p>
         </div>
     </div>
 );
@@ -446,11 +914,12 @@ const SchoolRow = ({ school, onClick }) => (
         <div className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
             school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600' : 
             school.status === 'QUEUED' ? 'bg-blue-50 text-blue-600' :
+            school.status === 'NEEDS_RESUBMISSION' ? 'bg-rose-50 text-rose-600' :
             school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-600' : 
             'bg-slate-50 text-slate-400'
         }`}>
             {school.status === 'QUEUED' && <FiLoader className="animate-spin" />}
-            {school.status.replace('_', ' ')}
+            {school.status.replace(/_/g, ' ')}
         </div>
     </div>
 );

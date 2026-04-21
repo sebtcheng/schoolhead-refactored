@@ -634,6 +634,7 @@ const initESF7Tables = async () => {
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
             ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS summary JSONB;
+            ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS audit_remarks TEXT;
             CREATE TABLE IF NOT EXISTS ESF7_Database (
                 id SERIAL PRIMARY KEY,
                 school_id TEXT,
@@ -825,12 +826,18 @@ app.post('/api/esf7/link-scan', async (req, res) => {
             colMap = { last: 0, first: 1, fund: 2, pos: 3 };
         }
 
-        // 4. Count Personnel (Scan forward - be lenient)
+        // 4. Extract All Personnel
         let personnelCount = 0;
         let teachingCount = 0;
         let relatedCount = 0;
         let nonTeachingCount = 0;
         let schoolHead = { name: "N/A", position: "N/A", rank: -1 };
+        
+        const scannedPersonnel = {
+            teaching: [],
+            related: [],
+            nonTeaching: []
+        };
 
         const dataRows = allRows.slice(headerRowIdx + 1);
         
@@ -841,39 +848,36 @@ app.post('/api/esf7/link-scan', async (req, res) => {
 
             if (hasData) {
                 personnelCount++;
+                const lastName = (row[colMap.last] || "").trim();
+                const firstName = (row[colMap.first] || "").trim();
+                const fullName = `${firstName} ${lastName}`.trim();
                 const pos = String(row[colMap.pos] || "").trim().toUpperCase();
-                const fullName = `${row[colMap.first] || ""} ${row[colMap.last] || ""}`.trim();
+                const fund = String(row[colMap.fund] || "NATIONAL").trim().toUpperCase();
 
-                // Categorization
-                if (TEACHING_POSITIONS.includes(pos)) teachingCount++;
-                else if (RELATED_TEACHING_POSITIONS.includes(pos)) relatedCount++;
-                else if (NON_TEACHING_POSITIONS.includes(pos)) nonTeachingCount++;
-                else nonTeachingCount++; // Default to non-teaching if unknown
+                const personObj = {
+                    last: lastName,
+                    first: firstName,
+                    position: row[colMap.pos] || "N/A",
+                    fund_source: fund
+                };
+
+                // Count/add ALL personnel for school head's preview
+                if (TEACHING_POSITIONS.some(tp => pos.includes(tp))) {
+                    teachingCount++;
+                    scannedPersonnel.teaching.push(personObj);
+                } else if (RELATED_TEACHING_POSITIONS.some(rp => pos.includes(rp))) {
+                    relatedCount++;
+                    scannedPersonnel.related.push(personObj);
+                } else {
+                    nonTeachingCount++;
+                    scannedPersonnel.nonTeaching.push(personObj);
+                }
 
                 // School Head Detection (Highest Rank)
                 const rank = getPositionRank(pos);
                 if (rank > schoolHead.rank) {
-                    schoolHead = { name: fullName, position: pos, rank: rank };
+                    schoolHead = { name: fullName, position: row[colMap.pos] || pos, rank: rank };
                 }
-            }
-        }
-
-        const previewRows = [];
-        let foundRendered = 0;
-        for (const row of dataRows) {
-            if (foundRendered >= 5) break;
-            const hasData = [colMap.last, colMap.first, colMap.fund, colMap.pos].some(idx => 
-                idx !== -1 && row[idx] && String(row[idx]).trim() !== ""
-            );
-            
-            if (hasData) {
-                previewRows.push([
-                    row[colMap.last] || "-",
-                    row[colMap.first] || "-",
-                    row[colMap.fund] || "-",
-                    row[colMap.pos] || "-"
-                ]);
-                foundRendered++;
             }
         }
 
@@ -881,14 +885,14 @@ app.post('/api/esf7/link-scan', async (req, res) => {
             success: true,
             data: {
                 rowCount: personnelCount,
-                sampleRows: previewRows,
-                headers: ["LAST NAME", "FIRST NAME", "FUND SOURCE", "POSITION"],
+                scannedPersonnel,
                 summary: {
                     schoolHead: schoolHead.name,
                     schoolHeadPosition: schoolHead.position,
                     teaching: teachingCount,
                     relatedTeaching: relatedCount,
-                    nonTeaching: nonTeachingCount
+                    nonTeaching: nonTeachingCount,
+                    total: teachingCount + relatedCount + nonTeachingCount
                 }
             }
         });
@@ -905,17 +909,26 @@ app.post('/api/esf7/link-scan', async (req, res) => {
 app.post('/api/esf7/link-submit', async (req, res) => {
     const { school_id, driveLink, rowCount, previewData, summary } = req.body;
     try {
+        // DELETE previous data to ensure clean ingestion
+        await pool.query("DELETE FROM ESF7_Database WHERE school_id = $1", [school_id]);
+        
         await pool.query(`
-            INSERT INTO esf7_link (school_id, link, row_count, preview_data, summary, status, submitted_at)
-            VALUES ($1, $2, $3, $4, $5, 'PENDING_SDO', CURRENT_TIMESTAMP)
+            INSERT INTO esf7_link (school_id, link, row_count, preview_data, summary, status, uploaded_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'QUEUED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (school_id) DO UPDATE SET 
-                link = EXCLUDED.link, row_count = EXCLUDED.row_count, 
-                preview_data = EXCLUDED.preview_data, summary = EXCLUDED.summary,
-                status = 'PENDING_SDO', submitted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                link = $2, 
+                row_count = $3, 
+                preview_data = $4,
+                summary = NULL,
+                status = 'QUEUED',
+                updated_at = CURRENT_TIMESTAMP
         `, [school_id, driveLink, rowCount, JSON.stringify(previewData), JSON.stringify(summary)]);
-        await pool.query('UPDATE ph_schools SET unit7 = 0.5, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1', [school_id]);
+        await pool.query("UPDATE ph_schools SET unit7 = 0.5, unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error("Clean-Slate Error:", err);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.get('/api/esf7/status/:school_id', async (req, res) => {
@@ -930,14 +943,24 @@ app.get('/api/esf7/status/:school_id', async (req, res) => {
 
 app.get('/api/esf7/link-status/:school_id', async (req, res) => {
     try {
-        const result = await pool.query('SELECT status, row_count, uploaded_at, link FROM esf7_link WHERE school_id = $1', [req.params.school_id]);
+        const result = await pool.query(`
+            SELECT el.status, el.row_count, el.link, el.audit_remarks,
+                   el.uploaded_at AT TIME ZONE 'UTC' as uploaded_at,
+                   rr.can_resubmit, rr.status as request_status
+            FROM esf7_link el
+            LEFT JOIN esf7_resubmission_request rr ON el.school_id = rr.school_id
+            WHERE el.school_id = $1
+        `, [req.params.school_id]);
         res.json({ success: true, data: result.rows[0] || { status: 'NOT_STARTED' } });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/api/esf7/link-detail/:school_id', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM esf7_link WHERE school_id = $1', [req.params.school_id]);
+        const result = await pool.query(`
+            SELECT *, uploaded_at AT TIME ZONE 'UTC' as submitted_at 
+            FROM esf7_link WHERE school_id = $1
+        `, [req.params.school_id]);
         if (result.rows.length === 0) return res.status(404).json({ error: "No link submitted." });
         res.json({ success: true, data: result.rows[0] });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -961,7 +984,7 @@ app.get('/api/esf7/data/:school_id', async (req, res) => {
 
         const result = await pool.query(`
             SELECT 
-                "first", "last", "position", "fund_source", "appt_mm", "appt_yyyy", "gender", "teaching_load"
+                "first", "last", "position", "fund_source", "major__specialization", "appt_mm", "appt_yyyy", "gender", "teaching_load"
             FROM ESF7_Database 
             WHERE iern = $1 
             ORDER BY "last" ASC, "first" ASC
@@ -979,24 +1002,23 @@ app.get('/api/esf7/stats', async (req, res) => {
     const params = [];
     if (region && region !== 'All') {
         params.push(region);
-        whereClause += ` AND UPPER(TRIM(s.region)) = UPPER(TRIM($${params.length}))`;
+        whereClause += ` AND UPPER(TRIM(ps.region)) = UPPER(TRIM($${params.length}))`;
     }
     if (division && division !== 'All Divisions') {
         params.push(division);
-        whereClause += ` AND UPPER(TRIM(s.division)) = UPPER(TRIM($${params.length}))`;
+        whereClause += ` AND UPPER(TRIM(ps.division)) = UPPER(TRIM($${params.length}))`;
     }
     try {
         const query = `
             SELECT 
-                COUNT(DISTINCT s.school_id)::int as total_registered,
-                COUNT(DISTINCT CASE WHEN el.status = 'PENDING_SDO' THEN s.school_id END)::int as pending_sdo,
-                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' OR e.status = 'VERIFIED' THEN s.school_id END)::int as verified,
-                COUNT(DISTINCT CASE WHEN el.status = 'REJECTED' THEN s.school_id END)::int as rejected,
-                COUNT(DISTINCT s.school_id) - COUNT(DISTINCT COALESCE(el.school_id, e.school_id, st.school_id))::int as missing_esf7
-            FROM ph_schools s
-            LEFT JOIN ESF7_Database e ON s.iern = e.iern
-            LEFT JOIN ESF7_Staging st ON s.iern = st.iern
-            LEFT JOIN esf7_link el ON s.school_id = el.school_id
+                COUNT(DISTINCT i."SchoolID")::int as total_registered,
+                COUNT(DISTINCT CASE WHEN el.status IN ('PENDING_SDO', 'QUEUED') THEN i."SchoolID" END)::int as pending_sdo,
+                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' THEN i."SchoolID" END)::int as verified,
+                COUNT(DISTINCT CASE WHEN el.status = 'NEEDS_RESUBMISSION' THEN i."SchoolID" END)::int as needs_resubmission,
+                COUNT(DISTINCT i."SchoolID") - COUNT(DISTINCT el.school_id)::int as missing_esf7
+            FROM "schools_IERN" i
+            JOIN ph_schools ps ON i."SchoolID" = ps.school_id
+            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
             ${whereClause}
         `;
         const result = await pool.query(query, params);
@@ -1007,39 +1029,91 @@ app.get('/api/esf7/stats', async (req, res) => {
     }
 });
 
+app.get('/api/esf7/regional-summary', async (req, res) => {
+    const { region } = req.query;
+    if (!region) return res.status(400).json({ error: "Region is required" });
+    try {
+        const query = `
+            SELECT 
+                ps.division,
+                COUNT(DISTINCT i."SchoolID")::int as total_schools,
+                COUNT(DISTINCT CASE WHEN el.status IN ('VERIFIED', 'PENDING_SDO', 'QUEUED', 'NEEDS_RESUBMISSION') THEN i."SchoolID" END)::int as harvested_schools,
+                COUNT(DISTINCT CASE WHEN el.status IN ('PENDING_SDO', 'QUEUED') THEN i."SchoolID" END)::int as pending_sdo,
+                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' THEN i."SchoolID" END)::int as verified,
+                COUNT(DISTINCT CASE WHEN el.status = 'NEEDS_RESUBMISSION' THEN i."SchoolID" END)::int as needs_resubmission,
+                COUNT(DISTINCT i."SchoolID") - COUNT(DISTINCT el.school_id)::int as missing_esf7
+            FROM "schools_IERN" i
+            JOIN ph_schools ps ON i."SchoolID" = ps.school_id
+            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
+            WHERE UPPER(TRIM(ps.region)) = UPPER(TRIM($1))
+            GROUP BY ps.division
+            ORDER BY ps.division ASC
+        `;
+        const result = await pool.query(query, [region]);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error("Fetch Regional ESF7 Summary Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 app.get('/api/esf7/all-schools', async (req, res) => {
     const { region, division } = req.query;
     try {
         let query = `
             SELECT 
-                s.school_id, 
-                s.school_name, 
-                COALESCE(el.status, e.status, st.status, 'NOT_STARTED') as status, 
-                COALESCE(el.updated_at, e.updated_at, st.updated_at, s.updated_at) as updated_at,
+                i."SchoolID" as school_id, 
+                i."School_Name" as school_name, 
+                COALESCE(el.status, 'NOT_STARTED') as status, 
+                COALESCE(el.updated_at, i.updated_at) as updated_at,
                 el.row_count,
-                el.submitted_at,
+                el.audit_remarks,
+                el.uploaded_at as submitted_at,
                 el.approved_at
-            FROM ph_schools s
-            LEFT JOIN ESF7_Database e ON s.iern = e.iern
-            LEFT JOIN ESF7_Staging st ON s.iern = st.iern
-            LEFT JOIN esf7_link el ON s.school_id = el.school_id
+            FROM "schools_IERN" i
+            LEFT JOIN ph_schools ps ON i."SchoolID" = ps.school_id
+            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
             WHERE 1=1
-        `;
+        `; 
         const params = [];
         if (region && region !== 'All') {
             params.push(region);
-            query += ` AND UPPER(TRIM(s.region)) = UPPER(TRIM($${params.length}))`;
+            query += ` AND UPPER(TRIM(ps.region)) = UPPER(TRIM($${params.length}))`;
         }
         if (division && division !== 'All Divisions') {
             params.push(division);
-            query += ` AND UPPER(TRIM(s.division)) = UPPER(TRIM($${params.length}))`;
+            query += ` AND UPPER(TRIM(ps.division)) = UPPER(TRIM($${params.length}))`;
         }
-        query += ` ORDER BY updated_at DESC, s.school_name ASC`;
+        query += ` ORDER BY updated_at DESC, i."School_Name" ASC`;
+        console.log("DEBUG [ESF7 All-Schools] Executing:", { query, params });
         const result = await pool.query(query, params);
+        console.log("DEBUG [ESF7 All-Schools] Count =", result.rows.length);
         res.json({ success: true, data: result.rows });
     } catch (err) {
         console.error("Fetch All Schools ESF7 Error:", err);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+app.post('/api/esf7/audit-remark', async (req, res) => {
+    const { school_id, remark, status } = req.body;
+    try {
+        await pool.query(`
+            UPDATE esf7_link 
+            SET audit_remarks = $1, 
+                status = $2, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE school_id = $3
+        `, [remark, status || 'NEEDS_RESUBMISSION', school_id]);
+
+        if (status === 'NEEDS_RESUBMISSION') {
+            await pool.query("UPDATE ph_schools SET unit7 = 0, unit7_status = 'NEEDS_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Audit Remark Error:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -1056,6 +1130,74 @@ app.post('/api/esf7/request-resubmission', async (req, res) => {
         await pool.query("UPDATE esf7_link SET status = 'PENDING_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
         res.json({ success: true, message: "Resubmission request sent to SDO." });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/esf7/specialization-summary/:school_id', async (req, res) => {
+    try {
+        const { school_id } = req.params;
+        const result = await pool.query(`
+            SELECT * 
+            FROM ESF7_Database 
+            WHERE school_id = $1 
+        `, [school_id]);
+        
+        const counts = {};
+        const LIST = [
+            "GENERAL EDUCATION", "FAMILY LIFE AND CHILD DEVELOPMENT", "SPECIAL NEEDS EDUCATION",
+            "EARLY CHILDHOOD EDUCATION", "FILIPINO", "ENGLISH", "MATHEMATICS", "SCIENCE",
+            "ARALING PANLIPUNAN", "TLE/EPP", "MAPEH", "ESP/VALUES EDUCATION", "BIOLOGICAL SCIENCES",
+            "PHYSICAL SCIENCES", "AGRICULTURE AND FISHERY ARTS"
+        ];
+        
+        LIST.forEach(s => counts[s] = 0);
+        counts["OTHERS"] = 0;
+
+        let teaching = 0, related = 0, nonTeaching = 0;
+        const TEACHING = ["TEACHER I", "TEACHER II", "TEACHER III", "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV", "SPET I", "SPET II", "SPET III", "SPET IV", "SST I", "SST II", "SST III"];
+        const RELATED = ["PRINCIPAL I", "PRINCIPAL II", "PRINCIPAL III", "PRINCIPAL IV", "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III", "LIBRARIAN I", "LIBRARIAN II", "LIBRARIAN III"];
+
+
+        result.rows.forEach(row => {
+            // Check for National Funding
+            const fundSource = (row.fund_source || row.funding_source || row.funding__source || "").toUpperCase();
+            if (fundSource !== "NATIONAL" && fundSource !== "DEPED" && fundSource !== "DEPED-NATIONAL") return;
+
+            // Categories
+            const pos = (row.position || "").toUpperCase();
+            if (TEACHING.some(t => pos.includes(t))) teaching++;
+            else if (RELATED.some(r => pos.includes(r))) related++;
+            else nonTeaching++;
+
+            // Specializations
+            const spec = (row.major__specialization || "").toUpperCase().trim();
+            if (LIST.includes(spec)) counts[spec] = (counts[spec] || 0) + 1;
+            else if (spec) counts["OTHERS"] += 1;
+        });
+
+        res.json({ 
+            success: true, 
+            data: counts,
+            personnel: {
+                teaching,
+                relatedTeaching: related,
+                nonTeaching: nonTeaching,
+                total: teaching + related + nonTeaching
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/esf7/force-harvest', async (req, res) => {
+    try {
+        const { school_id } = req.body;
+        await pool.query("UPDATE esf7_link SET status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        await pool.query("UPDATE ph_schools SET unit7 = 0.5, unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        res.json({ success: true, message: "School enqueued for immediate re-harvest." });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/esf7/approve-resubmission', async (req, res) => {
