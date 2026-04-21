@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import express from 'express';
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js <<< 📌");
-// Dependency fix: sharp installed. Triggering restart.
+// Robust Login Fix v1.1 - Optimized teachers_list connections removed.
 
 import { google } from 'googleapis';
 // Force restart to pick up .env changes - Robust Login Fix v1
@@ -641,6 +641,8 @@ const initESF7Tables = async () => {
                 status TEXT,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
+            ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS data JSONB;
+            
             CREATE TABLE IF NOT EXISTS ESF7_Staging (
                 id SERIAL PRIMARY KEY,
                 school_id TEXT,
@@ -648,6 +650,7 @@ const initESF7Tables = async () => {
                 status TEXT,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
+            ALTER TABLE ESF7_Staging ADD COLUMN IF NOT EXISTS data JSONB;
         `);
         console.log("✅ ESF7 link/database tables verified.");
     } catch (err) {
@@ -903,15 +906,25 @@ app.post('/api/esf7/link-submit', async (req, res) => {
     const { school_id, driveLink, rowCount, previewData, summary } = req.body;
     try {
         await pool.query(`
-            INSERT INTO esf7_link (school_id, link, row_count, preview_data, summary, status)
-            VALUES ($1, $2, $3, $4, $5, 'PENDING_SDO')
+            INSERT INTO esf7_link (school_id, link, row_count, preview_data, summary, status, submitted_at)
+            VALUES ($1, $2, $3, $4, $5, 'PENDING_SDO', CURRENT_TIMESTAMP)
             ON CONFLICT (school_id) DO UPDATE SET 
                 link = EXCLUDED.link, row_count = EXCLUDED.row_count, 
                 preview_data = EXCLUDED.preview_data, summary = EXCLUDED.summary,
-                status = 'PENDING_SDO', updated_at = CURRENT_TIMESTAMP
+                status = 'PENDING_SDO', submitted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         `, [school_id, driveLink, rowCount, JSON.stringify(previewData), JSON.stringify(summary)]);
         await pool.query('UPDATE ph_schools SET unit7 = 0.5, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1', [school_id]);
         res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/esf7/status/:school_id', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT status FROM esf7_link WHERE school_id = $1", [req.params.school_id]);
+        if (result.rows.length === 0) {
+            return res.json({ success: true, status: 'NOT_STARTED' });
+        }
+        res.json({ success: true, status: result.rows[0].status });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -938,6 +951,28 @@ app.post('/api/esf7/enqueue-harvest', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/esf7/data/:school_id', async (req, res) => {
+    try {
+        // First get the verified IERn for this school_id
+        const schoolInfo = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [req.params.school_id]);
+        const iern = schoolInfo.rows[0]?.iern;
+
+        if (!iern) return res.status(404).json({ error: "School not found." });
+
+        const result = await pool.query(`
+            SELECT 
+                "first", "last", "position", "fund_source", "appt_mm", "appt_yyyy", "gender", "teaching_load"
+            FROM ESF7_Database 
+            WHERE iern = $1 
+            ORDER BY "last" ASC, "first" ASC
+        `, [iern]);
+        res.json({ success: true, data: result.rows });
+    } catch (err) { 
+        console.error("Fetch ESF7 Data Error:", err);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
 app.get('/api/esf7/stats', async (req, res) => {
     const { region, division } = req.query;
     let whereClause = ' WHERE 1=1';
@@ -959,8 +994,8 @@ app.get('/api/esf7/stats', async (req, res) => {
                 COUNT(DISTINCT CASE WHEN el.status = 'REJECTED' THEN s.school_id END)::int as rejected,
                 COUNT(DISTINCT s.school_id) - COUNT(DISTINCT COALESCE(el.school_id, e.school_id, st.school_id))::int as missing_esf7
             FROM ph_schools s
-            LEFT JOIN ESF7_Database e ON s.school_id = e.school_id
-            LEFT JOIN ESF7_Staging st ON s.school_id = st.school_id
+            LEFT JOIN ESF7_Database e ON s.iern = e.iern
+            LEFT JOIN ESF7_Staging st ON s.iern = st.iern
             LEFT JOIN esf7_link el ON s.school_id = el.school_id
             ${whereClause}
         `;
@@ -981,10 +1016,12 @@ app.get('/api/esf7/all-schools', async (req, res) => {
                 s.school_name, 
                 COALESCE(el.status, e.status, st.status, 'NOT_STARTED') as status, 
                 COALESCE(el.updated_at, e.updated_at, st.updated_at, s.updated_at) as updated_at,
-                el.row_count
+                el.row_count,
+                el.submitted_at,
+                el.approved_at
             FROM ph_schools s
-            LEFT JOIN ESF7_Database e ON s.school_id = e.school_id
-            LEFT JOIN ESF7_Staging st ON s.school_id = st.school_id
+            LEFT JOIN ESF7_Database e ON s.iern = e.iern
+            LEFT JOIN ESF7_Staging st ON s.iern = st.iern
             LEFT JOIN esf7_link el ON s.school_id = el.school_id
             WHERE 1=1
         `;
@@ -1012,6 +1049,45 @@ app.post('/api/esf7/reject-link', async (req, res) => {
         await pool.query("UPDATE ph_schools SET unit7 = 0 WHERE school_id = $1", [req.body.school_id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/esf7/request-resubmission', async (req, res) => {
+    try {
+        await pool.query("UPDATE esf7_link SET status = 'PENDING_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
+        res.json({ success: true, message: "Resubmission request sent to SDO." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/esf7/approve-resubmission', async (req, res) => {
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const school_id = req.body.school_id;
+
+        // Get IERn first
+        const iernRes = await client.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
+        const iern = iernRes.rows[0]?.iern;
+
+        // 1. Reset link status
+        await client.query("UPDATE esf7_link SET status = 'NOT_STARTED', link = NULL, row_count = NULL, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        
+        // 2. Reset school progress
+        await client.query("UPDATE ph_schools SET unit7 = 0, unit7_status = 'NOT_STARTED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+
+        // 3. Delete ESF7_Database entries for this IERn to allow clean re-harvest
+        if (iern) {
+            await client.query("DELETE FROM ESF7_Database WHERE iern = $1", [iern]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: "Module unsealed. School can now re-submit." });
+    } catch (err) { 
+        if (client) await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message }); 
+    } finally {
+        if (client) client.release();
+    }
 });
 
 app.get('/', (req, res) => {
@@ -2932,30 +3008,8 @@ app.get('/api/reference/efd-locations', async (req, res) => {
 app.get('/api/import-masterlist-teachers/:schoolId', async (req, res) => {
   const { schoolId } = req.params;
   try {
-    const result = await pool.query(
-      'SELECT "first", "middle", "last", "position" FROM teachers_list WHERE "school.id" = $1',
-      [schoolId]
-    );
-
-    const mappedData = result.rows.map(t => {
-      let fName = '';
-      if (t.last) fName += t.last.toUpperCase();
-      if (t.first) {
-        if (fName) fName += ', ';
-        fName += t.first.toUpperCase();
-      }
-      if (t.middle) {
-        if (fName) fName += ' ';
-        fName += t.middle.toUpperCase().charAt(0) + '.';
-      }
-
-      return {
-        full_name: fName || 'UNKNOWN',
-        position: t.position || 'TBD'
-      };
-    });
-
-    res.json(mappedData);
+    // Removed teachers_list dependency
+    res.json([]);
   } catch (err) {
     console.error('❌ Error importing teachers:', err);
     res.status(500).json({ error: err.message });
@@ -4546,44 +4600,7 @@ app.post('/api/admin/run-fraud-detection', async (req, res) => {
 
 // --- HELPER: Auto-Fill Teachers from Master List ---
 const autoFillSchoolTeachers = async (schoolId) => {
-  try {
-    console.log(`🤖 [Auto-Fill] Filling Teachers for School: ${schoolId}...`);
-
-    // 1. Get the newly generated IERN from ph_schools
-    const schoolRes = await pool.query("SELECT iern FROM ph_schools WHERE school_id = $1", [schoolId]);
-    const schoolIern = schoolRes.rows.length > 0 ? schoolRes.rows[0].iern : null;
-
-    if (!schoolIern) {
-      console.warn(`⚠️ [Auto-Fill] No IERN found for school ${schoolId}. Proceeding with NULL IERN.`);
-    }
-
-    // 2. Insert from teachers_list using correct columns
-    const res = await pool.query(`
-        INSERT INTO teacher_specialization_details (
-            iern, control_num, school_id, full_name, position, position_group, 
-            specialization, teaching_load, created_at, updated_at
-        )
-        SELECT 
-            $2, 
-            "control_num", 
-            "school.id", 
-            TRIM(CONCAT("first", ' ', "middle", ' ', "last")), 
-            "position", 
-            "position_group", 
-            "specialization.final", 
-            0, 
-            NOW(), 
-            NOW()
-        FROM teachers_list 
-        WHERE "school.id" = $1
-        ON CONFLICT (control_num) DO NOTHING
-    `, [schoolId, schoolIern]);
-
-    console.log(`✅ [Auto-Fill] Success! Copied ${res.rowCount} teachers for school ${schoolId}.`);
-
-  } catch (err) {
-    console.error("❌ Auto-Fill Teachers Failed:", err.message);
-  }
+    // Removed teachers_list dependency
 };
 
 // --- TEACHER PERSONNEL ENDPOINTS ---
@@ -16367,8 +16384,7 @@ app.get('/api/monitoring/schools', async (req, res) => {
       sp.unit10_completed as school_head_validation,
       ss.data_health_description,
       ss.data_health_score,
-      ss.issues as data_quality_issues,
-      COALESCE(e.status, 'NOT_STARTED') as esf7_status
+      ss.issues as data_quality_issues
     `;
 
     // ADDED: Strip validation fields if role is RO/SDO (Optional param for now to avoid breaking existing users)
@@ -16384,7 +16400,6 @@ app.get('/api/monitoring/schools', async (req, res) => {
       LEFT JOIN ph_schools sp ON s."SchoolID" = sp.school_id
       LEFT JOIN ph_school_completion psc ON sp.iern = psc.iern
       LEFT JOIN school_summary ss ON s."SchoolID" = ss.school_id
-      LEFT JOIN (SELECT DISTINCT ON (school_id) school_id, status FROM esf7_database ORDER BY school_id, id DESC) e ON s."SchoolID" = e.school_id
       ${whereSql}
     `;
     console.log("DEBUG: Running Schools List Count for Region:", region, "Division:", division);
@@ -16398,7 +16413,6 @@ app.get('/api/monitoring/schools', async (req, res) => {
       LEFT JOIN ph_schools sp ON s."SchoolID" = sp.school_id
       LEFT JOIN ph_school_completion psc ON sp.iern = psc.iern
       LEFT JOIN school_summary ss ON s."SchoolID" = ss.school_id
-      LEFT JOIN (SELECT DISTINCT ON (school_id) school_id, status FROM esf7_database ORDER BY school_id, id DESC) e ON s."SchoolID" = e.school_id
       ${whereSql}
       ORDER BY COALESCE(psc.total_completion, sp.unit_completion, 0) DESC, s."School_Name" ASC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -18639,21 +18653,6 @@ app.get('/api/ph_schools/:schoolId', async (req, res) => {
     if (result.rows.length > 0) {
       let row = result.rows[0];
 
-      // --- DYNAMIC BASELINE FALLBACK ---
-      // If total_teachers_registered is 0, attempt a live count from master list
-      if (!row.total_teachers_registered || parseInt(row.total_teachers_registered) === 0) {
-        try {
-          const teacherCountRes = await pool.query('SELECT COUNT(*) FROM teachers_list WHERE CAST("school.id" AS TEXT) = $1', [schoolId]);
-          const liveCount = parseInt(teacherCountRes.rows[0].count) || 0;
-          if (liveCount > 0) {
-            row.total_teachers_registered = liveCount;
-            // Asyncly update the table so it persists
-            pool.query('UPDATE ph_schools SET total_teachers_registered = $1 WHERE school_id = $2', [liveCount, schoolId]).catch(() => { });
-          }
-        } catch (e) {
-          console.warn(`[GET /api/ph_schools] Baseline fallback failed for ${schoolId}:`, e.message);
-        }
-      }
       // --- END FALLBACK ---
 
       // --- OWNERSHIP DOCUMENT DETAILS ---
@@ -19533,20 +19532,6 @@ app.put('/api/ph_schools/unit5/:schoolId', async (req, res) => {
     // Ensure the row exists before updating, in case the user jumped straight to this unit
     await pool.query('INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (school_id) DO UPDATE SET iern = COALESCE(ph_schools.iern, EXCLUDED.iern)', [data.iern, schoolId]);
 
-    // --- START BASELINE CALCULATION ---
-    // Calculate teacher headcount from master list (teachers_list)
-    let totalRegistered = 0;
-    try {
-      const teacherCountRes = await pool.query('SELECT COUNT(*) FROM teachers_list WHERE CAST("school.id" AS TEXT) = $1', [schoolId]);
-      totalRegistered = parseInt(teacherCountRes.rows[0].count) || 0;
-
-      // Add total_teachers_registered to dynamic update
-      dynamicFields.push(`total_teachers_registered = $${paramIdx++}`);
-      values.push(totalRegistered);
-      console.log(`[Unit 5] Calculated Baseline Teachers for ${schoolId}: ${totalRegistered}`);
-    } catch (countErr) {
-      console.error("[Unit 5] Failed to calculate teacher baseline:", countErr.message);
-    }
     // --- END BASELINE CALCULATION ---
 
     values.push(schoolId);

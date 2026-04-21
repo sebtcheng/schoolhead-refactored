@@ -37,14 +37,16 @@ const NodesDashboard = () => {
             if (schoolId) {
                 try {
                     const res = await fetch(`/api/ph_schools/progress/${schoolId}`);
+                    if (res.ok) {
                         const data = await res.json();
                         if (data.success) {
                             setQuestProgress({
                                 ...data.progress,
-                                schoolId: schoolId // Store the ID we used for the fetch
+                                schoolId: schoolId
                             });
                         }
-
+                    }
+ 
                     // Fetch ESF7 Status
                     const esf7Res = await fetch(`/api/esf7/status/${schoolId}`);
                     if (esf7Res.ok) {
@@ -52,7 +54,6 @@ const NodesDashboard = () => {
                         if (esf7Data.success) setEsf7Status(esf7Data.status);
                     }
 
-                    // Fetch Dynamic Module Locks
                     const locksRes = await fetch('/api/settings/nexus_module_locks');
                     if (locksRes.ok) {
                         const locksData = await locksRes.json();
@@ -127,7 +128,7 @@ const NodesDashboard = () => {
             color: 'from-blue-500 to-blue-700',
             textColor: 'text-blue-600',
             bgLight: 'bg-blue-50',
-            progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+            progress: calculateProgress([1, 2, 3, 4, 5, 6, 8, 9]),
             route: '/my-activity',
             description: 'CLOUD will look into getting to know more about a school.',
             isLocked: dynamicLocks['school-info'] || false,
@@ -138,10 +139,10 @@ const NodesDashboard = () => {
             subtitle: 'Teacher workload',
             emoji: '🛡️',
             icon: <TbReportAnalytics className="w-8 h-8" />,
-            color: esf7Status === 'VERIFIED' ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-indigo-700',
-            textColor: esf7Status === 'VERIFIED' ? 'text-emerald-600' : 'text-indigo-600',
-            bgLight: esf7Status === 'VERIFIED' ? 'bg-emerald-50' : 'bg-indigo-50',
-            progress: esf7Status === 'VERIFIED' ? 100 : (esf7Status === 'DRAFT' || esf7Status === 'PENDING_SDO' ? 50 : 0),
+            color: esf7Status === 'VERIFIED' ? 'from-emerald-500 to-teal-600' : 'from-[#10346B] to-blue-800',
+            textColor: esf7Status === 'VERIFIED' ? 'text-emerald-600' : 'text-[#10346B]',
+            bgLight: esf7Status === 'VERIFIED' ? 'bg-emerald-50' : 'bg-blue-50',
+            progress: esf7Status === 'VERIFIED' ? 100 : (['PENDING_SDO', 'QUEUED', 'HARVESTING', 'ERROR'].includes(esf7Status) ? 50 : 0),
             route: '/draft/esf7',
             badge: esf7Status === 'VERIFIED' ? 'VERIFIED' : (esf7Status === 'NOT_STARTED' ? 'BETA' : 'STAGED'),
             description: 'eSF7 will know about teacher and staff loading.',
@@ -177,7 +178,10 @@ const NodesDashboard = () => {
 
     return (
         <PageTransition>
-            <div className="min-h-screen bg-white pb-32 font-sans text-slate-900 overflow-y-auto">
+            <div className="min-h-screen bg-[#fafbff] pb-32 font-sans text-slate-900 overflow-y-auto relative overflow-hidden">
+                {/* Decorative Background Glows */}
+                <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[140px] -mr-80 -mt-80 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-100/20 rounded-full blur-[120px] -ml-64 -mb-64 pointer-events-none" />
                 
                 <div className="px-8 pt-12 pb-10 flex justify-between items-start">
                     <div className="flex flex-col">
@@ -200,7 +204,7 @@ const NodesDashboard = () => {
                 {/* --- 2X2 GRID MATCHING REFERENCE --- */}
                 <div className="px-6 grid grid-cols-1 gap-6">
                     {modules.map((mod, idx) => {
-                        const isPrimary = mod.id === 'esf7' && esf7Status !== 'VERIFIED';
+                        const isPrimary = mod.id === 'esf7';
                         return (
                             <motion.div
                                 key={mod.id}

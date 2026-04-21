@@ -540,14 +540,6 @@ const MonitoringDashboard = () => {
 
             </div>
 
-            <TopStatCard 
-                title="ESF7 Review Center" 
-                value={stats.esf7Submissions.toLocaleString()} 
-                icon={TbReportAnalytics} 
-                color="bg-indigo-600" 
-                subtext="System Active"
-                onClick={() => navigate('/esf7/review')}
-            />
             <motion.button
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -716,15 +708,6 @@ const MonitoringDashboard = () => {
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter mb-2 flex items-center gap-1">
                           <FiActivity size={9} />
                           {school.school_id} • {school.district || 'District N/A'}
-                          {school.esf7_status && school.esf7_status !== 'NOT_STARTED' && (
-                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter uppercase ${
-                              school.esf7_status === 'VERIFIED' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100' :
-                              school.esf7_status === 'REJECTED' ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100' :
-                              'bg-amber-50 dark:bg-amber-900/20 text-amber-600 border border-amber-100'
-                            }`}>
-                              ESF7: {school.esf7_status.replace('_', ' ')}
-                            </span>
-                          )}
                         </p>
 
                         {/* Mobile Progress Bar (Visible ONLY on mobile) */}

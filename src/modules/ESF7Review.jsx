@@ -143,6 +143,25 @@ const ESF7Review = () => {
         setActionLoading(false);
     };
 
+    const handleApproveResubmission = async () => {
+        if (!window.confirm("UNSEAL MODULE? This will DELETE current database records and allow the school to resubmit. Action is irreversible.")) return;
+        setActionLoading(true);
+        try {
+            const res = await fetch('/api/esf7/approve-resubmission', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ school_id: selectedSchool })
+            });
+            const data = await res.json();
+            if (data.success) {
+                await fetchStats();
+                await fetchSchools();
+                setSelectedSchool(null);
+            }
+        } catch (err) { console.error(err); }
+        setActionLoading(false);
+    };
+
     if (!user || (loading && !allSchools.length)) {
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
@@ -299,6 +318,36 @@ const ESF7Review = () => {
                                         </div>
 
                                         <div className="space-y-4">
+                                            {schoolDetail?.submitted_at && (
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 shadow-sm transition-transform group-hover:scale-110">
+                                                        <FiArrowLeft className="rotate-180" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1 text-xs">Submission Log</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-[10px] font-bold text-slate-700 uppercase italic leading-none">{new Date(schoolDetail.submitted_at).toLocaleString()}</p>
+                                                            <span className="w-1 h-1 bg-blue-400 rounded-full animate-pulse" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {schoolDetail?.approved_at && (
+                                                <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/50 flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-emerald-500 shadow-sm transition-transform group-hover:scale-110">
+                                                        <FiCheckCircle />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-emerald-600/60 uppercase tracking-widest leading-none mb-1 text-xs">Verification Log</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-[10px] font-bold text-emerald-700 uppercase italic leading-none">{new Date(schoolDetail.approved_at).toLocaleString()}</p>
+                                                            <FiShield className="text-emerald-400 w-3 h-3" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2">
                                                 <div className="flex items-center gap-2 text-blue-600">
                                                     <FiClock className="w-4 h-4" />
@@ -326,6 +375,17 @@ const ESF7Review = () => {
                                             >
                                                 Reject Submission
                                             </button>
+
+                                            {(schoolDetail?.status === 'VERIFIED' || schoolDetail?.status === 'PENDING_RESUBMISSION') && (
+                                                <button 
+                                                    onClick={handleApproveResubmission} 
+                                                    disabled={actionLoading} 
+                                                    className="w-full py-5 bg-amber-500 text-white font-black rounded-3xl uppercase text-[10px] tracking-widest hover:bg-amber-600 transition-all shadow-xl shadow-amber-500/20 italic mt-6"
+                                                >
+                                                    {actionLoading ? <FiLoader className="animate-spin" /> : <FiShield />}
+                                                    Unlock for Resubmission
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

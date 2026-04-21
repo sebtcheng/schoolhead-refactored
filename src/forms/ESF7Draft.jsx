@@ -10,7 +10,8 @@ import {
     FiCopy,
     FiShield,
     FiExternalLink,
-    FiDatabase
+    FiDatabase,
+    FiClock
 } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import PageTransition from '../components/PageTransition';
@@ -57,6 +58,11 @@ const ESF7Draft = () => {
     const [statusData, setStatusData] = useState(null); // { status, uploaded_at, row_count, link }
     const [isLoadingStatus, setIsLoadingStatus] = useState(true);
     const [copied, setCopied] = useState(false);
+    const [personnelData, setPersonnelData] = useState([]);
+    const [isFetchingData, setIsFetchingData] = useState(false);
+    const [verifySearchTerm, setVerifySearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     useEffect(() => {
         if (user?.school_id) fetchStatus();
@@ -67,11 +73,27 @@ const ESF7Draft = () => {
         try {
             const res = await fetch(`/api/esf7/link-status/${user.school_id}`);
             const data = await res.json();
-            if (data.success) setStatusData(data.data);
+            if (data.success) {
+                setStatusData(data.data);
+                if (data.data.status === 'VERIFIED') fetchPersonnelData();
+            }
         } catch (err) {
             console.error("Status check failed:", err);
         } finally {
             setIsLoadingStatus(false);
+        }
+    };
+
+    const fetchPersonnelData = async () => {
+        setIsFetchingData(true);
+        try {
+            const res = await fetch(`/api/esf7/data/${user.school_id}`);
+            const data = await res.json();
+            if (data.success) setPersonnelData(data.data);
+        } catch (err) {
+            console.error("Data fetch failed:", err);
+        } finally {
+            setIsFetchingData(false);
         }
     };
 
@@ -139,7 +161,31 @@ const ESF7Draft = () => {
         }
     };
 
-    const isLocked = statusData && ['PENDING_SDO', 'QUEUED', 'VERIFIED'].includes(statusData.status);
+    const handleSubmitRequest = async () => {
+        if (!window.confirm("Are you sure you want to request a resubmission? This will be reviewed by the SDO.")) return;
+        setIsSubmitting(true);
+        try {
+            const res = await fetch('/api/esf7/request-resubmission', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ school_id: user.school_id })
+            });
+            if (res.ok) {
+                await fetchStatus();
+            } else {
+                const data = await res.json();
+                throw new Error(data.error || "Request failed.");
+            }
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const isLocked = statusData && ['PENDING_SDO', 'QUEUED', 'HARVESTING', 'VERIFIED', 'PENDING_RESUBMISSION'].includes(statusData.status);
+    const isVerified = statusData && statusData.status === 'VERIFIED';
+    const isPendingResubmission = statusData && statusData.status === 'PENDING_RESUBMISSION';
 
     return (
         <PageTransition>
@@ -150,23 +196,30 @@ const ESF7Draft = () => {
                 {isSubmitting && <SubmissionLoader message="Finalizing Submission..." />}
             </AnimatePresence>
 
-            <div className="min-h-screen bg-slate-50 pb-24 font-sans">
+            <div className="min-h-screen bg-[#fafbff] pb-24 font-sans relative overflow-hidden">
+                {/* Decorative Background Elements */}
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-100/30 rounded-full blur-[120px] -mr-64 -mt-64" />
+                <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-100/20 rounded-full blur-[100px] -ml-48 -mb-48" />
+
                 {/* --- HEADER --- */}
-                <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+                <header className="bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-6 py-5 flex items-center justify-between sticky top-0 z-50 shadow-sm">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => navigate('/nodes-dashboard')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                            <FiArrowLeft className="w-6 h-6 text-slate-600" />
+                        <button onClick={() => navigate('/nodes-dashboard')} className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-2xl transition-all shadow-sm active:scale-95">
+                            <FiArrowLeft className="w-5 h-5 text-slate-600" />
                         </button>
                         <div>
                             <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">ESF7 Connection Hub</h1>
-                            <p className="text-[10px] font-bold text-blue-500 mt-1 uppercase tracking-widest italic">National Scale Ingestion</p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest italic">National Scale Ingestion</p>
+                            </div>
                         </div>
                     </div>
                 </header>
 
                 <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
-                    {/* --- CASE 1: MODULE LOCKED --- */}
-                    {isLocked && (
+                    {/* --- CASE 1: MODULE LOCKED (IN-PROGRESS) --- */}
+                    {(isLocked && !isVerified && !isPendingResubmission) && (
                         <motion.div 
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -185,7 +238,7 @@ const ESF7Draft = () => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Personnel Count</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Registry Depth</p>
                                         <p className="text-3xl font-black text-slate-800 tracking-tighter">{statusData.row_count || 0}</p>
                                     </div>
                                 </div>
@@ -210,6 +263,177 @@ const ESF7Draft = () => {
                                         View submitted link <FiExternalLink className="inline ml-1" />
                                     </button>
                                 </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* --- CASE 3: VERIFIED RECORDS VIEW --- */}
+                    {isVerified && (
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between px-2">
+                                <div className="space-y-1">
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">Verified Personnel</h2>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Syncing Live with ESF7 Database</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                    <div className="bg-emerald-50 px-5 py-2.5 rounded-2xl border border-emerald-100 flex items-center gap-2">
+                                        <FiShield className="text-emerald-500" />
+                                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none">Status: VERIFIED</span>
+                                    </div>
+                                    <button 
+                                        onClick={handleSubmitRequest}
+                                        disabled={isSubmitting}
+                                        className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest underline decoration-slate-200 underline-offset-4 transition-all"
+                                    >
+                                        {isSubmitting ? "Requesting..." : "Request Resubmission"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Policy Note */}
+                            <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100/50 flex items-start gap-4 mx-2">
+                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-500 shadow-sm shrink-0">
+                                    <FiClock />
+                                </div>
+                                <div className="space-y-1">
+                                    <h4 className="text-[10px] font-black text-blue-900 uppercase tracking-widest">Resubmission Policy</h4>
+                                    <p className="text-[10px] font-bold text-blue-700/70 leading-relaxed uppercase italic">
+                                        NOTE: Resubmission will only be accommodated during the last week of the submission deadline.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="relative">
+                                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search Personnel Registry..." 
+                                    className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-100 rounded-3xl text-sm font-bold focus:border-emerald-400 transition-all outline-none shadow-sm"
+                                    value={verifySearchTerm}
+                                    onChange={(e) => {
+                                        setVerifySearchTerm(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                />
+                            </div>
+
+                            <div className="bg-white border-2 border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/40">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-900 text-white">
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest italic">Personnel Name</th>
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest italic">Position</th>
+                                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest italic text-right">Appointment</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {isFetchingData ? (
+                                                <tr>
+                                                    <td colSpan="3" className="px-6 py-20 text-center">
+                                                        <FiLoader className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-4" />
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Streaming registry data...</p>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                (() => {
+                                                    const filtered = personnelData.filter(p => 
+                                                        `${p.first} ${p.last}`.toLowerCase().includes(verifySearchTerm.toLowerCase()) ||
+                                                        p.position?.toLowerCase().includes(verifySearchTerm.toLowerCase())
+                                                    );
+                                                    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+                                                    const currentItems = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                                                    return (
+                                                        <>
+                                                            {currentItems.map((person, idx) => (
+                                                                <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
+                                                                    <td className="px-6 py-5">
+                                                                        <p className="text-[11px] font-black text-slate-800 uppercase italic tracking-tight">{person.first} {person.last}</p>
+                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{person.gender || 'N/A'}</p>
+                                                                    </td>
+                                                                    <td className="px-6 py-5">
+                                                                        <p className="text-[10px] font-bold text-slate-600 uppercase leading-snug">{person.position}</p>
+                                                                        <p className="text-[8px] font-black text-blue-500 uppercase tracking-tighter mt-1">{person.fund_source}</p>
+                                                                    </td>
+                                                                    <td className="px-6 py-5 text-right">
+                                                                        <p className="text-[10px] font-black text-slate-700 uppercase italic">{person.appt_mm && person.appt_yyyy ? `${person.appt_mm}/${person.appt_yyyy}` : 'N/A'}</p>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                            {/* Paging Footer */}
+                                                            {totalPages > 1 && (
+                                                                <tr>
+                                                                    <td colSpan="3" className="px-6 py-4 bg-slate-50/50">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                                Page {currentPage} of {totalPages}
+                                                                            </p>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button 
+                                                                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                                                    disabled={currentPage === 1}
+                                                                                    className="p-2 bg-white border border-slate-200 rounded-xl disabled:opacity-30 transition-all active:scale-90"
+                                                                                >
+                                                                                    <FiArrowLeft className="w-4 h-4" />
+                                                                                </button>
+                                                                                <button 
+                                                                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                                                    disabled={currentPage === totalPages}
+                                                                                    className="p-2 bg-white border border-slate-200 rounded-xl disabled:opacity-30 transition-all active:scale-90"
+                                                                                >
+                                                                                    <FiArrowLeft className="w-4 h-4 rotate-180" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {!isFetchingData && personnelData.length === 0 && (
+                                    <div className="py-20 text-center uppercase tracking-[0.2em] font-black text-slate-300 text-[10px] italic">
+                                        No personnel matched your search criteria
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- CASE 4: PENDING RESUBMISSION --- */}
+                    {isPendingResubmission && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/40 relative overflow-hidden text-center space-y-6"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -mr-10 -mt-10 blur-3xl opacity-50" />
+                            <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center text-amber-500 mx-auto shadow-sm">
+                                <FiClock size={32} />
+                            </div>
+                            <div className="space-y-2">
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Request is Pending</h3>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Waiting for SDO Audit Review</p>
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-500 uppercase leading-relaxed max-w-sm mx-auto">
+                                You have requested to unseal your ESF7 registry for correction. 
+                                The SDO will review your request during the final week of the deadline.
+                            </p>
+                            <div className="pt-6 border-t border-slate-50">
+                                <button 
+                                    onClick={() => navigate('/nodes-dashboard')}
+                                    className="px-8 py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-slate-900/10 hover:scale-105 transition-all italic"
+                                >
+                                    Return to Nexus
+                                </button>
                             </div>
                         </motion.div>
                     )}
