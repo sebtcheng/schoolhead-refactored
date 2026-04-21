@@ -36,9 +36,10 @@ def get_extension(mime_type):
 def main():
     parser = argparse.ArgumentParser(description='Extract Engineer Images from Database')
     default_output = os.path.join(os.path.expanduser("~"), "Desktop", "insighted_engr_photos")
-    parser.add_argument('--limit', type=int, help='Limit number of images to extract')
+    parser.add_argument('--limit', type=int, default=50, help='Limit number of images to extract (default: 50)')
     parser.add_argument('--ipc', type=str, help='Filter by IPC')
     parser.add_argument('--output', type=str, default=default_output, help='Output directory')
+    parser.add_argument('--all', action='store_true', help='Extract ALL images (bypasses limit)')
     args = parser.parse_args()
 
     load_dotenv()
@@ -55,7 +56,11 @@ def main():
 
     try:
         conn = psycopg2.connect(db_url)
-        cur = conn.cursor()
+        # Use a named cursor (server-side cursor) to avoid loading all results into memory
+        cur = conn.cursor('image_extract_cursor')
+        
+        # Check total count first if no limit is specified or if requested
+        count_cur = conn.cursor()
 
         query = """
             SELECT 
@@ -76,16 +81,34 @@ def main():
         
         query += " ORDER BY ei.created_at DESC"
         
-        if args.limit:
+        # Apply limit unless --all is specified
+        limit_to_use = args.limit
+        if args.all:
+            print("⚠️ WARNING: Extracting ALL images. This may stress the database.")
+            limit_to_use = None
+        
+        if limit_to_use:
             query += " LIMIT %s"
-            params.append(args.limit)
+            params.append(limit_to_use)
 
-        print("Executing query...")
+        print(f"Executing query (Limit: {limit_to_use if limit_to_use else 'NONE'})...")
+        
+        # Fetch count for progress bar
+        count_query = f"SELECT COUNT(*) FROM ({query}) AS sub"
+        count_cur.execute(count_query, params)
+        total_rows = count_cur.fetchone()[0]
+        count_cur.close()
+        
+        print(f"Found {total_rows} images to extract.")
+
         cur.execute(query, params)
-        rows = cur.fetchall()
-        print(f"Found {len(rows)} images to extract.")
-
-        for i, row in enumerate(rows):
+        
+        # Process rows one by one
+        i = 0
+        while True:
+            row = cur.fetchone()
+            if not row:
+                break
             image_id, project_id, ipc, content, mime_type = row
             
             clean_ipc = sanitize_filename(ipc)
@@ -98,14 +121,15 @@ def main():
             
             # Progress Monitoring (Eye of Horus Protocol)
             count = i + 1
-            total = len(rows)
-            percent = (count / total) * 100
+            total = total_rows
+            percent = (count / total) * 100 if total > 0 else 0
             bar_length = 30
-            filled_length = int(bar_length * count // total)
+            filled_length = int(bar_length * count // total) if total > 0 else 0
             bar = '█' * filled_length + '-' * (bar_length - filled_length)
             
             sys.stdout.write(f"\r[{bar}] {percent:>.1f}% ({count}/{total}) | Latest: {filename[:40]}...")
             sys.stdout.flush()
+            i += 1
 
         conn.close()
         print(f"\n\n✅ Extraction complete! Files saved to: {output_dir}")

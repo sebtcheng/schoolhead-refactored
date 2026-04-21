@@ -15228,12 +15228,12 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
         COUNT(s."SchoolID") as total_schools,
         COUNT(sp.school_id) as registered_schools,
         COALESCE(SUM(CASE WHEN sp.unit_completion >= 100 THEN 1 ELSE 0 END), 0) as unit_completed,
-        COALESCE(COUNT(DISTINCT e.school_id) FILTER (WHERE e.status = 'VERIFIED' OR e.status = 'PENDING_SDO'), 0) as esf7_completed,
+        -- ESF7 dependency removed to restore connection
+        0 as esf7_completed,
         -- NSPP placeholder (0 for now as module is coming soon)
         0 as nspp_completed
       FROM "schools_IERN" s
       LEFT JOIN ph_schools sp ON s."SchoolID" = sp.school_id
-      LEFT JOIN esf7_database e ON s."SchoolID" = e.school_id
       ${filterClause}
       GROUP BY ${selectGroup} ${extraSelect}
       HAVING ${selectGroup} IS NOT NULL AND ${selectGroup} <> ''
@@ -15252,7 +15252,6 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
       total_schools: 0,
       registered_schools: 0,
       unit_completed: 0,
-      esf7_completed: 0,
       nspp_completed: 0
     };
 
@@ -15260,7 +15259,6 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
       totals.total_schools += parseInt(row.total_schools);
       totals.registered_schools += parseInt(row.registered_schools);
       totals.unit_completed += parseInt(row.unit_completed);
-      totals.esf7_completed += parseInt(row.esf7_completed);
     });
 
     res.json({
@@ -15270,7 +15268,6 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
         total_schools: parseInt(r.total_schools),
         registered_schools: parseInt(r.registered_schools),
         unit_completed: parseInt(r.unit_completed),
-        esf7_completed: parseInt(r.esf7_completed),
         progress: r.total_schools > 0 ? Math.round((parseInt(r.unit_completed) / parseInt(r.total_schools)) * 100) : 0
       }))
     });
@@ -16526,7 +16523,8 @@ app.get('/api/monitoring/schools', async (req, res) => {
       sp.unit10_completed as school_head_validation,
       ss.data_health_description,
       ss.data_health_score,
-      ss.issues as data_quality_issues
+      ss.issues as data_quality_issues,
+      COALESCE(sp.unit7_status, 'NOT_STARTED') as esf7_status
     `;
 
     // ADDED: Strip validation fields if role is RO/SDO (Optional param for now to avoid breaking existing users)
@@ -21362,10 +21360,11 @@ const startServer = async () => {
             // Initialize and start pg-boss
             console.log("💼 [JobQueue] Starting pg-boss instance...");
             await boss.start();
-            await boss.createQueue('esf7-approve').catch(() => {});
+            // ESF7 scaling disabled to restore stability
+            // await boss.createQueue('esf7-approve').catch(() => {});
             await boss.createQueue('activity-log').catch(() => {});
             await boss.createQueue('log-cleanup').catch(() => {});
-            await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
+            // await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
             await boss.work('activity-log', { concurrency: 10 }, handleActivityLogJob);
             await boss.work('log-cleanup', handleLogCleanupJob);
 
@@ -21536,70 +21535,11 @@ async function handleLogCleanupJob() {
   }
 }
 
+/*
 async function handleEsf7ApproveJob(job) {
-  const { school_id } = job.data;
-  console.log(`[Worker] Starting ESF7 Approval for school: ${school_id}`);
-  
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-    
-    // 1. Verify staging records exist
-    const checkRes = await client.query('SELECT 1 FROM ESF7_Staging WHERE school_id = $1 LIMIT 1', [school_id]);
-    if (checkRes.rows.length === 0) {
-      throw new Error("No staged records found for this school.");
-    }
-
-    // 2. Clear existing entries in final DB
-    await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
-
-    // 3. Migrate from Staging to Database using column discovery
-    const columnsRes = await client.query(`
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'esf7_database' 
-        AND column_name NOT IN ('id', 'id_serial', 'created_at', 'status', 'approved_at')
-    `);
-    const cols = columnsRes.rows.map(r => `"${r.column_name}"`).join(', ');
-    const approvedAt = new Date().toISOString();
-
-    await client.query(`
-        INSERT INTO ESF7_Database (${cols}, status, approved_at)
-        SELECT ${cols}, 'VERIFIED', $1 FROM ESF7_Staging WHERE school_id = $2
-    `, [approvedAt, school_id]);
-
-    // 4. Update status and delete staging
-    await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
-
-    await client.query(`
-        UPDATE ph_schools 
-        SET unit7_completed = TRUE, 
-            unit7 = 1, 
-            unit7_status = 'VERIFIED',
-            approved_at = $1,
-            updated_at = CURRENT_TIMESTAMP 
-        WHERE school_id = $2
-    `, [approvedAt, school_id]);
-
-    await client.query('COMMIT');
-    
-    const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-    if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
-
-    console.log(`[Worker] ✅ ESF7 Successfully processed for school ${school_id}`);
-    
-  } catch (err) {
-    if (client) await client.query('ROLLBACK');
-    console.error(`[Worker] ❌ ESF7 Approval Job Failed for ${school_id}:`, err);
-    
-    // Update school status back to ERROR or staged to allow retry
-    await pool.query("UPDATE ph_schools SET unit7_status = 'ERROR', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-    
-    throw err; // Bubbling to let pg-boss handle internal retry if configured
-  } finally {
-    if (client) client.release();
-  }
+  // Worker disabled
 }
+*/
 
 
 // --- AUDIT FEEDBACK ENDPOINTS (New Table: audit_feedback_tasks) ---

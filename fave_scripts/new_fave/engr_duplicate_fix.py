@@ -58,25 +58,27 @@ def fix_duplicates():
         cur.execute("""
             CREATE TEMP TABLE clone_map AS
             WITH ipc_ranks AS (
-                 SELECT 
+                 SELECT
                     ipc,
                     FIRST_VALUE(ipc) OVER (
-                        PARTITION BY 
-                            school_id, 
-                            funding_year, 
-                            (CASE WHEN project_category_id = '10' THEN '00' ELSE project_category_id END), -- Group unknown with specific
+                        PARTITION BY
+                            school_id,
+                            funding_year,
+                            (CASE WHEN project_category_id = '10' THEN '00' ELSE project_category_id END),
                             ROUND(COALESCE(approved_budget_for_contract, 0) / 100) * 100
-                        ORDER BY 
-                            (CASE WHEN project_category_id != '10' THEN 1 ELSE 0 END) DESC, -- Prefer specific category
-                            accomplishment_percentage DESC, 
+                        ORDER BY
+                            (CASE WHEN project_category_id != '10' THEN 1 ELSE 0 END) DESC,
+                            accomplishment_percentage DESC,
                             project_id DESC
                     ) as survivor_ipc
                 FROM engineer_form
                 WHERE school_id IS NOT NULL AND funding_year IS NOT NULL
-            )
-            SELECT e.project_id
+            ),
+            ranked AS (SELECT DISTINCT ipc, survivor_ipc FROM ipc_ranks)
+            SELECT e.project_id, survivor.project_id AS survivor_project_id
             FROM engineer_form e
-            JOIN (SELECT DISTINCT ipc, survivor_ipc FROM ipc_ranks) r ON e.ipc = r.ipc
+            JOIN ranked r ON e.ipc = r.ipc
+            JOIN engineer_form survivor ON survivor.ipc = r.survivor_ipc
             WHERE e.ipc != r.survivor_ipc;
         """)
         
@@ -113,19 +115,20 @@ def fix_duplicates():
             return
 
         print(f"\n[Phase 4] Executing archival of {total_orphans} records...")
-        
+
         # Get column list for safe INSERT
         cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'engineer_form' ORDER BY ordinal_position")
         columns = [f'"{r[0]}"' for r in cur.fetchall()]
         col_list = ", ".join(columns)
         ef_col_list = ", ".join([f'ef.{c}' for c in columns])
 
-        # Composite map of all orphans
+        # Composite map of orphan → survivor project_id
+        # ghost_map entries have no survivor to re-link to, so survivor_project_id is NULL
         cur.execute("""
             CREATE TEMP TABLE final_orphan_map AS
-            SELECT project_id FROM clone_map
-            UNION
-            SELECT project_id FROM ghost_map;
+            SELECT project_id, survivor_project_id FROM clone_map
+            UNION ALL
+            SELECT project_id, NULL AS survivor_project_id FROM ghost_map;
         """)
 
         # Transactional Archive
@@ -136,6 +139,22 @@ def fix_duplicates():
             FROM engineer_form ef
             JOIN final_orphan_map fom ON ef.project_id = fom.project_id;
         """)
+
+        # Re-associate images from orphan projects to their survivors so the FK cascade
+        # has nothing to delete when we remove the orphan engineer_form rows.
+        # Images from ghost projects (no survivor) are left orphaned in engineer_image
+        # with their project_id intact — they won't cascade-delete because the FK
+        # is satisfied until the row is deleted; we need the row gone first to find them.
+        # Instead we null-guard: only re-link where a survivor exists.
+        print(" - Re-linking engineer_image rows to survivor projects (bypasses DocLock cascade)...")
+        cur.execute("""
+            UPDATE engineer_image ei
+            SET project_id = fom.survivor_project_id
+            FROM final_orphan_map fom
+            WHERE ei.project_id = fom.project_id
+              AND fom.survivor_project_id IS NOT NULL;
+        """)
+        print(f"   {cur.rowcount} image record(s) re-linked.")
 
         print(" - Purging orphans from engineer_form...")
         cur.execute("DELETE FROM engineer_form WHERE project_id IN (SELECT project_id FROM final_orphan_map)")
