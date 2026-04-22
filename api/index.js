@@ -6,6 +6,7 @@ console.log("📌 >>> RUNNING: [ROOT]/api/index.js <<< 📌");
 import { google } from 'googleapis';
 // Force restart to pick up .env changes - Robust Login Fix v1
 import pg from 'pg';
+import QueryStream from 'pg-query-stream';
 import cors from 'cors';
 // import cron from 'node-cron'; // REMOVED for Vercel
 // --- LEGACY FIREBASE (DISABLED) ---
@@ -348,9 +349,10 @@ const pool = new Pool({
   connectionString: dbUrl,
   ssl: isLocal ? false : { rejectUnauthorized: false },
   max: 100,   // Unrestricted throughput following PgBouncer-to-Azure fix
-  min: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 15000, 
+  min: 10,
+  idleTimeoutMillis: 15000,
+  connectionTimeoutMillis: 10000, 
+  maxUses: 7500,
   application_name: 'InsightEd_API_Cluster'
 });
 
@@ -622,43 +624,52 @@ app.use(express.urlencoded({ limit: '500mb', extended: true }));
 // Initialize ESF7 Link Registry if not exists
 const initESF7Tables = async () => {
     try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS esf7_link (
-                school_id TEXT PRIMARY KEY,
-                link TEXT NOT NULL,
-                row_count INTEGER,
-                preview_data JSONB,
-                summary JSONB,
-                status TEXT DEFAULT 'PENDING_SDO',
-                uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            );
-            ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS summary JSONB;
-            ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS audit_remarks TEXT;
-            CREATE TABLE IF NOT EXISTS ESF7_Database (
-                id SERIAL PRIMARY KEY,
-                school_id TEXT,
-                data JSONB,
-                status TEXT,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            );
-            ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS data JSONB;
-            
-            CREATE TABLE IF NOT EXISTS ESF7_Staging (
-                id SERIAL PRIMARY KEY,
-                school_id TEXT,
-                data JSONB,
-                status TEXT,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            );
-            ALTER TABLE ESF7_Staging ADD COLUMN IF NOT EXISTS data JSONB;
-        `);
-        console.log("✅ ESF7 link/database tables verified.");
+        const lockRes = await pool.query('SELECT pg_try_advisory_lock(5555555) as lock_granted');
+        if (!lockRes.rows[0].lock_granted) {
+            console.log("⚠️ [ESF7-Init] Tables already being initialized by another worker.");
+            return;
+        }
+
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS esf7_link (
+                    school_id TEXT PRIMARY KEY,
+                    link TEXT NOT NULL,
+                    row_count INTEGER,
+                    preview_data JSONB,
+                    summary JSONB,
+                    status TEXT DEFAULT 'PENDING_SDO',
+                    uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS summary JSONB;
+                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS audit_remarks TEXT;
+                CREATE TABLE IF NOT EXISTS ESF7_Database (
+                    id SERIAL PRIMARY KEY,
+                    school_id TEXT,
+                    data JSONB,
+                    status TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS data JSONB;
+                
+                CREATE TABLE IF NOT EXISTS ESF7_Staging (
+                    id SERIAL PRIMARY KEY,
+                    school_id TEXT,
+                    data JSONB,
+                    status TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE ESF7_Staging ADD COLUMN IF NOT EXISTS data JSONB;
+            `);
+            console.log("✅ ESF7 link/database tables verified.");
+        } finally {
+            await pool.query('SELECT pg_advisory_unlock(5555555)');
+        }
     } catch (err) {
         console.error("❌ Failed to init ESF7 tables:", err.message);
     }
 };
-initESF7Tables();
 
 app.get('/api/esf7/heartbeat', (req, res) => res.json({ status: 'alive' }));
 
@@ -3293,16 +3304,39 @@ app.post('/api/auth/migrate-login', async (req, res) => {
       ? `SELECT ${SELECT_COLS} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
       : `SELECT ${SELECT_COLS} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
-    console.log(`[DEBUG LOGIN] Query prepared. Waiting for pool...`);
-    const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
-    console.log(`[DEBUG LOGIN] Query completed! Rows found: ${userRes.rowCount}`);
+    const processUserRes = (resObj) => {
+      if (resObj.rowCount === 0) {
+        console.warn(`[MIGRATE LOGIN] User not found: ${identifier}`);
+        return null;
+      }
+      return resObj.rows[0];
+    };
 
-    if (userRes.rowCount === 0) {
-      console.warn(`[MIGRATE LOGIN] User not found: ${identifier}`);
-      return res.status(401).json({ success: false, error: "Username does not exist. Kindly register first." });
+    let user;
+    try {
+      console.log(`[DEBUG LOGIN] Query prepared. Waiting for pool...`);
+      const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      console.log(`[DEBUG LOGIN] Query completed! Rows found: ${userRes.rowCount}`);
+      user = processUserRes(userRes);
+    } catch (err) {
+      console.error(`💥 [MIGRATE LOGIN] DB Error for ${identifier}:`, err.message);
+      if (err.message.includes('terminated unexpectedly')) {
+        console.warn(`♻️ [RECOVERY] Attempting immediate retry for terminated connection...`);
+        try {
+          const retryRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+          user = processUserRes(retryRes);
+        } catch (retryErr) {
+          console.error(`💥 [RECOVERY FAILED]:`, retryErr.message);
+          throw err;
+        }
+      } else {
+        throw err;
+      }
     }
 
-    const user = userRes.rows[0];
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Username does not exist. Kindly register first." });
+    }
 
     // 2. Determine which hash algorithm to check against
     let isValid = false;
@@ -13231,35 +13265,65 @@ app.get('/api/asset/:id', async (req, res) => {
         return res.status(400).json({ error: 'Invalid asset ID' });
     }
     try {
-        const result = await pool.query(
-            'SELECT content, mime_type FROM unified_binaries WHERE id = $1',
-            [id]
-        );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Asset not found' });
-        }
-        const { content, mime_type } = result.rows[0];
+        const client = await pool.connect();
+        let stream;
+        try {
+            const query = new QueryStream(
+                'SELECT content, mime_type FROM unified_binaries WHERE id = $1',
+                [id]
+            );
+            stream = client.query(query);
 
-        const isDownload = req.query.download === '1';
-        const ext = mime_type === 'application/pdf' ? '.pdf'
-                  : mime_type === 'image/webp'       ? '.webp'
-                  : mime_type === 'image/jpeg'        ? '.jpg'
-                  : mime_type === 'image/png'         ? '.png'
-                  : '';
-        const filename = `document${ext}`;
+            let headersSet = false;
 
-        res.setHeader('Content-Type', mime_type);
-        res.setHeader(
-            'Content-Disposition',
-            isDownload ? `attachment; filename="${filename}"` : `inline; filename="${filename}"`
-        );
-        if (!isDownload) {
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            stream.on('data', (row) => {
+                if (!headersSet) {
+                    const { mime_type } = row;
+                    const isDownload = req.query.download === '1';
+                    const ext = mime_type === 'application/pdf' ? '.pdf'
+                              : mime_type === 'image/webp'       ? '.webp'
+                              : mime_type === 'image/jpeg'        ? '.jpg'
+                              : mime_type === 'image/png'         ? '.png'
+                              : '';
+                    const filename = `document${ext}`;
+
+                    res.setHeader('Content-Type', mime_type);
+                    res.setHeader(
+                        'Content-Disposition',
+                        isDownload ? `attachment; filename="${filename}"` : `inline; filename="${filename}"`
+                    );
+                    if (!isDownload) {
+                        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                    }
+                    headersSet = true;
+                }
+                res.write(row.content);
+            });
+
+            stream.on('end', () => {
+                res.end();
+                client.release();
+            });
+
+            stream.on('error', (err) => {
+                console.error("❌ Stream Error:", err.message);
+                if (!headersSet) {
+                    res.status(500).json({ error: 'Stream failed' });
+                } else {
+                    res.end();
+                }
+                client.release();
+            });
+
+        } catch (streamErr) {
+            client.release();
+            throw streamErr;
         }
-        res.send(content);
     } catch (err) {
-        console.error('❌ Asset Fetch Error:', err.message);
-        res.status(500).json({ error: 'Failed to retrieve asset' });
+        console.error("❌ Asset Retrieval Error:", err.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: err.message });
+        }
     }
 });
 
@@ -21340,7 +21404,15 @@ const startServer = async () => {
         try {
           const migClient = await pool.connect();
           try {
+            const lockRes = await migClient.query('SELECT pg_try_advisory_lock(6666666) as lock_granted');
+            if (!lockRes.rows[0].lock_granted) {
+              console.log(`⚠️ [Cluster] Migrations already in progress. skipping.`);
+              return;
+            }
+            console.log(`🔒 [Cluster] Migration lock (6666666) acquired.`);
+            
             await hardenSchoolsIernSchema(migClient);
+            await initESF7Tables();
             await runAutoMigrations();
             await initDB();
             await initUnit7Schema();
