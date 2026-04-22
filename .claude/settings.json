@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python tmp/check_ghost_photos.py)",
+      "Bash(grep -v \"^$\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(c['column_name']\\) for c in d.get\\('import_beff_projects',[]\\)]\")",
+      "Bash(node --check \"e:/InsightED April 2026/InsightEd-Mobile-PWA-2026/api/scripts/reconcile_new_construction_ipc.cjs\")",
+      "Bash(node api/scripts/reconcile_new_construction_ipc.cjs --dry-run)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

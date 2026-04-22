@@ -473,7 +473,7 @@ const Field = ({ label, name, value, type = 'text', options = [] }) => {
 };
 
 const DetailedProjInfo = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const { id } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -639,7 +639,6 @@ const DetailedProjInfo = () => {
         if (!window.confirm("Delete this photo? This cannot be undone.")) return;
         setDeletingImageId(imageId);
         try {
-            const token = localStorage.getItem('token');
             const res = await fetch(`${API_BASE}/api/project-images/${imageId}`, {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -684,7 +683,9 @@ const DetailedProjInfo = () => {
                 // 2. Network Request (Background Sync)
                 console.log("DEBUG: Starting network fetch for ID:", id);
                 try {
-                    const response = await fetch(`/api/projects/${id}?_t=${Date.now()}`);
+                    const response = await fetch(`/api/projects/${id}?_t=${Date.now()}`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
                     console.log("DEBUG: Network response status:", response.status);
                     if (!response.ok) throw new Error("Project not found");
                     const data = await response.json();
@@ -702,7 +703,9 @@ const DetailedProjInfo = () => {
                     if (type === 'LGU') {
                         console.log("DEBUG: Fetching LGU project...");
                         // LGU Fetch
-                        const response = await fetch(`/api/lgu/project/${id}`);
+                        const response = await fetch(`/api/lgu/project/${id}`, {
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        });
                         console.log("DEBUG: LGU response status:", response.status);
                         if (!response.ok) throw new Error("LGU Project not found");
                         const data = await response.json();
@@ -807,7 +810,9 @@ const DetailedProjInfo = () => {
             setImageLoading(true);
             try {
                 // Network First
-                const res = await fetch(`/api/project-images/${id}?t=${Date.now()}`);
+                const res = await fetch(`/api/project-images/${id}?t=${Date.now()}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 const data = await res.json();
 
                 if (Array.isArray(data)) {
@@ -838,7 +843,9 @@ const DetailedProjInfo = () => {
         const fetchHistory = async (ipc) => {
             setHistoryLoading(true);
             try {
-                const res = await fetch(`/api/project-history/${ipc}`);
+                const res = await fetch(`/api/project-history/${ipc}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (!res.ok) throw new Error("Failed to fetch history");
                 const data = await res.json();
                 setHistory(data);
@@ -871,7 +878,9 @@ const DetailedProjInfo = () => {
         const fetchHistory = async () => {
             setHistoryLoading(true);
             try {
-                const res = await fetch(`/api/project-history/${project.ipc}`);
+                const res = await fetch(`/api/project-history/${project.ipc}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (!res.ok) throw new Error("Failed to fetch history");
                 const data = await res.json();
                 setHistory(data);
@@ -885,7 +894,9 @@ const DetailedProjInfo = () => {
         const fetchVOHistory = async () => {
             setVoHistoryLoading(true);
             try {
-                const res = await fetch(`/api/projects/variation-orders/${project.ipc}`);
+                const res = await fetch(`/api/projects/variation-orders/${project.ipc}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     const data = await res.json();
                     setVoHistory(data);
@@ -978,7 +989,10 @@ const DetailedProjInfo = () => {
 
             const response = await fetch(`${API_BASE}/api/save-project`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify(payload),
             });
             
@@ -1002,7 +1016,11 @@ const DetailedProjInfo = () => {
                         formData.append('projectId', resData.project?.project_id || resData.id);
                         formData.append('uploadedBy', uid);
                         formData.append('category', item.category);
-                        await fetch(`${API_BASE}/api/upload-image`, { method: "POST", body: formData });
+                        await fetch(`${API_BASE}/api/upload-image`, { 
+                            method: "POST", 
+                            body: formData,
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        });
                     } catch (err) {
                         console.error("Image upload failed", err);
                     }
@@ -1022,7 +1040,7 @@ const DetailedProjInfo = () => {
                         
                         const docRes = await fetch(`${API_BASE}/api/upload-project-document`, {
                             method: 'POST',
-                            headers: localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {},
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
                             body: docFormData,
                         });
                         if (!docRes.ok) throw new Error(`${type} upload failed on server`);
@@ -1084,13 +1102,9 @@ const DetailedProjInfo = () => {
             fd.append('ipc', project.ipc);
             fd.append('uid', uid || '');
 
-            const headers = {};
-            const token = localStorage.getItem('token');
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
             const res = await fetch(`${API_BASE}/api/upload-project-document`, {
                 method: 'POST',
-                headers,
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: fd,
             });
 
@@ -1438,27 +1452,29 @@ const DetailedProjInfo = () => {
                                     </>
                                 )}
 
-                                {/* Upload / Replace — always available, not gated by isEditMode */}
-                                <label className={`flex-1 sm:flex-none cursor-pointer ${status === 'uploading' ? 'pointer-events-none opacity-50' : ''}`}>
-                                    <div className={`text-center px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all active:scale-95 border ${
-                                        status === 'error'   ? 'bg-red-50 text-red-600 border-red-200' :
-                                        status === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                        hasExisting         ? 'bg-white text-slate-500 border-slate-200 hover:border-blue-300' :
-                                                             'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100'
-                                    }`}>
-                                        {status === 'error' ? 'Retry' : hasExisting ? 'Replace' : 'Upload'}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        accept="application/pdf"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                            const file = e.target.files[0];
-                                            if (file) handleAtomicUpload(key, file);
-                                            e.target.value = ''; // allow re-selecting the same file
-                                        }}
-                                    />
-                                </label>
+                                {/* Upload / Replace — available unless Regional Engineer */}
+                                {userRole !== 'Regional Engineer' && (
+                                    <label className={`flex-1 sm:flex-none cursor-pointer ${status === 'uploading' ? 'pointer-events-none opacity-50' : ''}`}>
+                                        <div className={`text-center px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all active:scale-95 border ${
+                                            status === 'error'   ? 'bg-red-50 text-red-600 border-red-200' :
+                                            status === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                            hasExisting         ? 'bg-white text-slate-500 border-slate-200 hover:border-blue-300' :
+                                                                'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100'
+                                        }`}>
+                                            {status === 'error' ? 'Retry' : hasExisting ? 'Replace' : 'Upload'}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            accept="application/pdf"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) handleAtomicUpload(key, file);
+                                                e.target.value = ''; // allow re-selecting the same file
+                                            }}
+                                        />
+                                    </label>
+                                )}
                             </div>
                         </div>
                     );
@@ -1627,12 +1643,14 @@ const DetailedProjInfo = () => {
                                             <span className="text-[8px] font-black bg-white/20 px-1.5 py-0.5 rounded-full hidden sm:inline">{projectImages.length}</span>
                                         )}
                                     </button>
-                                    <button 
-                                        onClick={() => setIsEditMode(true)}
-                                        className="px-4 py-2 bg-white text-[#004A99] rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
-                                    >
-                                        Edit
-                                    </button>
+                                    {userRole !== 'Regional Engineer' && (
+                                        <button 
+                                            onClick={() => setIsEditMode(true)}
+                                            className="px-4 py-2 bg-white text-[#004A99] rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                                        >
+                                            Edit
+                                        </button>
+                                     )}
                                 </>
                              )}
                         </div>
@@ -1661,13 +1679,15 @@ const DetailedProjInfo = () => {
                                     <span className="">{tab.label}</span>
                                 </button>
                             ))}
-                            <button
-                                onClick={() => setEditModalOpen(true)}
-                                className="flex-none flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30"
-                            >
-                                <span className="hidden sm:inline">Variation</span>
-                                <span className="sm:hidden">V.O.</span>
-                            </button>
+                            {userRole !== 'Regional Engineer' && (
+                                <button
+                                    onClick={() => setEditModalOpen(true)}
+                                    className="flex-none flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30"
+                                >
+                                    <span className="hidden sm:inline">Variation</span>
+                                    <span className="sm:hidden">V.O.</span>
+                                </button>
+                             )}
                         </div>
                     </div>
                 </div>

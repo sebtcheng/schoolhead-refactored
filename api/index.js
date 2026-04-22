@@ -305,7 +305,7 @@ const RegisterBetaSchema = z.object({
 });
 
 // --- DATABASE CONNECTION ---
-const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd';
+const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd';
 const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('20.24.58.49');
 
 console.log(`🔌 Database Connection: ${dbUrl.includes('20.24.58.49') ? 'Remote VM (Azure Proxy)' : (isLocal ? 'Local Loopback' : 'Remote')} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
@@ -3074,7 +3074,7 @@ app.get('/api/reference/building-types', async (req, res) => {
   }
 });
 
-app.get('/api/reference/funding-years', async (req, res) => {
+app.get('/api/reference/funding-years', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT funding_year 
@@ -3089,7 +3089,7 @@ app.get('/api/reference/funding-years', async (req, res) => {
   }
 });
 
-app.get('/api/reference/batch-of-funds', async (req, res) => {
+app.get('/api/reference/batch-of-funds', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT batch_of_funds
@@ -3105,7 +3105,7 @@ app.get('/api/reference/batch-of-funds', async (req, res) => {
 });
 
 
-app.get('/api/reference/project-categories', async (req, res) => {
+app.get('/api/reference/project-categories', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT project_category 
@@ -3131,7 +3131,7 @@ app.get('/api/reference/functional-divisions', async (req, res) => {
   }
 });
 
-app.get('/api/reference/efd-locations', async (req, res) => {
+app.get('/api/reference/efd-locations', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT region, division, district, province, municipality, legislative_district 
@@ -10667,7 +10667,7 @@ app.post('/api/save-project', async (req, res) => {
     projectValues.push(approvalStatus); // $58
 
     let targetTable = 'engineer_form';
-    if (approvalStatus === 'Pending' && (data.actions === 'Newly Created' || data.actions === 'Newly-Created')) {
+    if (submitterRole === 'division engineer' && (data.actions === 'Newly Created' || data.actions === 'Newly-Created')) {
         targetTable = 'engineer_create';
     } else {
         // [MOD] Three-Tier Lifecycle: Route updates for projects originating in the creation-tier
@@ -10942,7 +10942,7 @@ app.put('/api/update-project/:id', upload.fields([
   { name: 'pow_pdf', maxCount: 1 },
   { name: 'dupa_pdf', maxCount: 1 },
   { name: 'contract_pdf', maxCount: 1 }
-]), async (req, res) => {
+]), authMiddleware, async (req, res) => {
   const { id } = req.params;
   const data = req.body;
   console.log("🔥 HIT: PUT /api/update-project/" + id);
@@ -10968,7 +10968,13 @@ app.put('/api/update-project/:id', upload.fields([
     await client.query('BEGIN');
 
     // 1. Fetch Existing Data for Comparison & Document Carry-over
-    const oldRes = await client.query('SELECT * FROM "engineer_form" WHERE project_id = $1', [id]);
+    // Check engineer_create first for Division Engineer-created projects, fall back to engineer_form
+    let oldRes = await client.query('SELECT * FROM "engineer_create" WHERE project_id = $1', [id]);
+    let updateSourceTable = 'engineer_create';
+    if (oldRes.rows.length === 0) {
+      oldRes = await client.query('SELECT * FROM "engineer_form" WHERE project_id = $1', [id]);
+      updateSourceTable = 'engineer_form';
+    }
     if (oldRes.rows.length === 0) {
       await client.query('ROLLBACK');
       if (clientNew) await clientNew.query('ROLLBACK');
@@ -11212,7 +11218,7 @@ app.put('/api/update-project/:id', upload.fields([
 
 
     const insertQuery = `
-      INSERT INTO "engineer_form" (
+      INSERT INTO "${updateSourceTable}" (
 
         project_name, school_name, school_id, region, division,
         status_of_construction_phase, accomplishment_percentage, status_as_of,
@@ -11549,7 +11555,12 @@ app.put('/api/revert-project/:id', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows } = await client.query('SELECT * FROM engineer_form WHERE project_id = $1', [id]);
+    let { rows } = await client.query('SELECT * FROM engineer_create WHERE project_id = $1', [id]);
+    let revertTable = 'engineer_create';
+    if (rows.length === 0) {
+      ({ rows } = await client.query('SELECT * FROM engineer_form WHERE project_id = $1', [id]));
+      revertTable = 'engineer_form';
+    }
     if (rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Project not found' });
@@ -11565,7 +11576,7 @@ app.put('/api/revert-project/:id', async (req, res) => {
     const now = new Date().toISOString();
 
     await client.query(`
-      UPDATE engineer_form
+      UPDATE ${revertTable}
       SET status_of_construction_phase = 'Reverted',
           actions = 'Revert',
           other_remarks = $1,
@@ -12017,28 +12028,11 @@ app.post('/api/admin/resync-completion', async (req, res) => {
 // ==================================================================
 
 // 1. GET: EFD Dashboard Summary (Aggregated Chart Data)
-app.get('/api/dashboard/efd-summary', async (req, res) => {
+app.get('/api/dashboard/efd-summary', authMiddleware, async (req, res) => {
   try {
     const { engineer_id, is_donated, region, division, search, category, year, province, municipality, district, batch } = req.query;
 
-    if (engineer_id && !req.user) {
-      return res.status(401).json({ error: 'Unauthorized: Engineer ID requires authenticated session' });
-    }
-
-    let queryParams = [];
-    let whereClauses = [];
-
     const DEBUG_MODE = process.env.NODE_ENV !== 'production';
-
-    // Inline optional JWT decode — eliminates DB round-trip for authenticated clients
-    if (!req.user) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        try {
-          req.user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD');
-        } catch (_) {}
-      }
-    }
 
     // [DIAG] Division Engineer Query Telemetry
     if (DEBUG_MODE && engineer_id) {
@@ -12217,14 +12211,10 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
 });
 
 // --- 11. GET: Get Projects (Filtered by Engineer) ---
-app.get('/api/projects', async (req, res) => {
+app.get('/api/projects', authMiddleware, async (req, res) => {
   try {
     // We catch the engineer_id sent from EngineerDashboard.jsx
     const { status, region, division, search, engineer_id, is_donated, implementing_agency, sty, cl, page = 1, limit = 50 } = req.query;
-
-    if (engineer_id && !req.user) {
-      return res.status(401).json({ error: 'Unauthorized: Engineer ID requires authenticated session' });
-    }
 
     const offset = (page - 1) * limit;
     let queryParams = [];
@@ -12338,14 +12328,13 @@ app.get('/api/projects', async (req, res) => {
 
     const DEBUG_MODE = process.env.NODE_ENV !== 'production';
 
-    // Inline optional JWT decode — eliminates DB round-trip for authenticated clients
-    if (!req.user) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        try {
-          req.user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD');
-        } catch (_) {}
-      }
+    // Include engineer_create rows for Division Engineers so their self-created projects appear
+    const callerRole = req.user?.role?.trim().toLowerCase();
+    if (callerRole === 'division engineer') {
+      sql = sql.replace(
+        'FROM engineer_form e',
+        'FROM (SELECT * FROM engineer_form UNION ALL SELECT * FROM engineer_create) e'
+      );
     }
 
     // [DIAG] Division Engineer Query Telemetry
@@ -12701,7 +12690,7 @@ app.post('/api/upload/multipart-finalize', async (req, res) => {
   }
 });
 // --- 11f. GET: List Engineers (For EFD Assignment) ---
-app.get('/api/engineers', async (req, res) => {
+app.get('/api/engineers', authMiddleware, async (req, res) => {
   const { role } = req.query;
   try {
     let query;
@@ -12733,7 +12722,7 @@ app.get('/api/engineers', async (req, res) => {
 });
 
 // --- 11g. POST: Assign Project to Engineer (EFD) ---
-app.post('/api/assign-project', async (req, res) => {
+app.post('/api/assign-project', authMiddleware, async (req, res) => {
   const { projectId, engineerId, engineerName } = req.body;
 
   if (!projectId || !engineerId || !engineerName) {
@@ -12826,7 +12815,12 @@ app.get('/api/projects/:id', async (req, res) => {
       ) d ON true
       WHERE e.project_id = $1;
     `;
-    const result = await pool.query(query, [id]);
+    let result = await pool.query(query, [id]);
+    if (result.rows.length === 0) {
+      // Project may have been created by a Division Engineer and lives in engineer_create
+      const createQuery = query.replace('FROM engineer_form e', 'FROM engineer_create e');
+      result = await pool.query(createQuery, [id]);
+    }
     if (result.rows.length === 0) return res.status(404).json({ message: "Project not found" });
     res.json(result.rows[0]);
   } catch (err) {
@@ -12902,7 +12896,7 @@ app.get('/api/projects-by-school-id/:schoolId', async (req, res) => {
 });
 
 // --- 11c. PUT: Approve a Project (EFD/Super only) ---
-app.put('/api/approve-project/:id', async (req, res) => {
+app.put('/api/approve-project/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     const ipcRes = await pool.query('SELECT ipc FROM engineer_form WHERE project_id = $1', [id]);
@@ -13105,7 +13099,7 @@ app.get('/api/project-history/:ipc', async (req, res) => {
 });
 
 // --- 20. POST: Upload Project Image (Synchronous Optimization) ---
-app.post('/api/upload-image', (req, res, next) => {
+app.post('/api/upload-image', authMiddleware, (req, res, next) => {
     // Accept multipart/form-data (file upload) OR application/json (legacy Base64 / offline outbox)
     const ct = req.headers['content-type'] || '';
     if (ct.includes('multipart/form-data')) {

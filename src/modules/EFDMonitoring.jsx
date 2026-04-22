@@ -16,7 +16,7 @@ import { FiActivity } from 'react-icons/fi';
 import FilterDrawer from '../components/FilterDrawer';
 import { useEFDFilters } from '../context/EFDFilterContext';
 const EFDMonitoring = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const navigate = useNavigate();
     const [projects, setProjects] = useState(() => JSON.parse(sessionStorage.getItem('efd_cached_projects')) || []);
     const [loading, setLoading] = useState(!sessionStorage.getItem('efd_cached_projects'));
@@ -152,12 +152,14 @@ const EFDMonitoring = () => {
             if (selectedYears.length > 0) params.append('year', selectedYears.join(','));
             if (selectedBatches.length > 0) params.append('batch', selectedBatches.join(','));
 
-            const res = await fetch(`/api/dashboard/efd-summary?${params.toString()}`);
+            const res = await fetch(`/api/dashboard/efd-summary?${params.toString()}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) setSummaryData(await res.json());
         } catch (error) {
             console.error("Error fetching summary:", error);
         }
-    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches]);
+    }, [token, searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches]);
 
     const fetchProjectsPaged = useCallback(async (p = 1) => {
         setIsRefreshing(true);
@@ -180,7 +182,9 @@ const EFDMonitoring = () => {
             if (minPhotos > 0) params.append('min_photos', minPhotos);
             if (pendingApprovalOnly) params.append('approval_status', 'Pending');
 
-            const res = await fetch(`/api/projects?${params.toString()}`);
+            const res = await fetch(`/api/projects?${params.toString()}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const result = await res.json();
                 setProjects(result.data || []);
@@ -197,17 +201,17 @@ const EFDMonitoring = () => {
             setIsRefreshing(false);
             setLoading(false);
         }
-    }, [searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange, minPhotos, pendingApprovalOnly]);
+    }, [token, searchQuery, selectedRegions, selectedCategories, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedYears, selectedBatches, accomplishmentRange, minPhotos, pendingApprovalOnly]);
 
     useEffect(() => {
         const fetchInitial = async () => {
             try {
                 const [engRes, locRes, yearsRes, batchRes, categoryRes] = await Promise.all([
-                    fetch('/api/engineers'),
-                    fetch('/api/reference/efd-locations'),
-                    fetch('/api/reference/funding-years'),
-                    fetch('/api/reference/batch-of-funds'),
-                    fetch('/api/reference/project-categories')
+                    fetch('/api/engineers', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/efd-locations', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/funding-years', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/batch-of-funds', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/project-categories', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
                 ]);
                 if (engRes.ok) setEngineers(await engRes.json());
                 if (locRes.ok) setEfdLocations(await locRes.json());
@@ -217,7 +221,9 @@ const EFDMonitoring = () => {
 
                 // One-time unfiltered total to lock in the inventory count
                 try {
-                    const globalRes = await fetch('/api/dashboard/efd-summary');
+                    const globalRes = await fetch('/api/dashboard/efd-summary', {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
                     if (globalRes.ok) {
                         const globalData = await globalRes.json();
                         if (globalData?.totalStats?.totalProjects != null) {
@@ -232,7 +238,7 @@ const EFDMonitoring = () => {
         };
         fetchInitial();
         setUserData(user);
-    }, [user]);
+    }, [user, token]);
 
     useEffect(() => {
         fetchSummary();
@@ -290,7 +296,10 @@ const EFDMonitoring = () => {
         try {
             const response = await fetch('/api/assign-project', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     projectId: selectedProject.id,
                     engineerId: engineerIds,
@@ -320,7 +329,10 @@ const EFDMonitoring = () => {
         e.stopPropagation();
         if (window.confirm("Are you sure you want to delete this project?")) {
             try {
-                const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                const res = await fetch(`/api/projects/${id}`, { 
+                    method: 'DELETE',
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     setProjects(prev => prev.filter(p => p.id !== id));
                     setMessage({ text: 'Project deleted successfully', type: 'success' });
@@ -338,7 +350,10 @@ const EFDMonitoring = () => {
         e.stopPropagation();
         if (window.confirm("Approve this project?")) {
             try {
-                const res = await fetch(`/api/approve-project/${id}`, { method: 'PUT' });
+                const res = await fetch(`/api/approve-project/${id}`, { 
+                    method: 'PUT',
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     setProjects(prev => prev.map(p => p.id === id ? { ...p, approvalStatus: 'Approved' } : p));
                     setMessage({ text: 'Project approved successfully', type: 'success' });
@@ -362,7 +377,10 @@ const EFDMonitoring = () => {
         try {
             const response = await fetch(`/api/update-project/${updatedProject.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify(updatedProject),
             });
             if (response.ok) {

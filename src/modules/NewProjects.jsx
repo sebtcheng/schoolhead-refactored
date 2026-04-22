@@ -272,7 +272,9 @@ const NewProjects = () => {
         setIsSearchingProjects(true);
         try {
             // Use existing /api/projects endpoint but we'll filter on frontend or add search param if backend supports it
-            const res = await fetch(`/api/projects?search=${encodeURIComponent(query)}`);
+            const res = await fetch(`/api/projects?search=${encodeURIComponent(query)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setAvailableProjects(data || []);
@@ -475,7 +477,9 @@ const NewProjects = () => {
 
         // ========== ONLINE MODE: Use database API ==========
         try {
-            const res = await fetch(`/api/school-profile/${schoolId}`);
+            const res = await fetch(`/api/school-profile/${schoolId}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const found = await res.json();
                 updateForm(found);
@@ -734,7 +738,10 @@ const NewProjects = () => {
 
             const projectRes = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify(projectBody),
             });
 
@@ -776,7 +783,8 @@ const NewProjects = () => {
                     
                     const bulkRes = await fetch(bulkEndpoint, {
                         method: 'POST',
-                        body: formDataDocs
+                        body: formDataDocs,
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
                     });
 
                     if (!bulkRes.ok) throw new Error("Failed to upload compressed documents in bulk");

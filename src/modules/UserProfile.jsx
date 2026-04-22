@@ -188,7 +188,9 @@ const UserProfile = () => {
                     setSchoolId(currentSchoolId);
                 } else if (mappedUser.uid) {
                     try {
-                        const response = await fetch(`/api/school-by-user/${mappedUser.uid}`);
+                        const response = await fetch(`/api/school-by-user/${mappedUser.uid}`, {
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                        });
                         if (response.ok) {
                             const result = await response.json();
                             if (result.exists) {

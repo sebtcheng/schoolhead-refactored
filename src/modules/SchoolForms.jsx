@@ -132,7 +132,9 @@ const SchoolForms = () => {
                 }
 
                 // Fetch Deadline (Parallel with other fetches)
-                fetch('/api/settings/enrolment_deadline')
+                fetch('/api/settings/enrolment_deadline', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                })
                     .then(res => res.json())
                     .then(data => {
                         if (data.value) setDeadlineDate(new Date(data.value));
@@ -147,8 +149,12 @@ const SchoolForms = () => {
                     // If loadedFromCache is true, we leave loading=false.
 
                     const [profileRes, headRes] = await Promise.all([
-                        fetch(`/api/school-by-user/${user.uid}`),
-                        fetch(`/api/school-head/${user.uid}`)
+                        fetch(`/api/school-by-user/${user.uid}`, {
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                        }),
+                        fetch(`/api/school-head/${user.uid}`, {
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                        })
                     ]);
 
                     if (profileRes.ok) {

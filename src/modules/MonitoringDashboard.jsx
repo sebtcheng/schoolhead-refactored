@@ -154,7 +154,9 @@ const MonitoringDashboard = () => {
       // Explicitly pass role to backend for restricted view (optional security layer)
       if (userRole) params.append('role', userRole);
 
-      const res = await fetch(`/api/monitoring/schools?${params.toString()}`);
+      const res = await fetch(`/api/monitoring/schools?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (res.ok) {
         const result = await res.json();
         setSchools(result.data || []);
