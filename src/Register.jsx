@@ -48,10 +48,10 @@ const AUTHORIZATION_CODES = {
 const getDashboardPath = (role, accountCategory) => {
     // 1. SPECIFIC ROLE OVERRIDES (Highest Priority)
     const roleMap = {
-        'School Head': '/nodes-dashboard',
-        'Regional Office': '/monitoring-dashboard',
-        'School Division Office': '/monitoring-dashboard',
-        'Central Office': '/monitoring-dashboard',
+        'School Head': '/',
+        'Regional Office': '/',
+        'School Division Office': '/',
+        'Central Office': '/',
         'Admin': '/admin-dashboard',
         'Human Resource': '/hr-dashboard',
         'Super User': '/super-user-selector',
@@ -131,6 +131,7 @@ const Register = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [thirdLevelEmailType, setThirdLevelEmailType] = useState('personal'); // 'deped' | 'personal'
 
     const location = useLocation();
     const pathId = location.state?.pathId;
@@ -175,7 +176,12 @@ const Register = () => {
     const [registrationStage, setRegistrationStage] = useState('form'); // 'form' | 'passcode' | 'confirm'
 
 
-    // --- OTP STATE --- (REMOVED)
+    // --- OTP STATE ---
+    const [isOtpVerified, setIsOtpVerified] = useState(false);
+    const [otpSent, setOtpSent] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
+    const [otpLoading, setOtpLoading] = useState(false);
+    const [otpError, setOtpError] = useState('');
 
 
 
@@ -234,6 +240,10 @@ const Register = () => {
             } else if (pathId === 'path_central_office') {
                 setFormData(prev => ({ ...prev, role: 'Central Office' }));
                 setActiveTab('internal');
+            } else if (pathId === 'path_recruitment') {
+                setFormData(prev => ({ ...prev, role: 'Third Level Applicant' }));
+                setActiveTab('internal');
+                console.log("[Register] Applied Recruitment Path: Forced Third Level Applicant role.");
             }
         }
 
@@ -447,6 +457,9 @@ const Register = () => {
         }));
         // Reset school selection if moving away
         setSelectedSchool(null);
+        // Reset OTP status if role changes
+        setIsOtpVerified(false);
+        setOtpSent(false);
     };
 
 
@@ -480,6 +493,67 @@ const Register = () => {
     };
 
     // --- OTP HANDLERS ---
+    const handleSendOtp = async () => {
+        const email = formData.email;
+        if (!email) {
+            alert("Please enter your email first.");
+            return;
+        }
+
+        const isDeped = email.toLowerCase().endsWith('@deped.gov.ph');
+        // Scenario 2: DepEd Experience but no account (Must be @deped.gov.ph)
+        // Scenario 3: Outsider (Any email)
+        // We will validate email domain in validateStep, but here we just send.
+
+        setOtpLoading(true);
+        setOtpError('');
+        try {
+            const res = await fetch('/api/auth/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setOtpSent(true);
+                alert("Verification code has been sent to your email.");
+            } else {
+                setOtpError(data.error || "Failed to send OTP");
+            }
+        } catch (err) {
+            setOtpError("Network error. Please try again.");
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (!otpCode || otpCode.length !== 6) {
+            alert("Please enter the 6-digit code.");
+            return;
+        }
+
+        setOtpLoading(true);
+        setOtpError('');
+        try {
+            const res = await fetch('/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: formData.email, code: otpCode })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setIsOtpVerified(true);
+                alert("Email verified successfully!");
+            } else {
+                setOtpError(data.error || "Invalid code");
+            }
+        } catch (err) {
+            setOtpError("Verification failed. Please try again.");
+        } finally {
+            setOtpLoading(false);
+        }
+    };
 
 
     // --- LOCATION HANDLERS (Generic Roles) ---
@@ -592,9 +666,12 @@ const Register = () => {
                 }
             } else {
                 // All other roles (RO, SDO, Engineers, CO)
-                if (!email.toLowerCase().endsWith('@deped.gov.ph')) {
-                    alert("Only @deped.gov.ph email addresses are allowed for this role.");
-                    return false;
+                // --- EXCEPTION: Third Level Applicants can use Personal Emails ---
+                if (d.role !== 'Third Level Applicant') {
+                    if (!email.toLowerCase().endsWith('@deped.gov.ph')) {
+                        alert("Only @deped.gov.ph email addresses are allowed for this role.");
+                        return false;
+                    }
                 }
             }
             return true;
@@ -638,6 +715,10 @@ const Register = () => {
                         alert(`Please complete your assignment details (Region${!isRegional ? ', Division,' : ''} and Position).`);
                         return false;
                     }
+                } else if (d.role === 'Third Level Applicant') {
+                    // Bypass strict assignment requirement for Third Level Applicants
+                    // since external/non-DepEd candidates won't have standard offices/positions
+                    return true;
                 } else {
                     // RO Personnel
                     if (!d.region || !d.office || !d.position) {
@@ -661,6 +742,10 @@ const Register = () => {
         const securityStep = d.role === 'School Head' ? 5 : (d.role === 'EFD Engineer' ? 3 : 4);
         if (step === securityStep) {
             // Security
+            if (formData.role === 'Third Level Applicant' && !isOtpVerified) {
+                alert("Please verify your email via OTP before proceeding.");
+                return false;
+            }
             if (!formData.password) {
                 alert("Please enter a password.");
                 return false;
@@ -728,7 +813,7 @@ const Register = () => {
         }
 
         // --- AUTHORIZATION CODE CHECK (For Non-School Heads and Non-Super Users) ---
-        if (formData.role !== 'School Head' && formData.role !== 'Implementing Agency' && formData.role !== 'Local Government Unit') {
+        if (formData.role !== 'School Head' && formData.role !== 'Implementing Agency' && formData.role !== 'Local Government Unit' && formData.role !== 'Third Level Applicant') {
             if (!formData.email.endsWith('@deped.gov.ph')) {
                 alert("Only @deped.gov.ph email addresses are allowed for this role.");
                 return;
@@ -810,10 +895,10 @@ const Register = () => {
             }
         }
 
-        // if (!isOtpVerified) {
-        //     alert("Please verify your email via OTP before registering.");
-        //     return;
-        // }
+        if (formData.role === 'Third Level Applicant' && !isOtpVerified) {
+            alert("Please verify your email via OTP before registering.");
+            return;
+        }
 
         // Bypass Passcode Stage and go straight to Final Submission
         handleSubmitFinal();
@@ -1130,6 +1215,7 @@ const Register = () => {
                                                                         </>
                                                                     )}
                                                                     {(!pathId || pathId === 'path_school_head') && <option value="School Head">School Head</option>}
+                                                                    <option value="Third Level Applicant">Third Level Official Applicant</option>
                                                                     {(!pathId || pathId === 'path_engineers') && <option value="Division Engineer">Division Engineer</option>}
                                                                     {(!pathId || pathId === 'path_engineers') && <option value="Regional Engineer">Regional Engineer</option>}
                                                                     {(!pathId || pathId === 'path_engineers') && <option value="Architect">Architect</option>}
@@ -1215,6 +1301,148 @@ const Register = () => {
                                                             <p className="text-[10px] text-blue-600 ml-1">11 digits starting with 09.</p>
                                                         </div>
                                                     </>
+                                                ) : formData.role === 'Third Level Applicant' ? (
+                                                    <div className="space-y-6">
+                                                        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => { setThirdLevelEmailType('deped'); setFormData(prev => ({ ...prev, email: '' })); setIsOtpVerified(false); setOtpSent(false); }}
+                                                                className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${thirdLevelEmailType === 'deped' ? 'bg-[#0038A8] text-white shadow-lg' : 'text-slate-500 hover:bg-slate-200'}`}
+                                                            >
+                                                                DepEd Email
+                                                            </button>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => { setThirdLevelEmailType('personal'); setFormData(prev => ({ ...prev, email: '' })); setIsOtpVerified(false); setOtpSent(false); }}
+                                                                className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${thirdLevelEmailType === 'personal' ? 'bg-[#0038A8] text-white shadow-lg' : 'text-slate-500 hover:bg-slate-200'}`}
+                                                            >
+                                                                Personal Email
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">
+                                                                {thirdLevelEmailType === 'deped' ? 'Official DepEd Email' : 'Personal Email Address'}
+                                                            </label>
+                                                            <div className="flex gap-2">
+                                                                {thirdLevelEmailType === 'deped' ? (
+                                                                    <div className="flex items-center w-full">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={formData.email ? formData.email.split('@')[0] : ''}
+                                                                            onChange={(e) => {
+                                                                                const username = e.target.value.replace(/[^a-zA-Z0-9._-]/g, '');
+                                                                                setFormData(prev => ({ ...prev, email: username + '@deped.gov.ph' }));
+                                                                            }}
+                                                                            disabled={otpSent || isOtpVerified}
+                                                                            placeholder="account.username"
+                                                                            className={`flex-1 min-w-0 bg-white border border-r-0 border-slate-200 text-sm rounded-l-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 ${(otpSent || isOtpVerified) ? 'opacity-50' : ''}`}
+                                                                            required
+                                                                        />
+                                                                        <span className={`bg-slate-100 border border-slate-200 text-slate-600 text-xs font-bold px-4 py-3 rounded-r-xl select-none whitespace-nowrap ${otpSent || isOtpVerified ? 'opacity-50' : ''}`}>
+                                                                            @deped.gov.ph
+                                                                        </span>
+                                                                        {!otpSent && !isOtpVerified && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={handleSendOtp}
+                                                                                disabled={otpLoading || !formData.email}
+                                                                                className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md hover:bg-blue-700 disabled:bg-slate-300 transition-all min-w-[100px] ml-2"
+                                                                            >
+                                                                                {otpLoading ? '...' : 'Send OTP'}
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <input
+                                                                            type="email"
+                                                                            name="email"
+                                                                            value={formData.email}
+                                                                            onChange={handleChange}
+                                                                            disabled={otpSent || isOtpVerified}
+                                                                            placeholder="you@example.com"
+                                                                            className={`flex-1 bg-white border border-slate-200 text-sm rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 ${(otpSent || isOtpVerified) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                            required
+                                                                        />
+                                                                        {!otpSent && !isOtpVerified && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={handleSendOtp}
+                                                                                disabled={otpLoading || !formData.email}
+                                                                                className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md hover:bg-blue-700 disabled:bg-slate-300 transition-all min-w-[100px]"
+                                                                            >
+                                                                                {otpLoading ? '...' : 'Send OTP'}
+                                                                            </button>
+                                                                        )}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                            {otpError && <p className="text-[10px] text-red-500 font-bold ml-1 mt-1 uppercase tracking-wider">{otpError}</p>}
+                                                        </div>
+
+                                                        {otpSent && !isOtpVerified && (
+                                                            <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl space-y-3 animate-in slide-in-from-top-2">
+                                                                <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block">Verification Code</label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        maxLength="6"
+                                                                        value={otpCode}
+                                                                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                                                                        placeholder="000000"
+                                                                        className="flex-1 bg-white border border-slate-200 text-lg rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-center tracking-[0.5em] font-black"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={handleVerifyOtp}
+                                                                        disabled={otpLoading || otpCode.length !== 6}
+                                                                        className="bg-orange-600 text-white text-xs font-bold px-6 py-2 rounded-xl shadow-md hover:bg-orange-700 disabled:bg-slate-300 transition-all font-sans"
+                                                                    >
+                                                                        {otpLoading ? '...' : 'Verify'}
+                                                                    </button>
+                                                                </div>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => { setOtpSent(false); setOtpCode(''); }}
+                                                                    className="text-[10px] text-slate-400 font-bold uppercase hover:text-blue-600 transition-colors"
+                                                                >
+                                                                    Change Email
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {isOtpVerified && (
+                                                            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl animate-in zoom-in-95 duration-300">
+                                                                <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">✓</div>
+                                                                <div>
+                                                                    <p className="text-xs font-black text-green-800 uppercase tracking-tight">Identity Verified</p>
+                                                                    <p className="text-[10px] text-green-600 font-medium">You can now proceed to the next step.</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">Contact Number</label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    name="contactNumber"
+                                                                    inputMode="numeric"
+                                                                    value={formData.contactNumber}
+                                                                    onFocus={() => { if (!formData.contactNumber) setFormData(prev => ({ ...prev, contactNumber: '09' })); }}
+                                                                    onChange={(e) => {
+                                                                        let val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                                                        if (val.length >= 2 && !val.startsWith('09')) val = '09' + val.substring(2);
+                                                                        setFormData(prev => ({ ...prev, contactNumber: val }));
+                                                                    }}
+                                                                    placeholder="09xx xxx xxxx"
+                                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                                                    maxLength={11}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 ) : (
                                                     <>
                                                         <div className="space-y-1">
@@ -1471,7 +1699,7 @@ const Register = () => {
                                     {/* STEP 4/5: SECURITY */}
                                     {currentStep === maxSteps && (
                                         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                                            {formData.role !== 'School Head' && (
+                                            {formData.role !== 'School Head' && formData.role !== 'Third Level Applicant' && (
                                                 <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
                                                     <label className="block text-xs font-bold text-amber-800 uppercase tracking-widest mb-2">Authorization Code</label>
                                                     <input name="authCode" type="text" value={formData.authCode} onChange={handleChange} placeholder="Secure registration code" className="w-full bg-white border border-amber-300 rounded-xl px-4 py-3 text-sm font-mono tracking-widest focus:ring-2 focus:ring-amber-500" required />

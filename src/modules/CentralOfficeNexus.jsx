@@ -14,6 +14,7 @@ import {
     FiAlertCircle
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { NEXUS_AUTHORIZED_EMAILS } from '../config/roleGroups';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
 
@@ -30,6 +31,8 @@ const CentralOfficeNexus = () => {
         slate: '#f8fafc'
     };
 
+    const isAuthorized = user?.email && NEXUS_AUTHORIZED_EMAILS.includes(user.email.toLowerCase());
+
     const modules = [
         {
             id: 'officials',
@@ -40,7 +43,20 @@ const CentralOfficeNexus = () => {
             color: 'bg-[#0038A8]',
             textColor: 'text-white',
             badge: 'LIVE',
-            route: '/officials'
+            route: '/officials',
+            locked: !isAuthorized // Lock if not authorized
+        },
+        {
+            id: 'recruitment',
+            title: 'Recruitment Hub',
+            subtitle: 'CAREER PROGRESSION',
+            description: 'Submit applications for 3rd level positions and manage your professional career profile.',
+            icon: <FiBriefcase className="w-8 h-8" />,
+            color: 'bg-gradient-to-br from-purple-600 to-indigo-800',
+            textColor: 'text-white',
+            badge: 'LIVE',
+            route: '/official-profiling',
+            locked: false
         },
         {
             id: 'school-data',
@@ -50,8 +66,9 @@ const CentralOfficeNexus = () => {
             icon: <FiDatabase className="w-8 h-8" />,
             color: 'bg-white',
             textColor: 'text-slate-900',
-            route: '/school-management',
-            locked: true
+            badge: 'LIVE',
+            route: '/jurisdiction-schools',
+            locked: !isAuthorized
         },
         {
             id: 'infrastructure',
@@ -61,8 +78,9 @@ const CentralOfficeNexus = () => {
             icon: <FiActivity className="w-8 h-8" />,
             color: 'bg-white',
             textColor: 'text-slate-900',
+            badge: 'LIVE',
             route: '/beff-dashboard',
-            locked: true
+            locked: !isAuthorized
         }
     ];
 

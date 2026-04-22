@@ -1777,12 +1777,124 @@ const runMigrations = async (client, dbLabel) => {
     // --- 26. UNIT 7: PHYSICAL FACILITIES ---
     await initUnit7Schema(client, dbLabel);
 
+    // --- 27. THIRD LEVEL OFFICIALS REGISTRY (Normalized with History) ---
+    try {
+        const lockRes = await client.query(`SELECT pg_try_advisory_lock(20260422) as lock_granted;`);
+        if (lockRes.rows[0].lock_granted) {
+            console.log(`🏗️ [${dbLabel}] Initializing Third Level Officials Registry...`);
+            
+            // 1. Current Registry (Masterlist)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS third_level_officials_masterlist (
+                    id SERIAL PRIMARY KEY,
+                    tlid TEXT UNIQUE,
+                    sort_index INTEGER,
+                    strand TEXT,
+                    office TEXT,
+                    name TEXT,
+                    position TEXT,
+                    email TEXT,
+                    alt_email_1 TEXT,
+                    alt_email_2 TEXT,
+                    contact_details TEXT,
+                    alt_contact_details_1 TEXT,
+                    alt_contact_details_2 TEXT,
+                    assignment_date DATE,
+                    remarks TEXT,
+                    status TEXT,
+                    change_type TEXT,
+                    updated_by TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // 2. Personal & Professional Profiles (The Latest Identity)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS third_level_officials_profiles (
+                    tlid                          TEXT PRIMARY KEY REFERENCES third_level_officials_masterlist(tlid) ON DELETE CASCADE,
+                    last_name                     TEXT,
+                    first_name                    TEXT,
+                    middle_name                   TEXT,
+                    suffix                        TEXT,
+                    gender                        TEXT,
+                    date_of_birth                 DATE,
+                    age                           SMALLINT,
+                    civil_status                  TEXT,
+                    position_title                TEXT,
+                    appointment_date              DATE,
+                    emt_passer                    BOOLEAN,
+                    emt_date                      DATE,
+                    ces_stage                     TEXT,
+                    ces_conferment_date           DATE,
+                    total_years_third_level       NUMERIC(5,2),
+                    previous_positions            JSONB DEFAULT '[]',
+                    relevant_trainings            JSONB DEFAULT '[]',
+                    permanent_address             TEXT,
+                    highest_education             TEXT,
+                    education_program             TEXT,
+                    education_year_graduated      SMALLINT,
+                    notable_achievements          TEXT,
+                    performance_rating_ipcrf      TEXT,
+                    performance_rating_cespes     TEXT,
+                    photo_binary_id               UUID REFERENCES unified_binaries(id) ON DELETE SET NULL,
+                    pds_binary_id                 UUID REFERENCES unified_binaries(id) ON DELETE SET NULL,
+                    profile_word_binary_id        UUID REFERENCES unified_binaries(id) ON DELETE SET NULL,
+                    profile_ppt_binary_id         UUID REFERENCES unified_binaries(id) ON DELETE SET NULL,
+                    service_records_binary_id     UUID REFERENCES unified_binaries(id) ON DELETE SET NULL,
+                    pending_admin_case            TEXT,
+                    ombudsman_case                TEXT,
+                    created_at                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at                    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // 3. Movement & Profile Ledger (Forensic History - Timeline)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS third_level_officials_updates (
+                    id SERIAL PRIMARY KEY,
+                    tlid TEXT,
+                    sort_index INTEGER,
+                    strand TEXT,
+                    office TEXT,
+                    name TEXT,
+                    position TEXT,
+                    email TEXT,
+                    alt_email_1 TEXT,
+                    alt_email_2 TEXT,
+                    contact_details TEXT,
+                    alt_contact_details_1 TEXT,
+                    alt_contact_details_2 TEXT,
+                    assignment_date DATE,
+                    remarks TEXT,
+                    status TEXT,
+                    change_type TEXT,
+                    updated_by TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    -- Profiling Snapshots
+                    last_name TEXT, first_name TEXT, middle_name TEXT, suffix TEXT,
+                    gender TEXT, date_of_birth DATE, age SMALLINT, civil_status TEXT,
+                    position_title TEXT, appointment_date DATE,
+                    emt_passer BOOLEAN, emt_date DATE, ces_stage TEXT, ces_conferment_date DATE,
+                    total_years_third_level NUMERIC(5,2),
+                    previous_positions JSONB DEFAULT '[]',
+                    relevant_trainings JSONB DEFAULT '[]',
+                    permanent_address TEXT,
+                    highest_education TEXT, education_program TEXT, education_year_graduated SMALLINT,
+                    notable_achievements TEXT, performance_rating_ipcrf TEXT, performance_rating_cespes TEXT
+                );
+            `);
+
+            // Indices for ultra-fast timeline lookups (IPC-style)
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_tlm_updates_tlid ON third_level_officials_updates(tlid);`);
+
+            await client.query(`SELECT pg_advisory_unlock(20260422);`);
+            console.log(`✅ [${dbLabel}] Third Level Officials Registry Schema Initialized`);
+        }
     } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Critical migration failure:`, migErr.message);
-    } finally {
-        await client.query('SELECT pg_advisory_unlock(7777777)');
-        // console.log(`🔓 [${dbLabel}] Advisory lock (7777777) released.`);
+        console.error(`❌ [${dbLabel}] Failed to init TLM Registry tables:`, migErr.message);
     }
+
 };
 
 export { initOtpTable, runMigrations };

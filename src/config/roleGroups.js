@@ -6,6 +6,14 @@ export const ROLE_GROUPS = {
     SCHOOL: 'School' // School-level personnel
 };
 
+export const NEXUS_AUTHORIZED_EMAILS = [
+    'admin_co@deped.gov.ph',
+    // placeholder1@deped.gov.ph
+    // placeholder2@deped.gov.ph
+    // placeholder3@deped.gov.ph
+    // placeholder4@deped.gov.ph
+];
+
 export const ROLE_GROUP_MAP = {
     // HROD (Group 1 - Super User 2.0 Exclusive)
     'Super User': ROLE_GROUPS.EDUCATIONAL_ADMIN,
@@ -36,7 +44,7 @@ export const ROLE_GROUP_MAP = {
     // School (Group 3 - Specific School Data)
     'School Head': ROLE_GROUPS.SCHOOL,
     'school_head': ROLE_GROUPS.SCHOOL,
-    
+
     // Normalized roles
     'deped_engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
     'hrodi_engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
@@ -48,10 +56,11 @@ export const ROLE_GROUP_MAP = {
     'MGO': ROLE_GROUPS.INFRA_OPERATIONAL,
     'DPWH': ROLE_GROUPS.INFRA_OPERATIONAL,
     'CSO': ROLE_GROUPS.INFRA_OPERATIONAL,
-    
+
     // New roles
     'Architect': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Regional Engineer': ROLE_GROUPS.MANAGEMENT
+    'Regional Engineer': ROLE_GROUPS.MANAGEMENT,
+    'Third Level Applicant': ROLE_GROUPS.MANAGEMENT
 };
 
 export const normalizeRole = (role) => {
