@@ -28,6 +28,7 @@ def main():
                 FROM "schools_IERN"
                 WHERE "Region" IS NOT NULL 
                   AND TRIM(UPPER("Region")) NOT IN ('', 'BLANK', 'BLANK REGION')
+                  AND status = 'Active'
                 GROUP BY TRIM(UPPER("Region"))
             ),
             migrated_counts AS (
@@ -36,6 +37,7 @@ def main():
                 JOIN ph_schools prod ON legacy.iern = prod.iern
                 WHERE legacy."Region" IS NOT NULL 
                   AND TRIM(UPPER(legacy."Region")) NOT IN ('', 'BLANK', 'BLANK REGION')
+                  AND legacy.status = 'Active'
                 GROUP BY TRIM(UPPER(legacy."Region"))
             ),
             completed_counts AS (
@@ -44,6 +46,7 @@ def main():
                 JOIN ph_school_completion comp ON legacy.iern = comp.iern
                 WHERE legacy."Region" IS NOT NULL 
                   AND TRIM(UPPER(legacy."Region")) NOT IN ('', 'BLANK', 'BLANK REGION')
+                  AND legacy.status = 'Active'
                   AND comp.total_completion = 100
                 GROUP BY TRIM(UPPER(legacy."Region"))
             )

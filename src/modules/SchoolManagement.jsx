@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
-import { FiMapPin, FiCheck, FiX, FiClock, FiSave, FiList, FiAlertTriangle, FiShield, FiUsers, FiCopy, FiSearch, FiRefreshCcw, FiPlusCircle, FiFilePlus, FiDownload } from 'react-icons/fi';
+import { FiMapPin, FiCheck, FiX, FiClock, FiSave, FiList, FiAlertTriangle, FiShield, FiUsers, FiCopy, FiSearch, FiRefreshCcw, FiPlusCircle, FiFilePlus, FiDownload, FiUpload, FiEye } from 'react-icons/fi';
 import { TbSchool, TbReportAnalytics } from 'react-icons/tb';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -103,10 +103,19 @@ import ActionModal from '../components/ActionModal';
 
 const SchoolManagement = () => {
     const { user, token } = useAuth();
+    const location = useLocation();
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [activeView, setActiveView] = useState(null); // null, 'form', 'converted', 'requests', or 'updateStatus'
+    const [activeView, setActiveView] = useState(location.state?.activeView || null); // null, 'form', 'converted', 'requests', 'users', or 'updateStatus'
+
+    // Users Management Integration State
+    const [userSearchId, setUserSearchId] = useState('');
+    const [foundUser, setFoundUser] = useState(null);
+    const [showUserModal, setShowUserModal] = useState(false);
+    const [isSearchingUser, setIsSearchingUser] = useState(false);
+    const [newPasscode, setNewPasscode] = useState('');
+    const [isSavingPasscode, setIsSavingPasscode] = useState(false);
 
     // Form State - matching exact schools table schema
     const [formData, setFormData] = useState({
@@ -151,6 +160,7 @@ const SchoolManagement = () => {
 
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [lastSubmissionDetails, setLastSubmissionDetails] = useState(null);
     const [updateStatusData, setUpdateStatusData] = useState({
         school_id: '',
@@ -244,7 +254,9 @@ const SchoolManagement = () => {
 
     const fetchDivisions = async (region) => {
         try {
-            const res = await fetch(`/api/locations/divisions?region=${encodeURIComponent(region)}`);
+            const res = await fetch(`/api/locations/divisions?region=${encodeURIComponent(region)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setDivisionOptions(data);
@@ -257,7 +269,9 @@ const SchoolManagement = () => {
     const fetchMasterSchools = async (division) => {
         if (!division) return;
         try {
-            const res = await fetch(`/api/master-list/schools?division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/master-list/schools?division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setMasterSchoolOptions(data);
@@ -275,7 +289,9 @@ const SchoolManagement = () => {
 
         setSearchLoading(true);
         try {
-            const res = await fetch(`/api/master-list/school/${selectedMasterSchool}`);
+            const res = await fetch(`/api/master-list/school/${selectedMasterSchool}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const school = await res.json();
 
@@ -357,7 +373,9 @@ const SchoolManagement = () => {
 
     const fetchLocationOptions = async (region, division) => {
         try {
-            const res = await fetch(`/api/sdo/location-options?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/sdo/location-options?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 console.log("🏙️ SDO Location Options Received:", data.length, "rows");
@@ -374,7 +392,9 @@ const SchoolManagement = () => {
     const fetchLocationCoordinates = async (region, division) => {
         try {
             console.log(`fetching coords for ${region}, ${division}`);
-            const res = await fetch(`/api/sdo/location-coordinates?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/sdo/location-coordinates?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 console.log("📍 API Data Received:", data.length, "rows");
@@ -393,7 +413,9 @@ const SchoolManagement = () => {
         if (!user) return;
 
         try {
-            const res = await fetch(`/api/sdo/pending-schools?sdo_uid=${user.uid}`);
+            const res = await fetch(`/api/sdo/pending-schools?sdo_uid=${user.uid}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setPendingSchools(data);
@@ -449,7 +471,9 @@ const SchoolManagement = () => {
             try {
                 const region = userData?.region || '';
                 const province = formData.province;
-                const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
+                const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     const data = await res.json();
                     let options = Array.isArray(data) ? data : [];
@@ -481,6 +505,55 @@ const SchoolManagement = () => {
         return null;
     };
 
+    const handleResubmitDocument = async (pendingId, schoolId, file) => {
+        if (!file) return;
+
+        if (file.type !== 'application/pdf') {
+            alert('Please upload a PDF file.');
+            return;
+        }
+        if (file.size > 25 * 1024 * 1024) { 
+            alert('File size exceeds 25MB limit.');
+            return;
+        }
+
+        setUploading(true);
+        console.log(`🔄 [SDO] Resubmitting file: ${file.name}`);
+        
+        try {
+            const formDataUpload = new FormData();
+            formDataUpload.append('file', file);
+            formDataUpload.append('school_id', schoolId);
+            formDataUpload.append('type', 'SPECIAL_ORDER');
+
+            const res = await fetch(`/api/sdo/resubmit-document/${pendingId}`, {
+                method: 'POST',
+                body: formDataUpload
+            });
+
+            if (res.ok) {
+                alert("✅ Document re-uploaded and optimized successfully!");
+                fetchPendingSchools();
+            } else {
+                const data = await res.json();
+                alert("❌ Failed to re-upload: " + data.error);
+            }
+        } catch (err) {
+            console.error("Resubmit error:", err);
+            alert("❌ An error occurred while resubmitting.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleViewOldDoc = (path) => {
+        if (!path) return;
+        
+        // If it's a relative path, prefix it with /api/uploads/
+        const finalPath = path.startsWith('http') ? path : `/api/uploads/${path}`;
+        window.open(finalPath, '_blank');
+    };
+
     const handleInputChange = (e) => {
         let { name, value } = e.target;
 
@@ -492,7 +565,9 @@ const SchoolManagement = () => {
             // Real-time duplicate check for schools_IERN
             if (value.length === 6) {
                 setCheckingId(true);
-                fetch(`/api/sdo/check-id/${value}`)
+                fetch(`/api/sdo/check-id/${value}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                })
                     .then(res => res.json())
                     .then(data => {
                         setIdExists(data.exists);
@@ -544,8 +619,9 @@ const SchoolManagement = () => {
         // Map Auto-Pan Logic (First School in Area)
         if (['province', 'municipality', 'district', 'leg_district', 'barangay'].includes(name) && value) {
             // Construct filters using the NEW value (state update is async, so use local 'value')
+            let updated;
             setFormData(prev => {
-                const updated = { ...prev, [name]: value };
+                updated = { ...prev, [name]: value };
                 if (name === 'province') {
                     updated.municipality = '';
                     updated.barangay = '';
@@ -566,14 +642,16 @@ const SchoolManagement = () => {
                 const params = new URLSearchParams({
                     region: userData.region,
                     division: userData.division.trim(),
-                    province: filters.province || '',
-                    municipality: filters.municipality || '',
-                    district: filters.district || '',
-                    leg_district: filters.leg_district || '',
-                    barangay: filters.barangay || ''
+                    province: updated.province || '',
+                    municipality: updated.municipality || '',
+                    district: updated.district || '',
+                    leg_district: updated.leg_district || '',
+                    barangay: updated.barangay || ''
                 });
 
-                fetch(`/api/sdo/first-school-location?${params}`)
+                fetch(`/api/sdo/first-school-location?${params}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                })
                     .then(res => res.json())
                     .then(data => {
                         if (data && data.lat && data.lng) {
@@ -631,6 +709,7 @@ const SchoolManagement = () => {
 
             const res = await fetch('/api/sdo/preview-compression', {
                 method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: formDataUpload
             });
 
@@ -685,8 +764,10 @@ const SchoolManagement = () => {
             return;
         }
 
-        // Proceed directly with submission
-        await handleConfirmSubmit();
+        // Trigger Confirmation Modal
+        setConfirmTimer(20);
+        setCanConfirm(false);
+        setShowConfirmModal(true);
     };
 
     const handleConfirmSubmit = async () => {
@@ -698,7 +779,10 @@ const SchoolManagement = () => {
 
             const res = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     ...formData,
                     school_id: formData.school_id.trim(), // Ensure whitespace is removed
@@ -727,6 +811,7 @@ const SchoolManagement = () => {
 
                         const docRes = await fetch('/api/sdo/upload-document', {
                             method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
                             body: formDataUpload
                         });
 
@@ -781,49 +866,83 @@ const SchoolManagement = () => {
             setSubmitting(false);
         }
     };
+    
 
-    const handleResubmitDocument = async (pendingId, schoolId, file) => {
-        if (!file) return;
-
-        if (file.type !== 'application/pdf') {
-            alert('Please upload a PDF file.');
-            return;
-        }
-        if (file.size > 25 * 1024 * 1024) { 
-            alert('File size exceeds 25MB limit.');
+    // --- USER MANAGEMENT INTEGRATION LOGIC ---
+    const handleSearchUser = async () => {
+        if (!userSearchId || userSearchId.length !== 6) {
+            alert("Please enter a valid 6-digit School ID.");
             return;
         }
 
-        setUploading(true);
-        console.log(`🔄 [SDO] Resubmitting file: ${file.name}`);
-        
+        setIsSearchingUser(true);
         try {
-            const formDataUpload = new FormData();
-            formDataUpload.append('file', file);
-            formDataUpload.append('school_id', schoolId);
-            formDataUpload.append('type', 'SPECIAL_ORDER');
+            const res = await fetch(`/api/sdo/user-details/${userSearchId}?region=${encodeURIComponent(user.region)}&division=${encodeURIComponent(user.division)}`);
+            if (res.ok) {
+                const data = await res.json();
+                setFoundUser(data);
+                setShowUserModal(true);
+                setNewPasscode(''); // Reset
+            } else {
+                const errorData = await res.json();
+                alert(errorData.error || "User not found or is outside your division jurisdiction.");
+            }
+        } catch (err) {
+            console.error("Search failed:", err);
+            alert("An error occurred while searching for the user.");
+        } finally {
+            setIsSearchingUser(false);
+        }
+    };
 
-            const res = await fetch(`/api/sdo/resubmit-document/${pendingId}`, {
+    const handleSetPasscode = async () => {
+        if (!newPasscode || newPasscode.length < 4) {
+            alert("Passcode must be at least 4 characters.");
+            return;
+        }
+
+        setIsSavingPasscode(true);
+        try {
+            const res = await fetch('/api/sdo/set-passcode', {
                 method: 'POST',
-                body: formDataUpload
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    school_id: userSearchId,
+                    passcode: newPasscode,
+                    region: user.region,
+                    division: user.division
+                })
             });
 
             if (res.ok) {
-                alert("✅ Document re-uploaded and optimized successfully!");
-                fetchPendingSchools();
+                alert("Passcode updated successfully!");
+                // Refresh local state
+                setFoundUser(prev => ({ ...prev, passcode: newPasscode }));
+                setNewPasscode('');
             } else {
                 const data = await res.json();
-                alert("❌ Failed to re-upload: " + data.error);
+                alert("Failed to update passcode: " + data.error);
             }
         } catch (err) {
-            console.error("Resubmit error:", err);
-            alert("❌ An error occurred while resubmitting.");
+            console.error("Set passcode error:", err);
+            alert("An error occurred while saving the passcode.");
         } finally {
-            setUploading(false);
+            setIsSavingPasscode(false);
         }
     };
-    
 
+    const copyToClipboard = (text, label) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            alert(`${label} copied to clipboard!`);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    };
+    
 
     const handleSearchSchoolForStatus = async () => {
         if (!updateStatusData.school_id || updateStatusData.school_id.length !== 6) {
@@ -833,7 +952,9 @@ const SchoolManagement = () => {
 
         setSearchingStatusSchool(true);
         try {
-            const res = await fetch(`/api/master-list/school/${updateStatusData.school_id}`);
+            const res = await fetch(`/api/master-list/school/${updateStatusData.school_id}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const school = await res.json();
                 
@@ -866,18 +987,18 @@ const SchoolManagement = () => {
             console.error("Search failed:", err);
             alert("An error occurred while searching for the school.");
         } finally {
-            setSearchingStatusSchool(true); // Wait, should be false
             setSearchingStatusSchool(false);
         }
     };
 
-
     const handleUpdateStatus = async (e) => {
         e.preventDefault();
-        if (!updateStatusData.school_id || updateStatusData.school_id.length !== 6) {
-            alert("Please enter a valid 6-digit School ID.");
+        
+        if (!searchedSchoolDetails?.school_id) {
+            alert("School not found or not selected.");
             return;
         }
+
         if (updateStatusData.status === 'Closed' && !updateStatusData.reason) {
             alert("Please provide a reason for closure.");
             return;
@@ -885,24 +1006,32 @@ const SchoolManagement = () => {
 
         setUpdatingStatus(true);
         try {
-            const res = await fetch('/api/sdo/update-school-status', {
+            const res = await fetch('/api/master-list/update-status', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updateStatusData)
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    ...updateStatusData,
+                    school_id: searchedSchoolDetails.school_id,
+                    updated_by: user.uid
+                })
             });
 
             if (res.ok) {
-                alert(`✅ School ${updateStatusData.school_id} status updated to ${updateStatusData.status === 'Closed' ? 'Archived' : 'Active'}`);
+                alert(`✅ School ${searchedSchoolDetails.school_id} status updated successfully!`);
+                setActiveView(null);
                 setUpdateStatusData({ school_id: '', status: 'Open', reason: '' });
-                setActiveView('requests');
+                setSearchedSchoolDetails(null);
                 fetchPendingSchools();
             } else {
                 const data = await res.json();
                 alert("❌ Failed to update status: " + (data.error || "Unknown error"));
             }
         } catch (err) {
-            console.error("Status update error:", err);
-            alert("❌ An error occurred while updating status.");
+            console.error("Update failed:", err);
+            alert("❌ An error occurred while updating the status.");
         } finally {
             setUpdatingStatus(false);
         }
@@ -961,7 +1090,7 @@ const SchoolManagement = () => {
 
                 <div className="max-w-5xl mx-auto px-6 -mt-16 space-y-8 relative z-30 pb-20">
                     {/* Action Cards Grid - Refactored from simple tabs */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         <TabButton 
                             active={activeView === 'form' && !isConverting}
                             onClick={() => {
@@ -1007,6 +1136,13 @@ const SchoolManagement = () => {
                             icon={FiRefreshCcw}
                             label="Update School Status"
                             color="amber"
+                        />
+                        <TabButton 
+                            active={false} // Since this navigates away, it won't be active on this page
+                            onClick={() => navigate('/user-management')}
+                            icon={FiUsers}
+                            label="User Account Lookup"
+                            color="indigo"
                         />
                     </div>
 
@@ -1527,22 +1663,29 @@ const SchoolManagement = () => {
                                                             </span>
                                                             {school.admin_comment && (
                                                                 <div className="mt-2 text-right">
-                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-200 dark:border-amber-800/50 max-w-[200px]">
-                                                                        <strong>Admin Note:</strong> {school.admin_comment}
+                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-200 dark:border-amber-800/50 max-w-[200px] leading-tight">
+                                                                        {school.admin_comment}
                                                                     </p>
                                                                 </div>
                                                             )}
-                                                            <div className="mt-3">
-                                                                <label className="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors inline-block text-center">
-                                                                    {uploading ? 'Processing...' : 'Re-upload PDF'}
-                                                                    <input
-                                                                        type="file"
+                                                            <div className="mt-2 flex gap-2">
+                                                                <label className="cursor-pointer px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm">
+                                                                    <FiUpload />
+                                                                    {uploading ? '...' : 'Fix PDF'}
+                                                                    <input 
+                                                                        type="file" 
+                                                                        className="hidden" 
                                                                         accept="application/pdf"
-                                                                        disabled={uploading}
-                                                                        className="hidden"
                                                                         onChange={(e) => handleResubmitDocument(school.pending_id, school.school_id, e.target.files[0])}
+                                                                        disabled={uploading}
                                                                     />
                                                                 </label>
+                                                                <button 
+                                                                    onClick={() => handleViewOldDoc(school.doc_path)}
+                                                                    className="px-4 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-colors border border-slate-200 dark:border-slate-600"
+                                                                >
+                                                                    View
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     )}
@@ -1551,6 +1694,131 @@ const SchoolManagement = () => {
                                         </div>
                                     ))}
                                 </div>
+                            )}
+                        </div>
+                    </ActionModal>
+
+                    {/* NEW: USER SEARCH MODAL (INTEGRATED) */}
+                    <ActionModal
+                        isOpen={activeView === 'users'}
+                        onClose={() => setActiveView(null)}
+                        title="User Account Lookup"
+                        subtitle="Retrieve security credentials"
+                        icon={FiUsers}
+                    >
+                        <div className="space-y-6">
+                            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
+                                Enter the School ID to retrieve account details (email, contact number, and passcode).
+                            </p>
+
+                            <div className="flex flex-col md:flex-row gap-5 items-end bg-slate-50 dark:bg-slate-900/50 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800">
+                                <div className="flex-1 w-full">
+                                    <label className="block text-[9px] font-black text-blue-600 dark:text-blue-400 mb-1.5 uppercase tracking-[0.2em] ml-1">School ID</label>
+                                    <input
+                                        type="text"
+                                        value={userSearchId}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, '');
+                                            if (val.length <= 6) setUserSearchId(val);
+                                        }}
+                                        placeholder="e.g. 100000"
+                                        className="w-full px-5 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none dark:text-white font-mono text-lg tracking-widest text-blue-600 dark:text-blue-400 shadow-sm"
+                                    />
+                                </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={handleSearchUser}
+                                    disabled={userSearchId.length !== 6 || isSearchingUser}
+                                    className="w-full md:w-auto px-10 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+                                >
+                                    {isSearchingUser ? (
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            <FiSearch size={20} />
+                                            Search User
+                                        </>
+                                    )}
+                                </motion.button>
+                            </div>
+
+                            {/* User details display inside modal */}
+                            {foundUser && (
+                                <motion.div 
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-white dark:bg-slate-800 rounded-3xl p-6 border-2 border-blue-50 dark:border-blue-900/30 space-y-4 shadow-inner"
+                                >
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-700">
+                                        <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Security Profile</h4>
+                                        <span className="px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-sm">ID: {foundUser.school_id}</span>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4 text-xs">
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Region</label>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{foundUser.region}</p>
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-2xl">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Division</label>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{foundUser.division}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl group border border-transparent hover:border-blue-100 dark:hover:border-blue-900/30 transition-all">
+                                            <div className="overflow-hidden mr-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase block">Email Address</label>
+                                                <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{foundUser.email}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => copyToClipboard(foundUser.email, 'Email')}
+                                                className="p-2 bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 transition-all active:scale-95"
+                                            >
+                                                <FiCopy size={16} className="text-blue-600" />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                                            <div className="flex-1 mr-2">
+                                                <label className="text-[10px] font-black text-blue-400 uppercase block">Active Passcode</label>
+                                                {foundUser.passcode ? (
+                                                    <p className="font-mono text-xl font-black text-blue-900 dark:text-blue-200 tracking-[0.3em]">{foundUser.passcode}</p>
+                                                ) : (
+                                                    <div className="mt-2 flex gap-2">
+                                                        <input 
+                                                            type="text"
+                                                            maxLength={6}
+                                                            placeholder="Set 6-digit Code"
+                                                            value={newPasscode}
+                                                            onChange={(e) => {
+                                                                const v = e.target.value.replace(/\D/g, '');
+                                                                if (v.length <= 6) setNewPasscode(v);
+                                                            }}
+                                                            className="flex-1 px-4 py-2 text-sm rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 outline-none focus:border-blue-500 font-mono font-black"
+                                                        />
+                                                        <button 
+                                                            onClick={handleSetPasscode}
+                                                            disabled={isSavingPasscode || newPasscode.length < 4}
+                                                            className="px-6 py-2 bg-blue-600 text-white text-xs font-black rounded-xl hover:bg-blue-700 disabled:opacity-50 shadow-lg shadow-blue-600/20 uppercase tracking-widest"
+                                                        >
+                                                            {isSavingPasscode ? '...' : 'Save'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {foundUser.passcode && (
+                                                <button 
+                                                    onClick={() => copyToClipboard(foundUser.passcode, 'Passcode')}
+                                                    className="p-3 bg-blue-600 shadow-lg text-white rounded-2xl hover:bg-blue-700 transition-all active:scale-95"
+                                                >
+                                                    <FiCopy size={20} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
                             )}
                         </div>
                     </ActionModal>

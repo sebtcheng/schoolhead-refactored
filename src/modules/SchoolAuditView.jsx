@@ -35,7 +35,9 @@ const SchoolAuditView = () => {
 
     const fetchRemarks = async (schoolId) => {
         try {
-            const res = await fetch(`/api/audit/remarks/${schoolId}`);
+            const res = await fetch(`/api/audit/remarks/${schoolId}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             if (res.ok) {
                 const result = await res.json();
                 setRemarks(result.data || []);

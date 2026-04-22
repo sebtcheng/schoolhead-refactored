@@ -1,11 +1,12 @@
 import dotenv from 'dotenv';
 import express from 'express';
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js <<< 📌");
-// Dependency fix: sharp installed. Triggering restart.
+// Robust Login Fix v1.1 - Optimized teachers_list connections removed.
 
 import { google } from 'googleapis';
 // Force restart to pick up .env changes - Robust Login Fix v1
 import pg from 'pg';
+import QueryStream from 'pg-query-stream';
 import cors from 'cors';
 // import cron from 'node-cron'; // REMOVED for Vercel
 // --- LEGACY FIREBASE (DISABLED) ---
@@ -305,7 +306,7 @@ const RegisterBetaSchema = z.object({
 });
 
 // --- DATABASE CONNECTION ---
-const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd';
+const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd';
 const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('20.24.58.49');
 
 console.log(`🔌 Database Connection: ${dbUrl.includes('20.24.58.49') ? 'Remote VM (Azure Proxy)' : (isLocal ? 'Local Loopback' : 'Remote')} (${dbUrl.replace(/:[^:@]*@/, ':****@')})`);
@@ -348,9 +349,10 @@ const pool = new Pool({
   connectionString: dbUrl,
   ssl: isLocal ? false : { rejectUnauthorized: false },
   max: 100,   // Unrestricted throughput following PgBouncer-to-Azure fix
-  min: 5,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 15000, 
+  min: 10,
+  idleTimeoutMillis: 15000,
+  connectionTimeoutMillis: 10000, 
+  maxUses: 7500,
   application_name: 'InsightEd_API_Cluster'
 });
 
@@ -618,6 +620,629 @@ app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 // --- [Status Check] Friendly Root Message ---
+// --- ESF7 NATIONAL SCALE ROUTES (High Priority) ---
+// Initialize ESF7 Link Registry if not exists
+const initESF7Tables = async () => {
+    try {
+        const lockRes = await pool.query('SELECT pg_try_advisory_lock(5555555) as lock_granted');
+        if (!lockRes.rows[0].lock_granted) {
+            console.log("⚠️ [ESF7-Init] Tables already being initialized by another worker.");
+            return;
+        }
+
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS esf7_link (
+                    school_id TEXT PRIMARY KEY,
+                    link TEXT NOT NULL,
+                    row_count INTEGER,
+                    preview_data JSONB,
+                    summary JSONB,
+                    status TEXT DEFAULT 'PENDING_SDO',
+                    uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS summary JSONB;
+                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS audit_remarks TEXT;
+                CREATE TABLE IF NOT EXISTS ESF7_Database (
+                    id SERIAL PRIMARY KEY,
+                    school_id TEXT,
+                    data JSONB,
+                    status TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS data JSONB;
+                
+                CREATE TABLE IF NOT EXISTS ESF7_Staging (
+                    id SERIAL PRIMARY KEY,
+                    school_id TEXT,
+                    data JSONB,
+                    status TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE ESF7_Staging ADD COLUMN IF NOT EXISTS data JSONB;
+            `);
+            console.log("✅ ESF7 link/database tables verified.");
+        } finally {
+            await pool.query('SELECT pg_advisory_unlock(5555555)');
+        }
+    } catch (err) {
+        console.error("❌ Failed to init ESF7 tables:", err.message);
+    }
+};
+
+app.get('/api/esf7/heartbeat', (req, res) => res.json({ status: 'alive' }));
+
+// 1. QUICK SCAN (Verify Access & Metadata)
+const TEACHING_POSITIONS = [
+    "TEACHER I", "TEACHER II", "TEACHER III", "SPED TEACHER I", "SPED TEACHER II", "SPED TEACHER III", "SPED TEACHER IV",
+    "SPECIAL SCIENCE TEACHER I", "SPECIAL SCIENCE TEACHER II", "SPECIAL SCIENCE TEACHER III", "SPECIAL SCIENCE TEACHER IV", "SPECIAL SCIENCE TEACHER V",
+    "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV",
+    "ALS TR - TEACHER I", "ALS TR - TEACHER II", "ALS TR - TEACHER III", "ALS TR - SPED TEACHER I", "ALS TR - SPED TEACHER II", "ALS TR - SPED TEACHER III", "ALS TR - SPED TEACHER IV",
+    "ALS TR - SPECIAL SCIENCE TEACHER I", "ALS TR - SPECIAL SCIENCE TEACHER II", "ALS TR - SPECIAL SCIENCE TEACHER III", "ALS TR - SPECIAL SCIENCE TEACHER IV", "ALS TR - SPECIAL SCIENCE TEACHER V",
+    "ALS TR - MASTER TEACHER I", "ALS TR - MASTER TEACHER II", "ALS TR - MASTER TEACHER III", "ALS TR - MASTER TEACHER IV",
+    "IP TR - TEACHER I", "IP TR - TEACHER II", "IP TR - TEACHER III", "IP TR - SPED TEACHER I", "IP TR - SPED TEACHER II", "IP TR - SPED TEACHER III", "IP TR - SPED TEACHER IV",
+    "IP TR - SPECIAL SCIENCE TEACHER I", "IP TR - SPECIAL SCIENCE TEACHER II", "IP TR - SPECIAL SCIENCE TEACHER III", "IP TR - SPECIAL SCIENCE TEACHER IV", "IP TR - SPECIAL SCIENCE TEACHER V",
+    "IP TR - MASTER TEACHER I", "IP TR - MASTER TEACHER II", "IP TR - MASTER TEACHER III", "IP TR - MASTER TEACHER IV",
+    "MADRASAH TR - TEACHER I", "MADRASAH TR - TEACHER II", "MADRASAH TR - TEACHER III", "MADRASAH TR - SPED TEACHER I", "MADRASAH TR - SPED TEACHER II", "MADRASAH TR - SPED TEACHER III", "MADRASAH TR - SPED TEACHER IV",
+    "MADRASAH TR - SPECIAL SCIENCE TEACHER I", "MADRASAH TR - SPECIAL SCIENCE TEACHER II", "MADRASAH TR - SPECIAL SCIENCE TEACHER III", "MADRASAH TR - SPECIAL SCIENCE TEACHER IV", "MADRASAH TR - SPECIAL SCIENCE TEACHER V",
+    "MADRASAH TR - MASTER TEACHER I", "MADRASAH TR - MASTER TEACHER II", "MADRASAH TR - MASTER TEACHER III", "MADRASAH TR - MASTER TEACHER IV",
+    "ALIVE TEACHER", "TIC - TEACHER I", "TIC - TEACHER II", "TIC - TEACHER III", "TIC - SPED TEACHER I", "TIC - SPED TEACHER II", "TIC - SPED TEACHER III", "TIC - SPED TEACHER IV",
+    "TIC - SPECIAL SCIENCE TEACHER I", "TIC - SPECIAL SCIENCE TEACHER II", "TIC - SPECIAL SCIENCE TEACHER III", "TIC - SPECIAL SCIENCE TEACHER IV", "TIC - SPECIAL SCIENCE TEACHER V",
+    "TIC - MASTER TEACHER I", "TIC - MASTER TEACHER II", "TIC - MASTER TEACHER III", "TIC - MASTER TEACHER IV",
+    "GUIDANCE DESIGNATE - TEACHER I", "GUIDANCE DESIGNATE - TEACHER II", "GUIDANCE DESIGNATE - TEACHER III", "GUIDANCE DESIGNATE - SPED TEACHER I", "GUIDANCE DESIGNATE - SPED TEACHER II", "GUIDANCE DESIGNATE - SPED TEACHER III", "GUIDANCE DESIGNATE - SPED TEACHER IV",
+    "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER I", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER II", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER III", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER IV", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER V",
+    "GUIDANCE DESIGNATE - MASTER TEACHER I", "GUIDANCE DESIGNATE - MASTER TEACHER II", "GUIDANCE DESIGNATE - MASTER TEACHER III", "GUIDANCE DESIGNATE - MASTER TEACHER IV",
+    "CLINIC - TEACHER I", "CLINIC - TEACHER II", "CLINIC - TEACHER III", "CLINIC - SPED TEACHER I", "CLINIC - SPED TEACHER II", "CLINIC - SPED TEACHER III", "CLINIC - SPED TEACHER IV",
+    "CLINIC - SPECIAL SCIENCE TEACHER I", "CLINIC - SPECIAL SCIENCE TEACHER II", "CLINIC - SPECIAL SCIENCE TEACHER III", "CLINIC - SPECIAL SCIENCE TEACHER IV", "CLINIC - SPECIAL SCIENCE TEACHER V",
+    "CLINIC - MASTER TEACHER I", "CLINIC - MASTER TEACHER II", "CLINIC - MASTER TEACHER III", "CLINIC - MASTER TEACHER IV"
+];
+
+const RELATED_TEACHING_POSITIONS = [
+    "TIC - HEAD TEACHER I", "TIC - HEAD TEACHER II", "TIC - HEAD TEACHER III", "TIC - HEAD TEACHER IV", "TIC - HEAD TEACHER V", "TIC - HEAD TEACHER VI",
+    "GUIDANCE DESIGNATE - HEAD TEACHER I", "GUIDANCE DESIGNATE - HEAD TEACHER II", "GUIDANCE DESIGNATE - HEAD TEACHER III", "GUIDANCE DESIGNATE - HEAD TEACHER IV", "GUIDANCE DESIGNATE - HEAD TEACHER V", "GUIDANCE DESIGNATE - HEAD TEACHER VI",
+    "CLINIC - HEAD TEACHER I", "CLINIC - HEAD TEACHER II", "CLINIC - HEAD TEACHER III", "CLINIC - HEAD TEACHER IV", "CLINIC - HEAD TEACHER V", "CLINIC - HEAD TEACHER VI",
+    "ASSISTANT SCHOOL PRINCIPAL I", "ASSISTANT SCHOOL PRINCIPAL II", "ASSISTANT SCHOOL PRINCIPAL III", "ASSISTANT SPECIAL SCHOOL PRINCIPAL",
+    "GUIDANCE COORDINATOR I", "GUIDANCE COORDINATOR II", "GUIDANCE COORDINATOR III", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III",
+    "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI",
+    "SCHOOL PRINCIPAL I", "SCHOOL PRINCIPAL II", "SCHOOL PRINCIPAL III", "SCHOOL PRINCIPAL IV", "SPECIAL SCHOOL PRINCIPAL I", "SPECIAL SCHOOL PRINCIPAL II",
+    "GUIDANCE SERVICES SPECIALIST", "VOCATIONAL SCHOOL ADMINISTRATOR", "VOCATIONAL SCHOOL SUPERINTENDENT"
+];
+
+const NON_TEACHING_POSITIONS = [
+    "ACCOUNTANT", "ACCOUNTING CLERK", "ADMINISTRATIVE AIDE", "ADMINISTRATIVE ASSISTANT", "ADMINISTRATIVE OFFICER", "AGRICULTURIST",
+    "AQUACULTURAL TECHNICIAN", "AQUACULTURST", "BOOKKEEPER", "CASHIER", "CHIEF ADMINISTRATIVE OFFICER", "CLERK", "COLLEGE LIBRARIAN",
+    "COMMUNICATIONS EQUIPMENT OPERATOR", "COMPUTER MAINTENANCE TECHNOLOGIST", "CONSTRUCTION AND MAINTENANCE MAN", "COOK", "COXSWAIN",
+    "DENTAL AIDE", "DENTIST", "DISBURSING OFFICER", "DRIVER", "ENGINEER", "FARM WORKER", "FISCAL CLERK", "FISHERMAN", "HANDICRAFT WORKER",
+    "HEAVY EQUIPMENT OPERATOR", "HOUSEPARENT", "INFORMATION SYSTEMS ANALYST", "INFORMATION TECHNOLOGY OFFICER", "LABORATORY TECHNICIAN",
+    "LIBRARIAN", "LIGHT EQUIPMENT OPERATOR", "LINEMAN", "MARINE ENGINEMAN", "MASTER FISHERMAN", "MECHANIC", "MECHANICAL PLANT OPERATOR",
+    "MEDICAL OFFICER", "NURSE", "NURSE MAID", "NURSING ATTENDANT", "NUTRITIONIST-DIETITIAN", "PLANNING OFFICER", "PROJECT DEVELOPMENT OFFICER",
+    "PSYCHOLOGIST", "REGISTRAR", "REPRODUCTION MACHINE OPERATOR", "SCHOOL LIBRARIAN", "SCHOOLS DIVISION SUPERINTENDENT", "SECURITY GUARD",
+    "SECURITY OFFICER", "SENIOR BOOKKEEPER", "SOCIAL WELFARE OFFICER", "STATISTICIAN AIDE", "SUPPLY OFFICER",
+    "TECHNICAL EDUCATION AND SKILLS DEVELOPMENT SPECIALIST", "TELEGRAM CARRIER", "UTILITY FOREMAN", "UTILITY WORKER", "VOCATIONAL PLACEMENT COORDINATOR",
+    "WATCHMAN", "LEARNING SUPPORT AIDE", "INTERN", "OTHERS"
+];
+
+const getPositionRank = (pos) => {
+    if (!pos) return -1;
+    const p = pos.toUpperCase();
+    if (p.includes("PRINCIPAL IV")) return 100;
+    if (p.includes("PRINCIPAL III")) return 90;
+    if (p.includes("PRINCIPAL II")) return 80;
+    if (p.includes("PRINCIPAL I")) return 70;
+    if (p.includes("HEAD TEACHER VI")) return 60;
+    if (p.includes("HEAD TEACHER V")) return 55;
+    if (p.includes("HEAD TEACHER IV")) return 50;
+    if (p.includes("HEAD TEACHER III")) return 45;
+    if (p.includes("HEAD TEACHER II")) return 40;
+    if (p.includes("HEAD TEACHER I")) return 35;
+    if (p.includes("TIC") || p.includes("OIC")) return 30;
+    if (p.includes("MASTER TEACHER")) return 20;
+    if (p.includes("TEACHER III")) return 15;
+    if (p.includes("TEACHER II")) return 10;
+    if (p.includes("TEACHER I")) return 5;
+    return 1;
+};
+
+app.post('/api/esf7/link-scan', async (req, res) => {
+    const { driveLink, school_id } = req.body;
+    console.log(`🔍 [ESF7-DEBUG] Link Scan: ${school_id} | Link: ${driveLink?.substring(0, 30)}...`);
+    
+    if (!driveLink) return res.status(400).json({ error: "Missing driveLink" });
+
+    try {
+        // 1. Extract File ID
+        let fileId = '';
+        try {
+            if (driveLink.includes('/d/')) fileId = driveLink.split('/d/')[1].split('/')[0];
+            else if (driveLink.includes('id=')) fileId = driveLink.split('id=')[1].split('&')[0];
+            if (!fileId) throw new Error("File ID not found in link");
+        } catch(e) {
+            return res.status(400).json({ error: "Invalid Google Drive link format." });
+        }
+
+        // 2. Prep Auth
+        if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+            throw new Error("Server configuration error: Google Service Account missing.");
+        }
+        
+        const credentialsObj = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+        const auth = new google.auth.GoogleAuth({
+            credentials: { client_email: credentialsObj.client_email, private_key: credentialsObj.private_key },
+            scopes: ['https://www.googleapis.com/auth/drive.readonly']
+        });
+        const drive = google.drive({ version: 'v3', auth });
+
+        // 3. Fetch Metadata & Content
+        console.log(`📥 [ESF7] Accessing file metadata for ${fileId}...`);
+        let fileMetadata;
+        try {
+            const metaRes = await drive.files.get({ fileId, fields: 'id, name, mimeType' });
+            fileMetadata = metaRes.data;
+            console.log(`📄 [ESF7] File Detected: "${fileMetadata.name}" (${fileMetadata.mimeType})`);
+        } catch (mErr) {
+            if (mErr.code === 404) {
+                throw new Error("File not found. Ensure the file is shared with 'insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com' as a Viewer.");
+            }
+            throw mErr;
+        }
+
+        let dataBuffer;
+        if (fileMetadata.mimeType === 'application/vnd.google-apps.spreadsheet') {
+            // It's a Google Sheet -> must EXPORT as XLSX
+            console.log(`🔄 [ESF7] Exporting Google Sheet to XLSX...`);
+            const exportRes = await drive.files.export(
+                { fileId, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+                { responseType: 'arraybuffer' }
+            );
+            dataBuffer = exportRes.data;
+        } else {
+            // It's a binary file -> get content directly
+            console.log(`📥 [ESF7] Downloading binary file content...`);
+            const downloadRes = await drive.files.get(
+                { fileId, alt: 'media' },
+                { responseType: 'arraybuffer' }
+            );
+            dataBuffer = downloadRes.data;
+        }
+
+        if (!dataBuffer) throw new Error("Could not retrieve file content.");
+        
+        const workbook = XLSX.read(new Uint8Array(dataBuffer), { type: 'array' }); 
+        const sheetName = workbook.SheetNames.find(n => n.toUpperCase() === 'DB_USER');
+        if (!sheetName) throw new Error("Missing 'DB_USER' sheet. Sheet names found: " + workbook.SheetNames.join(', '));
+        const worksheet = workbook.Sheets[sheetName];
+
+        const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null, range: 'A1:Z1001' });
+        let headerRowIdx = -1;
+        let colMap = { first: -1, last: -1, fund: -1, pos: -1 };
+        
+        for (let i = 0; i < Math.min(allRows.length, 100); i++) {
+            const row = allRows[i] || [];
+            const lowerRow = row.map(c => String(c || "").trim().toUpperCase());
+            const hasFirst = lowerRow.some(c => c === "FIRST" || c === "FIRST NAME");
+            const hasLast = lowerRow.some(c => c === "LAST" || c === "LAST NAME" || c === "SURNAME");
+            
+            if (hasFirst && hasLast) {
+                headerRowIdx = i;
+                colMap.last = lowerRow.findIndex(c => c === "LAST" || c === "LAST NAME" || c === "SURNAME");
+                colMap.first = lowerRow.findIndex(c => c === "FIRST" || c === "FIRST NAME");
+                colMap.fund = lowerRow.findIndex(c => c === "FUND SOURCE" || c.includes("FUND"));
+                colMap.pos = lowerRow.findIndex(c => c === "POSITION" || c.includes("POS"));
+                break;
+            }
+        }
+        if (headerRowIdx === -1) {
+            headerRowIdx = 0;
+            colMap = { last: 0, first: 1, fund: 2, pos: 3 };
+        }
+
+        // 4. Extract All Personnel
+        let personnelCount = 0;
+        let teachingCount = 0;
+        let relatedCount = 0;
+        let nonTeachingCount = 0;
+        let schoolHead = { name: "N/A", position: "N/A", rank: -1 };
+        
+        const scannedPersonnel = {
+            teaching: [],
+            related: [],
+            nonTeaching: []
+        };
+
+        const dataRows = allRows.slice(headerRowIdx + 1);
+        
+        for (const row of dataRows) {
+            const hasData = [colMap.last, colMap.first, colMap.fund, colMap.pos].some(idx => 
+                idx !== -1 && row[idx] && String(row[idx]).trim() !== ""
+            );
+
+            if (hasData) {
+                personnelCount++;
+                const lastName = (row[colMap.last] || "").trim();
+                const firstName = (row[colMap.first] || "").trim();
+                const fullName = `${firstName} ${lastName}`.trim();
+                const pos = String(row[colMap.pos] || "").trim().toUpperCase();
+                const fund = String(row[colMap.fund] || "NATIONAL").trim().toUpperCase();
+
+                const personObj = {
+                    last: lastName,
+                    first: firstName,
+                    position: row[colMap.pos] || "N/A",
+                    fund_source: fund
+                };
+
+                // Count/add ALL personnel for school head's preview
+                if (TEACHING_POSITIONS.some(tp => pos.includes(tp))) {
+                    teachingCount++;
+                    scannedPersonnel.teaching.push(personObj);
+                } else if (RELATED_TEACHING_POSITIONS.some(rp => pos.includes(rp))) {
+                    relatedCount++;
+                    scannedPersonnel.related.push(personObj);
+                } else {
+                    nonTeachingCount++;
+                    scannedPersonnel.nonTeaching.push(personObj);
+                }
+
+                // School Head Detection (Highest Rank)
+                const rank = getPositionRank(pos);
+                if (rank > schoolHead.rank) {
+                    schoolHead = { name: fullName, position: row[colMap.pos] || pos, rank: rank };
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            data: {
+                rowCount: personnelCount,
+                scannedPersonnel,
+                summary: {
+                    schoolHead: schoolHead.name,
+                    schoolHeadPosition: schoolHead.position,
+                    teaching: teachingCount,
+                    relatedTeaching: relatedCount,
+                    nonTeaching: nonTeachingCount,
+                    total: teachingCount + relatedCount + nonTeachingCount
+                }
+            }
+        });
+    } catch (err) {
+        console.error("❌ ESF7 Link Scan Error:", err);
+        res.status(500).json({ 
+            error: err.message, 
+            stack: err.stack,
+            context: "Link Scan Pipeline" 
+        });
+    }
+});
+
+app.post('/api/esf7/link-submit', async (req, res) => {
+    const { school_id, driveLink, rowCount, previewData, summary } = req.body;
+    try {
+        // DELETE previous data to ensure clean ingestion
+        await pool.query("DELETE FROM ESF7_Database WHERE school_id = $1", [school_id]);
+        
+        await pool.query(`
+            INSERT INTO esf7_link (school_id, link, row_count, preview_data, summary, status, uploaded_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'QUEUED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (school_id) DO UPDATE SET 
+                link = $2, 
+                row_count = $3, 
+                preview_data = $4,
+                summary = NULL,
+                status = 'QUEUED',
+                updated_at = CURRENT_TIMESTAMP
+        `, [school_id, driveLink, rowCount, JSON.stringify(previewData), JSON.stringify(summary)]);
+        await pool.query("UPDATE ph_schools SET unit7 = 0.5, unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        res.json({ success: true });
+    } catch (err) { 
+        console.error("Clean-Slate Error:", err);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
+app.get('/api/esf7/status/:school_id', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT status FROM esf7_link WHERE school_id = $1", [req.params.school_id]);
+        if (result.rows.length === 0) {
+            return res.json({ success: true, status: 'NOT_STARTED' });
+        }
+        res.json({ success: true, status: result.rows[0].status });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/esf7/link-status/:school_id', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT el.status, el.row_count, el.link, el.audit_remarks,
+                   el.uploaded_at AT TIME ZONE 'UTC' as uploaded_at,
+                   rr.can_resubmit, rr.status as request_status
+            FROM esf7_link el
+            LEFT JOIN esf7_resubmission_request rr ON el.school_id = rr.school_id
+            WHERE el.school_id = $1
+        `, [req.params.school_id]);
+        res.json({ success: true, data: result.rows[0] || { status: 'NOT_STARTED' } });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/esf7/link-detail/:school_id', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT *, uploaded_at AT TIME ZONE 'UTC' as submitted_at 
+            FROM esf7_link WHERE school_id = $1
+        `, [req.params.school_id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "No link submitted." });
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/esf7/enqueue-harvest', async (req, res) => {
+    try {
+        await pool.query("UPDATE esf7_link SET status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
+        await pool.query("UPDATE ph_schools SET unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
+        res.json({ success: true, message: "Enqueued for harvesting." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/esf7/data/:school_id', async (req, res) => {
+    try {
+        // First get the verified IERn for this school_id
+        const schoolInfo = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [req.params.school_id]);
+        const iern = schoolInfo.rows[0]?.iern;
+
+        if (!iern) return res.status(404).json({ error: "School not found." });
+
+        const result = await pool.query(`
+            SELECT 
+                "first", "last", "position", "fund_source", "major__specialization", "appt_mm", "appt_yyyy", "gender", "teaching_load"
+            FROM ESF7_Database 
+            WHERE iern = $1 
+            ORDER BY "last" ASC, "first" ASC
+        `, [iern]);
+        res.json({ success: true, data: result.rows });
+    } catch (err) { 
+        console.error("Fetch ESF7 Data Error:", err);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
+app.get('/api/esf7/stats', async (req, res) => {
+    const { region, division } = req.query;
+    let whereClause = ' WHERE 1=1';
+    const params = [];
+    if (region && region !== 'All') {
+        params.push(region);
+        whereClause += ` AND UPPER(TRIM(ps.region)) = UPPER(TRIM($${params.length}))`;
+    }
+    if (division && division !== 'All Divisions') {
+        params.push(division);
+        whereClause += ` AND UPPER(TRIM(ps.division)) = UPPER(TRIM($${params.length}))`;
+    }
+    try {
+        const query = `
+            SELECT 
+                COUNT(DISTINCT i."SchoolID")::int as total_registered,
+                COUNT(DISTINCT CASE WHEN el.status IN ('PENDING_SDO', 'QUEUED') THEN i."SchoolID" END)::int as pending_sdo,
+                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' THEN i."SchoolID" END)::int as verified,
+                COUNT(DISTINCT CASE WHEN el.status = 'NEEDS_RESUBMISSION' THEN i."SchoolID" END)::int as needs_resubmission,
+                COUNT(DISTINCT i."SchoolID") - COUNT(DISTINCT el.school_id)::int as missing_esf7
+            FROM "schools_IERN" i
+            JOIN ph_schools ps ON i."SchoolID" = ps.school_id
+            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
+            ${whereClause}
+        `;
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error("Fetch ESF7 Stats Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+app.get('/api/esf7/regional-summary', async (req, res) => {
+    const { region } = req.query;
+    if (!region) return res.status(400).json({ error: "Region is required" });
+    try {
+        const query = `
+            SELECT 
+                ps.division,
+                COUNT(DISTINCT i."SchoolID")::int as total_schools,
+                COUNT(DISTINCT CASE WHEN el.status IN ('VERIFIED', 'PENDING_SDO', 'QUEUED', 'NEEDS_RESUBMISSION') THEN i."SchoolID" END)::int as harvested_schools,
+                COUNT(DISTINCT CASE WHEN el.status IN ('PENDING_SDO', 'QUEUED') THEN i."SchoolID" END)::int as pending_sdo,
+                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' THEN i."SchoolID" END)::int as verified,
+                COUNT(DISTINCT CASE WHEN el.status = 'NEEDS_RESUBMISSION' THEN i."SchoolID" END)::int as needs_resubmission,
+                COUNT(DISTINCT i."SchoolID") - COUNT(DISTINCT el.school_id)::int as missing_esf7
+            FROM "schools_IERN" i
+            JOIN ph_schools ps ON i."SchoolID" = ps.school_id
+            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
+            WHERE UPPER(TRIM(ps.region)) = UPPER(TRIM($1))
+            GROUP BY ps.division
+            ORDER BY ps.division ASC
+        `;
+        const result = await pool.query(query, [region]);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error("Fetch Regional ESF7 Summary Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+app.get('/api/esf7/all-schools', async (req, res) => {
+    const { region, division } = req.query;
+    try {
+        let query = `
+            SELECT 
+                i."SchoolID" as school_id, 
+                i."School_Name" as school_name, 
+                COALESCE(el.status, 'NOT_STARTED') as status, 
+                COALESCE(el.updated_at, i.updated_at) as updated_at,
+                el.row_count,
+                el.audit_remarks,
+                el.uploaded_at as submitted_at,
+                el.approved_at
+            FROM "schools_IERN" i
+            LEFT JOIN ph_schools ps ON i."SchoolID" = ps.school_id
+            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
+            WHERE 1=1
+        `; 
+        const params = [];
+        if (region && region !== 'All') {
+            params.push(region);
+            query += ` AND UPPER(TRIM(ps.region)) = UPPER(TRIM($${params.length}))`;
+        }
+        if (division && division !== 'All Divisions') {
+            params.push(division);
+            query += ` AND UPPER(TRIM(ps.division)) = UPPER(TRIM($${params.length}))`;
+        }
+        query += ` ORDER BY updated_at DESC, i."School_Name" ASC`;
+        console.log("DEBUG [ESF7 All-Schools] Executing:", { query, params });
+        const result = await pool.query(query, params);
+        console.log("DEBUG [ESF7 All-Schools] Count =", result.rows.length);
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error("Fetch All Schools ESF7 Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+app.post('/api/esf7/audit-remark', async (req, res) => {
+    const { school_id, remark, status } = req.body;
+    try {
+        await pool.query(`
+            UPDATE esf7_link 
+            SET audit_remarks = $1, 
+                status = $2, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE school_id = $3
+        `, [remark, status || 'NEEDS_RESUBMISSION', school_id]);
+
+        if (status === 'NEEDS_RESUBMISSION') {
+            await pool.query("UPDATE ph_schools SET unit7 = 0, unit7_status = 'NEEDS_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        }
+        
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Audit Remark Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/esf7/reject-link', async (req, res) => {
+    try {
+        await pool.query("UPDATE esf7_link SET status = 'REJECTED' WHERE school_id = $1", [req.body.school_id]);
+        await pool.query("UPDATE ph_schools SET unit7 = 0 WHERE school_id = $1", [req.body.school_id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/esf7/request-resubmission', async (req, res) => {
+    try {
+        await pool.query("UPDATE esf7_link SET status = 'PENDING_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
+        res.json({ success: true, message: "Resubmission request sent to SDO." });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/esf7/specialization-summary/:school_id', async (req, res) => {
+    try {
+        const { school_id } = req.params;
+        const result = await pool.query(`
+            SELECT * 
+            FROM ESF7_Database 
+            WHERE school_id = $1 
+        `, [school_id]);
+        
+        const counts = {};
+        const LIST = [
+            "GENERAL EDUCATION", "FAMILY LIFE AND CHILD DEVELOPMENT", "SPECIAL NEEDS EDUCATION",
+            "EARLY CHILDHOOD EDUCATION", "FILIPINO", "ENGLISH", "MATHEMATICS", "SCIENCE",
+            "ARALING PANLIPUNAN", "TLE/EPP", "MAPEH", "ESP/VALUES EDUCATION", "BIOLOGICAL SCIENCES",
+            "PHYSICAL SCIENCES", "AGRICULTURE AND FISHERY ARTS"
+        ];
+        
+        LIST.forEach(s => counts[s] = 0);
+        counts["OTHERS"] = 0;
+
+        let teaching = 0, related = 0, nonTeaching = 0;
+        const TEACHING = ["TEACHER I", "TEACHER II", "TEACHER III", "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV", "SPET I", "SPET II", "SPET III", "SPET IV", "SST I", "SST II", "SST III"];
+        const RELATED = ["PRINCIPAL I", "PRINCIPAL II", "PRINCIPAL III", "PRINCIPAL IV", "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III", "LIBRARIAN I", "LIBRARIAN II", "LIBRARIAN III"];
+
+
+        result.rows.forEach(row => {
+            // Check for National Funding
+            const fundSource = (row.fund_source || row.funding_source || row.funding__source || "").toUpperCase();
+            if (fundSource !== "NATIONAL" && fundSource !== "DEPED" && fundSource !== "DEPED-NATIONAL") return;
+
+            // Categories
+            const pos = (row.position || "").toUpperCase();
+            if (TEACHING.some(t => pos.includes(t))) teaching++;
+            else if (RELATED.some(r => pos.includes(r))) related++;
+            else nonTeaching++;
+
+            // Specializations
+            const spec = (row.major__specialization || "").toUpperCase().trim();
+            if (LIST.includes(spec)) counts[spec] = (counts[spec] || 0) + 1;
+            else if (spec) counts["OTHERS"] += 1;
+        });
+
+        res.json({ 
+            success: true, 
+            data: counts,
+            personnel: {
+                teaching,
+                relatedTeaching: related,
+                nonTeaching: nonTeaching,
+                total: teaching + related + nonTeaching
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/esf7/force-harvest', async (req, res) => {
+    try {
+        const { school_id } = req.body;
+        await pool.query("UPDATE esf7_link SET status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        await pool.query("UPDATE ph_schools SET unit7 = 0.5, unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        res.json({ success: true, message: "School enqueued for immediate re-harvest." });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/esf7/approve-resubmission', async (req, res) => {
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query('BEGIN');
+        const school_id = req.body.school_id;
+
+        // Get IERn first
+        const iernRes = await client.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
+        const iern = iernRes.rows[0]?.iern;
+
+        // 1. Reset link status
+        await client.query("UPDATE esf7_link SET status = 'NOT_STARTED', link = NULL, row_count = NULL, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+        
+        // 2. Reset school progress
+        await client.query("UPDATE ph_schools SET unit7 = 0, unit7_status = 'NOT_STARTED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
+
+        // 3. Delete ESF7_Database entries for this IERn to allow clean re-harvest
+        if (iern) {
+            await client.query("DELETE FROM ESF7_Database WHERE iern = $1", [iern]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: "Module unsealed. School can now re-submit." });
+    } catch (err) { 
+        if (client) await client.query('ROLLBACK');
+        res.status(500).json({ error: err.message }); 
+    } finally {
+        if (client) client.release();
+    }
+});
+
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="font-family: sans-serif; text-align: center; padding: 50px;">
@@ -2460,7 +3085,7 @@ app.get('/api/reference/building-types', async (req, res) => {
   }
 });
 
-app.get('/api/reference/funding-years', async (req, res) => {
+app.get('/api/reference/funding-years', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT funding_year 
@@ -2475,7 +3100,7 @@ app.get('/api/reference/funding-years', async (req, res) => {
   }
 });
 
-app.get('/api/reference/batch-of-funds', async (req, res) => {
+app.get('/api/reference/batch-of-funds', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT batch_of_funds
@@ -2491,7 +3116,7 @@ app.get('/api/reference/batch-of-funds', async (req, res) => {
 });
 
 
-app.get('/api/reference/project-categories', async (req, res) => {
+app.get('/api/reference/project-categories', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT DISTINCT project_category 
@@ -2517,7 +3142,7 @@ app.get('/api/reference/functional-divisions', async (req, res) => {
   }
 });
 
-app.get('/api/reference/efd-locations', async (req, res) => {
+app.get('/api/reference/efd-locations', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT region, division, district, province, municipality, legislative_district 
@@ -2536,30 +3161,8 @@ app.get('/api/reference/efd-locations', async (req, res) => {
 app.get('/api/import-masterlist-teachers/:schoolId', async (req, res) => {
   const { schoolId } = req.params;
   try {
-    const result = await pool.query(
-      'SELECT "first", "middle", "last", "position" FROM teachers_list WHERE "school.id" = $1',
-      [schoolId]
-    );
-
-    const mappedData = result.rows.map(t => {
-      let fName = '';
-      if (t.last) fName += t.last.toUpperCase();
-      if (t.first) {
-        if (fName) fName += ', ';
-        fName += t.first.toUpperCase();
-      }
-      if (t.middle) {
-        if (fName) fName += ' ';
-        fName += t.middle.toUpperCase().charAt(0) + '.';
-      }
-
-      return {
-        full_name: fName || 'UNKNOWN',
-        position: t.position || 'TBD'
-      };
-    });
-
-    res.json(mappedData);
+    // Removed teachers_list dependency
+    res.json([]);
   } catch (err) {
     console.error('❌ Error importing teachers:', err);
     res.status(500).json({ error: err.message });
@@ -2701,16 +3304,39 @@ app.post('/api/auth/migrate-login', async (req, res) => {
       ? `SELECT ${SELECT_COLS} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
       : `SELECT ${SELECT_COLS} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
-    console.log(`[DEBUG LOGIN] Query prepared. Waiting for pool...`);
-    const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
-    console.log(`[DEBUG LOGIN] Query completed! Rows found: ${userRes.rowCount}`);
+    const processUserRes = (resObj) => {
+      if (resObj.rowCount === 0) {
+        console.warn(`[MIGRATE LOGIN] User not found: ${identifier}`);
+        return null;
+      }
+      return resObj.rows[0];
+    };
 
-    if (userRes.rowCount === 0) {
-      console.warn(`[MIGRATE LOGIN] User not found: ${identifier}`);
-      return res.status(401).json({ success: false, error: "Username does not exist. Kindly register first." });
+    let user;
+    try {
+      console.log(`[DEBUG LOGIN] Query prepared. Waiting for pool...`);
+      const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      console.log(`[DEBUG LOGIN] Query completed! Rows found: ${userRes.rowCount}`);
+      user = processUserRes(userRes);
+    } catch (err) {
+      console.error(`💥 [MIGRATE LOGIN] DB Error for ${identifier}:`, err.message);
+      if (err.message.includes('terminated unexpectedly')) {
+        console.warn(`♻️ [RECOVERY] Attempting immediate retry for terminated connection...`);
+        try {
+          const retryRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+          user = processUserRes(retryRes);
+        } catch (retryErr) {
+          console.error(`💥 [RECOVERY FAILED]:`, retryErr.message);
+          throw err;
+        }
+      } else {
+        throw err;
+      }
     }
 
-    const user = userRes.rows[0];
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Username does not exist. Kindly register first." });
+    }
 
     // 2. Determine which hash algorithm to check against
     let isValid = false;
@@ -4150,44 +4776,7 @@ app.post('/api/admin/run-fraud-detection', async (req, res) => {
 
 // --- HELPER: Auto-Fill Teachers from Master List ---
 const autoFillSchoolTeachers = async (schoolId) => {
-  try {
-    console.log(`🤖 [Auto-Fill] Filling Teachers for School: ${schoolId}...`);
-
-    // 1. Get the newly generated IERN from ph_schools
-    const schoolRes = await pool.query("SELECT iern FROM ph_schools WHERE school_id = $1", [schoolId]);
-    const schoolIern = schoolRes.rows.length > 0 ? schoolRes.rows[0].iern : null;
-
-    if (!schoolIern) {
-      console.warn(`⚠️ [Auto-Fill] No IERN found for school ${schoolId}. Proceeding with NULL IERN.`);
-    }
-
-    // 2. Insert from teachers_list using correct columns
-    const res = await pool.query(`
-        INSERT INTO teacher_specialization_details (
-            iern, control_num, school_id, full_name, position, position_group, 
-            specialization, teaching_load, created_at, updated_at
-        )
-        SELECT 
-            $2, 
-            "control_num", 
-            "school.id", 
-            TRIM(CONCAT("first", ' ', "middle", ' ', "last")), 
-            "position", 
-            "position_group", 
-            "specialization.final", 
-            0, 
-            NOW(), 
-            NOW()
-        FROM teachers_list 
-        WHERE "school.id" = $1
-        ON CONFLICT (control_num) DO NOTHING
-    `, [schoolId, schoolIern]);
-
-    console.log(`✅ [Auto-Fill] Success! Copied ${res.rowCount} teachers for school ${schoolId}.`);
-
-  } catch (err) {
-    console.error("❌ Auto-Fill Teachers Failed:", err.message);
-  }
+    // Removed teachers_list dependency
 };
 
 // --- TEACHER PERSONNEL ENDPOINTS ---
@@ -10182,7 +10771,7 @@ app.post('/api/save-project', async (req, res) => {
     projectValues.push(approvalStatus); // $58
 
     let targetTable = 'engineer_form';
-    if (approvalStatus === 'Pending' && (data.actions === 'Newly Created' || data.actions === 'Newly-Created')) {
+    if (submitterRole === 'division engineer' && (data.actions === 'Newly Created' || data.actions === 'Newly-Created')) {
         targetTable = 'engineer_create';
     } else {
         // [MOD] Three-Tier Lifecycle: Route updates for projects originating in the creation-tier
@@ -10457,7 +11046,7 @@ app.put('/api/update-project/:id', upload.fields([
   { name: 'pow_pdf', maxCount: 1 },
   { name: 'dupa_pdf', maxCount: 1 },
   { name: 'contract_pdf', maxCount: 1 }
-]), async (req, res) => {
+]), authMiddleware, async (req, res) => {
   const { id } = req.params;
   const data = req.body;
   console.log("🔥 HIT: PUT /api/update-project/" + id);
@@ -10483,7 +11072,13 @@ app.put('/api/update-project/:id', upload.fields([
     await client.query('BEGIN');
 
     // 1. Fetch Existing Data for Comparison & Document Carry-over
-    const oldRes = await client.query('SELECT * FROM "engineer_form" WHERE project_id = $1', [id]);
+    // Check engineer_create first for Division Engineer-created projects, fall back to engineer_form
+    let oldRes = await client.query('SELECT * FROM "engineer_create" WHERE project_id = $1', [id]);
+    let updateSourceTable = 'engineer_create';
+    if (oldRes.rows.length === 0) {
+      oldRes = await client.query('SELECT * FROM "engineer_form" WHERE project_id = $1', [id]);
+      updateSourceTable = 'engineer_form';
+    }
     if (oldRes.rows.length === 0) {
       await client.query('ROLLBACK');
       if (clientNew) await clientNew.query('ROLLBACK');
@@ -10727,7 +11322,7 @@ app.put('/api/update-project/:id', upload.fields([
 
 
     const insertQuery = `
-      INSERT INTO "engineer_form" (
+      INSERT INTO "${updateSourceTable}" (
 
         project_name, school_name, school_id, region, division,
         status_of_construction_phase, accomplishment_percentage, status_as_of,
@@ -11064,7 +11659,12 @@ app.put('/api/revert-project/:id', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows } = await client.query('SELECT * FROM engineer_form WHERE project_id = $1', [id]);
+    let { rows } = await client.query('SELECT * FROM engineer_create WHERE project_id = $1', [id]);
+    let revertTable = 'engineer_create';
+    if (rows.length === 0) {
+      ({ rows } = await client.query('SELECT * FROM engineer_form WHERE project_id = $1', [id]));
+      revertTable = 'engineer_form';
+    }
     if (rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Project not found' });
@@ -11080,7 +11680,7 @@ app.put('/api/revert-project/:id', async (req, res) => {
     const now = new Date().toISOString();
 
     await client.query(`
-      UPDATE engineer_form
+      UPDATE ${revertTable}
       SET status_of_construction_phase = 'Reverted',
           actions = 'Revert',
           other_remarks = $1,
@@ -11532,28 +12132,11 @@ app.post('/api/admin/resync-completion', async (req, res) => {
 // ==================================================================
 
 // 1. GET: EFD Dashboard Summary (Aggregated Chart Data)
-app.get('/api/dashboard/efd-summary', async (req, res) => {
+app.get('/api/dashboard/efd-summary', authMiddleware, async (req, res) => {
   try {
     const { engineer_id, is_donated, region, division, search, category, year, province, municipality, district, batch } = req.query;
 
-    if (engineer_id && !req.user) {
-      return res.status(401).json({ error: 'Unauthorized: Engineer ID requires authenticated session' });
-    }
-
-    let queryParams = [];
-    let whereClauses = [];
-
     const DEBUG_MODE = process.env.NODE_ENV !== 'production';
-
-    // Inline optional JWT decode — eliminates DB round-trip for authenticated clients
-    if (!req.user) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        try {
-          req.user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD');
-        } catch (_) {}
-      }
-    }
 
     // [DIAG] Division Engineer Query Telemetry
     if (DEBUG_MODE && engineer_id) {
@@ -11732,14 +12315,10 @@ app.get('/api/dashboard/efd-summary', async (req, res) => {
 });
 
 // --- 11. GET: Get Projects (Filtered by Engineer) ---
-app.get('/api/projects', async (req, res) => {
+app.get('/api/projects', authMiddleware, async (req, res) => {
   try {
     // We catch the engineer_id sent from EngineerDashboard.jsx
     const { status, region, division, search, engineer_id, is_donated, implementing_agency, sty, cl, page = 1, limit = 50 } = req.query;
-
-    if (engineer_id && !req.user) {
-      return res.status(401).json({ error: 'Unauthorized: Engineer ID requires authenticated session' });
-    }
 
     const offset = (page - 1) * limit;
     let queryParams = [];
@@ -11853,14 +12432,13 @@ app.get('/api/projects', async (req, res) => {
 
     const DEBUG_MODE = process.env.NODE_ENV !== 'production';
 
-    // Inline optional JWT decode — eliminates DB round-trip for authenticated clients
-    if (!req.user) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        try {
-          req.user = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD');
-        } catch (_) {}
-      }
+    // Include engineer_create rows for Division Engineers so their self-created projects appear
+    const callerRole = req.user?.role?.trim().toLowerCase();
+    if (callerRole === 'division engineer') {
+      sql = sql.replace(
+        'FROM engineer_form e',
+        'FROM (SELECT * FROM engineer_form UNION ALL SELECT * FROM engineer_create) e'
+      );
     }
 
     // [DIAG] Division Engineer Query Telemetry
@@ -12216,7 +12794,7 @@ app.post('/api/upload/multipart-finalize', async (req, res) => {
   }
 });
 // --- 11f. GET: List Engineers (For EFD Assignment) ---
-app.get('/api/engineers', async (req, res) => {
+app.get('/api/engineers', authMiddleware, async (req, res) => {
   const { role } = req.query;
   try {
     let query;
@@ -12248,7 +12826,7 @@ app.get('/api/engineers', async (req, res) => {
 });
 
 // --- 11g. POST: Assign Project to Engineer (EFD) ---
-app.post('/api/assign-project', async (req, res) => {
+app.post('/api/assign-project', authMiddleware, async (req, res) => {
   const { projectId, engineerId, engineerName } = req.body;
 
   if (!projectId || !engineerId || !engineerName) {
@@ -12341,7 +12919,12 @@ app.get('/api/projects/:id', async (req, res) => {
       ) d ON true
       WHERE e.project_id = $1;
     `;
-    const result = await pool.query(query, [id]);
+    let result = await pool.query(query, [id]);
+    if (result.rows.length === 0) {
+      // Project may have been created by a Division Engineer and lives in engineer_create
+      const createQuery = query.replace('FROM engineer_form e', 'FROM engineer_create e');
+      result = await pool.query(createQuery, [id]);
+    }
     if (result.rows.length === 0) return res.status(404).json({ message: "Project not found" });
     res.json(result.rows[0]);
   } catch (err) {
@@ -12417,7 +13000,7 @@ app.get('/api/projects-by-school-id/:schoolId', async (req, res) => {
 });
 
 // --- 11c. PUT: Approve a Project (EFD/Super only) ---
-app.put('/api/approve-project/:id', async (req, res) => {
+app.put('/api/approve-project/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     const ipcRes = await pool.query('SELECT ipc FROM engineer_form WHERE project_id = $1', [id]);
@@ -12620,7 +13203,7 @@ app.get('/api/project-history/:ipc', async (req, res) => {
 });
 
 // --- 20. POST: Upload Project Image (Synchronous Optimization) ---
-app.post('/api/upload-image', (req, res, next) => {
+app.post('/api/upload-image', authMiddleware, (req, res, next) => {
     // Accept multipart/form-data (file upload) OR application/json (legacy Base64 / offline outbox)
     const ct = req.headers['content-type'] || '';
     if (ct.includes('multipart/form-data')) {
@@ -12752,35 +13335,65 @@ app.get('/api/asset/:id', async (req, res) => {
         return res.status(400).json({ error: 'Invalid asset ID' });
     }
     try {
-        const result = await pool.query(
-            'SELECT content, mime_type FROM unified_binaries WHERE id = $1',
-            [id]
-        );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Asset not found' });
-        }
-        const { content, mime_type } = result.rows[0];
+        const client = await pool.connect();
+        let stream;
+        try {
+            const query = new QueryStream(
+                'SELECT content, mime_type FROM unified_binaries WHERE id = $1',
+                [id]
+            );
+            stream = client.query(query);
 
-        const isDownload = req.query.download === '1';
-        const ext = mime_type === 'application/pdf' ? '.pdf'
-                  : mime_type === 'image/webp'       ? '.webp'
-                  : mime_type === 'image/jpeg'        ? '.jpg'
-                  : mime_type === 'image/png'         ? '.png'
-                  : '';
-        const filename = `document${ext}`;
+            let headersSet = false;
 
-        res.setHeader('Content-Type', mime_type);
-        res.setHeader(
-            'Content-Disposition',
-            isDownload ? `attachment; filename="${filename}"` : `inline; filename="${filename}"`
-        );
-        if (!isDownload) {
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            stream.on('data', (row) => {
+                if (!headersSet) {
+                    const { mime_type } = row;
+                    const isDownload = req.query.download === '1';
+                    const ext = mime_type === 'application/pdf' ? '.pdf'
+                              : mime_type === 'image/webp'       ? '.webp'
+                              : mime_type === 'image/jpeg'        ? '.jpg'
+                              : mime_type === 'image/png'         ? '.png'
+                              : '';
+                    const filename = `document${ext}`;
+
+                    res.setHeader('Content-Type', mime_type);
+                    res.setHeader(
+                        'Content-Disposition',
+                        isDownload ? `attachment; filename="${filename}"` : `inline; filename="${filename}"`
+                    );
+                    if (!isDownload) {
+                        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                    }
+                    headersSet = true;
+                }
+                res.write(row.content);
+            });
+
+            stream.on('end', () => {
+                res.end();
+                client.release();
+            });
+
+            stream.on('error', (err) => {
+                console.error("❌ Stream Error:", err.message);
+                if (!headersSet) {
+                    res.status(500).json({ error: 'Stream failed' });
+                } else {
+                    res.end();
+                }
+                client.release();
+            });
+
+        } catch (streamErr) {
+            client.release();
+            throw streamErr;
         }
-        res.send(content);
     } catch (err) {
-        console.error('❌ Asset Fetch Error:', err.message);
-        res.status(500).json({ error: 'Failed to retrieve asset' });
+        console.error("❌ Asset Retrieval Error:", err.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: err.message });
+        }
     }
 });
 
@@ -14743,12 +15356,12 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
         COUNT(s."SchoolID") as total_schools,
         COUNT(sp.school_id) as registered_schools,
         COALESCE(SUM(CASE WHEN sp.unit_completion >= 100 THEN 1 ELSE 0 END), 0) as unit_completed,
-        COALESCE(COUNT(DISTINCT e.school_id) FILTER (WHERE e.status = 'VERIFIED' OR e.status = 'PENDING_SDO'), 0) as esf7_completed,
+        -- ESF7 dependency removed to restore connection
+        0 as esf7_completed,
         -- NSPP placeholder (0 for now as module is coming soon)
         0 as nspp_completed
       FROM "schools_IERN" s
       LEFT JOIN ph_schools sp ON s."SchoolID" = sp.school_id
-      LEFT JOIN esf7_database e ON s."SchoolID" = e.school_id
       ${filterClause}
       GROUP BY ${selectGroup} ${extraSelect}
       HAVING ${selectGroup} IS NOT NULL AND ${selectGroup} <> ''
@@ -14767,7 +15380,6 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
       total_schools: 0,
       registered_schools: 0,
       unit_completed: 0,
-      esf7_completed: 0,
       nspp_completed: 0
     };
 
@@ -14775,7 +15387,6 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
       totals.total_schools += parseInt(row.total_schools);
       totals.registered_schools += parseInt(row.registered_schools);
       totals.unit_completed += parseInt(row.unit_completed);
-      totals.esf7_completed += parseInt(row.esf7_completed);
     });
 
     res.json({
@@ -14785,7 +15396,6 @@ app.get('/api/monitoring/hrod-dashboard', async (req, res) => {
         total_schools: parseInt(r.total_schools),
         registered_schools: parseInt(r.registered_schools),
         unit_completed: parseInt(r.unit_completed),
-        esf7_completed: parseInt(r.esf7_completed),
         progress: r.total_schools > 0 ? Math.round((parseInt(r.unit_completed) / parseInt(r.total_schools)) * 100) : 0
       }))
     });
@@ -16042,7 +16652,7 @@ app.get('/api/monitoring/schools', async (req, res) => {
       ss.data_health_description,
       ss.data_health_score,
       ss.issues as data_quality_issues,
-      COALESCE(e.status, 'NOT_STARTED') as esf7_status
+      COALESCE(sp.unit7_status, 'NOT_STARTED') as esf7_status
     `;
 
     // ADDED: Strip validation fields if role is RO/SDO (Optional param for now to avoid breaking existing users)
@@ -16058,7 +16668,6 @@ app.get('/api/monitoring/schools', async (req, res) => {
       LEFT JOIN ph_schools sp ON s."SchoolID" = sp.school_id
       LEFT JOIN ph_school_completion psc ON sp.iern = psc.iern
       LEFT JOIN school_summary ss ON s."SchoolID" = ss.school_id
-      LEFT JOIN (SELECT DISTINCT ON (school_id) school_id, status FROM esf7_database ORDER BY school_id, id DESC) e ON s."SchoolID" = e.school_id
       ${whereSql}
     `;
     console.log("DEBUG: Running Schools List Count for Region:", region, "Division:", division);
@@ -16072,7 +16681,6 @@ app.get('/api/monitoring/schools', async (req, res) => {
       LEFT JOIN ph_schools sp ON s."SchoolID" = sp.school_id
       LEFT JOIN ph_school_completion psc ON sp.iern = psc.iern
       LEFT JOIN school_summary ss ON s."SchoolID" = ss.school_id
-      LEFT JOIN (SELECT DISTINCT ON (school_id) school_id, status FROM esf7_database ORDER BY school_id, id DESC) e ON s."SchoolID" = e.school_id
       ${whereSql}
       ORDER BY COALESCE(psc.total_completion, sp.unit_completion, 0) DESC, s."School_Name" ASC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -18313,21 +18921,6 @@ app.get('/api/ph_schools/:schoolId', async (req, res) => {
     if (result.rows.length > 0) {
       let row = result.rows[0];
 
-      // --- DYNAMIC BASELINE FALLBACK ---
-      // If total_teachers_registered is 0, attempt a live count from master list
-      if (!row.total_teachers_registered || parseInt(row.total_teachers_registered) === 0) {
-        try {
-          const teacherCountRes = await pool.query('SELECT COUNT(*) FROM teachers_list WHERE CAST("school.id" AS TEXT) = $1', [schoolId]);
-          const liveCount = parseInt(teacherCountRes.rows[0].count) || 0;
-          if (liveCount > 0) {
-            row.total_teachers_registered = liveCount;
-            // Asyncly update the table so it persists
-            pool.query('UPDATE ph_schools SET total_teachers_registered = $1 WHERE school_id = $2', [liveCount, schoolId]).catch(() => { });
-          }
-        } catch (e) {
-          console.warn(`[GET /api/ph_schools] Baseline fallback failed for ${schoolId}:`, e.message);
-        }
-      }
       // --- END FALLBACK ---
 
       // --- OWNERSHIP DOCUMENT DETAILS ---
@@ -19207,20 +19800,6 @@ app.put('/api/ph_schools/unit5/:schoolId', async (req, res) => {
     // Ensure the row exists before updating, in case the user jumped straight to this unit
     await pool.query('INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (school_id) DO UPDATE SET iern = COALESCE(ph_schools.iern, EXCLUDED.iern)', [data.iern, schoolId]);
 
-    // --- START BASELINE CALCULATION ---
-    // Calculate teacher headcount from master list (teachers_list)
-    let totalRegistered = 0;
-    try {
-      const teacherCountRes = await pool.query('SELECT COUNT(*) FROM teachers_list WHERE CAST("school.id" AS TEXT) = $1', [schoolId]);
-      totalRegistered = parseInt(teacherCountRes.rows[0].count) || 0;
-
-      // Add total_teachers_registered to dynamic update
-      dynamicFields.push(`total_teachers_registered = $${paramIdx++}`);
-      values.push(totalRegistered);
-      console.log(`[Unit 5] Calculated Baseline Teachers for ${schoolId}: ${totalRegistered}`);
-    } catch (countErr) {
-      console.error("[Unit 5] Failed to calculate teacher baseline:", countErr.message);
-    }
     // --- END BASELINE CALCULATION ---
 
     values.push(schoolId);
@@ -20895,7 +21474,15 @@ const startServer = async () => {
         try {
           const migClient = await pool.connect();
           try {
+            const lockRes = await migClient.query('SELECT pg_try_advisory_lock(6666666) as lock_granted');
+            if (!lockRes.rows[0].lock_granted) {
+              console.log(`⚠️ [Cluster] Migrations already in progress. skipping.`);
+              return;
+            }
+            console.log(`🔒 [Cluster] Migration lock (6666666) acquired.`);
+            
             await hardenSchoolsIernSchema(migClient);
+            await initESF7Tables();
             await runAutoMigrations();
             await initDB();
             await initUnit7Schema();
@@ -20909,10 +21496,11 @@ const startServer = async () => {
             // Initialize and start pg-boss
             console.log("💼 [JobQueue] Starting pg-boss instance...");
             await boss.start();
-            await boss.createQueue('esf7-approve').catch(() => {});
+            // ESF7 scaling disabled to restore stability
+            // await boss.createQueue('esf7-approve').catch(() => {});
             await boss.createQueue('activity-log').catch(() => {});
             await boss.createQueue('log-cleanup').catch(() => {});
-            await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
+            // await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
             await boss.work('activity-log', { concurrency: 10 }, handleActivityLogJob);
             await boss.work('log-cleanup', handleLogCleanupJob);
 
@@ -21048,515 +21636,10 @@ app.get('/api/admin/users', authMiddleware, async (req, res) => {
   }
 });
 
-// ==================================================================
-//               ESF7 IMPLEMENTATION & MONITORING
-// ==================================================================
+// [NATIONAL SCALE] Link based endpoints moved to top of route section for priority
 
-app.post('/api/esf7/extract-preview', async (req, res) => {
-    const { driveLink } = req.body;
-    if (!driveLink) return res.status(400).json({ error: "Missing driveLink" });
-
-    try {
-        // 1. Extract File ID
-        let fileId = '';
-        if (driveLink.includes('/d/')) {
-            fileId = driveLink.split('/d/')[1].split('/')[0];
-        } else if (driveLink.includes('id=')) {
-            fileId = driveLink.split('id=')[1].split('&')[0];
-        }
-        if (!fileId) throw new Error("Could not extract File ID from link.");
-
-        // 2. Authenticate
-        let credentialsObj;
-        try {
-            credentialsObj = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-        } catch (err) {
-            throw new Error("Server configuration error: GOOGLE_SERVICE_ACCOUNT_JSON in .env is invalid or missing.");
-        }
-        
-        let auth = new google.auth.GoogleAuth({
-            credentials: {
-                client_email: credentialsObj.client_email,
-                private_key: credentialsObj.private_key,
-            },
-            scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-            clientOptions: {
-                subject: 'support.stride@deped.gov.ph'
-            }
-        });
-
-        const drive = google.drive({ version: 'v3', auth });
-        let arrayBuffer;
-
-        try {
-            const response = await drive.files.get({
-                fileId: fileId,
-                alt: 'media'
-            }, { responseType: 'arraybuffer' });
-            arrayBuffer = response.data;
-        } catch (apiError) {
-            // Fallback for non-impersonated service account
-            auth = new google.auth.GoogleAuth({
-                credentials: {
-                    client_email: credentialsObj.client_email,
-                    private_key: credentialsObj.private_key,
-                },
-                scopes: ['https://www.googleapis.com/auth/drive.readonly']
-            });
-            const driveFallback = google.drive({ version: 'v3', auth });
-            const fbResponse = await driveFallback.files.get({
-                fileId: fileId,
-                alt: 'media'
-            }, { responseType: 'arraybuffer' });
-            arrayBuffer = fbResponse.data;
-        }
-
-        // 3. Parse with SheetJS
-        const data = new Uint8Array(arrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const worksheet = workbook.Sheets['DB_USER'];
-
-        if (!worksheet) {
-            throw new Error("Missing 'DB_USER' sheet in the workbook.");
-        }
-
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-        if (jsonData.length < 1) throw new Error("Sheet is empty.");
-
-        // Find header row
-        let headerRowIdx = 0;
-        for (let i = 0; i < Math.min(jsonData.length, 25); i++) {
-            const row = jsonData[i];
-            if (row && row.some(cell => {
-                const val = String(cell).toLowerCase();
-                return val.includes('school') || val.includes('id') || val.includes('first');
-            })) {
-                headerRowIdx = i;
-                break;
-            }
-        }
-
-        const headers = jsonData[headerRowIdx];
-        const rows = jsonData.slice(headerRowIdx + 1).filter(row => row.some(cell => String(cell).trim() !== ""));
-
-        const records = rows.map(row => {
-            const record = {};
-            const headerCounts = {};
-            
-            headers.forEach((h, i) => {
-                const headerRaw = h ? String(h).trim() : `col_${i}`;
-                const headerLower = headerRaw.toLowerCase();
-                
-                // Skip QA-QE columns
-                if (['qa', 'qb', 'qc', 'qd', 'qe'].includes(headerLower)) return;
-                
-                let key = headerRaw;
-                if (headerCounts[key]) {
-                    headerCounts[key]++;
-                    key = `${key}_${headerCounts[key]}`;
-                } else {
-                    headerCounts[key] = 1;
-                }
-                
-                record[key] = row[i] || "";
-            });
-
-            // Specific Positional mapping for OB (Index 391) -> appt_yyyy
-            if (row[391] !== undefined) {
-                record['appt_yyyy'] = row[391];
-            }
-
-            return record;
-        });
-
-        res.json({
-            success: true,
-            data: {
-                records,
-                headers,
-                totalRows: records.length,
-                sample: rows.slice(0, 5)
-            }
-        });
-
-    } catch (err) {
-        console.error("Backend Extraction Error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// POST /api/esf7/stage - School Head uploads data to STAGING
-app.post('/api/esf7/stage', async (req, res) => {
-  const { school_id, records } = req.body;
-  if (!school_id || !records || !Array.isArray(records)) {
-    return res.status(400).json({ error: "Missing school_id or records array" });
-  }
-
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-    
-    // Fetch School metadata for audit consistency
-    const schoolMeta = await client.query('SELECT school_name FROM ph_schools WHERE school_id = $1', [school_id]);
-    const schoolName = schoolMeta.rows[0]?.school_name || "Unknown School";
-    const uploadedAt = new Date().toISOString();
-
-    // Ensure staging table exists as a structured replica if not already present
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS ESF7_Staging (LIKE ESF7_Database INCLUDING ALL);
-    `);
-    
-    // Add index if missing for performance
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_esf7_staging_school_id ON ESF7_Staging(school_id);`);
-
-    // Clear existing records for this school
-    await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
-    await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
-
-    // Get valid columns for insertion
-    const colRes = await client.query(`
-        SELECT column_name FROM information_schema.columns WHERE table_name = 'esf7_staging'
-    `);
-    const validColumns = new Set(colRes.rows.map(r => r.column_name));
-
-    // Batch Insert Logic
-    for (const record of records) {
-        const entry = { 
-            ...record, 
-            school_id, 
-            school_name: schoolName,
-            status: 'PENDING_SDO',
-            uploaded_at: uploadedAt
-        };
-        
-        const keys = Object.keys(entry)
-            .map(k => k.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
-            .filter(k => validColumns.has(k));
-        
-        if (keys.length === 0) continue;
-
-        const values = keys.map(k => {
-            const originalKey = Object.keys(entry).find(ok => ok.toLowerCase().replace(/[^a-z0-9_]/g, '_') === k);
-            return entry[originalKey];
-        });
-
-        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-        const query = `INSERT INTO ESF7_Staging (${keys.join(', ')}) VALUES (${placeholders})`;
-        await client.query(query, values);
-    }
-
-    // Update ph_schools status
-    await client.query(`
-        UPDATE ph_schools 
-        SET unit7 = 0.5, 
-            unit7_completed = FALSE, 
-            uploaded_at = $1,
-            updated_at = CURRENT_TIMESTAMP 
-        WHERE school_id = $2
-    `, [uploadedAt, school_id]);
-
-    await client.query('COMMIT');
-    
-    // Total sync
-    const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-    if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
-
-    res.json({ success: true, message: "Successfully staged for SDO Review. Data is pending verification." });
-
-  } catch (err) {
-    if (client) await client.query('ROLLBACK');
-    console.error("ESF7 Staging Error:", err.message);
-    res.status(500).json({ error: err.message || "Staging failed." });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// GET /api/esf7/pending
-app.get('/api/esf7/pending', async (req, res) => {
-  const { region, division } = req.query;
-  try {
-    let query = `
-      SELECT e.school_id, s.school_name, e.status, MAX(e.updated_at) as updated_at 
-      FROM ESF7_Database e
-      JOIN ph_schools s ON e.school_id = s.school_id
-      WHERE (e.status = 'DRAFT' OR e.status = 'PENDING_SDO' OR e.status = 'REJECTED')
-    `;
-    const params = [];
-    if (region && region !== 'All') {
-      params.push(region);
-      query += ` AND s.region = $${params.length}`;
-    }
-    if (division && division !== 'All Divisions') {
-      params.push(division);
-      query += ` AND s.division = $${params.length}`;
-    }
-    query += ` GROUP BY e.school_id, e.status ORDER BY updated_at DESC`;
-
-    const result = await pool.query(query, params);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error("Fetch Pending ESF7 Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// GET /api/esf7/status/:school_id
-app.get('/api/esf7/status/:school_id', async (req, res) => {
-  const { school_id } = req.params;
-  try {
-    // 1. Check final database first
-    const dbRes = await pool.query(
-      'SELECT status FROM ESF7_Database WHERE school_id = $1 LIMIT 1',
-      [school_id]
-    );
-    if (dbRes.rows.length > 0) {
-      return res.json({ success: true, status: dbRes.rows[0].status });
-    }
-
-    // 2. Check staging area
-    const stageRes = await pool.query(
-      'SELECT status FROM ESF7_Staging WHERE school_id = $1 LIMIT 1',
-      [school_id]
-    );
-    if (stageRes.rows.length > 0) {
-      return res.json({ success: true, status: stageRes.rows[0].status });
-    }
-
-    res.json({ success: true, status: 'NOT_STARTED' });
-  } catch (err) {
-    console.error("Fetch ESF7 Status Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// --- ESF7 RESUBMISSION REQUESTS ---
-
-// POST /api/esf7/request-resubmit - School Head requests to re-upload
-app.post('/api/esf7/request-resubmit', async (req, res) => {
-    const { school_id, school_name, reason } = req.body;
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS ESF7_Resubmission_Requests (
-                id SERIAL PRIMARY KEY,
-                school_id TEXT NOT NULL,
-                school_name TEXT,
-                reason TEXT,
-                status TEXT DEFAULT 'PENDING',
-                requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                processed_at TIMESTAMP,
-                processed_by TEXT
-            )
-        `);
-
-        // Check for existing pending request
-        const check = await pool.query('SELECT status FROM ESF7_Resubmission_Requests WHERE school_id = $1 AND status = $2', [school_id, 'PENDING']);
-        if (check.rows.length > 0) return res.status(400).json({ error: "A request is already pending for this school." });
-
-        await pool.query(
-            'INSERT INTO ESF7_Resubmission_Requests (school_id, school_name, reason) VALUES ($1, $2, $3)',
-            [school_id, school_name, reason]
-        );
-
-        res.json({ success: true, message: "Resubmission request sent to SDO." });
-    } catch (err) {
-        console.error("ESF7 Request Error:", err);
-        res.status(500).json({ error: "Failed to send request." });
-    }
-});
-
-// GET /api/esf7/requests - SDO fetches pending requests
-app.get('/api/esf7/requests', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM ESF7_Resubmission_Requests WHERE status = $1 ORDER BY requested_at DESC', ['PENDING']);
-        res.json({ success: true, data: result.rows });
-    } catch (err) {
-        console.error("Fetch ESF7 Requests Error:", err);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// GET /api/esf7/request-status/:school_id
-app.get('/api/esf7/request-status/:school_id', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT status FROM ESF7_Resubmission_Requests WHERE school_id = $1 ORDER BY requested_at DESC LIMIT 1', [req.params.school_id]);
-        res.json({ success: true, status: result.rows[0]?.status || null });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// POST /api/esf7/approve-resubmit - SDO Approves Request
-app.post('/api/esf7/approve-resubmit', async (req, res) => {
-    const { school_id, decision, processor_name } = req.body; // decision: APPROVED or REJECTED
-    let client;
-    try {
-        client = await pool.connect();
-        await client.query('BEGIN');
-
-        // 1. Update request record
-        await client.query(
-            'UPDATE ESF7_Resubmission_Requests SET status = $1, processed_at = CURRENT_TIMESTAMP, processed_by = $2 WHERE school_id = $3 AND status = $4',
-            [decision, processor_name, school_id, 'PENDING']
-        );
-
-        if (decision === 'APPROVED') {
-            // 2. RESET WORKFLOW: Delete staging AND final DB records
-            await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
-            await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
-            
-            // 3. Reset progress to 0 (unit7 = 0)
-            await client.query('UPDATE ph_schools SET unit7 = 0, unit7_completed = FALSE, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1', [school_id]);
-            
-            const iernRes = await client.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-            if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
-        }
-
-        await client.query('COMMIT');
-        res.json({ success: true, message: `Request ${decision.toLowerCase()} for school ${school_id}.` });
-    } catch (err) {
-        if (client) await client.query('ROLLBACK');
-        console.error("Approve Resubmit Error:", err);
-        res.status(500).json({ error: "Internal Server Error" });
-    } finally {
-        if (client) client.release();
-    }
-});
-
-// GET /api/esf7/records/:school_id - Pull from STAGING or DATABASE for review
-app.get('/api/esf7/records/:school_id', async (req, res) => {
-  const { school_id } = req.params;
-  try {
-    // 1. Try staging first
-    const stagedRes = await pool.query('SELECT * FROM ESF7_Staging WHERE school_id = $1', [school_id]);
-    if (stagedRes.rows.length > 0) {
-      return res.json({ success: true, data: stagedRes.rows });
-    }
-
-    // 2. Fallback to database
-    const result = await pool.query(
-      'SELECT * FROM ESF7_Database WHERE school_id = $1',
-      [school_id]
-    );
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error("Fetch records error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// GET /api/esf7/stats
-app.get('/api/esf7/stats', async (req, res) => {
-  const { region, division, district } = req.query;
-  try {
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    if (region && region !== 'All') {
-      params.push(region);
-      whereClause += ` AND UPPER(TRIM(s.region)) = UPPER(TRIM($${params.length}))`;
-    }
-    if (division && division !== 'All Divisions') {
-      params.push(division);
-      whereClause += ` AND UPPER(TRIM(s.division)) = UPPER(TRIM($${params.length}))`;
-    }
-
-    const query = `
-      SELECT 
-        COUNT(DISTINCT s.school_id)::int as total_registered,
-        COUNT(DISTINCT CASE WHEN st.status = 'PENDING_SDO' THEN s.school_id END)::int as pending_sdo,
-        COUNT(DISTINCT CASE WHEN e.status = 'VERIFIED' THEN s.school_id END)::int as verified,
-        COUNT(DISTINCT CASE WHEN st.status = 'REJECTED' THEN s.school_id END)::int as rejected,
-        COUNT(DISTINCT s.school_id) - (COUNT(DISTINCT e.school_id) + COUNT(DISTINCT st.school_id))::int as missing_esf7
-      FROM ph_schools s
-      LEFT JOIN ESF7_Database e ON s.school_id = e.school_id
-      LEFT JOIN ESF7_Staging st ON s.school_id = st.school_id
-      ${whereClause}
-    `;
-
-    const result = await pool.query(query, params);
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error("Fetch ESF7 Stats Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// GET /api/esf7/all-schools
-app.get('/api/esf7/all-schools', async (req, res) => {
-  const { region, division } = req.query;
-  try {
-    let query = `
-      SELECT 
-        s.school_id, 
-        s.school_name, 
-        COALESCE(e.status, st.status, 'NOT_STARTED') as status, 
-        COALESCE(MAX(e.updated_at), MAX(st.updated_at), s.updated_at) as updated_at
-      FROM ph_schools s
-      LEFT JOIN ESF7_Database e ON s.school_id = e.school_id
-      LEFT JOIN ESF7_Staging st ON s.school_id = st.school_id
-      WHERE 1=1
-    `;
-    const params = [];
-    if (region && region !== 'All') {
-      params.push(region);
-      query += ` AND UPPER(TRIM(s.region)) = UPPER(TRIM($${params.length}))`;
-    }
-    if (division && division !== 'All Divisions') {
-      params.push(division);
-      query += ` AND UPPER(TRIM(s.division)) = UPPER(TRIM($${params.length}))`;
-    }
-
-    query += ` GROUP BY s.school_id, s.school_name, s.updated_at, e.status, st.status ORDER BY s.school_name ASC`;
-
-    const result = await pool.query(query, params);
-    res.json({ success: true, data: result.rows });
-  } catch (err) {
-    console.error("Fetch All Schools ESF7 Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// POST /api/esf7/return
-app.post('/api/esf7/return', async (req, res) => {
-  const { school_id } = req.body;
-  try {
-    await pool.query("UPDATE ESF7_Staging SET status = 'REJECTED' WHERE school_id = $1", [school_id]);
-    await pool.query("UPDATE ph_schools SET unit7 = 0, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-
-    res.json({ success: true, message: "ESF7 submission returned for correction." });
-  } catch (err) {
-    console.error("Return ESF7 Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// POST /api/esf7/approve - Final Migration from STAGING to DATABASE (Queued)
-app.post('/api/esf7/approve', async (req, res) => {
-  const { school_id } = req.body;
-  if (!school_id) return res.status(400).json({ error: "Missing school_id" });
-
-  try {
-    // 1. Mark as QUEUED in ph_schools immediately
-    await pool.query("UPDATE ph_schools SET unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-
-    // 2. Publish JOB to pg-boss
-    const jobId = await boss.send('esf7-approve', { school_id });
-    
-    console.log(`[Queue] ESF7 Approval job ${jobId} published for school ${school_id}`);
-    
-    res.json({ 
-      success: true, 
-      message: "Approval request queued. The system is processing data migration in the background.",
-      job_id: jobId
-    });
-
-  } catch (err) {
-    console.error("Queue ESF7 Approve Error:", err);
-    res.status(500).json({ error: "Failed to queue approval request." });
-  }
-});
-
+// 2. LINK SUBMISSION
+// --- ESF7 LEGACY ROUTES REMOVED ---
 // [Job Queue Background Worker] - Process ESF7 Approvals sequentially
 /**
  * [Hawkeye Protocol] Activity Log Background Worker
@@ -21588,70 +21671,11 @@ async function handleLogCleanupJob() {
   }
 }
 
+/*
 async function handleEsf7ApproveJob(job) {
-  const { school_id } = job.data;
-  console.log(`[Worker] Starting ESF7 Approval for school: ${school_id}`);
-  
-  let client;
-  try {
-    client = await pool.connect();
-    await client.query('BEGIN');
-    
-    // 1. Verify staging records exist
-    const checkRes = await client.query('SELECT 1 FROM ESF7_Staging WHERE school_id = $1 LIMIT 1', [school_id]);
-    if (checkRes.rows.length === 0) {
-      throw new Error("No staged records found for this school.");
-    }
-
-    // 2. Clear existing entries in final DB
-    await client.query('DELETE FROM ESF7_Database WHERE school_id = $1', [school_id]);
-
-    // 3. Migrate from Staging to Database using column discovery
-    const columnsRes = await client.query(`
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'esf7_database' 
-        AND column_name NOT IN ('id', 'id_serial', 'created_at', 'status', 'approved_at')
-    `);
-    const cols = columnsRes.rows.map(r => `"${r.column_name}"`).join(', ');
-    const approvedAt = new Date().toISOString();
-
-    await client.query(`
-        INSERT INTO ESF7_Database (${cols}, status, approved_at)
-        SELECT ${cols}, 'VERIFIED', $1 FROM ESF7_Staging WHERE school_id = $2
-    `, [approvedAt, school_id]);
-
-    // 4. Update status and delete staging
-    await client.query('DELETE FROM ESF7_Staging WHERE school_id = $1', [school_id]);
-
-    await client.query(`
-        UPDATE ph_schools 
-        SET unit7_completed = TRUE, 
-            unit7 = 1, 
-            unit7_status = 'VERIFIED',
-            approved_at = $1,
-            updated_at = CURRENT_TIMESTAMP 
-        WHERE school_id = $2
-    `, [approvedAt, school_id]);
-
-    await client.query('COMMIT');
-    
-    const iernRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-    if (iernRes.rows[0]?.iern) updateSchoolTotalCompletion(iernRes.rows[0].iern);
-
-    console.log(`[Worker] ✅ ESF7 Successfully processed for school ${school_id}`);
-    
-  } catch (err) {
-    if (client) await client.query('ROLLBACK');
-    console.error(`[Worker] ❌ ESF7 Approval Job Failed for ${school_id}:`, err);
-    
-    // Update school status back to ERROR or staged to allow retry
-    await pool.query("UPDATE ph_schools SET unit7_status = 'ERROR', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-    
-    throw err; // Bubbling to let pg-boss handle internal retry if configured
-  } finally {
-    if (client) client.release();
-  }
+  // Worker disabled
 }
+*/
 
 
 // --- AUDIT FEEDBACK ENDPOINTS (New Table: audit_feedback_tasks) ---

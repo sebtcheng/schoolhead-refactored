@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
-import { FiSearch, FiChevronLeft, FiChevronRight, FiRefreshCw, FiGrid, FiList, FiActivity, FiBriefcase, FiUser, FiTrash2, FiSlash, FiCheckCircle, FiStar, FiMessageSquare, FiTool, FiKey, FiCopy, FiX, FiMapPin, FiCheck, FiLock } from "react-icons/fi";
+import { FiSearch, FiChevronLeft, FiChevronRight, FiRefreshCw, FiGrid, FiList, FiActivity, FiBriefcase, FiUser, FiTrash2, FiSlash, FiCheckCircle, FiStar, FiMessageSquare, FiKey, FiCopy, FiX, FiMapPin, FiCheck, FiLock } from "react-icons/fi";
 import { TbSchool } from "react-icons/tb";
 import KnowledgeManager from '../components/KnowledgeManager';
 
@@ -21,7 +21,7 @@ const StatCard = ({ label, value, icon, color }) => (
 );
 
 const AdminDashboard = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const [userName, setUserName] = useState('Admin');
     const [activeTab, setActiveTab] = useState('overview'); // overview, schools, school-management, projects, audit
 
@@ -62,10 +62,6 @@ const AdminDashboard = () => {
 
     const [updatingDeadline, setUpdatingDeadline] = useState(false);
 
-    // Maintenance State
-    const [maintenanceMode, setMaintenanceMode] = useState(false);
-    const [togglingMaintenance, setTogglingMaintenance] = useState(false);
-
     // Nexus Module Locks
     const [nexusLocks, setNexusLocks] = useState({ 'school-info': false, 'esf7': false, 'nspp': false });
     const [updatingLocks, setUpdatingLocks] = useState(false);
@@ -77,7 +73,9 @@ const AdminDashboard = () => {
     // --- FETCH DATA ---
     const fetchPendingSchools = async () => {
         try {
-            const res = await fetch('/api/admin/pending-schools');
+            const res = await fetch('/api/admin/pending-schools', {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setPendingSchools(data);
@@ -95,7 +93,9 @@ const AdminDashboard = () => {
             // Requirement said "history of ... requests that have been approved or denied".
             // Implementation plan said "Filter ... performed by the current admin (optional)". 
             // Let's show ALL for now as Admins usually want to see overall activity.
-            const res = await fetch(`/api/admin/reviewed-schools`);
+            const res = await fetch(`/api/admin/reviewed-schools`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setReviewedSchools(data);
@@ -107,7 +107,9 @@ const AdminDashboard = () => {
 
     const fetchUserStats = async () => {
         try {
-            const res = await fetch(`/api/admin/user-stats?region=${geoRegionFilter}&division=${geoDivisionFilter}&role=${roleFilter}`);
+            const res = await fetch(`/api/admin/user-stats?region=${geoRegionFilter}&division=${geoDivisionFilter}&role=${roleFilter}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setUserStats(data);
@@ -119,7 +121,9 @@ const AdminDashboard = () => {
 
     const fetchFilterOptions = async () => {
         try {
-            const res = await fetch('/api/admin/filter-options');
+            const res = await fetch('/api/admin/filter-options', {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setAvailableRegions(data.regions);
@@ -138,14 +142,13 @@ const AdminDashboard = () => {
                 setUserName(user.first_name || user.firstName || 'Admin');
             }
  
-            const [schoolsRes, projectsRes, auditRes, deadlineRes, maintenanceRes, feedbackRes] = await Promise.all([
-                fetch('/api/schools').then(r => r.json()),
-                fetch('/api/projects').then(r => r.json()),
-                fetch('/api/activities').then(r => r.json()),
-                fetch('/api/settings/enrolment_deadline').then(r => r.json()),
-                fetch('/api/settings/maintenance_mode').then(r => r.json()),
-                fetch('/api/admin/feedback').then(r => r.json()),
-                fetch('/api/settings/nexus_module_locks').then(r => r.json())
+            const [schoolsRes, projectsRes, auditRes, deadlineRes, feedbackRes, nexusLocksRes] = await Promise.all([
+                fetch('/api/schools', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch('/api/projects', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch('/api/activities', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch('/api/settings/enrolment_deadline', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch('/api/admin/feedback', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch('/api/settings/nexus_module_locks', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json())
             ]);
 
 
@@ -162,11 +165,6 @@ const AdminDashboard = () => {
             // Handle Deadline
             if (deadlineRes && deadlineRes.value) {
                 setDeadlineDate(deadlineRes.value);
-            }
-
-            // Handle Maintenance
-            if (maintenanceRes) {
-                setMaintenanceMode(maintenanceRes.value === 'true');
             }
 
             // Handle Feedback
@@ -201,7 +199,9 @@ const AdminDashboard = () => {
             // Only search users if we are on the accounts tab to save bandwidth
             if (activeTab !== 'accounts') return;
 
-            const res = await fetch(`/api/admin/users?page=${usersPage}&limit=${usersLimit}&search=${searchTerm}&role=${roleFilter}&region=${geoRegionFilter}&division=${geoDivisionFilter}`);
+            const res = await fetch(`/api/admin/users?page=${usersPage}&limit=${usersLimit}&search=${searchTerm}&role=${roleFilter}&region=${geoRegionFilter}&division=${geoDivisionFilter}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             const data = await res.json();
 
             if (data.data) {
@@ -282,7 +282,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch('/api/settings/save', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     key: 'enrolment_deadline',
                     value: deadlineDate,
@@ -304,39 +307,6 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleToggleMaintenance = async () => {
-        if (!window.confirm(`Are you sure you want to ${maintenanceMode ? 'DISABLE' : 'ENABLE'} Maintenance Mode? \n\n${maintenanceMode ? 'Users will be able to log in again.' : 'Non-admin users will be blocked from accessing the system.'}`)) return;
-
-        setTogglingMaintenance(true);
-        try {
-            const adminUid = user ? user.uid : 'unknown';
-            const newValue = (!maintenanceMode).toString();
-
-            const res = await fetch('/api/settings/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    key: 'maintenance_mode',
-                    value: newValue,
-                    userUid: user ? user.uid : 'admin_override'
-                })
-            });
-
-            if (res.ok) {
-                alert(`✅ Maintenance Mode ${newValue === 'true' ? 'ENABLED' : 'DISABLED'}!`);
-                setMaintenanceMode(newValue === 'true');
-                fetchAllData(); // refresh logs
-            } else {
-                alert("❌ Failed to update maintenance mode.");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("❌ Error updating maintenance mode.");
-        } finally {
-            setTogglingMaintenance(false);
-        }
-    };
-
     const handleToggleNexusLock = async (moduleId) => {
         const newLocks = { ...nexusLocks, [moduleId]: !nexusLocks[moduleId] };
         setNexusLocks(newLocks); // Optimistic UI
@@ -345,7 +315,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'admin';
             const res = await fetch('/api/settings/save', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     key: 'nexus_module_locks',
                     value: JSON.stringify(newLocks),
@@ -374,8 +347,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch(`/api/admin/users/${uid}/status`, {
                 method: 'POST',
-
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ disabled: !currentStatus, adminUid })
             });
             if (res.ok) {
@@ -395,7 +370,8 @@ const AdminDashboard = () => {
         try {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch(`/api/admin/users/${uid}?adminUid=${adminUid}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
                 alert("✅ User deleted successfully!");
@@ -414,7 +390,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch(`/api/admin/approve-school/${pendingId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     reviewed_by: user.uid,
                     reviewed_by_name: userName
@@ -444,7 +423,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch(`/api/admin/reject-school/${pendingId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     reviewed_by: user.uid,
                     reviewed_by_name: userName,
@@ -474,7 +456,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch(`/api/admin/resubmit-request/${pendingId}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     reviewed_by: user.uid,
                     reviewed_by_name: userName,
@@ -508,7 +493,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch('/api/admin/reset-password', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ uid, newPassword: tempPassword, adminUid })
             });
 
@@ -541,7 +529,10 @@ const AdminDashboard = () => {
             const adminUid = user ? user.uid : 'unknown';
             const res = await fetch('/api/admin/run-fraud-detection', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ adminUid: user ? user.uid : 'unknown' })
             });
 
@@ -615,31 +606,6 @@ const AdminDashboard = () => {
                     {updatingDeadline ? 'Updating...' : 'Update Deadline'}
                 </button>
 
-            </div>
-
-            {/* MAINTENANCE MODE CARD */}
-            <div className={`mt-4 p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between transition-colors ${maintenanceMode ? 'bg-amber-50 border-amber-200' : 'bg-white'}`}>
-                <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-full ${maintenanceMode ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
-                        <FiTool size={20} />
-                    </div>
-                    <div>
-                        <h3 className={`text-xs font-bold uppercase tracking-wider ${maintenanceMode ? 'text-amber-600' : 'text-gray-400'}`}>Maintenance Mode</h3>
-                        <p className={`text-xs mb-1 ${maintenanceMode ? 'text-amber-700' : 'text-gray-500'}`}>
-                            {maintenanceMode ? 'System is currently LOCKED for non-admins.' : 'System is running normally.'}
-                        </p>
-                    </div>
-                </div>
-                <button
-                    onClick={handleToggleMaintenance}
-                    disabled={togglingMaintenance}
-                    className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${maintenanceMode
-                        ? 'bg-amber-500 text-white hover:bg-amber-600'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                >
-                    {togglingMaintenance ? 'Saving...' : (maintenanceMode ? 'Turn OFF' : 'Turn ON')}
-                </button>
             </div>
 
             {/* FRAUD DETECTION MODE CARD */}

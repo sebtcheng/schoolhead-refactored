@@ -304,7 +304,7 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
 // --- MAIN PROJECT LIST COMPONENT ---
 
 const EngineerProjects = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const navigate = useNavigate();
     const [userName, setUserName] = useState(user?.first_name || user?.firstName || "Engineer");
     const [userRole, setUserRole] = useState(() => {
@@ -318,6 +318,9 @@ const EngineerProjects = () => {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const PROJECTS_PER_PAGE = 10;
 
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -455,13 +458,13 @@ const EngineerProjects = () => {
         setUserRole(currentRole);
         let currentProjects = [];
 
-        // 1. Immediate Cache Load (Fast Render)
+        // 1. Refined Loading Strategy
+        // We no longer populate the UI from cache immediately to prevent "stale flicker".
+        // Instead, we only use the cache as a backup if the network fetch fails.
         try {
           const cachedData = await getCachedProjects();
           if (cachedData && cachedData.length > 0) {
-            if (!isFilterOpenRef.current) setProjects(cachedData);
             currentProjects = cachedData;
-            setIsLoading(false);
           }
         } catch (err) {
           console.warn("Cache read failed", err);
@@ -469,20 +472,22 @@ const EngineerProjects = () => {
 
         // 2. Network Request
         try {
-          let url = `${API_BASE}/api/projects?engineer_id=${currentUid}`;
+          let url = `${API_BASE}/api/projects?engineer_id=${currentUid}&limit=all`;
 
           if (currentRole === 'Super User') {
             const impersonatedDivision = sessionStorage.getItem('impersonatedDivision');
             if (impersonatedDivision) {
-              url = `${API_BASE}/api/projects?division=${encodeURIComponent(impersonatedDivision)}`;
+              url = `${API_BASE}/api/projects?division=${encodeURIComponent(impersonatedDivision)}&limit=all`;
             } else {
-              url = `${API_BASE}/api/projects`;
+              url = `${API_BASE}/api/projects?limit=all`; // Fetch all only if no division selected
             }
           } else if (currentRole === 'Super Admin') {
-              url = `${API_BASE}/api/projects`;
+              url = `${API_BASE}/api/projects?limit=all`;
           }
 
-          const response = await fetch(url);
+          const response = await fetch(url, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
           if (!response.ok) throw new Error("Failed to fetch projects");
           const data = await response.json();
           const dataArr = Array.isArray(data) ? data : (data.data || []);
@@ -542,35 +547,14 @@ const EngineerProjects = () => {
             triangulated_percentage: item.triangulated_percentage,
             approvalStatus: item.approvalStatus,
             is_duplicate: item.is_duplicate,
+            images_count: item.images_count || 0,
           }));
 
           // Update Cache on success
-          await cacheProjects(currentProjects);
-
-          // Update state with fresh data — skip if filter drawer is open to prevent ghosting
-          if (!isFilterOpenRef.current) setProjects(currentProjects);
-
-        } catch (networkError) {
-          console.warn("Network request failed:", networkError);
-        }
-
-      } catch (err) {
-        console.error("Error loading projects:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    fetchProjects();
-  }, [user, user?.uid]);
-
-  // Filtered list
-  const filteredProjects = React.useMemo(() => {
-    return projects.filter((p) => {
+          await cacheProjects(currentProjects);  const baseFilteredProjects = React.useMemo(() => {
+    return projects.filter(p => {
       const searchTerm = searchQuery.toLowerCase();
-      const matchesSearch =
+      const matchesSearch = !searchQuery || 
         p.schoolName?.toLowerCase().includes(searchTerm) ||
         p.projectName?.toLowerCase().includes(searchTerm) ||
         p.schoolId?.toString().includes(searchTerm) ||
@@ -583,25 +567,79 @@ const EngineerProjects = () => {
       const matchesBatch = selectedBatchFunds.length === 0 || selectedBatchFunds.includes(p.batch_of_funds || p.batchOfFunds);
 
       return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesYear && matchesBatch;
-    }).sort((a, b) => {
-      // Primary: funding_year DESC (newest cycle first)
-      const yearA = Number(a.fundingYear ?? a.funding_year ?? 0);
-      const yearB = Number(b.fundingYear ?? b.funding_year ?? 0);
-      if (yearB !== yearA) return yearB - yearA;
-      // Secondary: schoolName ASC (alphabetical — stable within the same year)
-      const nameA = (a.schoolName ?? '').toLowerCase();
-      const nameB = (b.schoolName ?? '').toLowerCase();
-      return nameA.localeCompare(nameB);
+    });
+  }, [projects, searchQuery, selectedRegions, selectedDivisions, selectedCategories, selectedYears, selectedBatchFunds]);
+
+          // Update state with fresh data — skip if filter drawer is open to prevent ghosting
+          if (!isFilterOpenRef.current) setProjects(currentProjects);
+
+        } catch (networkError) {
+          console.warn("Network request failed, falling back to cache:", networkError);
+          if (currentProjects.length > 0 && !isFilterOpenRef.current) {
+            setProjects(currentProjects);
+          }
+        }
+
+      } catch (err) {
+        console.error("Error loading projects:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, [user, user?.uid, token]);
+
+  const baseFilteredProjects = React.useMemo(() => {
+    return projects.filter(p => {
+      const searchTerm = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        p.schoolName?.toLowerCase().includes(searchTerm) ||
+        p.projectName?.toLowerCase().includes(searchTerm) ||
+        p.schoolId?.toString().includes(searchTerm) ||
+        p.ipc?.toLowerCase().includes(searchTerm);
+
+      const matchesRegion = selectedRegions.length === 0 || selectedRegions.includes(p.region);
+      const matchesDivision = selectedDivisions.length === 0 || selectedDivisions.includes(p.division);
+      const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(p.projectCategory);
+      const matchesYear = selectedYears.length === 0 || selectedYears.includes(p.fundingYear?.toString());
+      const matchesBatch = selectedBatchFunds.length === 0 || selectedBatchFunds.includes(p.batch_of_funds || p.batchOfFunds);
+
+      return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesYear && matchesBatch;
     });
   }, [projects, searchQuery, selectedRegions, selectedDivisions, selectedCategories, selectedYears, selectedBatchFunds]);
 
   const stats = React.useMemo(() => {
     return {
-      total: filteredProjects.length,
-      ongoing: filteredProjects.filter(p => p.status === 'Ongoing').length,
-      completed: filteredProjects.filter(p => p.status === 'Completed').length,
+      total: baseFilteredProjects.length,
+      ongoing: baseFilteredProjects.filter(p => p.status === 'Ongoing').length,
+      completed: baseFilteredProjects.filter(p => p.accomplishmentPercentage === 100).length,
+      withPhotos: baseFilteredProjects.filter(p => (p.images_count || 0) > 0).length,
     };
-  }, [filteredProjects]);
+  }, [baseFilteredProjects]);
+
+  const filteredProjects = React.useMemo(() => {
+    return baseFilteredProjects.filter(p => {
+      const matchesFilter = activeFilter === 'all' || 
+                           (activeFilter === 'ongoing' && p.status === 'Ongoing') ||
+                           (activeFilter === 'completed' && p.accomplishmentPercentage === 100) ||
+                           (activeFilter === 'photos' && (p.images_count || 0) > 0);
+      return matchesFilter;
+    });
+  }, [baseFilteredProjects, activeFilter]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedRegions, selectedDivisions, selectedCategories, selectedYears, selectedBatchFunds, activeFilter]);
+
+  const totalPages = Math.ceil(filteredProjects.length / PROJECTS_PER_PAGE);
+  const paginatedProjects = React.useMemo(() => {
+    const start = (currentPage - 1) * PROJECTS_PER_PAGE;
+    return filteredProjects.slice(start, start + PROJECTS_PER_PAGE);
+  }, [filteredProjects, currentPage]);
 
   const handleViewProject = (project) => navigate(`/project-details/${project.id}`);
 
@@ -712,7 +750,10 @@ const EngineerProjects = () => {
 
       const response = await fetch(`${API_BASE}/api/update-project/${project.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           ...payload,
           previousPercentage: project.accomplishmentPercentage,
@@ -793,7 +834,9 @@ const EngineerProjects = () => {
     setIsHistoryLoading(true);
     setProjectHistory([]); // Clear previous
     try {
-      const resp = await fetch(`${API_BASE}/api/project-history/${project.ipc || project.id}`);
+      const resp = await fetch(`${API_BASE}/api/project-history/${project.ipc || project.id}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (resp.ok) {
         const history = await resp.json();
         setProjectHistory(history);
@@ -818,7 +861,9 @@ const EngineerProjects = () => {
 
     // BACKGROUND SYNC: Fetch full project details (including PDFs) while modal is open
     try {
-      const response = await fetch(`${API_BASE}/api/projects/${project.id}`);
+      const response = await fetch(`${API_BASE}/api/projects/${project.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const fullData = await response.json();
         // Merge full data into selected project (preserving local changes if any, though unlikely here)
@@ -846,7 +891,9 @@ const EngineerProjects = () => {
   const fetchRecentVariations = async (projectId) => {
     setIsLoadingVO(true);
     try {
-      const response = await fetch(`${API_BASE}/api/variation-orders/${projectId}`);
+      const response = await fetch(`${API_BASE}/api/variation-orders/${projectId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setRecentVariations(data);
@@ -868,7 +915,10 @@ const EngineerProjects = () => {
     try {
       const response = await fetch(`${API_BASE}/api/variation-orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           projectId: variationProject.id,
           ipc: variationProject.ipc,
@@ -890,7 +940,7 @@ const EngineerProjects = () => {
     }
   };
 
-  const handlePdfUpload = async (projectId, type, file, item) => {
+  const handlePdfUpload = async (projectId, type, file) => {
     // Create local progress state mapping
     setUploadProgress(prev => ({ ...prev, [`${projectId}-${type}`]: 0 }));
 
@@ -909,7 +959,10 @@ const EngineerProjects = () => {
 
       const response = await fetch(`${API_BASE}/api/update-project/${projectId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(updatedDocs),
       });
 
@@ -1014,7 +1067,10 @@ const EngineerProjects = () => {
       // Online Save Project
       const response = await fetch(`${API_BASE}/api/update-project/${updatedProject.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error("Update failed");
@@ -1057,7 +1113,6 @@ const EngineerProjects = () => {
             formData.append('projectId', resData.project.project_id);
             formData.append('uploadedBy', uid);
             formData.append('category', item.category);
-
             // Add photo metadata if available
             if (item.file.photoMetadata) {
               const meta = item.file.photoMetadata;
@@ -1067,7 +1122,11 @@ const EngineerProjects = () => {
               if (meta.exif) formData.append('exifMetadata', JSON.stringify(meta.exif));
             }
 
-            const resp = await fetch(`${API_BASE}/api/upload-image`, { method: "POST", body: formData });
+            const resp = await fetch(`${API_BASE}/api/upload-image`, { 
+              method: "POST", 
+              body: formData,
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             
             if (!resp.ok) {
               failedUploads++;
@@ -1134,7 +1193,7 @@ const EngineerProjects = () => {
     <PageTransition>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-24">
         {/* --- DYNAMIC PREMIUM HEADER --- */}
-        <div className="bg-gradient-to-br from-[#004A99] via-[#003366] to-[#001D3D] p-6 pb-28 rounded-b-[3.5rem] shadow-2xl relative overflow-hidden transition-all duration-500">
+        <div className="bg-gradient-to-br from-[#004A99] via-[#003366] to-[#001D3D] p-6 pb-16 rounded-b-[3.5rem] shadow-2xl relative overflow-hidden transition-all duration-500">
           {/* Decorative Elements */}
           <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
           <div className="absolute bottom-[-20%] left-[-10%] w-48 h-48 bg-blue-400/10 rounded-full blur-2xl"></div>
@@ -1152,13 +1211,13 @@ const EngineerProjects = () => {
                   Project Monitoring
                 </h1>
               </div>
-              {!['Super User', 'EFD Engineer', 'EFD', 'HRODI'].includes(userRole) && (
+              {['Division Engineer', 'Engineer', 'Architect', 'DepEd Engineer'].includes(userRole) && (
                 <button
-                  disabled={true}
-                  className="group bg-slate-300 text-slate-500 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl cursor-not-allowed flex items-center gap-2"
+                  onClick={() => navigate('/new-project')}
+                  className="group bg-[#004A99] active:bg-[#003366] text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all active:scale-95"
                 >
                   <FiPlus size={16} />
-                  New Project (Disabled)
+                  New Project
                 </button>
               )}
             </div>
@@ -1185,22 +1244,106 @@ const EngineerProjects = () => {
           </div>
         </div>
 
+        {/* --- SUMMARY CARDS --- */}
+        <div className="px-5 -mt-10 relative z-20 grid grid-cols-2 gap-3 mb-6">
+          <button 
+            onClick={() => setActiveFilter('all')}
+            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'all' ? 'border-[#004A99] ring-2 ring-[#004A99]/10' : 'border-white/20'}`}
+          >
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Projects</p>
+            <div className="flex items-end justify-between">
+              <span className="text-2xl font-black text-[#004A99] dark:text-blue-400">{stats.total}</span>
+              <LuClipboardList size={20} className={`${activeFilter === 'all' ? 'text-[#004A99]' : 'text-slate-200'}`} />
+            </div>
+          </button>
+          <button 
+            onClick={() => setActiveFilter('ongoing')}
+            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'ongoing' ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-white/20'}`}
+          >
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ongoing</p>
+            <div className="flex items-end justify-between">
+              <span className="text-2xl font-black text-blue-500">{stats.ongoing}</span>
+              <LuActivity size={20} className={`${activeFilter === 'ongoing' ? 'text-blue-500' : 'text-slate-200'}`} />
+            </div>
+          </button>
+          <button 
+            onClick={() => setActiveFilter('completed')}
+            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'completed' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : 'border-white/20'}`}
+          >
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">100% Completed</p>
+            <div className="flex items-end justify-between">
+              <span className="text-2xl font-black text-emerald-500">{stats.completed}</span>
+              <LuFileText size={20} className={`${activeFilter === 'completed' ? 'text-emerald-500' : 'text-slate-200'}`} />
+            </div>
+          </button>
+          <button 
+            onClick={() => setActiveFilter('photos')}
+            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'photos' ? 'border-amber-500 ring-2 ring-amber-500/10' : 'border-white/20'}`}
+          >
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">With Photos</p>
+            <div className="flex items-end justify-between">
+              <span className="text-2xl font-black text-amber-500">{stats.withPhotos}</span>
+              <FiCamera size={20} className={`${activeFilter === 'photos' ? 'text-amber-500' : 'text-slate-200'}`} />
+            </div>
+          </button>
+        </div>
+
         {/* --- PROJECT LISTING --- */}
-        <div className="px-5 mt-6 relative z-20">
+        <div className="px-5 mt-2 relative z-20">
+          {isLoading && !projects.length ? (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
+               <div className="flex flex-col items-center gap-3">
+                 <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Hydrating Dashboard...</p>
+               </div>
+            </div>
+          ) : null}
           <ProjectCards
-            projects={filteredProjects}
+            projects={paginatedProjects}
             onEdit={handleEditProject}
             onDelete={handleDeleteProject}
             onView={handleViewProject}
             onViewLog={handleViewLog}
             onVariation={handleOpenVariationModal}
             onRevert={handleRevertProject}
-            isLoading={isLoading}
+            isLoading={isLoading && paginatedProjects.length === 0}
             searchQuery={searchQuery}
             readOnly={userRole === 'Super User'}
             handleStatusChange={handleStatusChange}
             userRole={userRole}
           />
+
+          {/* --- PAGINATION CONTROLS --- */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-4 mt-8 bg-white dark:bg-slate-800 p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+               <button 
+                 onClick={() => {
+                   setCurrentPage(prev => Math.max(1, prev - 1));
+                   window.scrollTo({ top: 0, behavior: 'smooth' });
+                 }}
+                 disabled={currentPage === 1}
+                 className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+               >
+                 <FiChevronRight className="rotate-180" size={20} />
+               </button>
+               
+               <div className="flex flex-col items-center">
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Page</span>
+                 <span className="text-sm font-black text-[#004A99] dark:text-blue-400">{currentPage} <span className="opacity-30">/ {totalPages}</span></span>
+               </div>
+
+               <button 
+                 onClick={() => {
+                   setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                   window.scrollTo({ top: 0, behavior: 'smooth' });
+                 }}
+                 disabled={currentPage === totalPages}
+                 className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-90"
+               >
+                 <FiChevronRight size={20} />
+               </button>
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-4 mt-4">
             <div className="flex items-center gap-1">

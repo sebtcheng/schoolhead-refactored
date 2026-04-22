@@ -6,7 +6,7 @@ import PageTransition from '../components/PageTransition';
 import { FiX, FiClock, FiUsers, FiCopy, FiSearch, FiCheck, FiSave } from 'react-icons/fi';
 
 const UserManagement = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const navigate = useNavigate();
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -40,7 +40,9 @@ const UserManagement = () => {
 
         setIsSearchingUser(true);
         try {
-            const res = await fetch(`/api/sdo/user-details/${userSearchId}?region=${encodeURIComponent(userData.region)}&division=${encodeURIComponent(userData.division)}`);
+            const res = await fetch(`/api/sdo/user-details/${userSearchId}?region=${encodeURIComponent(userData.region)}&division=${encodeURIComponent(userData.division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setFoundUser(data);
@@ -68,7 +70,10 @@ const UserManagement = () => {
         try {
             const res = await fetch('/api/sdo/set-passcode', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     school_id: userSearchId,
                     passcode: newPasscode,

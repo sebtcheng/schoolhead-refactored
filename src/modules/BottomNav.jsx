@@ -87,7 +87,6 @@ const BottomNav = ({ userRole: propRole }) => {
         'Regional Office': [
             { label: 'Home', path: '/monitoring-dashboard', icon: TbHomeEdit },
             { label: 'Schools', path: '/school-management', icon: TbSchool },
-            { label: 'Users', path: '/user-management', icon: FiUsers },
             { label: 'Location', path: '/location-management', icon: LuCompass },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
@@ -99,7 +98,6 @@ const BottomNav = ({ userRole: propRole }) => {
         'School Division Office': [
             { label: 'Home', path: '/monitoring-dashboard', icon: TbHomeEdit },
             { label: 'Schools', path: '/school-management', icon: TbSchool },
-            { label: 'Users', path: '/user-management', icon: FiUsers },
             { label: 'Location', path: '/location-management', icon: LuCompass },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
@@ -128,7 +126,6 @@ const BottomNav = ({ userRole: propRole }) => {
             { label: 'Projects', path: '/efd-monitoring', icon: TbClipboardList },
             { label: 'Mother MOA', path: '/efd-mother-moa', icon: TbFileCheck },
             // { label: 'Monitoring', path: '/efd-newcon-monitoring', icon: TbChartBar },
-            { label: 'Chat', path: '/chat', icon: FiMessageSquare },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
         'Implementing Agency': [
@@ -162,6 +159,8 @@ const BottomNav = ({ userRole: propRole }) => {
     if (!finalNavItems) return null;
 
     const isSchoolHead = effectiveRole === 'School Head';
+    const isSDO = effectiveRole === 'School Division Office';
+    const isRO = effectiveRole === 'Regional Office' || effectiveRole === 'Regional Division Office';
 
     return createPortal(
         <div className="fixed bottom-0 left-0 w-full z-[1000]">
@@ -180,6 +179,21 @@ const BottomNav = ({ userRole: propRole }) => {
                 </div>
             )}
 
+            {/* FAB Button for SDO/RO Nexus */}
+            {(isSDO || isRO) && (
+                <div className="absolute left-1/2 -top-8 -translate-x-1/2 z-[1001]">
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => navigate('/division-nexus')}
+                        className="w-16 h-16 bg-[#10346B] text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-900/40 border-4 border-white"
+                        title="Back to Nexus"
+                    >
+                        <FiGrid size={32} />
+                    </motion.button>
+                </div>
+            )}
+
             <div className="h-[85px] bg-white border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.04)] flex items-center px-4">
                 <div className="w-full flex justify-between items-center max-w-md mx-auto">
                     {finalNavItems.map((item, idx) => {
@@ -188,7 +202,7 @@ const BottomNav = ({ userRole: propRole }) => {
 
                         return (
                             <React.Fragment key={item.label}>
-                                {isSchoolHead && idx === 2 && <div className="w-16" />} {/* Gap for FAB */}
+                                {(isSchoolHead || isSDO || isRO) && idx === 2 && <div className="w-16" />} {/* Gap for FAB */}
                                 <button
                                     className={`flex-1 flex flex-col items-center justify-center h-full bg-transparent border-none cursor-pointer group transition-all ${item.highlight && !isActive ? 'bg-blue-50/50 rounded-2xl' : ''}`}
                                     onClick={() => {

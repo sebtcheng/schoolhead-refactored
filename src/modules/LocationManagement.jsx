@@ -87,7 +87,9 @@ const LocationManagement = () => {
 
     const prefillLocation = async (division) => {
         try {
-            const res = await fetch(`/api/locations/division-info?division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/locations/division-info?division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 if (data.region) setSelectedRegion(data.region);
@@ -98,7 +100,9 @@ const LocationManagement = () => {
 
     const fetchRegions = async () => {
         try {
-            const res = await fetch('/api/locations/regions');
+            const res = await fetch('/api/locations/regions', {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setRegions(data);
@@ -112,7 +116,9 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/provinces?region=${encodeURIComponent(region)}`);
+            const res = await fetch(`/api/locations/provinces?region=${encodeURIComponent(region)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setProvinces(data);
@@ -130,7 +136,9 @@ const LocationManagement = () => {
             if (legislativeDistrict) url += `&legislative_district=${encodeURIComponent(legislativeDistrict)}`;
             if (municipality) url += `&municipality=${encodeURIComponent(municipality)}`;
             
-            const res = await fetch(url);
+            const res = await fetch(url, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setDistricts(data);
@@ -144,7 +152,9 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
+            const res = await fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setMunicipalities(data);
@@ -159,7 +169,9 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/barangays?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`);
+            const res = await fetch(`/api/locations/barangays?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setBarangays(data);
@@ -197,7 +209,9 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
+            const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setLegislativeDistricts(data);

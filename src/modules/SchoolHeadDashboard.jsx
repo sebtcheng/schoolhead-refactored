@@ -90,7 +90,10 @@ const SchoolHeadDashboard = () => {
         try {
             const response = await fetch('/api/school/validate-data', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({
                     schoolId: schoolProfile.school_id,
                     uid: user.uid
@@ -135,7 +138,10 @@ const SchoolHeadDashboard = () => {
             setIsValidating(true); // Always show loading state
             const response = await fetch('/api/validate-school-health', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({ school_id: schoolProfile.school_id })
             });
 
@@ -145,7 +151,9 @@ const SchoolHeadDashboard = () => {
                 // Refresh Profile Data
                 const targetUid = impersonatedUid || (user ? user.uid : null);
                 if (targetUid) {
-                    const profileRes = await fetch(`/api/school-by-user/${targetUid}`);
+                    const profileRes = await fetch(`/api/school-by-user/${targetUid}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    });
                     const profileJson = await profileRes.json();
                     if (profileJson.exists && profileJson.data) {
                         setSchoolProfile(profileJson.data);
@@ -237,7 +245,9 @@ const SchoolHeadDashboard = () => {
 
     useEffect(() => {
         // Fetch Deadline
-        fetch('/api/settings/enrolment_deadline')
+        fetch('/api/settings/enrolment_deadline', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
             .then(res => res.json())
             .then(data => {
                 if (data.value) {
@@ -322,20 +332,26 @@ const SchoolHeadDashboard = () => {
                         setUserName(`Super User (Viewing: ${targetUid.slice(0, 5)}...)`);
                     }
 
-                    const profileRes = await fetch(`/api/school-by-user/${targetUid}`);
+                    const profileRes = await fetch(`/api/school-by-user/${targetUid}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    });
                     const profileJson = await profileRes.json();
                     if (profileJson.exists) {
                         setSchoolProfile(profileJson.data);
                     }
 
-                    const headRes = await fetch(`/api/school-head/${targetUid}`);
+                    const headRes = await fetch(`/api/school-head/${targetUid}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    });
                     const headJson = await headRes.json();
                     if (headJson.exists) setHeadProfile(headJson.data);
 
                     // Fetch Audit Remarks for this school
                     if (profileJson.exists && profileJson.data.school_id) {
                         try {
-                            const remarkRes = await fetch(`/api/audit/remarks/${profileJson.data.school_id}`);
+                            const remarkRes = await fetch(`/api/audit/remarks/${profileJson.data.school_id}`, {
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                            });
                             if (remarkRes.ok) {
                                 const remarkData = await remarkRes.json();
                                 setUnitRemarks(remarkData.data || []);

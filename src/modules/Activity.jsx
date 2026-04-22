@@ -11,7 +11,9 @@ const Activity = () => {
         const fetchActivities = async () => {
             try {
                 // Ensure this matches your backend endpoint
-                const response = await fetch('/api/activities');
+                const response = await fetch('/api/activities', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 if (response.ok) {
                     const data = await response.json();
                     setActivities(data);

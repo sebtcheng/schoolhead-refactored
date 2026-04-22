@@ -201,11 +201,21 @@ const initUnit8Schema = async (client, dbLabel) => {
 };
 
 const runMigrations = async (client, dbLabel) => {
-    // --- 0. UNIT SCHEMAS ---
-    await initUnit7Schema(client, dbLabel);
-    await initUnit8Schema(client, dbLabel);
+    // [Master Protocol] Strategic Advisory Lock (ID: 7777777) 
+    // Prevents race conditions when multiple workers attempt schema changes simultaneously.
+    const lockRes = await client.query('SELECT pg_try_advisory_lock(7777777) as lock_granted');
+    if (!lockRes.rows[0].lock_granted) {
+        console.log(`⚠️ [${dbLabel}] Migrations already being handled by another worker. Skipping.`);
+        return;
+    }
 
-    // --- 1. AUDIT FEEDBACK TASKS TABLE ---
+    try {
+        console.log(`🏗️ [${dbLabel}] Starting comprehensive schema migrations...`);
+        // --- 0. UNIT SCHEMAS ---
+        await initUnit7Schema(client, dbLabel);
+        await initUnit8Schema(client, dbLabel);
+
+        // --- 1. AUDIT FEEDBACK TASKS TABLE ---
     try {
         // Drop legacy table as requested
         await client.query('DROP TABLE IF EXISTS audit_remarks CASCADE');
@@ -1659,6 +1669,40 @@ const runMigrations = async (client, dbLabel) => {
         console.log(`✅ [${dbLabel}] IPC Indices and Backfill Complete`);
     } catch (ipcErr) {
         console.error(`❌ [${dbLabel}] IPC Migration Failed:`, ipcErr.message);
+    }
+
+    // --- ENGINEER FORM OUTBOX + CHILD TABLE OUTBOX COLUMNS ---
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS engineer_form_outbox (
+                outbox_id           SERIAL PRIMARY KEY,
+                original_project_id INTEGER NOT NULL,
+                outbox_reason       TEXT,
+                migrated_at         TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        await client.query(`
+            CREATE INDEX IF NOT EXISTS idx_engineer_form_outbox_original
+            ON engineer_form_outbox(original_project_id);
+        `);
+        await client.query(`
+            CREATE INDEX IF NOT EXISTS idx_engineer_form_outbox_ipc
+            ON engineer_form_outbox(ipc) WHERE ipc IS NOT NULL;
+        `);
+        await client.query(`
+            ALTER TABLE engineer_image
+            ADD COLUMN IF NOT EXISTS outbox_project_id INTEGER;
+        `);
+        await client.query(`
+            ALTER TABLE engineer_documents
+            ADD COLUMN IF NOT EXISTS outbox_project_id INTEGER;
+        `);
+        // Allow project_id to be NULL so rows can be safely repointed to the outbox
+        await client.query(`ALTER TABLE engineer_image ALTER COLUMN project_id DROP NOT NULL`);
+        await client.query(`ALTER TABLE engineer_documents ALTER COLUMN project_id DROP NOT NULL`);
+        console.log(`✅ [${dbLabel}] engineer_form_outbox and outbox columns ready`);
+    } catch (outboxErr) {
+        console.error(`❌ [${dbLabel}] engineer_form_outbox migration failed:`, outboxErr.message);
     }
 
     // --- UNIFIED BINARY STORAGE ---

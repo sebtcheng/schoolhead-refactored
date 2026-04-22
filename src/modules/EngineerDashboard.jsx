@@ -195,7 +195,7 @@ const StatsChart = ({ projects }) => {
 // --- MAIN DASHBOARD COMPONENT ---
 
 const EngineerDashboard = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [userName, setUserName] = useState("Engineer");
   const [userRole, setUserRole] = useState(() => {
     let role = user?.role || localStorage.getItem('userRole') || "Division Engineer";
@@ -249,14 +249,14 @@ const EngineerDashboard = () => {
             }
           }
 
-          // ENGINEER: Stale-While-Revalidate Strategy
-          // Priority 1: Show cache immediately if present
+          // ENGINEER: Stale-While-Revalidate Strategy (REFINED)
+          // We no longer show cache immediately to prevent "stale flicker" of 50+ projects.
+          // Instead, we only load the cache IF the network fails.
           try {
             const cachedData = await getCachedProjects();
-            if (cachedData && cachedData.length > 0) {
-              setProjects(cachedData);
+            if (cachedData && cachedData.length > 0 && !hasForceFetched.current) {
+              // Store it in a variable but DON'T set state yet to avoid flicker
               currentProjects = cachedData;
-              setIsLoading(false);
             }
           } catch (err) {
             console.warn("Cache read failed", err);
@@ -264,7 +264,9 @@ const EngineerDashboard = () => {
 
           // Priority 2: Fetch fresh data from network
           try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (!response.ok) throw new Error("Failed to fetch projects");
             const data = await response.json();
             const dataArr = Array.isArray(data) ? data : (data.data || []);
@@ -332,11 +334,16 @@ const EngineerDashboard = () => {
             hasForceFetched.current = true; // First network fetch done; cache is now fresh
 
           } catch (networkError) {
-            console.warn("Dashboard network request failed:", networkError);
+            console.warn("Dashboard network request failed, falling back to cache:", networkError);
+            if (currentProjects.length > 0) {
+              setProjects(currentProjects);
+            }
           }
 
           try {
-            const actResponse = await fetch(`${API_BASE}/api/activities?user_uid=${currentUid}`);
+            const actResponse = await fetch(`${API_BASE}/api/activities?user_uid=${currentUid}`, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (actResponse.ok) {
               const actData = await actResponse.json();
               setActivities(actData);
@@ -357,11 +364,29 @@ const EngineerDashboard = () => {
       }
     };
     fetchUserDataAndProjects();
-  }, [user, user?.uid]);
+  }, [user, user?.uid, token]);
 
   return (
     <PageTransition>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-24">
+        {/* HYDRATION OVERLAY */}
+        {isLoading && projects.length === 0 && (
+          <div className="fixed inset-0 z-[100] bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
+            <div className="bg-white/90 dark:bg-slate-800/90 p-8 rounded-[3rem] shadow-2xl border border-white/50 dark:border-slate-700/50 flex flex-col items-center max-w-xs w-full transform -translate-y-12 shadow-blue-900/10">
+              <div className="w-24 h-24 relative mb-8">
+                <div className="absolute inset-0 border-[6px] border-blue-50 dark:border-blue-900/20 rounded-full"></div>
+                <div className="absolute inset-0 border-[6px] border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center text-4xl">
+                  {userRole === 'Architect' ? '📐' : '🏠'}
+                </div>
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tighter italic">Initializing</h3>
+              <p className="text-[11px] font-black text-blue-600 dark:text-blue-400 text-center uppercase tracking-widest leading-relaxed">
+                Hydrating Dashboard...
+              </p>
+            </div>
+          </div>
+        )}
         {/* --- TOP HEADER --- */}
         <div className="relative bg-[#004A99] pt-12 pb-24 px-6 rounded-b-[2.5rem] shadow-xl">
           <div className="flex justify-between items-start">

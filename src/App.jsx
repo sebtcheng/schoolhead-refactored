@@ -3,7 +3,6 @@ import { HashRouter as Router, Routes, Route, useLocation, Navigate, useNavigate
 // ... (lines 3-118 remain same, but I can't express that in one chunk easily if imports are at top and usage at bottom. I'll use 2 chunks)
 
 import { AnimatePresence } from 'framer-motion'; // <--- IMPORT THIS
-import MaintenanceScreen from './components/MaintenanceScreen'; // <--- IMPORT MAINTENANCE SCREEN
 import SuperUserFloatingSwitch from './components/SuperUserFloatingSwitch'; // Super User Switch
 import ChatWidget from './components/ChatWidget'; // Chatbot Widget
 import { useState, useEffect } from 'react'; // Ensure React hooks are imported
@@ -105,6 +104,7 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 
 // Nexus & Drafts
 import NodesDashboard from './modules/NexusDashboard';
+import SDONexusDashboard from './modules/SDONexusDashboard';
 import ESF7Draft from './forms/ESF7Draft';
 import NSPPDraft from './forms/NSPPDraft';
 import ESF7Review from './modules/ESF7Review';
@@ -139,6 +139,7 @@ const AnimatedRoutes = () => {
         'School Head': 'path_school_head',
         'school_head': 'path_school_head',
         'Regional Office': 'path_ro_sd',
+        'Regional Division Office': 'path_ro_sd',
         'School Division Office': 'path_ro_sd',
         'DepEd Engineer': 'path_engineers',
         'Division Engineer': 'path_engineers',
