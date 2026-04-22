@@ -57,10 +57,12 @@ import BEFFDashboard from './modules/BEFFDashboard';
 import ChatModule from './modules/ChatModule'; // <--- RESTORED THIS
 import EducationalDashboard from './modules/EducationalDashboard';
 import ProjectSummaryDashboard from './modules/ProjectSummaryDashboard';
-import { ROLE_GROUPS } from './config/roleGroups';
+import { ROLE_GROUPS, NEXUS_AUTHORIZED_EMAILS } from './config/roleGroups';
 import { EFDFilterProvider } from './context/EFDFilterContext';
 import CentralOfficeNexus from './modules/CentralOfficeNexus';
 import ThirdLevelDirectory from './modules/ThirdLevelDirectory';
+import OfficialApplication from './modules/OfficialApplication';
+import OfficialProfiling from './modules/OfficialProfiling';
 
 
 
@@ -125,13 +127,13 @@ const AnimatedRoutes = () => {
     // List of public paths that don't require authentication
     const publicPaths = ['/', '/login', '/register', '/adminlogin', '/chat'];
 
-    
+
     // If auth is finished loading and no user is found on a non-public path, redirect to login
     if (!loading && !user && !publicPaths.includes(location.pathname)) {
       console.log("[App] No user session found on protected route. Redirecting to login...");
       const lastRole = localStorage.getItem('lastRole');
       console.log("[App] Retrieved lastRole for redirection:", lastRole);
-      
+
       // Role to PathId Mapping for Portal Redirection
       const roleToPathId = {
         'School Head': 'path_school_head',
@@ -153,7 +155,7 @@ const AnimatedRoutes = () => {
       const pathId = lastRole ? roleToPathId[lastRole] : null;
       console.log("[App] Calculated pathId:", pathId);
       const state = pathId ? { pathId } : null;
-      
+
       navigate('/login', { replace: true, state });
     }
   }, [user, loading, location.pathname, navigate]);
@@ -164,7 +166,7 @@ const AnimatedRoutes = () => {
   // Check Maintenance Status periodically (Reduced from per-route check to every 5 mins)
   useEffect(() => {
     const controller = new AbortController();
-    
+
     const checkMaintenance = async () => {
       try {
         const res = await fetch('/api/settings/maintenance_mode', { signal: controller.signal });
@@ -181,9 +183,9 @@ const AnimatedRoutes = () => {
     };
 
     checkMaintenance(); // Initial check on mount
-    
+
     const intervalId = setInterval(checkMaintenance, 300000); // Poll every 5 minutes
-    
+
     return () => {
       clearInterval(intervalId);
       controller.abort();
@@ -221,46 +223,58 @@ const AnimatedRoutes = () => {
 
 
 
-        {/* Dashboards */}
-        <Route path="/engineer-dashboard" element={<EngineerDashboard />} />
-        <Route path="/regional-engineer-dashboard" element={<ProtectedRoute allowedRoles={['Division Engineer', 'Regional Engineer', 'Architect', 'DepEd Engineer', 'Super User', 'EFD Engineer', 'EFD']}><RegionalEngineerDashboard /></ProtectedRoute>} />
-        <Route path="/regional-engineer-lookup" element={<ProtectedRoute allowedRoles={['Regional Engineer', 'Super User']}><RegionalEngineerLookup /></ProtectedRoute>} />
-        <Route path="/non-deped-dashboard" element={<NonDepEdDashboard />} />
-        {/* <Route path="/lgu" element={<LguDashboard />} /> */}
-        {/* <Route path="/lgu-form" element={<LguForm />} /> */}
-        {/* <Route path="/lgu-projects" element={<LguProjects />} /> */}
-        <Route path="/engineer-projects" element={<EngineerProjects />} />
-        <Route path="/super-admin" element={<Navigate to="/super-user-selector" replace />} />
-        <Route path="/finance-dashboard" element={<FinanceDashboard />} />
-        <Route 
-          path="/nodes-dashboard" 
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <NodesDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route path="/lgu-dashboard" element={<LguDashboard />} />
-        <Route path="/lgu-form" element={<LguForms />} /> {/* Mapped to LguForms */}
-        <Route path="/lgu-project-details/:id" element={<LguProjectDetails />} />
-        
-        {/* Central Office Nexus */}
-        <Route 
-          path="/central-office-nexus" 
-          element={
-            <ProtectedRoute allowedRoles={['Central Office', 'Super User']}>
-              <CentralOfficeNexus />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/officials" 
-          element={
-            <ProtectedRoute allowedRoles={['Central Office', 'Super User']}>
-              <ThirdLevelDirectory />
-            </ProtectedRoute>
-          } 
-        />
+      {/* Dashboards */}
+      <Route path="/engineer-dashboard" element={<EngineerDashboard />} />
+      <Route path="/regional-engineer-dashboard" element={<ProtectedRoute allowedRoles={['Division Engineer', 'Regional Engineer', 'Architect', 'DepEd Engineer', 'Super User', 'EFD Engineer', 'EFD']}><RegionalEngineerDashboard /></ProtectedRoute>} />
+      <Route path="/regional-engineer-lookup" element={<ProtectedRoute allowedRoles={['Regional Engineer', 'Super User']}><RegionalEngineerLookup /></ProtectedRoute>} />
+      <Route path="/non-deped-dashboard" element={<NonDepEdDashboard />} />
+      {/* <Route path="/lgu" element={<LguDashboard />} /> */}
+      {/* <Route path="/lgu-form" element={<LguForm />} /> */}
+      {/* <Route path="/lgu-projects" element={<LguProjects />} /> */}
+      <Route path="/engineer-projects" element={<EngineerProjects />} />
+      <Route path="/super-admin" element={<Navigate to="/super-user-selector" replace />} />
+      <Route path="/finance-dashboard" element={<FinanceDashboard />} />
+      <Route
+        path="/nodes-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <NodesDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/lgu-dashboard" element={<LguDashboard />} />
+      <Route path="/lgu-form" element={<LguForms />} /> {/* Mapped to LguForms */}
+      <Route path="/lgu-project-details/:id" element={<LguProjectDetails />} />
+
+      {/* Central Office Nexus */}
+      <Route
+        path="/central-office-nexus"
+        element={
+          <ProtectedRoute allowedRoles={['Central Office', 'Super User']} allowedGroups={[ROLE_GROUPS.MANAGEMENT]}>
+            <CentralOfficeNexus />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/official-application"
+        element={
+          <ProtectedRoute allowedGroups={[ROLE_GROUPS.MANAGEMENT]}>
+            <OfficialApplication />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/official-profiling" element={<OfficialProfiling />} />
+      <Route
+        path="/officials"
+        element={
+          <ProtectedRoute
+            allowedRoles={['Central Office', 'Super User']}
+            customCheck={() => user?.email && NEXUS_AUTHORIZED_EMAILS.includes(user.email.toLowerCase())}
+          >
+            <ThirdLevelDirectory />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Super User Selector (Protected) */}
       <Route
@@ -289,126 +303,126 @@ const AnimatedRoutes = () => {
       <Route path="/school-audit" element={<SchoolAuditView />} />
       <Route path="/esf7-review" element={<Navigate to="/esf7/review" replace />} />
       <Route path="/esf7/review" element={<ProtectedRoute allowedRoles={['Super User', 'School Division Office']}><ESF7Review /></ProtectedRoute>} />
-      <Route path="/educational-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.EDUCATIONAL_ADMIN]}><EducationalDashboard /></ProtectedRoute>} />
+      <Route path="/educational-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.EDUCATIONAL_ADMIN, ROLE_GROUPS.MANAGEMENT]}><EducationalDashboard /></ProtectedRoute>} />
       <Route path="/project-summary-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.TECHNICAL_FINANCE]}><ProjectSummaryDashboard /></ProtectedRoute>} />
 
       <Route path="/dummy-forms" element={<DummyDashboard />} />
       <Route path="/psip" element={<PSIP />} />
 
-        {/* School Head Modular Flow */}
-        <Route
-          path="/modular-dashboard"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <ModularDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/my-activity"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <MyActivityDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/activity-dashboard"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <MyActivityDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/draft/esf7"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <ESF7Draft />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/draft/nspp"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <NSPPDraft />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-1"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit1SchoolIdentity />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-2"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit2Learners />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-3"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit3OrganizedClasses />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-4"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit4LearnerProfile />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-5"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit5ShiftingModality />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-6"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit6SchoolResources />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-7"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit7PhysicalFacilities />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-8"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit8SchoolLocation />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/modular/unit-9"
-          element={
-            <ProtectedRoute allowedRoles={['School Head']}>
-              <Unit9Infrastructure />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/chat" element={<ChatModule />} />
+      {/* School Head Modular Flow */}
+      <Route
+        path="/modular-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <ModularDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-activity"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <MyActivityDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/activity-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <MyActivityDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/draft/esf7"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <ESF7Draft />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/draft/nspp"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <NSPPDraft />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-1"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit1SchoolIdentity />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-2"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit2Learners />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-3"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit3OrganizedClasses />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-4"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit4LearnerProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-5"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit5ShiftingModality />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-6"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit6SchoolResources />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-7"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit7PhysicalFacilities />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-8"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit8SchoolLocation />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/modular/unit-9"
+        element={
+          <ProtectedRoute allowedRoles={['School Head']}>
+            <Unit9Infrastructure />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/chat" element={<ChatModule />} />
 
       {/* Menus */}
       <Route path="/school-forms" element={<SchoolForms />} />
@@ -426,9 +440,9 @@ const AnimatedRoutes = () => {
       <Route path="/school-information" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolInformation /></ProtectedRoute>} />
       <Route path="/enrolment" element={<ProtectedRoute allowedRoles={['School Head']}><Enrolement /></ProtectedRoute>} />
       <Route path="/organized-classes" element={<ProtectedRoute allowedRoles={['School Head']}><OrganizedClasses /></ProtectedRoute>} />
-        <Route path="/shifting-modalities" element={<ProtectedRoute allowedRoles={['School Head']}><ShiftingModalities /></ProtectedRoute>} />
-        <Route path="/school-resources" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolResources /></ProtectedRoute>} />
-        <Route path="/physical-facilities" element={<ProtectedRoute allowedRoles={['School Head']}><PhysicalFacilities /></ProtectedRoute>} />
+      <Route path="/shifting-modalities" element={<ProtectedRoute allowedRoles={['School Head']}><ShiftingModalities /></ProtectedRoute>} />
+      <Route path="/school-resources" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolResources /></ProtectedRoute>} />
+      <Route path="/physical-facilities" element={<ProtectedRoute allowedRoles={['School Head']}><PhysicalFacilities /></ProtectedRoute>} />
       <Route path="/learner-statistics" element={<ProtectedRoute allowedRoles={['School Head']}><LearnerStatistics /></ProtectedRoute>} />
       <Route path="/project-validation" element={<ProtectedRoute allowedRoles={['School Head']}><ProjectValidation /></ProtectedRoute>} />
       <Route path="/leaderboard" element={<ProtectedRoute allowedRoles={['School Head']}><Leaderboard /></ProtectedRoute>} />

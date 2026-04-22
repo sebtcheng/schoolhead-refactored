@@ -5788,6 +5788,76 @@ app.post('/api/admin/users/:uid/status', async (req, res) => {
   }
 });
 
+// --- RECRUITMENT AUTH: OTP FLOW ---
+
+app.post('/api/auth/send-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required" });
+
+  try {
+    // 1. Generate 6-digit code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 2. Upsert into verification_codes table
+    await pool.query(`
+      INSERT INTO verification_codes (email, code, expires_at)
+      VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
+      ON CONFLICT (email) 
+      DO UPDATE SET code = $2, expires_at = NOW() + INTERVAL '10 minutes'
+    `, [email.toLowerCase().trim(), otpCode]);
+
+    // 3. Send Email via Transporter
+    const mailOptions = {
+      from: `"InsightEd Nexus" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Security Verification Code - InsightEd Recruitment',
+      html: `
+        <div style="font-family: sans-serif; max-width: 400px; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2 style="color: #6d28d9;">Security Verification</h2>
+          <p>You are registering for the <b>Third Level Officials Career Path</b>. Use the code below to verify your identity:</p>
+          <div style="background: #f3f4f6; color: #111827; font-size: 28px; font-weight: bold; padding: 15px; text-align: center; border-radius: 6px; letter-spacing: 4px;">
+            ${otpCode}
+          </div>
+          <p style="color: #6b7280; font-size: 13px; margin-top: 20px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 OTP sent to ${email}: ${otpCode}`);
+    res.json({ success: true, message: "Code sent successfully" });
+
+  } catch (err) {
+    console.error("❌ Send OTP Error:", err.message);
+    res.status(500).json({ error: "Failed to send verification code. Please try again." });
+  }
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ error: "Email and code are required" });
+
+  try {
+    const result = await pool.query(`
+      SELECT * FROM verification_codes 
+      WHERE email = $1 AND code = $2 AND expires_at > NOW()
+    `, [email.toLowerCase().trim(), code.trim()]);
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid or expired verification code" });
+    }
+
+    // Success - Clear the code
+    await pool.query('DELETE FROM verification_codes WHERE email = $1', [email.toLowerCase().trim()]);
+
+    res.json({ success: true, message: "Email verified successfully" });
+
+  } catch (err) {
+    console.error("❌ Verify OTP Error:", err.message);
+    res.status(500).json({ error: "Verification failed" });
+  }
+});
+
 // POST admin Reset Password
 app.post('/api/admin/reset-password', async (req, res) => {
   const { uid, newPassword, adminUid } = req.body;
@@ -21693,19 +21763,27 @@ app.put('/api/audit/remarks/:id/resolve', async (req, res) => {
 app.get('/api/officials', async (req, res) => {
   try {
     const { strand, office, status = 'Active' } = req.query;
-    let query = 'SELECT * FROM third_level_officials WHERE status = $1';
+    let query = `
+      SELECT m.*, 
+             p.last_name, p.first_name, p.middle_name, p.suffix, 
+             p.gender, p.date_of_birth, p.age, p.civil_status,
+             p.photo_binary_id
+      FROM third_level_officials_masterlist m
+      LEFT JOIN third_level_officials_profiles p ON m.tlid = p.tlid
+      WHERE m.status = $1
+    `;
     const params = [status];
     
     if (strand) {
       params.push(strand);
-      query += ` AND strand = $${params.length}`;
+      query += ` AND m.strand = $${params.length}`;
     }
     if (office) {
       params.push(office);
-      query += ` AND office = $${params.length}`;
+      query += ` AND m.office = $${params.length}`;
     }
     
-    query += ' ORDER BY sort_index ASC';
+    query += ' ORDER BY m.sort_index ASC';
     const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (err) {
@@ -21717,11 +21795,34 @@ app.get('/api/officials', async (req, res) => {
 app.get('/api/officials/history/:tlid', async (req, res) => {
   const { tlid } = req.params;
   try {
-    const result = await pool.query(
-      'SELECT * FROM officials_movement_log WHERE tlid = $1 ORDER BY created_at DESC',
-      [tlid]
-    );
-    res.json({ success: true, data: result.rows });
+    // 1. Get Initial Entry from Ledger
+    const initialRes = await pool.query(`
+      SELECT 'INITIAL_ENTRY' as movement_type, 
+             strand, office, position,
+             'Baseline assignment' as remarks, 
+             assignment_date as effective_date,
+             created_at
+      FROM third_level_officials_updates
+      WHERE tlid = $1 AND (change_type = 'INITIAL_ENTRY' OR change_type = 'IMPORT')
+      LIMIT 1
+    `, [tlid]);
+
+    // 2. Get Movements (Flattening the 'to' details for the UI)
+    const moveRes = await pool.query(`
+      SELECT movement_type, 
+             COALESCE(details->'to'->>'strand', details->>'strand') as strand,
+             COALESCE(details->'to'->>'office', details->>'office') as office,
+             COALESCE(details->'to'->>'position', details->>'position') as position,
+             remarks, effective_date, created_at 
+      FROM officials_movement_log 
+      WHERE tlid = $1 
+      ORDER BY created_at ASC
+    `, [tlid]);
+
+    // Combine
+    const fullHistory = [...initialRes.rows, ...moveRes.rows].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    res.json({ success: true, data: fullHistory });
   } catch (err) {
     console.error("GET /api/officials/history error:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -21732,25 +21833,36 @@ app.get('/api/officials/history/:tlid', async (req, res) => {
 app.get('/api/officials/position-history', async (req, res) => {
   const { strand, office, position } = req.query;
   try {
-    // Search movement log logs that mention this position
-    const result = await pool.query(`
-      SELECT oml.*, tlo.name as official_name, tlo.position as official_position
-      FROM officials_movement_log oml
-      JOIN third_level_officials tlo ON oml.tlid = tlo.tlid
-      WHERE (oml.details->'to'->>'strand' = $1 AND oml.details->'to'->>'office' = $2 AND oml.details->'to'->>'position' = $3)
-         OR (oml.details->>'strand' = $1 AND oml.details->>'office' = $2 AND (oml.details->>'successor_position' = $3 OR tlo.position = $3))
-      ORDER BY oml.created_at DESC
+    // 1. Get current incumbent directly from masterlist
+    const activeIncumbent = await pool.query(`
+      SELECT tlid, name, position, status, updated_at as effective_date, 'INCUMBENT' as movement_type
+      FROM third_level_officials_masterlist
+      WHERE strand = $1 AND office = $2 AND position = $3 AND name != 'VACANT'
     `, [strand, office, position]);
 
-    // Also just find all officials (including inactive) who held this specific position
-    const directResult = await pool.query(`
-       SELECT tlid, name, position, status, updated_at as effective_date
-       FROM third_level_officials
-       WHERE strand = $1 AND office = $2 AND position = $3
-       ORDER BY updated_at DESC
+    // 2. Get historical incumbents from the updates ledger
+    // We select distinct people who were ever assigned to these exact coordinates
+    const historicalResult = await pool.query(`
+      SELECT DISTINCT ON (tlid)
+             tlid, name, position, status, assignment_date as effective_date, created_at, change_type as movement_type, remarks,
+             last_name, first_name, middle_name, suffix, photo_binary_id
+      FROM third_level_officials_updates
+      WHERE strand = $1 AND office = $2 AND position = $3 AND name != 'VACANT'
+      ORDER BY tlid, created_at DESC
     `, [strand, office, position]);
 
-    res.json({ success: true, data: directResult.rows });
+    // Combine and prioritize the current incumbent
+    const combined = [...activeIncumbent.rows, ...historicalResult.rows];
+
+    // Final de-duplication and chronological sort
+    const seen = new Set();
+    const unique = combined.filter(c => {
+      const isDuplicate = seen.has(c.tlid);
+      seen.add(c.tlid);
+      return !isDuplicate;
+    }).sort((a,b) => new Date(b.effective_date || b.created_at) - new Date(a.effective_date || a.created_at));
+
+    res.json({ success: true, data: unique });
   } catch (err) {
     console.error("GET /api/officials/position-history error:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -21761,8 +21873,8 @@ app.get('/api/officials/career-path/:name', async (req, res) => {
   const { name } = req.params;
   try {
     const result = await pool.query(`
-      SELECT tlid, name, strand, office, position, status, updated_at, created_at
-      FROM third_level_officials
+      SELECT tlid, name, strand, office, position, status, updated_at, created_at, assignment_date
+      FROM third_level_officials_masterlist
       WHERE name = $1
       ORDER BY updated_at DESC
     `, [name]);
@@ -21773,25 +21885,72 @@ app.get('/api/officials/career-path/:name', async (req, res) => {
   }
 });
 
+// New Endpoint for UI Dropdowns (Taxonomy)
+app.get('/api/officials/taxonomy', async (req, res) => {
+  try {
+    const strands = await pool.query('SELECT DISTINCT strand FROM third_level_officials_masterlist WHERE strand IS NOT NULL ORDER BY strand');
+    const offices = await pool.query('SELECT DISTINCT office, strand FROM third_level_officials_masterlist WHERE office IS NOT NULL AND strand IS NOT NULL ORDER BY office');
+    const positions = await pool.query('SELECT DISTINCT position FROM third_level_officials_masterlist WHERE position IS NOT NULL ORDER BY position');
+    
+    res.json({
+      success: true,
+      data: {
+        strands: strands.rows.map(r => r.strand),
+        offices: offices.rows.map(r => ({ office: r.office, strand: r.strand })),
+        positions: positions.rows.map(r => r.position)
+      }
+    });
+  } catch (err) {
+    console.error("GET /api/officials/taxonomy error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 app.post('/api/officials/move', authMiddleware, async (req, res) => {
-  const { tlid, new_strand, new_office, new_position, effective_date, remarks } = req.body;
+  const { tlid, new_strand, new_office, new_position, assignment_date, remarks } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
     // Get current state for snapshot
-    const currentRes = await client.query('SELECT * FROM third_level_officials WHERE tlid = $1', [tlid]);
+    const currentRes = await client.query('SELECT * FROM third_level_officials_masterlist WHERE tlid = $1', [tlid]);
     if (currentRes.rowCount === 0) throw new Error("Official not found");
     const oldData = currentRes.rows[0];
     
     // Update official
     await client.query(`
-      UPDATE third_level_officials 
-      SET strand = $1, office = $2, position = $3, updated_at = NOW() 
-      WHERE tlid = $4
-    `, [new_strand, new_office, new_position, tlid]);
+      UPDATE third_level_officials_masterlist 
+      SET strand = $1, office = $2, position = $3, assignment_date = $4, updated_at = NOW() 
+      WHERE tlid = $5
+    `, [new_strand, new_office, new_position, assignment_date || null, tlid]);
+
+    // Append to Updates Ledger
+    await client.query(`
+      INSERT INTO third_level_officials_updates (
+        tlid, sort_index, strand, office, name, position, 
+        email, alt_email_1, alt_email_2, contact_details, 
+        alt_contact_details_1, alt_contact_details_2, status, 
+        change_type, assignment_date, updated_by, remarks,
+        last_name, first_name, middle_name, suffix, gender, 
+        date_of_birth, age, civil_status, permanent_address,
+        previous_positions, relevant_trainings, highest_education,
+        education_program, education_year_graduated, photo_binary_id
+      )
+      SELECT 
+        m.tlid, m.sort_index, m.strand, m.office, m.name, m.position, 
+        m.email, m.alt_email_1, m.alt_email_2, m.contact_details, 
+        m.alt_contact_details_1, m.alt_contact_details_2, m.status, 
+        'REASSIGNMENT', m.assignment_date, $1, $2,
+        p.last_name, p.first_name, p.middle_name, p.suffix, p.gender,
+        p.date_of_birth, p.age, p.civil_status, p.permanent_address,
+        p.previous_positions, p.relevant_trainings, p.highest_education,
+        p.education_program, p.education_year_graduated, p.photo_binary_id
+      FROM third_level_officials_masterlist m
+      LEFT JOIN third_level_officials_profiles p ON m.tlid = p.tlid
+      WHERE m.tlid = $3
+    `, [req.user.email, remarks || null, tlid]);
     
-    // Log movement
+    // Log movement in the career log
     await client.query(`
       INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -21803,9 +21962,26 @@ app.post('/api/officials/move', authMiddleware, async (req, res) => {
         to: { strand: new_strand, office: new_office, position: new_position }
       }),
       remarks,
-      effective_date,
+      assignment_date || null,
       req.user.email
     ]);
+
+    // --- POSITION PERMANENCE FIX ---
+    // Generate a new TLID for the placeholder
+    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials_masterlist');
+    const vacantTlid = `TL-2026-${String(parseInt(countRes.rows[0].count) + 1).padStart(4, '0')}`;
+    
+    // Create a VACANT placeholder for the position the official just left
+    await client.query(`
+      INSERT INTO third_level_officials_masterlist (tlid, sort_index, strand, office, name, position, email, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [vacantTlid, oldData.sort_index, oldData.strand, oldData.office, 'VACANT', oldData.position, null, 'Vacant']);
+
+    // Log the initial entry of the vacancy in the updates ledger
+    await client.query(`
+      INSERT INTO third_level_officials_updates (tlid, sort_index, strand, office, name, position, status, change_type, updated_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'INITIAL_ENTRY', $8)
+    `, [vacantTlid, oldData.sort_index, oldData.strand, oldData.office, 'VACANT', oldData.position, 'Vacant', req.user.email]);
     
     await client.query('COMMIT');
     res.json({ success: true, message: "Official reassigned successfully" });
@@ -21824,7 +22000,7 @@ app.post('/api/officials/replace', authMiddleware, async (req, res) => {
     successor_name, 
     successor_email, 
     successor_position, 
-    effective_date, 
+    assignment_date, 
     remarks 
   } = req.body;
   
@@ -21833,23 +22009,54 @@ app.post('/api/officials/replace', authMiddleware, async (req, res) => {
     await client.query('BEGIN');
     
     // 1. Mark old official as inactive
-    const oldRes = await client.query('SELECT * FROM third_level_officials WHERE tlid = $1', [tlid]);
+    const oldRes = await client.query('SELECT * FROM third_level_officials_masterlist WHERE tlid = $1', [tlid]);
     if (oldRes.rowCount === 0) throw new Error("Official to replace not found");
     const oldData = oldRes.rows[0];
     
-    await client.query('UPDATE third_level_officials SET status = $1, updated_at = NOW() WHERE tlid = $2', ['Inactive', tlid]);
+    await client.query('UPDATE third_level_officials_masterlist SET status = $1, updated_at = NOW() WHERE tlid = $2', ['Inactive', tlid]);
     
+    // Append Inactive status to Ledger for old official (using effective date as assignment date for record)
+    await client.query(`
+      INSERT INTO third_level_officials_updates (
+        tlid, sort_index, strand, office, name, position, email, status, 
+        change_type, assignment_date, updated_by, remarks,
+        last_name, first_name, middle_name, suffix, gender, 
+        date_of_birth, age, civil_status, permanent_address,
+        previous_positions, relevant_trainings, highest_education,
+        education_program, education_year_graduated, photo_binary_id
+      )
+      SELECT 
+        m.tlid, m.sort_index, m.strand, m.office, m.name, m.position, m.email, m.status, 
+        'EXCLUSION_REPLACED', $1, $2, $3,
+        p.last_name, p.first_name, p.middle_name, p.suffix, p.gender,
+        p.date_of_birth, p.age, p.civil_status, p.permanent_address,
+        p.previous_positions, p.relevant_trainings, p.highest_education,
+        p.education_program, p.education_year_graduated, p.photo_binary_id
+      FROM third_level_officials_masterlist m
+      LEFT JOIN third_level_officials_profiles p ON m.tlid = p.tlid
+      WHERE m.tlid = $4
+    `, [assignment_date || null, req.user.email, remarks || null, tlid]);
+
     // 2. Generate new TLID
-    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials');
+    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials_masterlist');
     const newTlid = `TL-2026-${String(parseInt(countRes.rows[0].count) + 1).padStart(4, '0')}`;
     
     // 3. Insert successor (inherit strand/office AND sort_index from predecessor to preserve hierarchy)
     await client.query(`
-      INSERT INTO third_level_officials (tlid, sort_index, strand, office, name, position, email, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [newTlid, oldData.sort_index, oldData.strand, oldData.office, successor_name.toUpperCase(), successor_position, successor_email, 'Active']);
+      INSERT INTO third_level_officials_masterlist (tlid, sort_index, strand, office, name, position, email, status, assignment_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `, [newTlid, oldData.sort_index, oldData.strand, oldData.office, successor_name.toUpperCase(), successor_position, successor_email, 'Active', assignment_date || null]);
     
-    // 4. Log replacement on BOTH records
+    // Append Initial Record to Ledger for successor
+    await client.query(`
+      INSERT INTO third_level_officials_updates (
+        tlid, sort_index, strand, office, name, position, email, status, change_type, assignment_date, updated_by, remarks
+      )
+      SELECT tlid, sort_index, strand, office, name, position, email, status, 'INITIAL_ENTRY', assignment_date, $1, $2
+      FROM third_level_officials_masterlist WHERE tlid = $3
+    `, [req.user.email, remarks || null, newTlid]);
+
+    // 4. Log replacement on BOTH records in career log
     const details = JSON.stringify({
       predecessor_tlid: tlid,
       successor_tlid: newTlid,
@@ -21860,12 +22067,12 @@ app.post('/api/officials/replace', authMiddleware, async (req, res) => {
     await client.query(`
       INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [tlid, 'REPLACEMENT_OUT', details, `Replaced by ${successor_name}`, effective_date, req.user.email]);
+    `, [tlid, 'REPLACEMENT_OUT', details, `Replaced by ${successor_name}`, assignment_date || null, req.user.email]);
     
     await client.query(`
       INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [newTlid, 'REPLACEMENT_IN', details, `Succeeding ${oldData.name}`, effective_date, req.user.email]);
+    `, [newTlid, 'REPLACEMENT_IN', details, `Succeeding ${oldData.name}`, assignment_date || null, req.user.email]);
     
     await client.query('COMMIT');
     res.json({ success: true, message: "Official replacement successful", new_tlid: newTlid });
@@ -21879,34 +22086,63 @@ app.post('/api/officials/replace', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/officials/vacate', authMiddleware, async (req, res) => {
-  const { tlid, remarks, effective_date } = req.body;
+  const { tlid, remarks, assignment_date } = req.body;
   
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
     // 1. Mark existing as inactive
-    const oldRes = await client.query('SELECT * FROM third_level_officials WHERE tlid = $1', [tlid]);
+    const oldRes = await client.query('SELECT * FROM third_level_officials_masterlist WHERE tlid = $1', [tlid]);
     if (oldRes.rowCount === 0) throw new Error("Official not found");
     const oldData = oldRes.rows[0];
     
-    await client.query('UPDATE third_level_officials SET status = $1, updated_at = NOW() WHERE tlid = $2', ['Inactive', tlid]);
+    await client.query('UPDATE third_level_officials_masterlist SET status = $1, updated_at = NOW() WHERE tlid = $2', ['Inactive', tlid]);
     
+    // Append to Ledger
+    await client.query(`
+      INSERT INTO third_level_officials_updates (
+        tlid, sort_index, strand, office, name, position, status, 
+        change_type, updated_by, remarks,
+        last_name, first_name, middle_name, suffix, gender, 
+        date_of_birth, age, civil_status, permanent_address,
+        previous_positions, relevant_trainings, highest_education,
+        education_program, education_year_graduated, photo_binary_id
+      )
+      SELECT 
+        m.tlid, m.sort_index, m.strand, m.office, m.name, m.position, m.status, 
+        'VACATED', $1, $2,
+        p.last_name, p.first_name, p.middle_name, p.suffix, p.gender,
+        p.date_of_birth, p.age, p.civil_status, p.permanent_address,
+        p.previous_positions, p.relevant_trainings, p.highest_education,
+        p.education_program, p.education_year_graduated, p.photo_binary_id
+      FROM third_level_officials_masterlist m
+      LEFT JOIN third_level_officials_profiles p ON m.tlid = p.tlid
+      WHERE m.tlid = $3
+    `, [req.user.email, remarks || null, tlid]);
+
     // 2. Generate new TLID for the Vacant record
-    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials');
+    const countRes = await client.query('SELECT COUNT(*) FROM third_level_officials_masterlist');
     const newTlid = `TL-2026-${String(parseInt(countRes.rows[0].count) + 1).padStart(4, '0')}`;
     
     // 3. Create Vacant record inheriting hierarchy
     await client.query(`
-      INSERT INTO third_level_officials (tlid, sort_index, strand, office, name, position, email, status)
+      INSERT INTO third_level_officials_masterlist (tlid, sort_index, strand, office, name, position, email, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [newTlid, oldData.sort_index, oldData.strand, oldData.office, 'VACANT', oldData.position, null, 'Vacant']);
     
+    // Append Initial Vacant Record to Ledger
+    await client.query(`
+      INSERT INTO third_level_officials_updates (tlid, sort_index, strand, office, name, position, status, change_type, updated_by)
+      SELECT tlid, sort_index, strand, office, name, position, status, 'INITIAL_ENTRY', $1
+      FROM third_level_officials_masterlist WHERE tlid = $2
+    `, [req.user.email, newTlid]);
+
     // 4. Log movement
     await client.query(`
       INSERT INTO officials_movement_log (tlid, movement_type, details, remarks, effective_date, created_by)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [tlid, 'VACATED', JSON.stringify({ strand: oldData.strand, office: oldData.office }), remarks, effective_date, req.user.email]);
+    `, [tlid, 'VACATED', JSON.stringify({ strand: oldData.strand, office: oldData.office }), remarks, assignment_date || null, req.user.email]);
     
     await client.query('COMMIT');
     res.json({ success: true, message: "Position is now vacant" });
@@ -21919,6 +22155,369 @@ app.post('/api/officials/vacate', authMiddleware, async (req, res) => {
   }
 });
 
+// Generic Update Endpoint for Info Changes (Ledger-Backed)
+app.post('/api/officials/update', authMiddleware, async (req, res) => {
+  const { 
+    tlid, 
+    name, position, email, alt_email_1, alt_email_2, 
+    contact_details, alt_contact_details_1, alt_contact_details_2,
+    assignment_date
+  } = req.body;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Update Masterlist
+    await client.query(`
+      UPDATE third_level_officials_masterlist 
+      SET name = $1, position = $2, email = $3, 
+          alt_email_1 = $4, alt_email_2 = $5,
+          contact_details = $6, alt_contact_details_1 = $7, alt_contact_details_2 = $8,
+          assignment_date = $9,
+          updated_at = NOW()
+      WHERE tlid = $10
+    `, [
+      name.toUpperCase(), position, email, 
+      alt_email_1, alt_email_2, 
+      contact_details, alt_contact_details_1, alt_contact_details_2,
+      assignment_date || null,
+      tlid
+    ]);
+    
+    // Append to Updates Ledger
+    await client.query(`
+      INSERT INTO third_level_officials_updates (
+        tlid, sort_index, strand, office, name, position, 
+        email, alt_email_1, alt_email_2, contact_details, 
+        alt_contact_details_1, alt_contact_details_2, status, 
+        change_type, updated_by
+      )
+      SELECT 
+        tlid, sort_index, strand, office, name, position, 
+        email, alt_email_1, alt_email_2, contact_details, 
+        alt_contact_details_1, alt_contact_details_2, status, 
+        'INFO_UPDATE', $1
+      FROM third_level_officials_masterlist WHERE tlid = $2
+    `, [req.user.email, tlid]);
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: "Official information updated successfully" });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("POST /api/officials/update error:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// --- NEW: THIRD LEVEL OFFICIALS APPLICATION PIPELINE ---
+app.post('/api/officials/apply', authMiddleware, memoryUpload.single('photo'), async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Parse JSON payloads from FormData
+        const header = JSON.parse(req.body.header || '{}');
+        const experience = JSON.parse(req.body.experience || '[]');
+        const education = JSON.parse(req.body.education || '[]');
+        const ratings = JSON.parse(req.body.ratings || '[]');
+        const eligibility = JSON.parse(req.body.eligibility || '[]');
+
+        // 2. Handle Photo Binary (Optimized WebP via binaryPipeline)
+        let photoBinaryId = null;
+        if (req.file) {
+            const { binary_id } = await upsertBinary(pool, req.file.buffer, req.file.mimetype, req.file.size);
+            photoBinaryId = binary_id;
+            console.log(`📸 [OfficialApp] Photo processed: ${photoBinaryId}`);
+        }
+
+        // 3. Insert Application Header
+        const headerRes = await client.query(`
+            INSERT INTO third_level_officials_applications (
+                fullname, current_position, position_applied_for, age, photo_binary_id, status
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING application_id
+        `, [
+            header.fullname.toUpperCase(),
+            header.current_position,
+            header.position_applied_for,
+            parseInt(header.age) || null,
+            photoBinaryId,
+            'PENDING'
+        ]);
+
+        const { application_id } = headerRes.rows[0];
+
+        // 4. Insert Child Records (Experience)
+        for (const [idx, item] of experience.entries()) {
+            await client.query(`
+                INSERT INTO third_level_officials_app_experience (application_id, position, location, duration, sort_order)
+                VALUES ($1, $2, $3, $4, $5)
+            `, [application_id, item.position, item.location, item.duration, idx]);
+        }
+
+        // 5. Insert Child Records (Education)
+        for (const [idx, item] of education.entries()) {
+            await client.query(`
+                INSERT INTO third_level_officials_app_education (application_id, university, degree, year_graduated, sort_order)
+                VALUES ($1, $2, $3, $4, $5)
+            `, [application_id, item.university, item.degree, item.year_graduated, idx]);
+        }
+
+        // 6. Insert Child Records (Ratings)
+        for (const [idx, item] of ratings.entries()) {
+            await client.query(`
+                INSERT INTO third_level_officials_app_ratings (application_id, period, rating, sort_order)
+                VALUES ($1, $2, $3, $4)
+            `, [application_id, item.period, parseFloat(item.rating) || null, idx]);
+        }
+
+        // 7. Insert Child Records (Eligibility)
+        for (const [idx, item] of eligibility.entries()) {
+            await client.query(`
+                INSERT INTO third_level_officials_app_eligibility (application_id, eligibility, date_acquired, sort_order)
+                VALUES ($1, $2, $3, $4)
+            `, [application_id, item.eligibility, item.date_acquired || null, idx]);
+        }
+
+        await client.query('COMMIT');
+        console.log(`✅ [OfficialApp] Submission Success: AppID ${application_id}`);
+        res.json({ success: true, application_id });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("❌ POST /api/officials/apply error:", err);
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+
+// --- THIRD LEVEL OFFICIALS PROFILE ENDPOINTS ---
+
+// GET official record by DepEd email (self-service profiling lookup)
+app.get('/api/third-level/by-email', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'email query param required' });
+  try {
+    const result = await pool.query(
+      `SELECT * FROM third_level_officials_masterlist WHERE LOWER(email) = LOWER($1) AND status != 'Inactive' LIMIT 1`,
+      [email]
+    );
+    if (result.rows.length === 0) return res.json({ success: false, data: null });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('GET /api/third-level/by-email error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET full profile (masterlist + profile join)
+app.get('/api/third-level/:tlid/profile', async (req, res) => {
+  const { tlid } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT 
+        m.*, 
+        p.last_name, p.first_name, p.middle_name, p.suffix, p.gender, p.date_of_birth, p.age, p.civil_status,
+        p.position_title, p.appointment_date, p.emt_passer, p.emt_date, p.ces_stage, p.ces_conferment_date,
+        p.total_years_third_level, p.previous_positions, p.relevant_trainings,
+        p.permanent_address, p.highest_education, p.education_program, p.education_year_graduated,
+        p.notable_achievements, p.performance_rating_ipcrf, p.performance_rating_cespes,
+        p.photo_binary_id, p.pds_binary_id, p.profile_word_binary_id, p.profile_ppt_binary_id, p.service_records_binary_id,
+        p.pending_admin_case, p.ombudsman_case
+      FROM third_level_officials_masterlist m
+      LEFT JOIN third_level_officials_profiles p ON m.tlid = p.tlid
+      WHERE m.tlid = $1
+    `, [tlid]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Official not found' });
+    
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (err) {
+    console.error('GET /api/third-level/:tlid/profile error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT ?" update profile + masterlist + write forensic ledger snapshot
+app.put('/api/third-level/:tlid/profile', authMiddleware, async (req, res) => {
+  const { tlid } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Update MASTERLIST (Organizational/Email fields)
+    const masterFields = ['strand', 'office', 'position', 'assignment_date', 'status', 'email', 'alt_email_1', 'alt_email_2', 'contact_details', 'alt_contact_details_1', 'alt_contact_details_2'];
+    const masterUpdates = [];
+    const masterValues = [];
+
+    masterFields.forEach(f => {
+      if (req.body[f] !== undefined) {
+        masterValues.push(req.body[f] === '' ? null : req.body[f]);
+        masterUpdates.push(`${f} = $${masterValues.length}`);
+      }
+    });
+
+    if (masterUpdates.length > 0) {
+      masterValues.push(new Date(), tlid);
+      await client.query(
+        `UPDATE third_level_officials_masterlist SET ${masterUpdates.join(', ')}, updated_at = $${masterValues.length - 1} WHERE tlid = $${masterValues.length}`,
+        masterValues
+      );
+    }
+
+    // 2. UPSERT into PROFILES (Personal/Biometric fields)
+    const profileFields = [
+      'last_name', 'first_name', 'middle_name', 'suffix', 'gender', 'date_of_birth', 'age', 'civil_status',
+      'position_title', 'appointment_date', 'emt_passer', 'emt_date', 'ces_stage', 'ces_conferment_date',
+      'total_years_third_level', 'previous_positions', 'relevant_trainings',
+      'permanent_address', 'highest_education', 'education_program', 'education_year_graduated',
+      'notable_achievements', 'performance_rating_ipcrf', 'performance_rating_cespes',
+      'photo_binary_id', 'pds_binary_id', 'profile_word_binary_id', 'profile_ppt_binary_id', 'service_records_binary_id',
+      'pending_admin_case', 'ombudsman_case'
+    ];
+
+    const profileValues = [tlid];
+    const profileCols = ['tlid'];
+    const profilePlaceholders = ['$1'];
+    const profileUpdates = [];
+
+    profileFields.forEach(f => {
+      if (req.body[f] !== undefined) {
+        let val = req.body[f] === '' ? null : req.body[f];
+        // Handle JSONB fields
+        if ((f === 'previous_positions' || f === 'relevant_trainings') && typeof val === 'object') {
+          val = JSON.stringify(val);
+        }
+        profileValues.push(val);
+        profileCols.push(f);
+        profilePlaceholders.push(`$${profileValues.length}`);
+        profileUpdates.push(`${f} = $${profileValues.length}`);
+      }
+    });
+
+    if (profileUpdates.length > 0) {
+      await client.query(`
+        INSERT INTO third_level_officials_profiles (${profileCols.join(', ')}, updated_at)
+        VALUES (${profilePlaceholders.join(', ')}, NOW())
+        ON CONFLICT (tlid) DO UPDATE SET ${profileUpdates.join(', ')}, updated_at = NOW()
+      `, profileValues);
+    }
+
+    // 3. APPEND to UPDATES Ledger (Forensic Snapshot)
+    // Pull the fully combined record for a perfect snapshot
+    const snapRes = await client.query(`
+      SELECT m.*, p.* 
+      FROM third_level_officials_masterlist m
+      LEFT JOIN third_level_officials_profiles p ON m.tlid = p.tlid
+      WHERE m.tlid = $1
+    `, [tlid]);
+
+    if (snapRes.rows.length > 0) {
+      const s = snapRes.rows[0];
+      await client.query(`
+        INSERT INTO third_level_officials_updates (
+          tlid, sort_index, strand, office, name, position, 
+          email, alt_email_1, alt_email_2, contact_details, 
+          alt_contact_details_1, alt_contact_details_2, status, 
+          change_type, updated_by, created_at,
+          last_name, first_name, middle_name, suffix,
+          gender, date_of_birth, age, civil_status,
+          position_title, appointment_date, emt_passer, emt_date, ces_stage, ces_conferment_date,
+          total_years_third_level, previous_positions, relevant_trainings,
+          permanent_address, highest_education, education_program, education_year_graduated,
+          notable_achievements, performance_rating_ipcrf, performance_rating_cespes
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PROFILE_UPDATE', $14, NOW(),
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38
+        )
+      `, [
+        s.tlid, s.sort_index, s.strand, s.office, s.name, s.position,
+        s.email, s.alt_email_1, s.alt_email_2, s.contact_details, s.alt_contact_details_1, s.alt_contact_details_2, s.status,
+        req.user?.name || 'SYSTEM',
+        s.last_name, s.first_name, s.middle_name, s.suffix,
+        s.gender, s.date_of_birth, s.age, s.civil_status,
+        s.position_title, s.appointment_date, s.emt_passer, s.emt_date, s.ces_stage, s.ces_conferment_date,
+        s.total_years_third_level, JSON.stringify(s.previous_positions || []), JSON.stringify(s.relevant_trainings || []),
+        s.permanent_address, s.highest_education, s.education_program, s.education_year_graduated,
+        s.notable_achievements, s.performance_rating_ipcrf, s.performance_rating_cespes
+      ]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Profile updated and history logged.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('PUT /api/third-level/:tlid/profile error:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST — add a previous position row
+app.post('/api/third-level/:tlid/prev-positions', authMiddleware, async (req, res) => {
+  const { tlid } = req.params;
+  const { position_name, office, start_date, end_date, is_oic, sort_order } = req.body;
+  try {
+    const result = await pool.query(`
+      INSERT INTO third_level_officials_prev_positions (tlid, position_name, office, start_date, end_date, is_oic, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [tlid, position_name, office, start_date || null, end_date || null, is_oic || false, sort_order || 0]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('POST /api/third-level/:tlid/prev-positions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE — remove a previous position row
+app.delete('/api/third-level/prev-positions/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM third_level_officials_prev_positions WHERE position_id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/third-level/prev-positions/:id error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST — add a training row
+app.post('/api/third-level/:tlid/trainings', authMiddleware, async (req, res) => {
+  const { tlid } = req.params;
+  const { training_name, date_completed, sort_order } = req.body;
+  try {
+    const result = await pool.query(`
+      INSERT INTO third_level_officials_trainings (tlid, training_name, date_completed, sort_order)
+      VALUES ($1, $2, $3, $4) RETURNING *
+    `, [tlid, training_name, date_completed || null, sort_order || 0]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('POST /api/third-level/:tlid/trainings error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE — remove a training row
+app.delete('/api/third-level/trainings/:id', authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM third_level_officials_trainings WHERE training_id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/third-level/trainings/:id error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // --- FINAL GLOBAL ERROR HANDLER ---
 // Ensures all errors (including Multer limit errors) return JSON in production

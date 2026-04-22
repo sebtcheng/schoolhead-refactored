@@ -145,6 +145,7 @@ const SchoolManagement = () => {
     const [checkingId, setCheckingId] = useState(false);
     const [nameError, setNameError] = useState('');
 
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmTimer, setConfirmTimer] = useState(20);
     const [canConfirm, setCanConfirm] = useState(false);
 
