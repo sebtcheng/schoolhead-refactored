@@ -8,7 +8,7 @@ import { TbPhoto } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
 import EditProjectModal from '../components/EditProjectModal';
 import ProjectEditModal from '../components/ProjectEditModal';
-import { LuHistory, LuUser, LuCalendar, LuX, LuInfo, LuMapPin, LuShoppingBag, LuDollarSign, LuFileText, LuImages, LuEye } from "react-icons/lu";
+import { LuHistory, LuUser, LuCalendar, LuX, LuInfo, LuMapPin, LuShoppingBag, LuDollarSign, LuFileText, LuImages, LuEye, LuBox } from "react-icons/lu";
 import { FiSettings, FiImage, FiFileText } from 'react-icons/fi';
 import { resolveAssetUrl, resolveDocUrl } from '../utils/assetHelper';
 import HydraDocViewer from '../components/HydraDocViewer';
@@ -417,9 +417,9 @@ const SectionHeader = ({ title }) => (
     </h2>
 );
 
-const Field = ({ label, name, value, type = 'text', options = [] }) => {
+const Field = ({ label, name, value, type = 'text', options = [], readOnly = false }) => {
     const { isEditMode, formData, handleChange } = useContext(FieldFormContext) || {};
-    if (!isEditMode) {
+    if (!isEditMode || readOnly) {
         const isMoney = type === 'money';
         let displayValue = isMoney ? `₱${Number(value || 0).toLocaleString()}` : (value || '---');
         
@@ -436,9 +436,12 @@ const Field = ({ label, name, value, type = 'text', options = [] }) => {
         return (
             <div className="mb-4 group">
                 <p className="text-[9px] uppercase font-black text-slate-400 mb-0.5 tracking-tighter opacity-70">{label}</p>
-                <p className="text-[13px] font-bold text-slate-800 leading-tight">
+                <p className={`text-[13px] font-bold leading-tight ${readOnly && isEditMode ? 'text-slate-400 italic' : 'text-slate-800'}`}>
                     {displayValue}
                 </p>
+                {readOnly && isEditMode && (
+                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">Reference Only</p>
+                )}
             </div>
         );
     }
@@ -520,12 +523,9 @@ const DetailedProjInfo = () => {
 
     const TABS = [
         { id: 0, label: 'Overview', icon: <LuInfo size={16} /> },
-        { id: 1, label: 'Location', icon: <LuMapPin size={16} /> },
-        { id: 2, label: 'Procurement', icon: <LuShoppingBag size={16} /> },
-        { id: 3, label: 'Finance', icon: <LuDollarSign size={16} /> },
-        { id: 4, label: 'Photos', icon: <LuImages size={16} /> },
-        { id: 5, label: 'Documents', icon: <LuFileText size={16} /> },
-        { id: 6, label: 'Checklist', icon: <LuHistory size={16} /> }
+        { id: 1, label: 'Photos', icon: <LuImages size={16} /> },
+        { id: 2, label: 'Documents', icon: <LuFileText size={16} /> },
+        { id: 3, label: 'Checklist', icon: <LuHistory size={16} /> }
     ];
 
     // --- DIAGNOSTIC ---
@@ -1144,141 +1144,125 @@ const DetailedProjInfo = () => {
     if (!project) return null;
 
     const renderOverview = () => (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-1 mt-2">
-                <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0">Construction Status</h2>
-            </div>
-            <div className="bg-[#004A99] p-6 rounded-3xl shadow-xl mb-6 text-white overflow-hidden relative">
-                <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Overall Accomplishment</p>
-                <div className="flex items-end gap-2">
-                    <span className="text-5xl font-black">{isEditMode ? formData.accomplishmentPercentage : project.accomplishmentPercentage}%</span>
-                    <span className="text-xs font-bold mb-2 opacity-60 uppercase">Complete</span>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-5">
+            {/* --- TOP HUD: PROGRESS & STATUS --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-[#004A99] p-6 rounded-[2rem] shadow-xl text-white relative overflow-hidden group">
+                    <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">Overall Accomplishment</p>
+                    <div className="flex items-end gap-2">
+                        <span className="text-5xl font-black">{isEditMode ? formData.accomplishmentPercentage : project.accomplishmentPercentage}%</span>
+                        <span className="text-xs font-bold mb-2 opacity-60 uppercase">Complete</span>
+                    </div>
+                    {isEditMode && (
+                       <input 
+                          type="range" 
+                          name="accomplishmentPercentage" 
+                          min="0" max="100" 
+                          value={formData.accomplishmentPercentage || 0} 
+                          onChange={handleChange}
+                          className="w-full mt-4 accent-white h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                       />
+                    )}
                 </div>
-                {isEditMode && (
-                   <input 
-                      type="range" 
-                      name="accomplishmentPercentage" 
-                      min="0" max="100" 
-                      value={formData.accomplishmentPercentage || 0} 
-                      onChange={handleChange}
-                      className="w-full mt-4 accent-white"
-                   />
-                )}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Current Status" name="status" value={project.status} type="select" options={['Not Yet Started', 'Ongoing', 'For Final Inspection', 'Completed', 'Suspended', 'Terminated']} />
-                <Field label="Status As Of" name="statusAsOf" value={project.statusAsOfDate || project.statusAsOf} type="date" />
-            </div>
-
-            <SectionHeader title="Project Identity" />
-            <Field label="Project Name" name="projectName" value={project.projectName} />
-            <Field label="School ID" name="schoolId" value={project.schoolId} />
-            <Field label="School Name" name="schoolName" value={project.schoolName} />
-            
-            <SectionHeader title="Classification" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Category" name="projectCategory" value={project.projectCategory} />
-                <Field label="Program Type" name="program_type" value={project.program_type} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Funding Year" name="funding_year" value={project.funding_year} />
-                <Field label="Batch of Funds" name="batchOfFunds" value={project.batchOfFunds} />
-            </div>
-
-            <SectionHeader title="Physical Progress" />
-            <div className="grid grid-cols-3 gap-4">
-                <Field label="Classrooms" name="numberOfClassrooms" value={project.numberOfClassrooms} />
-                <Field label="Storeys" name="numberOfStoreys" value={project.numberOfStoreys} />
-                <Field label="Sites" name="numberOfSites" value={project.numberOfSites} />
-            </div>
-        </div>
-    );
-
-    const renderLocation = () => (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <SectionHeader title="Administrative Location" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
-                <Field label="Region" name="region" value={project.region?.toUpperCase()} />
-                <Field label="Division" name="division" value={project.division?.toUpperCase()} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
-                <Field label="Province" name="province" value={project.province?.toUpperCase()} />
-                <Field label="Municipality / City" name="municipality" value={project.municipality?.toUpperCase()} />
-            </div>
-            {(project.legislative_district || project.barangay) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
-                    {project.legislative_district && <Field label="Legislative District" name="legislative_district" value={project.legislative_district?.toUpperCase()} />}
-                    {project.barangay && <Field label="Barangay" name="barangay" value={project.barangay?.toUpperCase()} />}
+                <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col justify-center">
+                    <div className="space-y-4">
+                        <Field label="Current Status" name="status" value={project.status} type="select" options={['Not Yet Started', 'Ongoing', 'For Final Inspection', 'Completed', 'Suspended', 'Terminated']} />
+                        <Field label="Status As Of" name="statusAsOf" value={project.statusAsOfDate || project.statusAsOf} type="date" />
+                    </div>
                 </div>
-            )}
-
-            <SectionHeader title="Geographic Coordinates" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                <Field label="Latitude" name="latitude" value={project.latitude} />
-                <Field label="Longitude" name="longitude" value={project.longitude} />
             </div>
 
-            {(project.latitude && project.longitude) && (
-                <div className="rounded-3xl overflow-hidden shadow-2xl border border-slate-200 h-80 relative z-0">
-                    <LocationPickerMap
-                        latitude={isEditMode ? formData.latitude : project.latitude}
-                        longitude={isEditMode ? formData.longitude : project.longitude}
-                        disabled={!isEditMode}
-                        onLocationSelect={(lat, lon) => {
-                            setFormData(prev => ({ ...prev, latitude: lat, longitude: lon }));
-                        }}
-                    />
+            {/* --- CATEGORIZED DETAIL BLOCKS --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 1. Project Identity */}
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-50">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
+                            <LuFileText size={18} />
+                        </div>
+                        <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Project Identity</h3>
+                    </div>
+                    <div className="space-y-3">
+                        <Field label="IPC" name="ipc" value={project.ipc} readOnly={true} />
+                        <Field label="Project Title" name="projectName" value={project.projectName} />
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="School ID" name="schoolId" value={project.schoolId} readOnly={true} />
+                            <Field label="School Name" name="schoolName" value={project.schoolName} readOnly={true} />
+                        </div>
+                    </div>
                 </div>
-            )}
+
+                {/* 2. Place & Jurisdiction */}
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-50">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500">
+                            <LuMapPin size={18} />
+                        </div>
+                        <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Place & Jurisdiction</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <Field label="Region" name="region" value={project.region} readOnly={true} />
+                        <Field label="Division" name="division" value={project.division} readOnly={true} />
+                        <Field label="Province" name="province" value={project.province} readOnly={true} />
+                        <Field label="Municipality" name="municipality" value={project.municipality} readOnly={true} />
+                    </div>
+                </div>
+
+                {/* 3. Funding & Classification */}
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-50">
+                        <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-500">
+                            <LuInfo size={18} />
+                        </div>
+                        <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Funding & Classification</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <Field label="Project Type" name="projectCategory" value={project.projectCategory} readOnly={true} />
+                        <Field label="Funding Year" name="funding_year" value={project.funding_year} readOnly={true} />
+                        <Field label="Batch of Funds" name="batchOfFunds" value={project.batchOfFunds} readOnly={true} />
+                    </div>
+                </div>
+
+                {/* 4. Investment & Implementation */}
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-4 pb-2 border-b border-slate-50">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
+                            <LuDollarSign size={18} />
+                        </div>
+                        <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Investment & Contract</h3>
+                    </div>
+                    <div className="space-y-3">
+                        <Field label="Contract Amount" name="contract_amount" value={project.contract_amount || project.contractAmount} type="money" />
+                        <Field label="Contractor Name" name="contractorName" value={project.contractorName} />
+                    </div>
+                </div>
+            </div>
+
+            {/* --- PHYSICAL SCOPE --- */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3 mb-6 pb-2 border-b border-slate-50">
+                    <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500">
+                        <LuBox size={18} />
+                    </div>
+                    <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest">Physical Components & Assets</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-6">
+                    <div className="text-center">
+                        <Field label="Classrooms" name="numberOfClassrooms" value={project.numberOfClassrooms} readOnly={true} />
+                    </div>
+                    <div className="text-center">
+                        <Field label="Storeys" name="numberOfStoreys" value={project.numberOfStoreys} readOnly={true} />
+                    </div>
+                    <div className="text-center">
+                        <Field label="Sites" name="numberOfSites" value={project.numberOfSites} readOnly={true} />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 
-    const renderProcurement = () => (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-4">Procurement Milestones</h3>
-            
-            <SectionHeader title="Key Procurement Dates" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Issuance of Invitation to Bid" name="issuance_of_invitation_to_bid" value={project.issuance_of_invitation_to_bid} type="date" />
-                <Field label="Pre-Bid Conference" name="pre_bid_conference" value={project.pre_bid_conference} type="date" />
-                <Field label="Opening of Technical Proposal" name="opening_of_technical_proposal" value={project.opening_of_technical_proposal} type="date" />
-                <Field label="Opening of Financial Proposal" name="opening_of_financial_proposal" value={project.opening_of_financial_proposal} type="date" />
-                <Field label="Request for Quotation" name="request_for_quotation" value={project.request_for_quotation} type="date" />
-                <Field label="Negotiation" name="negotiation" value={project.negotiation} type="date" />
-                <Field label="Opening of Quotation" name="opening_of_quotation" value={project.opening_of_quotation} type="date" />
-                <Field label="Notice of Award" name="date_notice_of_award" value={project.date_notice_of_award} type="date" />
-            </div>
-
-            <SectionHeader title="Timelines" />
-            <div className="grid grid-cols-1 gap-1">
-                <Field label="Notice to Proceed Date" name="noticeToProceed" value={project.noticeToProceed} type="date" />
-                <Field label="Start of Construction" name="constructionStartDate" value={project.constructionStartDate} type="date" />
-                <Field label="Target Completion Date" name="targetCompletionDate" value={project.targetCompletionDate} type="date" />
-            </div>
-            
-            <SectionHeader title="Contract Award" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Contract ID" name="contractId" value={project.contractId} />
-                <Field label="Contractor Name" name="contractorName" value={project.contractorName} />
-            </div>
-        </div>
-    );
-
-
-    const renderFinance = () => (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <SectionHeader title="Financial Records" />
-            <Field label="Approved Budget (ABC)" name="approved_budget_for_contract" value={project.approved_budget_for_contract || project.projectAllocation} type="money" />
-            <Field label="Contract Amount" name="contract_amount" value={project.contract_amount || project.contractAmount} type="money" />
-            <Field label="Funds Utilized" name="fundsUtilized" value={project.fundsUtilized} type="money" />
-            
-            <SectionHeader title="Entity Details" />
-            <Field label="Contractor Name" name="contractorName" value={project.contractorName} />
-            <Field label="Implementing Agency" name="implementing_agency" value={project.implementing_agency} type="select" options={['DepEd Central', 'DepEd RO', 'DepEd DO', 'DPWH', 'LGU', 'Others']} />
-        </div>
-    );
 
     const renderMedia = () => {
         const featured = sortedProjectImages[0];
@@ -1663,29 +1647,29 @@ const DetailedProjInfo = () => {
                         </div>
                         <h1 className="text-2xl font-black text-white leading-tight tracking-tight mb-4">{project.schoolName}</h1>
                         
-                        {/* Tab Stepper */}
-                        <div className="flex gap-2 overflow-x-auto pb-2 pr-10">
+                        {/* Tab Stepper (Compact Icon Boxes) */}
+                        <div className="grid grid-cols-5 gap-2 pb-2">
                             {TABS.map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex-none flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    title={tab.label}
+                                    className={`aspect-square flex flex-col items-center justify-center rounded-xl transition-all ${
                                         activeTab === tab.id
                                         ? 'bg-white text-[#004A99] shadow-lg scale-105'
                                         : 'bg-white/10 text-white/60 hover:bg-white/20'
                                     }`}
                                 >
                                     {tab.icon}
-                                    <span className="">{tab.label}</span>
                                 </button>
                             ))}
                             {userRole !== 'Regional Engineer' && (
                                 <button
                                     onClick={() => setEditModalOpen(true)}
-                                    className="flex-none flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30"
+                                    title="Variation"
+                                    className="aspect-square flex flex-col items-center justify-center rounded-xl transition-all bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30"
                                 >
-                                    <span className="hidden sm:inline">Variation</span>
-                                    <span className="sm:hidden">V.O.</span>
+                                    <FiSettings size={16} />
                                 </button>
                              )}
                         </div>
@@ -1697,12 +1681,9 @@ const DetailedProjInfo = () => {
                     <FieldFormContext.Provider value={{ isEditMode, formData, handleChange }}>
                     <div className="bg-white p-6 rounded-[2.5rem] shadow-xl shadow-slate-200/50 min-h-[400px]">
                         {activeTab === 0 && renderOverview()}
-                        {activeTab === 1 && renderLocation()}
-                        {activeTab === 2 && renderProcurement()}
-                        {activeTab === 3 && renderFinance()}
-                        {activeTab === 4 && renderMedia()}
-                        {activeTab === 5 && renderDocuments()}
-                        {activeTab === 6 && renderChecklist()}
+                        {activeTab === 1 && renderMedia()}
+                        {activeTab === 2 && renderDocuments()}
+                        {activeTab === 3 && renderChecklist()}
                     </div>
                     </FieldFormContext.Provider>
                 </div>

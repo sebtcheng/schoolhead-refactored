@@ -11,6 +11,7 @@ This document serves as the **Intelligent Clustering Engine** for InsightEd, as 
 - [UI/DOM & UX](#uidom--ux)
 - [State Management & Data Flow](#state-management--data-flow)
 - [Auth & Security](#auth--security)
+- [Regional Engineer Integration](#regional-engineer-integration)
 - [Build & Config](#build--config)
 - [Project-Specific (Unit 1-9)](#project-specific-unit-1-9)
 - [Project-Specific (School Management)](#project-specific-school-management)
@@ -28,6 +29,11 @@ This document serves as the **Intelligent Clustering Engine** for InsightEd, as 
 | Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Boot DDL Race Condition** | Startup Lock | High | P0 | [RCA-2026-04-16](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/rca/2026-04-16_Boot-DDL-Lock-Contention-Fix.md) | `pg_try_advisory_lock` fails in PgBouncer tx mode — all workers acquired "the same" lock on different backends and ran DDL simultaneously. Fixed by gating all boot DDL behind `NODE_APP_INSTANCE === '0'`. `initFinanceDB`/`initMasterlistDB` must be inside this gate or they race. `SET lock_timeout` on pooled connections is forbidden — poisons the backend for future queries. |
+
+### 🔥 Aspect: Connection & Lock Management (P0 Pattern)
+| Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Emergency Lock Relief** | Lock Cascades | High | P0 | [db-connection-plan.md](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/.agent/workflows/db-connection-plan.md) | Implemented `relief_db_locks.py` to terminate connections holding locks >5m. Hardened `api/db_init.js` with advisory locks (7777777, 8888) to prevent cross-worker schema race conditions. Established connection timeout (10s) and SSL bypass for Azure Proxy IP `20.24.58.49` to prevent handshake resets. |
 
 ### 🗃️ Aspect: Migration / Lifecycle
 | Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
@@ -123,6 +129,16 @@ This document serves as the **Intelligent Clustering Engine** for InsightEd, as 
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Search-First Status Flow** | Access Control | Medium | P1 | [2026-04-15 Session](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/sessions/2026-04-15_School-Management-UI-Refinement.md) | Implemented mandatory 6-digit ID search with jurisdictional enforcement (SDO/Division). |
 | **Registration Form Stability** | Stability | Low | P2 | [2026-04-15 Session](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/sessions/2026-04-15_School-Management-UI-Refinement.md) | Fixed `handleSubmit` ReferenceError in registration modal. |
+| **Regional Engineer RBAC** | RBAC | High | P1 | [ADR-013](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/ADR-013-Regional-Engineer-Role-Integration.md) | Enforced read-only jurisdictional oversight for Regional Office role. Gated Edit/Variation/Upload buttons and verified server-side visibility filtering. |
+
+---
+
+## Regional Engineer Integration
+
+### 🏗️ Aspect: Synchronization
+| Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **ESF7 Status Rebase Sync** | Sync | High | P1 | [2026-04-22 Session](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/ADR-013-Regional-Engineer-Role-Integration.md) | Resolved deep conflicts in `api/index.js` between ESF7 hardening and Regional Engineer role gating. Rebased 40k+ project masterlist alignment changes onto main with linear history preservation. |
 
 ---
 
