@@ -126,7 +126,6 @@ const BottomNav = ({ userRole: propRole }) => {
             { label: 'Projects', path: '/efd-monitoring', icon: TbClipboardList },
             { label: 'Mother MOA', path: '/efd-mother-moa', icon: TbFileCheck },
             // { label: 'Monitoring', path: '/efd-newcon-monitoring', icon: TbChartBar },
-            { label: 'Chat', path: '/chat', icon: FiMessageSquare },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],
         'Implementing Agency': [

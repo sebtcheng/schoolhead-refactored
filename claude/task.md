@@ -1,16 +1,19 @@
-# Task: Command Center Script Orchestrator
+# Task: IPC Reconciliation — Outbox Migration Hardening
 
-- [x] **Phase 1: Backend Scaffolding**
-    - [x] Create `command-center/api/package.json`.
-    - [x] Create `command-center/api/server.js` with SSE support.
-    - [x] Implement script whitelist logic.
-- [x] **Phase 2: "Cyberpunk Admin" Frontend**
-    - [x] Create `command-center/dist/index.html`.
-    - [x] Create `command-center/dist/style.css` (Neon Green / Dark mode).
-    - [x] Create `command-center/dist/app.js` with SSE log streaming.
-- [x] **Phase 3: Activation & Nginx**
-    - [x] Create `nginx/command_center_scripts.conf`.
-    - [x] Provide PM2 activation instructions.
-- [x] **Phase 4: Verification**
-    - [x] Test real-time log streaming.
-    - [x] Verify auth against `command_center_user`.
+**Script:** `api/scripts/reconcile_new_construction_ipc.cjs`
+**Plan:** `claude/reconcile_outbox_plan.md`
+
+## Checklist
+
+- [x] Audit script for tagging correctness
+- [x] Identify Gap 1: DDL inside SERIALIZABLE transaction
+- [x] Identify Gap 2: child retag misses IPC-only linked rows (project_id IS NULL)
+- [x] Identify Gap 3: no verification guard before hard DELETE
+- [x] Write plan (reconcile_outbox_plan.md)
+- [x] Write task (this file)
+- [x] Fix Gap 1 — extract DDL into ensureSchema() before BEGIN
+- [x] Fix Gap 2 — add IPC-keyed secondary sweep in Phase 4e
+- [x] Fix Gap 3 — add pre-DELETE verification guard in Phase 4f
+- [x] Syntax check
+- [ ] Dry-run — review JSON report
+- [ ] Live run

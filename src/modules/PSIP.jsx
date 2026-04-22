@@ -86,7 +86,9 @@ const KpiDrilldownModal = ({ kpi, onClose }) => {
                     : `${API_BASE}/api/masterlist/distribution`;
 
                 const url = `${endpoint}?${params.toString()}`;
-                const res = await fetch(url);
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 
                 if (!res.ok) {
                     setData([]);
@@ -120,7 +122,9 @@ const KpiDrilldownModal = ({ kpi, onClose }) => {
                     ? `${API_BASE}/api/deped-infrariorities/distribution-projects`
                     : `${API_BASE}/api/masterlist/distribution-projects`;
                 
-                const res = await fetch(`${endpoint}?${params.toString()}`);
+                const res = await fetch(`${endpoint}?${params.toString()}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 const json = await res.json();
                 setProjects(json);
             } catch (err) {
@@ -481,7 +485,10 @@ const CongressView = ({ isVisible, onClose, rows, loading, onImport, importMsg, 
         try {
             const res = await fetch(`${API_BASE}/api/deped-infrariorities/assign`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({ id, assigned_to: agency, version })
             });
             if (res.ok) {
@@ -834,7 +841,9 @@ const HomeView = ({
     useEffect(() => {
         if (!partnerships) {
             const qs = getQueryString();
-            fetch(`${API_BASE}/api/masterlist/partnerships${qs}`)
+            fetch(`${API_BASE}/api/masterlist/partnerships${qs}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            })
                 .then(r => r.json())
                 .then(d => setPartnerships(d))
                 .catch(() => { });
@@ -934,7 +943,9 @@ const HomeView = ({
                 loadData={loadCongressData}
                 reloadPartnerships={() => {
                     const qs = getQueryString();
-                    fetch(`${API_BASE}/api/masterlist/partnerships${qs}`).then(r=>r.json()).then(d=>setPartnerships(d));
+                    fetch(`${API_BASE}/api/masterlist/partnerships${qs}`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    }).then(r=>r.json()).then(d=>setPartnerships(d));
                 }}
                 handleKpiClick={handleKpiClick}
                 version={selectedVersion}
@@ -1306,7 +1317,9 @@ const DataView = ({ loading, summary, filters, formatCost, byRegion, byYear, byS
                 if (currentDist.filter.region) qs += `&region=${encodeURIComponent(currentDist.filter.region)}`;
                 if (currentDist.filter.division) qs += `&division=${encodeURIComponent(currentDist.filter.division)}`;
 
-                const res = await fetch(`${API_BASE}/api/masterlist/distribution${qs}`);
+                const res = await fetch(`${API_BASE}/api/masterlist/distribution${qs}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 const data = await res.json();
 
                 // Sort by projects descending
@@ -1604,7 +1617,10 @@ const MasterlistAIChat = ({ onClose }) => {
         try {
             const res = await fetch(`${API_BASE}/api/masterlist/ai-query`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({ prompt: userMsg })
             });
             const data = await res.json();
@@ -2046,7 +2062,9 @@ const PSIP = () => {
         const fetchFilters = async () => {
             try {
                 // Fetch basic regions
-                const res = await fetch(`${API_BASE}/api/masterlist/filters`);
+                const res = await fetch(`${API_BASE}/api/masterlist/filters`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 const data = await res.json();
                 setFilterOptions(prev => ({ ...prev, regions: data }));
             } catch (err) { console.error('Filter Fetch Error:', err); }
@@ -2074,7 +2092,9 @@ const PSIP = () => {
             setFilters(prev => ({ ...prev, province: '', division: '', municipality: '', legislative_district: '' }));
             return;
         }
-        fetch(`${API_BASE}/api/masterlist/filters?region=${encodeURIComponent(filters.region)}&target=division`)
+        fetch(`${API_BASE}/api/masterlist/filters?region=${encodeURIComponent(filters.region)}&target=division`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
             .then(r => r.json())
             .then(d => setFilterOptions(prev => ({ ...prev, divisions: d })))
             .catch(console.error);
@@ -2087,7 +2107,9 @@ const PSIP = () => {
             setFilters(prev => ({ ...prev, municipality: '', legislative_district: '' }));
             return;
         }
-        fetch(`${API_BASE}/api/masterlist/filters?division=${encodeURIComponent(filters.division)}`)
+        fetch(`${API_BASE}/api/masterlist/filters?division=${encodeURIComponent(filters.division)}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
             .then(r => r.json())
             .then(d => setFilterOptions(prev => ({ ...prev, municipalities: d })))
             .catch(console.error);
@@ -2100,7 +2122,9 @@ const PSIP = () => {
             setFilters(prev => ({ ...prev, legislative_district: '' }));
             return;
         }
-        fetch(`${API_BASE}/api/masterlist/filters?municipality=${encodeURIComponent(filters.municipality)}`)
+        fetch(`${API_BASE}/api/masterlist/filters?municipality=${encodeURIComponent(filters.municipality)}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
             .then(r => r.json())
             .then(d => setFilterOptions(prev => ({ ...prev, legislativeDistricts: d })))
             .catch(console.error);
@@ -2110,7 +2134,9 @@ const PSIP = () => {
     const loadCongressData = async () => {
         setCongressLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/api/deped-infrariorities?version=${selectedVersion}`);
+            const res = await fetch(`${API_BASE}/api/deped-infrariorities?version=${selectedVersion}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             const data = await res.json();
             setCongressRows(data);
         } catch (err) {
@@ -2128,7 +2154,10 @@ const PSIP = () => {
     const handleCongressImport = async () => {
         try {
             setCongressLoading(true);
-            const res = await fetch(`${API_BASE}/api/deped-infrariorities/import`, { method: 'POST' });
+            const res = await fetch(`${API_BASE}/api/deped-infrariorities/import`, { 
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             const data = await res.json();
             setCongressImportMsg(data.message);
             loadCongressData();
@@ -2150,7 +2179,9 @@ const PSIP = () => {
             
             if (partner.isImplementingOffice) {
                 // Fetch from initiatives tracking for implementing offices
-                res = await fetch(`${API_BASE}/api/deped-infrariorities${qs}${qs ? '&' : '?'}assigned_to=${partner.id}`);
+                res = await fetch(`${API_BASE}/api/deped-infrariorities${qs}${qs ? '&' : '?'}assigned_to=${partner.id}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 data = await res.json();
                 // Map initiative fields to the modal's expected fields
                 data = data.map(r => ({
@@ -2162,7 +2193,9 @@ const PSIP = () => {
                 }));
             } else {
                 // Fetch from masterlist for traditional partners
-                res = await fetch(`${API_BASE}/api/masterlist/partnership-schools${qs}${qs ? '&' : '?'}type=${partner.type}&name=${encodeURIComponent(partner.name)}`);
+                res = await fetch(`${API_BASE}/api/masterlist/partnership-schools${qs}${qs ? '&' : '?'}type=${partner.type}&name=${encodeURIComponent(partner.name)}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
                 data = await res.json();
             }
             
@@ -2178,7 +2211,9 @@ const PSIP = () => {
         setPrototypeSchools({ loading: true, data: [] });
         try {
             const qs = getQueryString();
-            const res = await fetch(`${API_BASE}/api/masterlist/prototype-schools${qs}${qs ? '&' : '?'}sty=${sty}&cl=${cl}`);
+            const res = await fetch(`${API_BASE}/api/masterlist/prototype-schools${qs}${qs ? '&' : '?'}sty=${sty}&cl=${cl}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             const data = await res.json();
             setPrototypeSchools({ loading: false, data });
         } catch (err) {
@@ -2191,7 +2226,10 @@ const PSIP = () => {
         try {
             const res = await fetch(`${API_BASE}/api/masterlist/resolve-partnership`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
                 body: JSON.stringify({ school_id: schoolId, resolved_partnership: agency })
             });
             if (res.ok) {
@@ -2211,12 +2249,12 @@ const PSIP = () => {
             const qs = getQueryString();
             try {
                 const [sumRes, regRes, yearRes, stRes, breakdownRes, partRes] = await Promise.all([
-                    fetch(`${API_BASE}/api/masterlist/summary${qs}`),
-                    fetch(`${API_BASE}/api/masterlist/by-region${qs}`),
-                    fetch(`${API_BASE}/api/masterlist/by-funding-year${qs}`),
-                    fetch(`${API_BASE}/api/masterlist/by-storey${qs}`),
-                    fetch(`${API_BASE}/api/masterlist/storey-breakdown${qs}`),
-                    fetch(`${API_BASE}/api/masterlist/partnerships${qs}`)
+                    fetch(`${API_BASE}/api/masterlist/summary${qs}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                    fetch(`${API_BASE}/api/masterlist/by-region${qs}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                    fetch(`${API_BASE}/api/masterlist/by-funding-year${qs}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                    fetch(`${API_BASE}/api/masterlist/by-storey${qs}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                    fetch(`${API_BASE}/api/masterlist/storey-breakdown${qs}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } }),
+                    fetch(`${API_BASE}/api/masterlist/partnerships${qs}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
                 ]);
 
                 const summaryData = await sumRes.json();

@@ -195,7 +195,7 @@ const StatsChart = ({ projects }) => {
 // --- MAIN DASHBOARD COMPONENT ---
 
 const EngineerDashboard = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [userName, setUserName] = useState("Engineer");
   const [userRole, setUserRole] = useState(() => {
     let role = user?.role || localStorage.getItem('userRole') || "Division Engineer";
@@ -264,7 +264,9 @@ const EngineerDashboard = () => {
 
           // Priority 2: Fetch fresh data from network
           try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (!response.ok) throw new Error("Failed to fetch projects");
             const data = await response.json();
             const dataArr = Array.isArray(data) ? data : (data.data || []);
@@ -336,7 +338,9 @@ const EngineerDashboard = () => {
           }
 
           try {
-            const actResponse = await fetch(`${API_BASE}/api/activities?user_uid=${currentUid}`);
+            const actResponse = await fetch(`${API_BASE}/api/activities?user_uid=${currentUid}`, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (actResponse.ok) {
               const actData = await actResponse.json();
               setActivities(actData);
@@ -357,7 +361,7 @@ const EngineerDashboard = () => {
       }
     };
     fetchUserDataAndProjects();
-  }, [user, user?.uid]);
+  }, [user, user?.uid, token]);
 
   return (
     <PageTransition>

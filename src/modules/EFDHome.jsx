@@ -78,7 +78,7 @@ const formatLargeNumber = (value) => {
 };
 
 const EFDHome = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const navigate = useNavigate();
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -320,7 +320,9 @@ const EFDHome = () => {
                 year: selectedYears[0] || '',
                 batch: selectedBatches[0] || ''
             });
-            const res = await fetch(`/api/dashboard/efd-summary?${params.toString()}`);
+            const res = await fetch(`/api/dashboard/efd-summary?${params.toString()}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setSummaryData(data);
@@ -328,7 +330,7 @@ const EFDHome = () => {
         } catch (error) {
             console.error("Error fetching summary:", error);
         }
-    }, [user, selectedDonated, selectedRegions, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, searchQuery, selectedCategories, selectedYears, selectedBatches]);
+    }, [user, token, selectedDonated, selectedRegions, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, searchQuery, selectedCategories, selectedYears, selectedBatches]);
 
     const fetchProjectsPaged = useCallback(async (p = 1) => {
         if (!user) return;
@@ -349,7 +351,9 @@ const EFDHome = () => {
                 page: p,
                 limit: 15
             });
-            const res = await fetch(`/api/projects?${params.toString()}`);
+            const res = await fetch(`/api/projects?${params.toString()}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const result = await res.json();
                 setProjects(result.data || []);
@@ -360,7 +364,7 @@ const EFDHome = () => {
         } finally {
             setLoading(false);
         }
-    }, [user, selectedDonated, selectedRegions, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, searchQuery, selectedCategories, selectedYears, selectedBatches]);
+    }, [user, token, selectedDonated, selectedRegions, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, searchQuery, selectedCategories, selectedYears, selectedBatches]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -369,12 +373,12 @@ const EFDHome = () => {
                 setUserData(user);
 
                 const [fyRes, locRes, engRes, batchRes, globalRes, categoryRes] = await Promise.all([
-                    fetch('/api/reference/funding-years'),
-                    fetch('/api/reference/efd-locations'),
-                    fetch('/api/engineers'),
-                    fetch('/api/reference/batch-of-funds'),
-                    fetch(`/api/dashboard/efd-summary?engineer_id=${user.uid}`),
-                    fetch('/api/reference/project-categories')
+                    fetch('/api/reference/funding-years', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/efd-locations', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/engineers', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/batch-of-funds', { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch(`/api/dashboard/efd-summary?engineer_id=${user.uid}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+                    fetch('/api/reference/project-categories', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
                 ]);
 
                 const [fyData, locData, engData, batchData, globalData, categoryData] = await Promise.all([
@@ -401,7 +405,7 @@ const EFDHome = () => {
         };
 
         fetchInitialData();
-    }, [user]);
+    }, [user, token]);
 
     useEffect(() => {
         fetchSummary();
@@ -417,7 +421,9 @@ const EFDHome = () => {
                 const endpoint = dataMode === 'masterlist' 
                     ? '/api/masterlist/storey-breakdown' 
                     : '/api/monitoring/engineer-storey-breakdown';
-                const res = await fetch(endpoint);
+                const res = await fetch(endpoint, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     const data = await res.json();
                     setStoreyBreakdown(data);
@@ -427,7 +433,7 @@ const EFDHome = () => {
             }
         };
         loadBreakdown();
-    }, [dataMode]);
+    }, [dataMode, token]);
 
     const storeyAggregated = useMemo(() => {
         const counts = {};
@@ -608,7 +614,10 @@ const EFDHome = () => {
         e.stopPropagation();
         if (window.confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
             try {
-                const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                const res = await fetch(`/api/projects/${id}`, { 
+                    method: 'DELETE',
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     setProjects(prev => prev.filter(p => !p.id.toString().includes(id.toString())));
                     alert("Project deleted successfully.");
@@ -655,7 +664,10 @@ const EFDHome = () => {
         try {
             const response = await fetch('/api/assign-project', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     projectId: selectedProjectForAssignment.id,
                     engineerId: engineerIds,
@@ -724,7 +736,10 @@ const EFDHome = () => {
         try {
             const response = await fetch(`/api/update-project/${updatedProject.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     ...updatedProject,
                     uid: uid,
@@ -750,7 +765,11 @@ const EFDHome = () => {
                         formData.append('projectId', updatedProject.id);
                         formData.append('uploadedBy', uid);
                         formData.append('category', item.category);
-                        await fetch('/api/upload-image', { method: 'POST', body: formData });
+                        await fetch('/api/upload-image', { 
+                            method: 'POST', 
+                            body: formData,
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        });
                     } catch (err) {
                         console.error("Upload failed for file:", item.file.name, err);
                     }
@@ -762,7 +781,9 @@ const EFDHome = () => {
             setExternalFiles([]);
             setExternalPreviews([]);
 
-            const projRes = await fetch('/api/projects');
+            const projRes = await fetch('/api/projects', {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (projRes.ok) {
                 const data = await projRes.json();
                 setProjects(Array.isArray(data) ? data : (data.data || []));

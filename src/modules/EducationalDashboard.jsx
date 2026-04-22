@@ -46,7 +46,9 @@ const EducationalDashboard = () => {
             if (filters.municipality) url += `&municipality=${encodeURIComponent(filters.municipality)}`;
 
             
-            const res = await fetch(url);
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             if (res.ok) {
                 const result = await res.json();
                 setData(result);

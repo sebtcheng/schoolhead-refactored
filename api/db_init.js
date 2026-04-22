@@ -1661,6 +1661,40 @@ const runMigrations = async (client, dbLabel) => {
         console.error(`❌ [${dbLabel}] IPC Migration Failed:`, ipcErr.message);
     }
 
+    // --- ENGINEER FORM OUTBOX + CHILD TABLE OUTBOX COLUMNS ---
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS engineer_form_outbox (
+                outbox_id           SERIAL PRIMARY KEY,
+                original_project_id INTEGER NOT NULL,
+                outbox_reason       TEXT,
+                migrated_at         TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+        await client.query(`
+            CREATE INDEX IF NOT EXISTS idx_engineer_form_outbox_original
+            ON engineer_form_outbox(original_project_id);
+        `);
+        await client.query(`
+            CREATE INDEX IF NOT EXISTS idx_engineer_form_outbox_ipc
+            ON engineer_form_outbox(ipc) WHERE ipc IS NOT NULL;
+        `);
+        await client.query(`
+            ALTER TABLE engineer_image
+            ADD COLUMN IF NOT EXISTS outbox_project_id INTEGER;
+        `);
+        await client.query(`
+            ALTER TABLE engineer_documents
+            ADD COLUMN IF NOT EXISTS outbox_project_id INTEGER;
+        `);
+        // Allow project_id to be NULL so rows can be safely repointed to the outbox
+        await client.query(`ALTER TABLE engineer_image ALTER COLUMN project_id DROP NOT NULL`);
+        await client.query(`ALTER TABLE engineer_documents ALTER COLUMN project_id DROP NOT NULL`);
+        console.log(`✅ [${dbLabel}] engineer_form_outbox and outbox columns ready`);
+    } catch (outboxErr) {
+        console.error(`❌ [${dbLabel}] engineer_form_outbox migration failed:`, outboxErr.message);
+    }
+
     // --- UNIFIED BINARY STORAGE ---
     try {
         await client.query(`

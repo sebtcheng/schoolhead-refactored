@@ -304,7 +304,7 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
 // --- MAIN PROJECT LIST COMPONENT ---
 
 const EngineerProjects = () => {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const navigate = useNavigate();
     const [userName, setUserName] = useState(user?.first_name || user?.firstName || "Engineer");
     const [userRole, setUserRole] = useState(() => {
@@ -482,7 +482,9 @@ const EngineerProjects = () => {
               url = `${API_BASE}/api/projects`;
           }
 
-          const response = await fetch(url);
+          const response = await fetch(url, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
           if (!response.ok) throw new Error("Failed to fetch projects");
           const data = await response.json();
           const dataArr = Array.isArray(data) ? data : (data.data || []);
@@ -564,7 +566,7 @@ const EngineerProjects = () => {
 
   useEffect(() => {
     fetchProjects();
-  }, [user, user?.uid]);
+  }, [user, user?.uid, token]);
 
   // Filtered list
   const filteredProjects = React.useMemo(() => {
@@ -712,7 +714,10 @@ const EngineerProjects = () => {
 
       const response = await fetch(`${API_BASE}/api/update-project/${project.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           ...payload,
           previousPercentage: project.accomplishmentPercentage,
@@ -793,7 +798,9 @@ const EngineerProjects = () => {
     setIsHistoryLoading(true);
     setProjectHistory([]); // Clear previous
     try {
-      const resp = await fetch(`${API_BASE}/api/project-history/${project.ipc || project.id}`);
+      const resp = await fetch(`${API_BASE}/api/project-history/${project.ipc || project.id}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (resp.ok) {
         const history = await resp.json();
         setProjectHistory(history);
@@ -818,7 +825,9 @@ const EngineerProjects = () => {
 
     // BACKGROUND SYNC: Fetch full project details (including PDFs) while modal is open
     try {
-      const response = await fetch(`${API_BASE}/api/projects/${project.id}`);
+      const response = await fetch(`${API_BASE}/api/projects/${project.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const fullData = await response.json();
         // Merge full data into selected project (preserving local changes if any, though unlikely here)
@@ -846,7 +855,9 @@ const EngineerProjects = () => {
   const fetchRecentVariations = async (projectId) => {
     setIsLoadingVO(true);
     try {
-      const response = await fetch(`${API_BASE}/api/variation-orders/${projectId}`);
+      const response = await fetch(`${API_BASE}/api/variation-orders/${projectId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setRecentVariations(data);
@@ -868,7 +879,10 @@ const EngineerProjects = () => {
     try {
       const response = await fetch(`${API_BASE}/api/variation-orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           projectId: variationProject.id,
           ipc: variationProject.ipc,
@@ -909,7 +923,10 @@ const EngineerProjects = () => {
 
       const response = await fetch(`${API_BASE}/api/update-project/${projectId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(updatedDocs),
       });
 
@@ -1014,7 +1031,10 @@ const EngineerProjects = () => {
       // Online Save Project
       const response = await fetch(`${API_BASE}/api/update-project/${updatedProject.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error("Update failed");
@@ -1057,7 +1077,6 @@ const EngineerProjects = () => {
             formData.append('projectId', resData.project.project_id);
             formData.append('uploadedBy', uid);
             formData.append('category', item.category);
-
             // Add photo metadata if available
             if (item.file.photoMetadata) {
               const meta = item.file.photoMetadata;
@@ -1067,7 +1086,11 @@ const EngineerProjects = () => {
               if (meta.exif) formData.append('exifMetadata', JSON.stringify(meta.exif));
             }
 
-            const resp = await fetch(`${API_BASE}/api/upload-image`, { method: "POST", body: formData });
+            const resp = await fetch(`${API_BASE}/api/upload-image`, { 
+              method: "POST", 
+              body: formData,
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             
             if (!resp.ok) {
               failedUploads++;
@@ -1152,13 +1175,13 @@ const EngineerProjects = () => {
                   Project Monitoring
                 </h1>
               </div>
-              {!['Super User', 'EFD Engineer', 'EFD', 'HRODI'].includes(userRole) && (
+              {['Division Engineer', 'Engineer', 'Architect', 'DepEd Engineer'].includes(userRole) && (
                 <button
-                  disabled={true}
-                  className="group bg-slate-300 text-slate-500 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl cursor-not-allowed flex items-center gap-2"
+                  onClick={() => navigate('/new-project')}
+                  className="group bg-[#004A99] active:bg-[#003366] text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all active:scale-95"
                 >
                   <FiPlus size={16} />
-                  New Project (Disabled)
+                  New Project
                 </button>
               )}
             </div>

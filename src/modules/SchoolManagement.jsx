@@ -253,7 +253,9 @@ const SchoolManagement = () => {
 
     const fetchDivisions = async (region) => {
         try {
-            const res = await fetch(`/api/locations/divisions?region=${encodeURIComponent(region)}`);
+            const res = await fetch(`/api/locations/divisions?region=${encodeURIComponent(region)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setDivisionOptions(data);
@@ -266,7 +268,9 @@ const SchoolManagement = () => {
     const fetchMasterSchools = async (division) => {
         if (!division) return;
         try {
-            const res = await fetch(`/api/master-list/schools?division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/master-list/schools?division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setMasterSchoolOptions(data);
@@ -284,7 +288,9 @@ const SchoolManagement = () => {
 
         setSearchLoading(true);
         try {
-            const res = await fetch(`/api/master-list/school/${selectedMasterSchool}`);
+            const res = await fetch(`/api/master-list/school/${selectedMasterSchool}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const school = await res.json();
 
@@ -366,7 +372,9 @@ const SchoolManagement = () => {
 
     const fetchLocationOptions = async (region, division) => {
         try {
-            const res = await fetch(`/api/sdo/location-options?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/sdo/location-options?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 console.log("🏙️ SDO Location Options Received:", data.length, "rows");
@@ -383,7 +391,9 @@ const SchoolManagement = () => {
     const fetchLocationCoordinates = async (region, division) => {
         try {
             console.log(`fetching coords for ${region}, ${division}`);
-            const res = await fetch(`/api/sdo/location-coordinates?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`);
+            const res = await fetch(`/api/sdo/location-coordinates?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 console.log("📍 API Data Received:", data.length, "rows");
@@ -402,7 +412,9 @@ const SchoolManagement = () => {
         if (!user) return;
 
         try {
-            const res = await fetch(`/api/sdo/pending-schools?sdo_uid=${user.uid}`);
+            const res = await fetch(`/api/sdo/pending-schools?sdo_uid=${user.uid}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const data = await res.json();
                 setPendingSchools(data);
@@ -458,7 +470,9 @@ const SchoolManagement = () => {
             try {
                 const region = userData?.region || '';
                 const province = formData.province;
-                const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`);
+                const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 if (res.ok) {
                     const data = await res.json();
                     let options = Array.isArray(data) ? data : [];
@@ -550,7 +564,9 @@ const SchoolManagement = () => {
             // Real-time duplicate check for schools_IERN
             if (value.length === 6) {
                 setCheckingId(true);
-                fetch(`/api/sdo/check-id/${value}`)
+                fetch(`/api/sdo/check-id/${value}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                })
                     .then(res => res.json())
                     .then(data => {
                         setIdExists(data.exists);
@@ -632,7 +648,9 @@ const SchoolManagement = () => {
                     barangay: updated.barangay || ''
                 });
 
-                fetch(`/api/sdo/first-school-location?${params}`)
+                fetch(`/api/sdo/first-school-location?${params}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                })
                     .then(res => res.json())
                     .then(data => {
                         if (data && data.lat && data.lng) {
@@ -690,6 +708,7 @@ const SchoolManagement = () => {
 
             const res = await fetch('/api/sdo/preview-compression', {
                 method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: formDataUpload
             });
 
@@ -759,7 +778,10 @@ const SchoolManagement = () => {
 
             const res = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     ...formData,
                     school_id: formData.school_id.trim(), // Ensure whitespace is removed
@@ -788,6 +810,7 @@ const SchoolManagement = () => {
 
                         const docRes = await fetch('/api/sdo/upload-document', {
                             method: 'POST',
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
                             body: formDataUpload
                         });
 
@@ -881,7 +904,10 @@ const SchoolManagement = () => {
         try {
             const res = await fetch('/api/sdo/set-passcode', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     school_id: userSearchId,
                     passcode: newPasscode,
@@ -925,7 +951,9 @@ const SchoolManagement = () => {
 
         setSearchingStatusSchool(true);
         try {
-            const res = await fetch(`/api/master-list/school/${updateStatusData.school_id}`);
+            const res = await fetch(`/api/master-list/school/${updateStatusData.school_id}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const school = await res.json();
                 
@@ -979,11 +1007,13 @@ const SchoolManagement = () => {
         try {
             const res = await fetch('/api/master-list/update-status', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
+                    ...updateStatusData,
                     school_id: searchedSchoolDetails.school_id,
-                    status: updateStatusData.status,
-                    reason: updateStatusData.reason,
                     updated_by: user.uid
                 })
             });

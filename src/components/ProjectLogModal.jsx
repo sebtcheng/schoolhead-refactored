@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { createPortal } from 'react-dom';
 import { LuX, LuHistory, LuUser, LuCalendar } from "react-icons/lu";
 import { FiActivity, FiCheckCircle, FiEdit2, FiMessageSquare } from 'react-icons/fi';
 
 const ProjectLogModal = ({ isOpen, onClose, project }) => {
+    const { token } = useAuth();
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -31,7 +33,9 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/project-history/${encodeURIComponent(project.ipc)}`);
+            const res = await fetch(`/api/project-history/${encodeURIComponent(project.ipc)}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             setHistory(data);

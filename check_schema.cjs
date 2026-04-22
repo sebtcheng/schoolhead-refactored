@@ -1,20 +1,36 @@
-const { Pool } = require('pg');
-const DB_URL = 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd';
+const pg = require('pg');
+const { Pool } = pg;
 
+const dbUrl = 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd';
 const pool = new Pool({
-  connectionString: DB_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: dbUrl,
+  ssl: false
 });
 
-async function checkSchema() {
+async function checkColumns() {
   try {
-    const res = await pool.query(`
-      SELECT column_name, is_nullable, column_default 
+    const resForm = await pool.query("SELECT COUNT(*) as count FROM information_schema.columns WHERE table_name = 'engineer_form'");
+    console.log("engineer_form columns:", resForm.rows[0].count);
+
+    const resCreate = await pool.query("SELECT COUNT(*) as count FROM information_schema.columns WHERE table_name = 'engineer_create'");
+    console.log("engineer_create columns:", resCreate.rows[0].count);
+
+    const resDiff = await pool.query(`
+      SELECT column_name, data_type 
       FROM information_schema.columns 
-      WHERE table_name = 'engineer_form' 
-      ORDER BY ordinal_position
+      WHERE table_name = 'engineer_form'
+      AND column_name NOT IN (SELECT column_name FROM information_schema.columns WHERE table_name = 'engineer_create')
     `);
-    console.log(JSON.stringify(res.rows, null, 2));
+    console.log("Columns in engineer_form but NOT in engineer_create:", JSON.stringify(resDiff.rows, null, 2));
+
+    const resDiff2 = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'engineer_create'
+      AND column_name NOT IN (SELECT column_name FROM information_schema.columns WHERE table_name = 'engineer_form')
+    `);
+    console.log("Columns in engineer_create but NOT in engineer_form:", JSON.stringify(resDiff2.rows, null, 2));
+
   } catch (err) {
     console.error(err);
   } finally {
@@ -22,4 +38,4 @@ async function checkSchema() {
   }
 }
 
-checkSchema();
+checkColumns();

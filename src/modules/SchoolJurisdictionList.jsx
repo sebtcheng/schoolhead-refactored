@@ -63,7 +63,9 @@ const SchoolJurisdictionList = () => {
 
             if (divisionToUse) params.append('division', divisionToUse);
 
-            const res = await fetch(`/api/monitoring/schools?${params.toString()}`);
+            const res = await fetch(`/api/monitoring/schools?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             if (res.ok) {
                 const data = await res.json();
 
