@@ -30,6 +30,11 @@ This document serves as the **Intelligent Clustering Engine** for InsightEd, as 
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Boot DDL Race Condition** | Startup Lock | High | P0 | [RCA-2026-04-16](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/docs/antigravity/rca/2026-04-16_Boot-DDL-Lock-Contention-Fix.md) | `pg_try_advisory_lock` fails in PgBouncer tx mode — all workers acquired "the same" lock on different backends and ran DDL simultaneously. Fixed by gating all boot DDL behind `NODE_APP_INSTANCE === '0'`. `initFinanceDB`/`initMasterlistDB` must be inside this gate or they race. `SET lock_timeout` on pooled connections is forbidden — poisons the backend for future queries. |
 
+### 🔥 Aspect: Connection & Lock Management (P0 Pattern)
+| Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Emergency Lock Relief** | Lock Cascades | High | P0 | [db-connection-plan.md](file:///e:/InsightED%20April%202026/InsightEd-Mobile-PWA-2026/.agent/workflows/db-connection-plan.md) | Implemented `relief_db_locks.py` to terminate connections holding locks >5m. Hardened `api/db_init.js` with advisory locks (7777777, 8888) to prevent cross-worker schema race conditions. Established connection timeout (10s) and SSL bypass for Azure Proxy IP `20.24.58.49` to prevent handshake resets. |
+
 ### 🗃️ Aspect: Migration / Lifecycle
 | Incident/Decision | Aspect | Complexity | Priority | Source | Summary |
 | :--- | :--- | :--- | :--- | :--- | :--- |

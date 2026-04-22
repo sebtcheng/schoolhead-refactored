@@ -201,11 +201,21 @@ const initUnit8Schema = async (client, dbLabel) => {
 };
 
 const runMigrations = async (client, dbLabel) => {
-    // --- 0. UNIT SCHEMAS ---
-    await initUnit7Schema(client, dbLabel);
-    await initUnit8Schema(client, dbLabel);
+    // [Master Protocol] Strategic Advisory Lock (ID: 7777777) 
+    // Prevents race conditions when multiple workers attempt schema changes simultaneously.
+    const lockRes = await client.query('SELECT pg_try_advisory_lock(7777777) as lock_granted');
+    if (!lockRes.rows[0].lock_granted) {
+        console.log(`⚠️ [${dbLabel}] Migrations already being handled by another worker. Skipping.`);
+        return;
+    }
 
-    // --- 1. AUDIT FEEDBACK TASKS TABLE ---
+    try {
+        console.log(`🏗️ [${dbLabel}] Starting comprehensive schema migrations...`);
+        // --- 0. UNIT SCHEMAS ---
+        await initUnit7Schema(client, dbLabel);
+        await initUnit8Schema(client, dbLabel);
+
+        // --- 1. AUDIT FEEDBACK TASKS TABLE ---
     try {
         // Drop legacy table as requested
         await client.query('DROP TABLE IF EXISTS audit_remarks CASCADE');
@@ -1767,6 +1777,12 @@ const runMigrations = async (client, dbLabel) => {
     // --- 26. UNIT 7: PHYSICAL FACILITIES ---
     await initUnit7Schema(client, dbLabel);
 
+    } catch (migErr) {
+        console.error(`❌ [${dbLabel}] Critical migration failure:`, migErr.message);
+    } finally {
+        await client.query('SELECT pg_advisory_unlock(7777777)');
+        // console.log(`🔓 [${dbLabel}] Advisory lock (7777777) released.`);
+    }
 };
 
 export { initOtpTable, runMigrations };
