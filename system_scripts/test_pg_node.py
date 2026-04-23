@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def test_pg_node():
     client = paramiko.SSHClient()
@@ -13,7 +13,7 @@ def test_pg_node():
         
         node_script = """
 const { Pool } = require('pg');
-const dbUrl = 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd?ssl=false';
+const dbUrl = 'postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd?ssl=false';
 const isLocal = dbUrl.includes('127.0.0.1');
 
 const pool = new Pool({
@@ -36,7 +36,7 @@ pool.query('SELECT 1', (err, res) => {
         node_script_mjs = """
 import pg from 'pg';
 const { Pool } = pg;
-const dbUrl = 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd?ssl=false';
+const dbUrl = 'postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd?ssl=false';
 const isLocal = dbUrl.includes('127.0.0.1');
 
 const pool = new Pool({

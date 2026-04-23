@@ -6,7 +6,7 @@ import os
 # Server Credentials (inherited from vm_diagnostics.py)
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 # Monitoring Thresholds established in ADR-007
 MAX_NGINX_CONNS = 10240

@@ -2,7 +2,7 @@ import pkg from 'pg';
 const { Pool } = pkg;
 
 const neonUrl = 'postgresql://neondb_owner:npg_z8JNLGaE0pFr@ep-dry-forest-a14epyio-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-const localUrl = 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd';
+const localUrl = 'postgres://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd';
 
 const disableMaintenance = async (dbUrl, dbName) => {
     const pool = new Pool({ connectionString: dbUrl });

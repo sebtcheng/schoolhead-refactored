@@ -7,7 +7,7 @@ const path = require('path');
 const SERVER_IP = "20.24.58.49";
 const SERVER_DIR = "/var/www/html/InsightEd-Mobile-PWA"; // Production Dir
 const USER = "Administrator1";
-const PASS = "7v52E69TYgTE"; 
+const PASS = "<REDACTED_SSH_PASS>"; 
 const TAR_FILE = "production-deploy.tmp.tar.gz";
 const INCLUDE = ['api', 'dist', 'public', 'package.json', 'package-lock.json', 'compress_pdf.py', 'forensic_heal.sh', 'ecosystem.config.cjs'];
 

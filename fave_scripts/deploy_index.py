@@ -17,7 +17,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 
 SERVER_IP  = '20.24.58.49'
 SSH_USER   = 'Administrator1'
-SSH_PASS   = '7v52E69TYgTE'
+SSH_PASS   = '<REDACTED_SSH_PASS>'
 REMOTE_PATH = '/var/www/html/InsightEd-Mobile-PWA/api/index.js'
 LOCAL_PATH  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'api', 'index.js')
 

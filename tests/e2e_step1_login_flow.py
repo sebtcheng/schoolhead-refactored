@@ -50,7 +50,7 @@ def get_db_connection():
             port=5432,
             database="insightEd",
             user="Administrator1",
-            password="pRZTbQ2T1JD7",
+            password="<REDACTED_PGB_PASS>",
             # Enable SSL if the server requires it (Azure usually does)
             sslmode="require",
         )

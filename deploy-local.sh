@@ -14,6 +14,13 @@ PM2_NAME="insighted-backend"
 SSH_CMD="ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP"
 SCP_CMD="scp -o StrictHostKeyChecking=no -o BatchMode=yes"
 
+# Prune potentially hidden carriage returns (from Windows CRLF)
+SERVER_IP=$(echo $SERVER_IP | tr -d '\r')
+USER=$(echo $USER | tr -d '\r')
+TAR_FILE=$(echo $TAR_FILE | tr -d '\r')
+SERVER_DIR=$(echo $SERVER_DIR | tr -d '\r')
+PM2_NAME=$(echo $PM2_NAME | tr -d '\r')
+
 # --- LOGGING FUNCTIONS ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✅ $*${NC}"; }
@@ -49,7 +56,7 @@ $SSH_CMD "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || warn "Remote cleanup faile
 
 # --- PACK & SYNC ---
 info "📦 2. Packing artifacts into $TAR_FILE..."
-tar -czf "$TAR_FILE" dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs || fail "Failed to create archive."
+tar -czf "$TAR_FILE" dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs tmp_stride.conf || fail "Failed to create archive."
 ok "Archive created."
 
 info "📤 3. Syncing to VM via SCP..."
@@ -73,11 +80,25 @@ $SSH_CMD "
   sed -i 's/\r$//' forensic_heal.sh
   chmod +x forensic_heal.sh
 
+  # --- Temp dir for PDF compression pipeline ---
+  info 'Setting up PDF scratch space...'
+  mkdir -p /tmp/insighted-pdf-tmp
+  chmod 775 /tmp/insighted-pdf-tmp
+
   info 'Installing production dependencies...'
   npm cache clean --force 2>/dev/null
   npm install --omit=dev --legacy-peer-deps
   npm prune --omit=dev --legacy-peer-deps
   
+  info 'Configuring PM2 environment...'
+  pm2 set pm2-logrotate:max_size 50M
+  pm2 set pm2-logrotate:retain 5
+  pm2 flush $PM2_NAME 2>/dev/null || true
+
+  # Ensure forensic_heal.sh is executable and clean
+  sed -i 's/\r$//' forensic_heal.sh
+  chmod +x forensic_heal.sh
+
   info 'Triggering Forensic Healer (Handles Nginx, Python, PM2)...'
   STAGING_DIR=$SERVER_DIR PM2_NAME=$PM2_NAME ./forensic_heal.sh
 " || fail "Remote execution failed."

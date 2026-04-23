@@ -4,7 +4,7 @@ import os
 # Configuration
 remote_host = "20.24.58.49"
 remote_user = "Administrator1"
-remote_pass = "7v52E69TYgTE"
+remote_pass = "<REDACTED_SSH_PASS>"
 
 # Local public key path
 pub_key_path = os.path.expanduser("~/.ssh/id_rsa.pub")

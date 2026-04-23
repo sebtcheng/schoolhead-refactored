@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def kill_idle_transaction():
     client = paramiko.SSHClient()
@@ -12,12 +12,12 @@ def kill_idle_transaction():
         print("[Kill-Idle] Terminating idle-in-transaction blocker (pid 373608)...")
 
         # Kill the specific idle in transaction blocker
-        cmd1 = "PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT pg_terminate_backend(373608);\""
+        cmd1 = "PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT pg_terminate_backend(373608);\""
         stdin, stdout, stderr = client.exec_command(cmd1)
         print(stdout.read().decode('utf-8', errors='replace'))
 
         # Kill ALL idle in transaction sessions older than 10 minutes
-        cmd2 = """PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
+        cmd2 = """PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
 SELECT pg_terminate_backend(pid), pid, state, left(query, 60)
 FROM pg_stat_activity
 WHERE state = 'idle in transaction'
@@ -28,7 +28,7 @@ WHERE state = 'idle in transaction'
         print(stdout.read().decode('utf-8', errors='replace'))
 
         # Kill ALL remaining Lock waiters
-        cmd3 = """PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
+        cmd3 = """PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
 SELECT pg_terminate_backend(pid), pid, state
 FROM pg_stat_activity
 WHERE wait_event_type = 'Lock' AND datname = 'insightEd';
@@ -37,7 +37,7 @@ WHERE wait_event_type = 'Lock' AND datname = 'insightEd';
         print(stdout.read().decode('utf-8', errors='replace'))
         
         print("[Kill-Idle] Checking final status...")
-        cmd4 = """PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
+        cmd4 = """PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
 SELECT count(*), state FROM pg_stat_activity WHERE datname='insightEd' GROUP BY state;
 " """
         stdin, stdout, stderr = client.exec_command(cmd4)

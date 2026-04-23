@@ -3,7 +3,7 @@ import sys
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def check_remote_status():
     client = paramiko.SSHClient()

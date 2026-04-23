@@ -1,7 +1,7 @@
 const { Pool } = require('pg');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
-const DATABASE_URL = 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd';
+const DATABASE_URL = 'postgres://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd';
 const API_URL = 'http://localhost:5174/api/update-project';
 
 async function verify() {

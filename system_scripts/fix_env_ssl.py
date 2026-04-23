@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def fix_env():
     client = paramiko.SSHClient()
@@ -12,7 +12,7 @@ def fix_env():
         print("[Fix-Env] Stripping ?ssl=false from DATABASE_URL...")
         
         # Replace the DATABASE_URL to remove ?ssl=false
-        env_cmd = "sed -i 's|DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd?ssl=false|DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd|' /var/www/html/InsightEd-Mobile-PWA/.env"
+        env_cmd = "sed -i 's|DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd?ssl=false|DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd|' /var/www/html/InsightEd-Mobile-PWA/.env"
         stdin, stdout, stderr = client.exec_command(env_cmd)
         
         print("[Fix-Env] Restarting PM2...")

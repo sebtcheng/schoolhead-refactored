@@ -46,18 +46,19 @@ const CentralOfficeNexus = () => {
             route: '/officials',
             locked: !isAuthorized // Lock if not authorized
         },
-        {
-            id: 'recruitment',
-            title: 'Recruitment Hub',
-            subtitle: 'CAREER PROGRESSION',
-            description: 'Submit applications for 3rd level positions and manage your professional career profile.',
-            icon: <FiBriefcase className="w-8 h-8" />,
-            color: 'bg-gradient-to-br from-purple-600 to-indigo-800',
-            textColor: 'text-white',
-            badge: 'LIVE',
-            route: '/official-profiling',
-            locked: false
-        },
+        // HIDDEN: Recruitment Hub — career path temporarily disabled
+        // {
+        //     id: 'recruitment',
+        //     title: 'Recruitment Hub',
+        //     subtitle: 'CAREER PROGRESSION',
+        //     description: 'Submit applications for 3rd level positions and manage your professional career profile.',
+        //     icon: <FiBriefcase className="w-8 h-8" />,
+        //     color: 'bg-gradient-to-br from-purple-600 to-indigo-800',
+        //     textColor: 'text-white',
+        //     badge: 'LIVE',
+        //     route: '/official-profiling',
+        //     locked: false
+        // },
         {
             id: 'school-data',
             title: 'School Data Hub',

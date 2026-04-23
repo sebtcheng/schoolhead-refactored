@@ -1,4 +1,4 @@
-export PGPASSWORD='pRZTbQ2T1JD7'
+export PGPASSWORD='<REDACTED_PGB_PASS>'
 DB_HOST='stride-posgre-prod-01.postgres.database.azure.com'
 DB_USER='Administrator1'
 DB_NAME='insightEd'

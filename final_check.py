@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def final_check():
     client = paramiko.SSHClient()
@@ -11,7 +11,7 @@ def final_check():
         client.connect(hostname=SERVER_IP, username=USER, password=PASS)
         
         # Check cl_waiting specifically
-        cmd = "PGPASSWORD='pRZTbQ2T1JD7' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;' | grep insightEd"
+        cmd = "PGPASSWORD='<REDACTED_PGB_PASS>' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;' | grep insightEd"
         stdin, stdout, stderr = client.exec_command(cmd)
         print("PgBouncer POOLS (insightEd):")
         print(stdout.read().decode())

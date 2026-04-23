@@ -2,7 +2,7 @@ const { Client } = require('ssh2');
 
 const SERVER_IP = "20.24.58.49";
 const USER = "Administrator1";
-const PASS = "7v52E69TYgTE";
+const PASS = "<REDACTED_SSH_PASS>";
 
 const conn = new Client();
 conn.on('ready', () => {

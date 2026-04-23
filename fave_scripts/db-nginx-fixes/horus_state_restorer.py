@@ -20,11 +20,11 @@ import io
 # ── VM Configuration ──────────────────────────────────────────────────────────
 SERVER_IP = "20.24.58.49"
 USER      = "Administrator1"
-PASS      = "7v52E69TYgTE"
+PASS      = "<REDACTED_SSH_PASS>"
 
 # ── THE GOLDEN CONFIGURATIONS (Captured 2026-04-16) ───────────────────────────
 
-GOLDEN_ENV = """DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd
+GOLDEN_ENV = """DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd
 EMAIL_USER=helpdesk.stride@gmail.com
 EMAIL_PASS=nsij vamm oqeu yhlx
 
@@ -41,8 +41,8 @@ PORT=5000
 """
 
 GOLDEN_PGBOUNCER = """[databases]
-insightEd = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=pRZTbQ2T1JD7 pool_size=100
-insight_pooled = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=pRZTbQ2T1JD7 pool_size=100
+insightEd = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=<REDACTED_PGB_PASS> pool_size=100
+insight_pooled = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=<REDACTED_PGB_PASS> pool_size=100
 
 [users]
 

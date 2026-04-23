@@ -30,7 +30,7 @@ conn.on('ready', () => {
     host: '20.24.58.49',
     port: 22,
     username: 'Administrator1',
-    password: '7v52E69TYgTE',
+    password: '<REDACTED_SSH_PASS>',
     readyTimeout: 30000
 });
 

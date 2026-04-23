@@ -30,7 +30,7 @@ def header(text):
     print(f"{CYAN}{'='*60}{NC}")
 
 def run_sql(host, user, db, query, timeout=120):
-    env = "export PGPASSWORD='pRZTbQ2T1JD7'; "
+    env = "export PGPASSWORD='<REDACTED_PGB_PASS>'; "
     conn = f"-h {host} -U {user} -d {db}"
     full_cmd = ["ssh", "-o", "BatchMode=yes", f"Administrator1@{host}", f"{env} psql {conn} -t -A -c \"{query}\""]
     try:

@@ -11,12 +11,12 @@ import paramiko, sys, io, time
 
 SERVER_IP = "20.24.58.49"
 SSH_USER  = "Administrator1"
-SSH_PASS  = "7v52E69TYgTE"
+SSH_PASS  = "<REDACTED_SSH_PASS>"
 
 PGB_HOST  = "127.0.0.1"
 PGB_PORT  = "6432"
 PGB_USER  = "Administrator1"
-PGB_PASS  = "pRZTbQ2T1JD7"
+PGB_PASS  = "<REDACTED_PGB_PASS>"
 APP_DB    = "insightEd"
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')

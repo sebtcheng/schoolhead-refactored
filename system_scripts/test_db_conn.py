@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def test_db_conn():
     client = paramiko.SSHClient()
@@ -12,7 +12,7 @@ def test_db_conn():
         print("[Test] Connecting to insightEd via pgbouncer...")
         
         # We'll use PGPASSWORD to pass the password
-        cmd = "PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c 'SELECT 1;'"
+        cmd = "PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c 'SELECT 1;'"
         stdin, stdout, stderr = client.exec_command(cmd)
         
         print("STDOUT:")

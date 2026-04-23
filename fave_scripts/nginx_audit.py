@@ -9,7 +9,7 @@ import paramiko, sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect(hostname="20.24.58.49", port=22, username="Administrator1", password="7v52E69TYgTE", timeout=15)
+c.connect(hostname="20.24.58.49", port=22, username="Administrator1", password="<REDACTED_SSH_PASS>", timeout=15)
 
 def run(cmd, t=30):
     _, o, e = c.exec_command(cmd, timeout=t)

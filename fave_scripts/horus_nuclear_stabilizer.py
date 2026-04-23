@@ -20,7 +20,7 @@ import io
 # ── VM Configuration ──────────────────────────────────────────────────────────
 SERVER_IP = "20.24.58.49"
 USER      = "Administrator1"
-PASS      = "7v52E69TYgTE"
+PASS      = "<REDACTED_SSH_PASS>"
 
 # Set up utf-8 output for Windows terminals
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')

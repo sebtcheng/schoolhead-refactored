@@ -7,7 +7,7 @@ setlocal enabledelayedexpansion
 set SERVER_IP=20.24.58.49
 set SERVER_DIR=/var/www/html/InsightEd-Mobile-PWA
 set SSH_USER=Administrator1
-set SSH_PASS=7v52E69TYgTE
+set SSH_PASS=<REDACTED_SSH_PASS>
 
 echo ------------------------------------------------
 echo 🚀 Local-to-Remote Deployment

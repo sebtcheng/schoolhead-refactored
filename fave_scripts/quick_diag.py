@@ -6,7 +6,7 @@ import paramiko
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('20.24.58.49', 22, 'Administrator1', '7v52E69TYgTE', timeout=15)
+client.connect('20.24.58.49', 22, 'Administrator1', '<REDACTED_SSH_PASS>', timeout=15)
 
 def run(cmd):
     _, o, e = client.exec_command(cmd, timeout=20)
@@ -29,11 +29,11 @@ print(run('pm2 logs --lines 80 --nostream 2>&1 | grep -i "error" | grep -v "Dual
 
 print()
 print('=== 5. PGBOUNCER SHOW POOLS ===')
-print(run("PGPASSWORD='pRZTbQ2T1JD7' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;' 2>&1"))
+print(run("PGPASSWORD='<REDACTED_PGB_PASS>' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;' 2>&1"))
 
 print()
 print('=== 6. PGBOUNCER CONFIG (pool_size, max_db) ===')
-print(run("PGPASSWORD='pRZTbQ2T1JD7' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW CONFIG;' 2>&1"))
+print(run("PGPASSWORD='<REDACTED_PGB_PASS>' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW CONFIG;' 2>&1"))
 
 client.close()
 print('\nDone.')

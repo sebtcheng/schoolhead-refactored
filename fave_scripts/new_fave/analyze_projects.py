@@ -10,7 +10,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Fallback in case .env loading fails or DATABASE_URL is missing
 if not DATABASE_URL:
-    DATABASE_URL = "postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd"
+    DATABASE_URL = "postgres://Administrator1:<REDACTED_PGB_PASS>@20.24.58.49:6432/insightEd"
 
 def check_projects():
     """

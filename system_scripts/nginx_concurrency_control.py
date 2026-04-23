@@ -172,7 +172,7 @@ def pg_archive_orphans(orc, db="insightEd"):
     header(f"Postgres: Orphan Archiving ({db})")
     # Corrected authenticated connection string for Azure Managed Service
     conn = f"-h stride-posgre-prod-01.postgres.database.azure.com -U Administrator1 -d {db}"
-    env = "export PGPASSWORD='pRZTbQ2T1JD7'; "
+    env = "export PGPASSWORD='<REDACTED_PGB_PASS>'; "
     
     print(f"{YELLOW}Creating archive table if missing...{NC}")
     orc.run(f"{env} psql {conn} -c \"CREATE TABLE IF NOT EXISTS unified_binaries_archive (LIKE unified_binaries INCLUDING ALL);\"", timeout=60)

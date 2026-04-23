@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def test_pg_node():
     client = paramiko.SSHClient()
@@ -14,7 +14,7 @@ def test_pg_node():
         node_script_mjs = """
 import pg from 'pg';
 const { Pool } = pg;
-const dbUrl = 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd'; // no ?ssl=false
+const dbUrl = 'postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd'; // no ?ssl=false
 const isLocal = true;
 
 const pool = new Pool({

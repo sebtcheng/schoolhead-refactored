@@ -71,6 +71,7 @@ Apply the hard-won lessons from the 2026 Connection Crisis and the Jarvis Protoc
    - **Tier 1-2:** Resolve session-level contention and PgBouncer bypasses (port 5432 vs 6432).
    - **Tier 3-4:** Hard-reset services and identify Sequential Scan deadlocks in large tables.
    - **Tier 5:** Implement Asynchronous Backgrounding for non-critical logs.
+   - **Tier 6 (Data Integrity & Index Collisions):** Detect Postgres `23505` unique violations on secondary keys (e.g., `school_id`) caused by `ON CONFLICT` targeting the wrong column (e.g., `iern`). Remediate by shifting conflict targets to the most stable persistent identifier.
 
 ### Phase 4: Nginx & PWA Cache Hardening
 Eliminate "stuck" versions and 502/404 errors by enforcing strict routing and cache-busting.

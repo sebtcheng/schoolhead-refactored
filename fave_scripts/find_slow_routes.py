@@ -6,7 +6,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('20.24.58.49', 22, 'Administrator1', '7v52E69TYgTE', timeout=15)
+c.connect('20.24.58.49', 22, 'Administrator1', '<REDACTED_SSH_PASS>', timeout=15)
 
 def run(cmd, timeout=20):
     _, o, _ = c.exec_command(cmd, timeout=timeout)
@@ -27,10 +27,10 @@ print(run('pm2 logs --lines 80 --nostream 2>&1 | grep "timeout exceeded" | head 
 print()
 print('=== 4. LIVE DB POOL STATE on Workers ===')
 # Check active connections in postgres right now
-print(run("""PGPASSWORD='pRZTbQ2T1JD7' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;' 2>&1"""))
+print(run("""PGPASSWORD='<REDACTED_PGB_PASS>' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;' 2>&1"""))
 
 print()
 print('=== 5. CURRENT ACTIVE/WAITING PG SESSIONS ===')
-print(run("""PGPASSWORD='pRZTbQ2T1JD7' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d 'insightEd' -c "SELECT state, count(*) FROM pg_stat_activity WHERE datname='insightEd' AND pid <> pg_backend_pid() GROUP BY state ORDER BY count DESC;" 2>&1"""))
+print(run("""PGPASSWORD='<REDACTED_PGB_PASS>' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d 'insightEd' -c "SELECT state, count(*) FROM pg_stat_activity WHERE datname='insightEd' AND pid <> pg_backend_pid() GROUP BY state ORDER BY count DESC;" 2>&1"""))
 
 c.close()

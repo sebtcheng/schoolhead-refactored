@@ -26,7 +26,7 @@ import io
 # ── VM Configuration ──────────────────────────────────────────────────────────
 SERVER_IP = "20.24.58.49"
 USER      = "Administrator1"
-PASS      = "7v52E69TYgTE"
+PASS      = "<REDACTED_SSH_PASS>"
 
 # Set up utf-8 output for Windows terminals
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -86,7 +86,7 @@ def main():
     out, _ = run_ssh(client, f"grep DATABASE_URL {dot_env_path}", label="Checking .env Routing")
     if "127.0.0.1:6432" not in out:
         print("⚠️  PgBouncer Bypass detected! Correcting .env...")
-        fix_cmd = f"sed -i 's|DATABASE_URL=.*|DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd|' {dot_env_path}"
+        fix_cmd = f"sed -i 's|DATABASE_URL=.*|DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd|' {dot_env_path}"
         run_ssh(client, fix_cmd, use_sudo=True)
     else:
         print("✅ .env routing is compliant.")

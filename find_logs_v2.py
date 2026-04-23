@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def find_logs():
     client = paramiko.SSHClient()
@@ -20,7 +20,7 @@ def find_logs():
         print(stdout.read().decode())
         
         # Check PgBouncer pools
-        stdin, stdout, stderr = client.exec_command("PGPASSWORD='pRZTbQ2T1JD7' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;'")
+        stdin, stdout, stderr = client.exec_command("PGPASSWORD='<REDACTED_PGB_PASS>' psql -h 127.0.0.1 -p 6432 -U Administrator1 -d pgbouncer -c 'SHOW POOLS;'")
         print("PgBouncer POOLS:")
         print(stdout.read().decode())
             

@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def realign_infra():
     client = paramiko.SSHClient()
@@ -13,8 +13,8 @@ def realign_infra():
         
         # 1. Update pgbouncer.ini
         pg_ini = """[databases]
-insightEd = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=pRZTbQ2T1JD7 pool_size=100
-insight_pooled = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=pRZTbQ2T1JD7 pool_size=100
+insightEd = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=<REDACTED_PGB_PASS> pool_size=100
+insight_pooled = host=stride-posgre-prod-01.postgres.database.azure.com port=5432 dbname=insightEd user=Administrator1 password=<REDACTED_PGB_PASS> pool_size=100
 
 [users]
 
@@ -53,7 +53,7 @@ client_login_timeout = 60
         
         # 3. Update .env
         # Replace the DATABASE_URL with the local pooled version
-        env_cmd = "sed -i 's|DATABASE_URL=.*|DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd?ssl=false|' /var/www/html/InsightEd-Mobile-PWA/.env"
+        env_cmd = "sed -i 's|DATABASE_URL=.*|DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd?ssl=false|' /var/www/html/InsightEd-Mobile-PWA/.env"
         stdin, stdout, stderr = client.exec_command(env_cmd)
         print("[Realign] Updated .env to use port 6432")
         

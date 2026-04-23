@@ -293,7 +293,7 @@ const runMigrations = async (client, dbLabel) => {
         // Data Backfill: Populate region/division from schools_IERN (HAWKEYE Protocol)
         await client.query(`
             UPDATE ph_school_completion psc
-            SET 
+            SET
                 region = si."Region",
                 division = si."Division"
             FROM "schools_IERN" si
@@ -301,6 +301,30 @@ const runMigrations = async (client, dbLabel) => {
               AND (psc.region IS NULL OR psc.division IS NULL);
         `).catch(err => {
             console.warn(`⚠️ [${dbLabel}] ph_school_completion backfill skipped:`, err.message);
+        });
+
+        // Deduplicate school_id before adding unique constraint (keep row with highest total_completion)
+        await client.query(`
+            DELETE FROM ph_school_completion
+            WHERE iern NOT IN (
+                SELECT DISTINCT ON (school_id) iern
+                FROM ph_school_completion
+                WHERE school_id IS NOT NULL
+                ORDER BY school_id, total_completion DESC, updated_at DESC NULLS LAST
+            ) AND school_id IS NOT NULL;
+        `).catch(err => {
+            console.warn(`⚠️ [${dbLabel}] ph_school_completion dedup skipped:`, err.message);
+        });
+
+        // ON CONFLICT (school_id) requires a full (non-partial) unique index.
+        // A partial index (WHERE school_id IS NOT NULL) does NOT satisfy ON CONFLICT (school_id).
+        // Drop whatever exists (partial or non-unique), then recreate as a full unique index.
+        await client.query(`DROP INDEX IF EXISTS idx_ph_school_completion_school_id;`).catch(() => {});
+        await client.query(`
+            CREATE UNIQUE INDEX idx_ph_school_completion_school_id
+            ON ph_school_completion(school_id);
+        `).catch(err => {
+            console.warn(`⚠️ [${dbLabel}] ph_school_completion school_id unique index skipped:`, err.message);
         });
 
         // console.log(`✅ [${dbLabel}] School Completion Table Initialized`);

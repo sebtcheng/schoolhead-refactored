@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def kill_locks():
     client = paramiko.SSHClient()
@@ -13,7 +13,7 @@ def kill_locks():
 
         # Step 1: Kill the root blocker (the TRUNCATE)
         kill_blocker = """
-PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
+PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
 SELECT pg_terminate_backend(pid), pid, state, left(query, 80) AS query
 FROM pg_stat_activity 
 WHERE datname='insightEd'
@@ -24,7 +24,7 @@ ORDER BY duration DESC;
 """
         # Step 2: Kill ALL blocked (Lock wait) connections
         kill_blocked = """
-PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
+PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
 SELECT pg_terminate_backend(pid), pid, state
 FROM pg_stat_activity
 WHERE datname='insightEd'
@@ -39,7 +39,7 @@ WHERE datname='insightEd'
 
         print("[Kill-Locks] Done. Checking connection status...")
         check_cmd = """
-PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
+PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c "
 SELECT count(*), state FROM pg_stat_activity WHERE datname='insightEd' GROUP BY state;
 "
 """

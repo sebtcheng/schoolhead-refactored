@@ -304,6 +304,7 @@ const AnimatedRoutes = () => {
       <Route path="/school-audit" element={<SchoolAuditView />} />
       <Route path="/esf7-review" element={<Navigate to="/esf7/review" replace />} />
       <Route path="/esf7/review" element={<ProtectedRoute allowedRoles={['Super User', 'School Division Office']}><ESF7Review /></ProtectedRoute>} />
+      <Route path="/division-nexus" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User', 'Super Admin']}><SDONexusDashboard /></ProtectedRoute>} />
       <Route path="/educational-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.EDUCATIONAL_ADMIN, ROLE_GROUPS.MANAGEMENT]}><EducationalDashboard /></ProtectedRoute>} />
       <Route path="/project-summary-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.TECHNICAL_FINANCE]}><ProjectSummaryDashboard /></ProtectedRoute>} />
 

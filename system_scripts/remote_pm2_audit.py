@@ -10,7 +10,7 @@ import re
 # Remote Configuration
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 # Apps to audit
 APPS = {

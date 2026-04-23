@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL") or "postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd"
+DATABASE_URL = os.getenv("DATABASE_URL") or "postgres://Administrator1:<REDACTED_PGB_PASS>@20.24.58.49:6432/insightEd"
 
 def select_top_schools_region_vi():
     """

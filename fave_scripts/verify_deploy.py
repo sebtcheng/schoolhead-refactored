@@ -6,7 +6,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('20.24.58.49', 22, 'Administrator1', '7v52E69TYgTE', timeout=15)
+c.connect('20.24.58.49', 22, 'Administrator1', '<REDACTED_SSH_PASS>', timeout=15)
 
 def run(cmd, timeout=20):
     _, o, _ = c.exec_command(cmd, timeout=timeout)

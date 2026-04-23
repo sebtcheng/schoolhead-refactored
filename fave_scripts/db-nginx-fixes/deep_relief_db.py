@@ -19,7 +19,7 @@ import io
 # ── VM Configuration ──────────────────────────────────────────────────────────
 SERVER_IP = "20.24.58.49"
 USER      = "Administrator1"
-PASS      = "7v52E69TYgTE"
+PASS      = "<REDACTED_SSH_PASS>"
 
 # Set up utf-8 output for Windows terminals
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -51,7 +51,7 @@ def main():
         print(f"⚠️  BYPASS DETECTED: {out}")
         print("🔧 Re-routing DATABASE_URL to local PgBouncer (127.0.0.1:6432)...")
         # Extract credentials to be safe, or just use a generic regex replacement
-        fix_cmd = f"sudo sed -i 's|DATABASE_URL=.*|DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd|' {dot_env_path}"
+        fix_cmd = f"sudo sed -i 's|DATABASE_URL=.*|DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insightEd|' {dot_env_path}"
         run_ssh(client, fix_cmd)
         print("✅ .env updated.")
     else:

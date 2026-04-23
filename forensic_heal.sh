@@ -1,8 +1,7 @@
 #!/bin/bash
 # =============================================================================
-# forensic_heal.sh — InsightEd Staging Server Forensic Healing Script
-# Target: 20.24.58.49 | User: Administrator1 | PM2: insighted-staging (ID 31)
-# Run directly on the staging server as Administrator1.
+# forensic_heal.sh — InsightEd Forensic Healing Script
+# Run directly on the server to stabilize infrastructure.
 # =============================================================================
 set -uo pipefail
 
@@ -66,7 +65,8 @@ run_sudo() {
 
 echo ""
 echo "========================================================"
-echo "  InsightEd Staging — Forensic Healing Script"
+echo "  InsightEd — Forensic Healing Script"
+echo "  Target: $STAGING_DIR"
 echo "  $(date '+%Y-%m-%d %H:%M:%S')"
 echo "========================================================"
 echo ""
@@ -78,12 +78,12 @@ echo ""
 # =============================================================================
 echo -e "${CYAN}[Phase 1] Process Hygiene${NC}"
 
-ROOT_NODE_PIDS=$(ps aux | grep -E "node.*InsightEd-Staging" | grep "^root" | awk '{print $2}' || true)
+ROOT_NODE_PIDS=$(ps aux | grep -E "node.*$(basename "$STAGING_DIR")" | grep "^root" | awk '{print $2}' || true)
 if [ -n "$ROOT_NODE_PIDS" ]; then
-    warn "Found root-owned Node.js processes: $ROOT_NODE_PIDS — killing them."
+    warn "Found root-owned Node.js processes in $(basename "$STAGING_DIR"): $ROOT_NODE_PIDS — killing them."
     echo "$ROOT_NODE_PIDS" | xargs $SUDO_CMD kill -9 2>/dev/null && ok "Root Node processes killed." || fail "Could not kill some root processes."
 else
-    ok "No rogue root-owned Node.js processes found."
+    ok "No rogue root-owned Node.js processes found for $(basename "$STAGING_DIR")."
 fi
 
 # =============================================================================
@@ -216,7 +216,7 @@ if [ -f "$COMPRESS_SCRIPT" ]; then
     ok "compress_pdf.py found at $COMPRESS_SCRIPT"
 else
     fail "compress_pdf.py NOT found at $COMPRESS_SCRIPT"
-    info "Fix: Run 'bash deploy-staging.sh' or 'node deploy-staging.cjs' to upload missing files."
+    info "Fix: Ensure all artifacts are uploaded before running healer."
 fi
 
 # =============================================================================

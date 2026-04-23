@@ -11,7 +11,7 @@ $SourceDB = "neondb"
 # Destination (Azure)
 $DestHost = "stride-posgre-prod-01.postgres.database.azure.com"
 $DestUser = "Administrator1"
-$DestPass = "pRZTbQ2T1JD7"
+$DestPass = "<REDACTED_PGB_PASS>"
 $DestDB = "insightEd"
 
 # Tools

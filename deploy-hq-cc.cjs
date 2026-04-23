@@ -4,7 +4,7 @@ const path = require('path');
 
 const SERVER_IP = "20.24.58.49";
 const USER = "Administrator1";
-const PASS = "7v52E69TYgTE";
+const PASS = "<REDACTED_SSH_PASS>";
 const TAR_FILE = "deployment.tar.gz";
 const REMOTE_DIR = "/home/Administrator1/deployment";
 

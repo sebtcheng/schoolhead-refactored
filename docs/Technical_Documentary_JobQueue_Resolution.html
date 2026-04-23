@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Documentary: Job Queue Recovery (pg-boss) - InsightEd</title>
+    <style>
+        :root {
+            --primary: #1a2a6c;
+            --secondary: #b21f1f;
+            --accent: #fdbb2d;
+            --bg: #ffffff;
+            --text: #2c3e50;
+            --code-bg: #fdfdfd;
+            --border: #dcdde1;
+        }
+
+        @media print {
+            body { font-size: 10pt; line-height: 1.4; color: #000; background: #fff; }
+            .no-print { display: none; }
+            h1, h2, h3 { page-break-after: avoid; }
+            .page-break { page-break-before: always; }
+            pre { page-break-inside: avoid; border: 1px solid #ccc; font-size: 8pt; }
+            @page { margin: 1.5cm; }
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            max-width: 950px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+
+        .document-wrapper {
+            background: var(--bg);
+            padding: 50px 80px;
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-top: 8px solid var(--primary);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 1px double var(--border);
+        }
+
+        h1 { color: var(--primary); margin: 0; font-size: 2.2em; text-transform: uppercase; letter-spacing: 1px; }
+        .document-id { color: #888; font-family: monospace; margin-top: 10px; font-size: 0.9em; }
+
+        section { margin-bottom: 40px; }
+        h2 { color: var(--secondary); border-bottom: 2px solid var(--border); padding-bottom: 5px; margin-top: 40px; }
+        h3 { color: var(--primary); margin-top: 25px; display: flex; align-items: center; }
+        h3::before { content: "▪"; color: var(--accent); margin-right: 10px; font-size: 1.5em; }
+
+        .incident-meta {
+            background: #f8f9fa;
+            padding: 20px;
+            border-left: 5px solid var(--accent);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            font-size: 0.95em;
+        }
+
+        .failure-stage {
+            border-left: 3px solid var(--border);
+            padding-left: 20px;
+            margin: 25px 0;
+        }
+        .stage-title { font-weight: bold; color: var(--secondary); font-variant: small-caps; font-size: 1.1em; }
+
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 0.85em;
+            margin: 15px 0;
+            border: 1px solid #181a1f;
+        }
+
+        .code-tag { color: #61afef; }
+        .code-string { color: #98c379; }
+        .code-comment { color: #5c6370; font-style: italic; }
+
+        footer {
+            margin-top: 80px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #7f8c8d;
+            border-top: 1px solid var(--border);
+            padding-top: 30px;
+        }
+
+        .stamp {
+            display: inline-block;
+            border: 3px solid var(--secondary);
+            color: var(--secondary);
+            padding: 10px 20px;
+            font-weight: bold;
+            transform: rotate(-10deg);
+            opacity: 0.8;
+            margin: 20px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="document-wrapper">
+        <header>
+            <div class="stamp">Verified Fix</div>
+            <h1>Job Queue Recovery Documentary</h1>
+            <p><strong>Subject:</strong> ESF7 XLSB Scan Registration Stalemate</p>
+            <div class="document-id">REF: RCA-2026-0423-ESF7 | DEPT: Infrastructure & Core API</div>
+        </header>
+
+        <section id="incident-summary">
+            <div class="incident-meta">
+                <div><strong>Incident Date:</strong> 2026-04-23</div>
+                <div><strong>Severity:</strong> P0 (Blocking Feature)</div>
+                <div><strong>System:</strong> pg-boss @ 12.15.0</div>
+                <div><strong>Environment:</strong> Staging (Cluster Mode)</div>
+            </div>
+            <h2>1. Incident Overview</h2>
+            <p>Following the integration of autonomous ESF7 audit parsing, the background job worker failed to pick up queued XLSB files. While the front-end successfully queued jobs (Status: <code>PENDING</code>), the internal polling mechanism was essentially paralyzed, leaving users stuck at 0% progress indefinitely.</p>
+        </section>
+
+        <section id="root-cause-analysis">
+            <h2>2. Forensic Root Cause Discovery</h2>
+            <p>The resolution required unravelling a <strong>"Triple-Nested Failure"</strong> that masked the worker's presence from the system.</p>
+
+            <div class="failure-stage">
+                <div class="stage-title">Layer I: The Transport Conflict</div>
+                <p><code>pg-boss</code> attempted to initialize its own connection pool using the default PostgreSQL port (5432). In the InsightEd Staging ecosystem, however, the database is strictly accessed via <strong>PgBouncer (Port 6432)</strong>. This mismatch prevented even the initial database handshake from completing.</p>
+            </div>
+
+            <div class="failure-stage">
+                <div class="stage-title">Layer II: The Stale Advisory Lock Deadlock</div>
+                <p>Worker registration was logically nested inside a DDL migration block gated by <code>pg_try_advisory_lock(6666666)</code>. A zombie process from a prior failed deployment held this lock. Consequently, all new PM2 instances skipped the block, resulting in the worker registration code (<code>boss.work()</code>) never being invoked.</p>
+            </div>
+
+            <div class="failure-stage">
+                <div class="stage-title">Layer III: The Bootstrap Reference Errors</div>
+                <p>After decoupling registration from the lock, the process crashed due to <code>ReferenceError</code> exceptions. The script tried to register auxiliary workers referencing non-existent handler functions (e.g., <code>handleEsf7ApproveJob</code>) and call renamed migration methods (<code>hardenSchoolsIernSchema</code> vs <code>_OLD</code>), aborting the script before the critical ESF7 worker was reached.</p>
+            </div>
+        </section>
+
+        <section id="remediation">
+            <h2>3. Applied Remediation</h2>
+            <h3>Standardized Connection Adapter</h3>
+            <p>Standardized <code>pg-boss</code> to utilize the application's existing validated pool:</p>
+            <pre><code><span class="code-comment">// api/index.js</span>
+<span class="code-tag">const</span> boss = <span class="code-tag">new</span> PgBoss({
+  db: {
+    <span class="code-comment">// Fixes Port/DB Alias mismatch by sharing the app pool</span>
+    executeSql: (text, values) => pool.query(text, values)
+  },
+  schedule: <span class="code-string">false</span> <span class="code-comment">// Corrected v12 key</span>
+});</code></pre>
+
+            <h3>Structural Decoupling</h3>
+            <p>Restructured the startup sequence to ensure worker registration is independent of migration state and added lock-flushing commands:</p>
+            <pre><code><span class="code-comment">// Forcibly clear locks from crashed sessions</span>
+<span class="code-tag">await</span> migClient.query(<span class="code-string">'SELECT pg_advisory_unlock_all()'</span>);
+
+<span class="code-comment">// Moved outside the lock check gate</span>
+console.log(<span class="code-string">"💼 [JobQueue] Registering Workers..."</span>);
+<span class="code-tag">await</span> boss.work(<span class="code-string">'esf7-local-scan'</span>, { localConcurrency: <span class="code-string">2</span> }, <span class="code-tag">async</span> (job) => { ... });</code></pre>
+        </section>
+
+        <section id="verification">
+            <h2>4. Final Status: STABLE</h2>
+            <p>Verification confirmed via PM2 standard logs from Staging Instance 63:</p>
+            <div style="background: #eef2f7; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 0.9em;">
+                [JobQueue] Registering Workers...<br>
+                [JobQueue] Registering esf7-local-scan worker...<br>
+                [JobQueue] Worker for ESF7 is now ACTIVE.<br>
+                [Worker] Received Job 8b1477d4-9c9a... Processing.
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 InsightEd Institutional Memory System (Master Librarian Protocol)</p>
+            <p>Status: ARCHIVED | Sensitivity: LEVEL 2 INTERNAL</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -132,10 +132,10 @@ All diagnostic scripts written during the session were also pointed at Azure, ca
 ```bash
 # On production server /var/www/html/InsightEd-Mobile-PWA/.env
 # Before:
-DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insight_pooled?prepare_threshold=0&connection_timeout=30000
+DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insight_pooled?prepare_threshold=0&connection_timeout=30000
 
 # After:
-DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd?ssl=true&sslmode=require
+DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd?ssl=true&sslmode=require
 ```
 
 PM2 was reloaded with `--update-env` semantics via `pm2 reload insighted-backend`.

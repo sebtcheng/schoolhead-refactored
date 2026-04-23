@@ -24,7 +24,7 @@ const LaunchPad = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { checkForUpdates } = useServiceWorker();
-    const [selectedCategory, setSelectedCategory] = useState(null); // 'hrod' | 'infra' | 'recruitment'
+    const [selectedCategory, setSelectedCategory] = useState(null); // 'hrodi' | 'infra' | 'recruitment'
     const [showAuthChoiceModal, setShowAuthChoiceModal] = useState(false);
 
     const userRole = user?.role || localStorage.getItem('userRole');
@@ -62,8 +62,8 @@ const LaunchPad = () => {
 
             const roleMap = {
                 'School Head': '/nodes-dashboard',
-                'Regional Office': '/educational-dashboard',
-                'School Division Office': '/educational-dashboard',
+                'Regional Office': '/division-nexus',
+                'School Division Office': '/division-nexus',
                 'Central Office': '/central-office-nexus',
                 'Admin': '/admin-dashboard',
                 'Human Resource': '/hr-dashboard',
@@ -206,10 +206,10 @@ const LaunchPad = () => {
                         exit="exit"
                         className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl relative z-10"
                     >
-                        {(userGroup === ROLE_GROUPS.EDUCATIONAL_ADMIN || userGroup === ROLE_GROUPS.MANAGEMENT || userGroup === ROLE_GROUPS.SCHOOL || !user) && userRole !== 'Third Level Applicant' && (
+                        {(userGroup === ROLE_GROUPS.EDUCATIONAL_ADMIN || userGroup === ROLE_GROUPS.MANAGEMENT || userGroup === ROLE_GROUPS.SCHOOL || !user) && (
                             <MainPathCard
                                 title="InsightED"
-                                subtitle={user ? "Monitoring Dashboards" : "For HROD"}
+                                subtitle={user ? "Monitoring Dashboards" : "For HRODI"}
                                 description={user
                                     ? "Enter your localized dashboard to monitor enrollment statistics, school performance, and operational reporting."
                                     : "Access management tools for School Heads, Human Resources, and Regional/Division office personnel."
@@ -220,7 +220,7 @@ const LaunchPad = () => {
                                     if (user) {
                                         handleSelectSubPath('direct_access');
                                     } else {
-                                        setSelectedCategory('hrod');
+                                        setSelectedCategory('hrodi');
                                     }
                                 }}
                             />
@@ -241,25 +241,7 @@ const LaunchPad = () => {
                                 }}
                             />
                         )}
-                        {(userGroup === ROLE_GROUPS.MANAGEMENT || userRole === 'Third Level Applicant' || !user) && (
-                            <MainPathCard
-                                title="Recruitment"
-                                subtitle={user ? "Career Progression" : "& Career Path"}
-                                description={user
-                                    ? "Advance your career. Submit your professional profile and apply for promotional third-level positions within the department."
-                                    : "Apply for 3rd level positions and manage your professional profile for DepEd's career progression programs."
-                                }
-                                icon={FiBriefcase}
-                                color="bg-gradient-to-br from-purple-600 to-indigo-800"
-                                onClick={() => {
-                                    if (user) {
-                                        navigate('/official-application');
-                                    } else {
-                                        setSelectedCategory('recruitment');
-                                    }
-                                }}
-                            />
-                        )}
+                        {/* HIDDEN: Recruitment & Career Path — temporarily disabled */}
                     </motion.div>
                 ) : (
                     <motion.div
@@ -279,14 +261,14 @@ const LaunchPad = () => {
                             </button>
                             <div>
                                 <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase italic leading-none">
-                                    {selectedCategory === 'hrod' ? 'HROD Portals' : selectedCategory === 'infra' ? 'Infrastructure Portals' : 'Recruitment Hub'}
+                                    {selectedCategory === 'hrodi' ? 'HRODI Portals' : selectedCategory === 'infra' ? 'Infrastructure Portals' : 'Recruitment Hub'}
                                 </h2>
                                 <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Select your specialized portal</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {selectedCategory === 'hrod' ? (
+                            {selectedCategory === 'hrodi' ? (
                                 <>
                                     <SubRoleCard
                                         title="School Head Portal"
@@ -335,34 +317,7 @@ const LaunchPad = () => {
                                     />
                                 </>
                             ) : (
-                                <>
-                                    <SubRoleCard
-                                        title="Third Level Official"
-                                        subtitle="Career Path Application"
-                                        description="Submit your application for DepEd Third Level Official positions through the secure portal."
-                                        icon={FiBriefcase}
-                                        onClick={() => {
-                                            if (user) {
-                                                navigate('/official-application');
-                                            } else {
-                                                setShowAuthChoiceModal(true);
-                                            }
-                                        }}
-                                    />
-                                    <SubRoleCard
-                                        title="Official Profiling"
-                                        description="View and update your professional profile and service record."
-                                        icon={FiUsers}
-                                        color="bg-slate-200"
-                                        onClick={() => {
-                                            if (user) {
-                                                navigate('/official-profiling');
-                                            } else {
-                                                setShowAuthChoiceModal(true);
-                                            }
-                                        }}
-                                    />
-                                </>
+                                <>{/* HIDDEN: Recruitment sub-options (Third Level Official, Official Profiling) — temporarily disabled */}</>
                             )}
                         </div>
                     </motion.div>

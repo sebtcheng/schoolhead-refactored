@@ -5,7 +5,7 @@ const CONFIG = {
     host: '20.24.58.49',
     port: 22,
     username: 'Administrator1',
-    password: '7v52E69TYgTE', // Synced with staging credentials
+    password: '<REDACTED_SSH_PASS>', // Synced with staging credentials
     readyTimeout: 30000
 };
 

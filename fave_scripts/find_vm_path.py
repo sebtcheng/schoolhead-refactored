@@ -5,7 +5,7 @@ import paramiko, os
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('20.24.58.49', 22, 'Administrator1', '7v52E69TYgTE', timeout=15)
+c.connect('20.24.58.49', 22, 'Administrator1', '<REDACTED_SSH_PASS>', timeout=15)
 
 def run(cmd):
     _, o, e = c.exec_command(cmd, timeout=20)

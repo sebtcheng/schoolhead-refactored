@@ -17,7 +17,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 # ── VM SSH ────────────────────────────────────────────────────────────────────
 SERVER_IP  = "20.24.58.49"
 SSH_USER   = "Administrator1"
-SSH_PASS   = "7v52E69TYgTE"
+SSH_PASS   = "<REDACTED_SSH_PASS>"
 
 # ── Project paths ─────────────────────────────────────────────────────────────
 PROJECT_ROOT = "/var/www/html/InsightEd-Mobile-PWA"
@@ -25,7 +25,7 @@ ENV_PATH     = f"{PROJECT_ROOT}/.env"
 LOCAL_INDEX  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api", "index.js")
 
 # ── Known-good credentials ────────────────────────────────────────────────────
-CORRECT_DB_PASS = "pRZTbQ2T1JD7"
+CORRECT_DB_PASS = "<REDACTED_PGB_PASS>"
 CORRECT_DB_HOST = "stride-posgre-prod-01.postgres.database.azure.com"
 CORRECT_PORT    = "6432"
 CORRECT_DB_NAME = "insightEd"

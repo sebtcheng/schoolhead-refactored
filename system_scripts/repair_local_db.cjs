@@ -3,7 +3,7 @@
 //        node repair_local_db.cjs all            (repair all schools)
 const { Pool } = require('pg');
 const pool = new Pool({
-  connectionString: 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insight_pooled?prepare_threshold=0',
+  connectionString: 'postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insight_pooled?prepare_threshold=0',
   ssl: false
 });
 

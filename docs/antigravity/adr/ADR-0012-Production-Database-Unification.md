@@ -27,7 +27,7 @@ The consequence was severe: all diagnostic and repair scripts written to investi
 
 ```bash
 # Production server: /var/www/html/InsightEd-Mobile-PWA/.env
-DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd?ssl=true&sslmode=require
+DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd?ssl=true&sslmode=require
 ```
 
 pgBouncer remains running on the server but is no longer in the production data path. The `insight_pooled` local database is abandoned.

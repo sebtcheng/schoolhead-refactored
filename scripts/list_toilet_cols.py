@@ -2,7 +2,7 @@
 from sqlalchemy import create_engine, text
 import pandas as pd
 
-DB_CONNECTION_STRING = "postgresql+psycopg2://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd"
+DB_CONNECTION_STRING = "postgresql+psycopg2://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd"
 
 def list_columns():
     engine = create_engine(DB_CONNECTION_STRING)

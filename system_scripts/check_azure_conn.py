@@ -2,7 +2,7 @@ import paramiko
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 def check_azure_conn():
     client = paramiko.SSHClient()
@@ -13,9 +13,9 @@ def check_azure_conn():
 
         # Check active DB connections from the postgres side (through pgbouncer)
         cmds = [
-            "PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT count(*), state FROM pg_stat_activity GROUP BY state;\"",
-            "PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT count(*) AS active_conns, wait_event_type, wait_event FROM pg_stat_activity WHERE datname='insightEd' GROUP BY wait_event_type, wait_event ORDER BY active_conns DESC LIMIT 20;\"",
-            "PGPASSWORD=pRZTbQ2T1JD7 psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT pid, state, query_start, now() - query_start AS duration, left(query, 80) FROM pg_stat_activity WHERE datname='insightEd' AND state != 'idle' ORDER BY duration DESC LIMIT 10;\"",
+            "PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT count(*), state FROM pg_stat_activity GROUP BY state;\"",
+            "PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT count(*) AS active_conns, wait_event_type, wait_event FROM pg_stat_activity WHERE datname='insightEd' GROUP BY wait_event_type, wait_event ORDER BY active_conns DESC LIMIT 20;\"",
+            "PGPASSWORD=<REDACTED_PGB_PASS> psql -h 127.0.0.1 -p 6432 -U Administrator1 -d insightEd -c \"SELECT pid, state, query_start, now() - query_start AS duration, left(query, 80) FROM pg_stat_activity WHERE datname='insightEd' AND state != 'idle' ORDER BY duration DESC LIMIT 10;\"",
         ]
         
         for cmd in cmds:

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 # Use the working connection string identified during research
 load_dotenv('.env')
-DATABASE_URL = os.getenv('DATABASE_URL_DIRECT', 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd')
+DATABASE_URL = os.getenv('DATABASE_URL_DIRECT', 'postgres://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:5432/insightEd')
 
 def sync_regions(dry_run=True):
     print(f"--- {'[DRY RUN] ' if dry_run else ''}User Regional Mapping Sync Started ---")

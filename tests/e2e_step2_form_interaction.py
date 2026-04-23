@@ -63,7 +63,7 @@ def get_db_connection():
             port=5432,
             database="insightEd",
             user="Administrator1",
-            password="pRZTbQ2T1JD7",
+            password="<REDACTED_PGB_PASS>",
             sslmode="require",
         )
         print("[DB] ✅  Connected to PostgreSQL successfully.")

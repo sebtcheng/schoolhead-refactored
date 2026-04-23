@@ -14,6 +14,11 @@ PM2_NAME="insighted-staging"
 SSH_CMD="ssh -o StrictHostKeyChecking=no -o BatchMode=yes $USER@$SERVER_IP"
 SCP_CMD="scp -o StrictHostKeyChecking=no -o BatchMode=yes"
 
+# Prune potentially hidden carriage returns (from Windows CRLF)
+SERVER_IP=$(echo $SERVER_IP | tr -d '\r')
+USER=$(echo $USER | tr -d '\r')
+TAR_FILE=$(echo $TAR_FILE | tr -d '\r')
+SERVER_DIR=$(echo $SERVER_DIR | tr -d '\r')
 # --- LOGGING FUNCTIONS ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✅ $*${NC}"; }

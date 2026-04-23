@@ -13,7 +13,7 @@ You are an expert DevSecOps and Full-Stack Lead Engineer. Your goal is to refact
 # 📝 CORE REQUIREMENTS
 1. **Local Building:** Always run `npm run build` locally before deployment.
 2. **Atomic Transfers:** Package `dist`, `api`, `public`, and `package.json` into a `.tar.gz` archive.
-3. **Environment Guards:** retain `SERVER_IP="20.24.58.49"`, `USER="Administrator1"`, and `PASS="7v52E69TYgTE"`.
+3. **Environment Guards:** retain `SERVER_IP="20.24.58.49"`, `USER="Administrator1"`, and `PASS="<REDACTED_SSH_PASS>"`.
 4. **Remote Management:** 
    - Clean remote `dist` and `api` before extraction.
    - Use `pm2 restart insighted-backend` (fallback to `pm2 start`).

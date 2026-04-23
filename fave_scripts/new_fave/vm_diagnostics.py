@@ -5,7 +5,7 @@ import os
 
 SERVER_IP = "20.24.58.49"
 USER = "Administrator1"
-PASS = "7v52E69TYgTE"
+PASS = "<REDACTED_SSH_PASS>"
 
 metrics = [
     ("CPU Utilization", "cores=$(nproc 2>/dev/null || echo 1); grep 'cpu ' /proc/stat | awk -v c=$cores '{u=($2+$4)*100/($2+$4+$5); printf \"%.1f%% (%.2f Cores / %s Cores)\", u, (u*c)/100, c}'"),

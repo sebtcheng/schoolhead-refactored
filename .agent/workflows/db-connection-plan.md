@@ -63,11 +63,28 @@ Ensure all architectural guardrails from the April 2026 remediation are active.
 8. **Verify Migration Locks**
    Check logs for `🔒 [Cluster] Migration lock (6666666) acquired.` to verify migrations aren't causing startup deadlocks. Ensure that no "SSL not supported" errors are present in the migration logs.
 
-## Phase 4: Resolution & Reporting
+## Phase 4: Data Integrity & Index Collisions
+Prevent service-level crashes caused by unique constraint violations on non-Primary Key columns.
+
+9. **Detect "Key already exists" Loops**
+   Audit backend logs for `23505` unique violation errors. 
+   - **Infrastructure Pattern**: Check for `ON CONFLICT (iern)` logic where `school_id` is also unique.
+   - **Diagnostic Query**:
+     ```sql
+     SELECT table_name, count(*) 
+     FROM information_schema.columns 
+     WHERE column_name = 'school_id' 
+     GROUP BY table_name;
+     ```
+
+10. **Verify Conflict Resolution Targets**
+    Ensure all `INSERT` statements into `ph_schools` and `ph_school_completion` use `ON CONFLICT (school_id)` instead of `ON CONFLICT (iern)` to handle identifier drift and re-registrations.
+
+## Phase 5: Resolution & Reporting
 Finalize the fix and document the incident.
 
-8. **Restabilize Infrastructure**
-   If table bloat is suspected, run relevant parts of `system_scripts/tune_db_infrastructure.sql`.
-   
-9. **Notify User**
-   Provide a concise summary of the terminated PIDs, identified slow queries, and current system health status.
+11. **Restabilize Infrastructure**
+    If table bloat is suspected, run relevant parts of `system_scripts/tune_db_infrastructure.sql`.
+    
+12. **Notify User**
+    Provide a concise summary of the terminated PIDs, identified slow queries, and current system health status.

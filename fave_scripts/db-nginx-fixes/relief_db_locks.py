@@ -57,13 +57,13 @@ import argparse
 # ── SSH / VM ─────────────────────────────────────────────────────────────────
 SERVER_IP  = "20.24.58.49"
 SSH_USER   = "Administrator1"
-SSH_PASS   = "7v52E69TYgTE"
+SSH_PASS   = "<REDACTED_SSH_PASS>"
 
 # ── PgBouncer — the ONLY path we know works ──────────────────────────────────
 PGB_HOST   = "127.0.0.1"
 PGB_PORT   = "6432"
 PGB_USER   = "Administrator1"
-PGB_PASS   = "pRZTbQ2T1JD7"   # same as DB pass (PgBouncer client auth)
+PGB_PASS   = "<REDACTED_PGB_PASS>"   # same as DB pass (PgBouncer client auth)
 PGB_ADMIN  = "pgbouncer"       # PgBouncer admin pseudo-database
 APP_DB     = "insightEd"       # the actual application database
 

@@ -14,7 +14,7 @@
 **Root Cause 1 — Wrong database name in .env (Primary Cause):**
 The VM's `.env` had:
 ```
-DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insight_pooled
+DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@127.0.0.1:6432/insight_pooled
 ```
 The database name was `insight_pooled` instead of `insightEd`. PgBouncer had no entry for `insight_pooled` in its routing config and returned an authentication/connection error on every attempt. This was set during a previous database blockage fix as a temporary local-pooled-mode test and was never reverted to the correct Azure PG entry.
 
@@ -29,7 +29,7 @@ Each restart created `min: 5` pool connection attempts (all failing with auth er
 **Fix 1 — Patch .env DATABASE_URL:**
 Corrected on VM via `fix_db_credentials.py` (fave_scripts):
 ```
-DATABASE_URL=postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd
+DATABASE_URL=postgres://Administrator1:<REDACTED_PGB_PASS>@stride-posgre-prod-01.postgres.database.azure.com:6432/insightEd
 ```
 Key differences: `127.0.0.1` → `stride-posgre-prod-01.postgres.database.azure.com`, database `insight_pooled` → `insightEd`.
 

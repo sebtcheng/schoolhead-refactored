@@ -7,7 +7,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 DB_HOST = os.getenv("DATABASE_HOST", "stride-posgre-prod-01.postgres.database.azure.com")
 DB_NAME = os.getenv("DATABASE_NAME", "insightEd")
 DB_USER = os.getenv("DATABASE_USER", "Administrator1")
-DB_PASS = os.getenv("DATABASE_PASS", "pRZTbQ2T1JD7")
+DB_PASS = os.getenv("DATABASE_PASS", "<REDACTED_PGB_PASS>")
 DB_PORT = os.getenv("DATABASE_PORT", "5432")
 
 def relief_db_locks():
