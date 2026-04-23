@@ -5,6 +5,26 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --engineer-navy: #003366;
+  --engineer-slate: #1e293b;
+  --engineer-orange: #f97316;
+  --engineer-yellow: #fbbf24;
+  --engineer-dark: #0f172a;
+  --engineer-zinc: #71717a;
+  --engineer-border: #e2e8f0;
+}
+
+.dark {
+  --engineer-navy: #1e40af;
+  --engineer-slate: #0f172a;
+  --engineer-orange: #fb923c;
+  --engineer-yellow: #fcd34d;
+  --engineer-dark: #020617;
+  --engineer-zinc: #3f3f46;
+  --engineer-border: #1e293b;
+}
+
 @keyframes popUp {
   0% {
     transform: translateY(20px) scale(0.9);

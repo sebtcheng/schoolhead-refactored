@@ -40,7 +40,7 @@ const Unit10Verification = ({ targetSchoolId }) => {
 
                 setStats({
                     totalXP: xp,
-                    completionRate: Math.round((completed / 8) * 100),
+                    completionRate: Math.round((completed / 10) * 100),
                     riskIndex: locData.success ? (locData.data?.risk_index || 0) : 0,
                     lastUpdated: progData.progress?.timestamps?.unit9 || progData.progress?.timestamps?.unit1 || new Date(),
                     status: 'SUBMITTED' // Default

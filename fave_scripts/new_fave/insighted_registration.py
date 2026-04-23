@@ -60,7 +60,7 @@ def main():
             FROM legacy_counts l
             LEFT JOIN migrated_counts m ON l.region_name = m.region_name
             LEFT JOIN completed_counts c ON l.region_name = c.region_name
-            ORDER BY reg_percentage DESC, l.region_name ASC;
+            ORDER BY reg_percentage DESC, comp_percentage DESC, l.region_name ASC;
             """
             cur.execute(query)
             rows = cur.fetchall()

@@ -69,7 +69,6 @@ const BottomNav = ({ userRole: propRole }) => {
         ],
 
         'Division Engineer': [
-            { label: 'Home', path: '/engineer-dashboard', icon: TbHomeEdit },
             { label: 'Projects', path: '/engineer-projects', icon: TbClipboardList },
             { label: 'Guide', path: '/guide/division-engineer', icon: FiBookOpen },
             { label: 'Settings', path: '/profile', icon: FiSettings },
@@ -124,7 +123,7 @@ const BottomNav = ({ userRole: propRole }) => {
         'EFD Engineer': [
             { label: 'Home', path: '/efd-dashboard', icon: TbHomeEdit },
             { label: 'Projects', path: '/efd-monitoring', icon: TbClipboardList },
-            { label: 'Mother MOA', path: '/efd-mother-moa', icon: TbFileCheck },
+            { label: '2026 Projects', path: '/efd-mother-moa', icon: TbFileCheck },
             // { label: 'Monitoring', path: '/efd-newcon-monitoring', icon: TbChartBar },
             { label: 'Settings', path: '/profile', icon: FiSettings },
         ],

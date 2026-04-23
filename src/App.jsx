@@ -51,7 +51,7 @@ import PasscodeSetupPrompt from './components/PasscodeSetupPrompt'; // <--- IMPO
 import EFDHome from './modules/EFDHome';
 import EFDMonitoring from './modules/EFDMonitoring';
 import EFDNewconMonitoring from './modules/EFDNewconMonitoring';
-import EFDMotherMoa from './modules/EFDMotherMoa';
+import EFDProjects2026 from './modules/EFDProjects2026';
 import BEFFDashboard from './modules/BEFFDashboard';
 import ChatModule from './modules/ChatModule'; // <--- RESTORED THIS
 import EducationalDashboard from './modules/EducationalDashboard';
@@ -171,9 +171,9 @@ const AnimatedRoutes = () => {
 
 
 
-        {/* Dashboards */}
-        <Route path="/engineer-dashboard" element={<EngineerDashboard />} />
-        <Route path="/regional-engineer-dashboard" element={<ProtectedRoute allowedRoles={['Division Engineer', 'Regional Engineer', 'Architect', 'DepEd Engineer', 'Super User', 'EFD Engineer', 'EFD']}><RegionalEngineerDashboard /></ProtectedRoute>} />
+        {/* Dashboards - Redirecting Engineer Home to Projects per user request */}
+        <Route path="/engineer-dashboard" element={<Navigate to="/engineer-projects" replace />} />
+        <Route path="/regional-engineer-dashboard" element={<Navigate to="/engineer-projects" replace />} />
         <Route path="/regional-engineer-lookup" element={<ProtectedRoute allowedRoles={['Regional Engineer', 'Super User']}><RegionalEngineerLookup /></ProtectedRoute>} />
         <Route path="/non-deped-dashboard" element={<NonDepEdDashboard />} />
         {/* <Route path="/lgu" element={<LguDashboard />} /> */}
@@ -239,7 +239,7 @@ const AnimatedRoutes = () => {
       <Route path="/efd-monitoring" element={<EFDMonitoring />} />
       <Route path="/beff-dashboard" element={<BEFFDashboard />} />
       <Route path="/efd-newcon-monitoring" element={<EFDNewconMonitoring />} />
-      <Route path="/efd-mother-moa" element={<EFDMotherMoa />} />
+      <Route path="/efd-mother-moa" element={<EFDProjects2026 />} />
       <Route path="/school-management" element={<SchoolManagement />} />
       <Route path="/user-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><UserManagement /></ProtectedRoute>} />
       <Route path="/location-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><LocationManagement /></ProtectedRoute>} />

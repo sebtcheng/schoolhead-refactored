@@ -2102,8 +2102,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                                 <div>
                                                                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Dimensions</label>
                                                                                     <select
-                                                                                        value={room.dimensions}
-                                                                                        onChange={(e) => setRoomsData(roomsData.map(r => r.id === room.id ? { ...r, dimensions: e.target.value } : r))}
+                                                                                        value={room.dimension}
+                                                                                        onChange={(e) => setRoomsData(roomsData.map(r => r.id === room.id ? { ...r, dimension: e.target.value } : r))}
                                                                                         className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-2 font-bold text-gray-700 outline-none focus:border-indigo-500"
                                                                                     >
                                                                                         <option value="Less than 7x9">Less than 7x9</option>

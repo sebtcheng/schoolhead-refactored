@@ -461,7 +461,7 @@ const FilterDrawer = ({
         setSelectedProvince('');
         setSelectedMunicipality('');
         setSelectedDistrict('');
-        setSelectedYears([]);
+        setSelectedYears(["2022", "2023", "2024", "2025", "2026"]);
         setSelectedBatchFunds([]);
         setAccRange([0, 100]);
         setMinPhotos(0);

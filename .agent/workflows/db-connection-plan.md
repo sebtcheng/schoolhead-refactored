@@ -17,7 +17,8 @@ Perform these actions immediately to shed load and restore basic service.
    ```
 
 2. **Verify PgBouncer Health**
-   Check the current client and pool counts in PgBouncer.
+   - Check the current client and pool counts in PgBouncer.
+   - **Infrastructure Sizing Check**: Ensure PgBouncer `pool_size` in `pgbouncer.ini` is sufficient (e.g., 500+) relative to DB `max_connections` (e.g., 3000+). Bottlenecks here cause "Connection terminated unexpectedly" on high-latency clients.
    ```powershell
    # Connect to PgBouncer admin console (e.g., psql -p 6432 -U pgbouncer pgbouncer)
    # Run: SHOW POOLS; SHOW CLIENTS;
@@ -50,10 +51,11 @@ Ensure all architectural guardrails from the April 2026 remediation are active.
    Ensure `api/index.js` is utilizing:
    - `connectionTimeoutMillis: 10000` (Harden against Azure VM/Proxy latency)
    - `maxUses: 7500`
-   - `ssl: false` for Azure Proxy IP `20.24.58.49` (Handshake failure if enabled, as the proxy handles SSL terminating downstream).
+   - `ssl: false` for Azure Proxy IP `20.24.58.49` (Handshake failure if enabled).
+   - **Local Optimization**: `max: 20` for development machines to prevent proxy saturation.
 
 6. **Verify Auth Recovery Logic**
-   Confirm that the `migrate-login` endpoint includes an automatic retry for "Connection terminated unexpectedly" errors.
+   Confirm that critical authentication endpoints (**`migrate-login`**, **`pin-login`**, and **`/api/auth/me`**) include an automatic retry for "Connection terminated unexpectedly" errors.
 
 7. **Audit Binary Streaming**
    Confirm that high-traffic binary routes (e.g., `/api/asset/:id`) are using `pg-query-stream` rather than buffering full blobs in RAM.

@@ -43,10 +43,10 @@ const FAQ_DATA = [
 // --- HELPERS (Moved outside to prevent re-initialization and infinite loops) ---
 const getDashboardPath = (role) => {
     const roleMap = {
-        'DepEd Engineer': '/engineer-dashboard',
-        'Division Engineer': '/engineer-dashboard',
+        'DepEd Engineer': '/engineer-projects',
+        'Division Engineer': '/engineer-projects',
         'Non-DepEd Engineer': '/non-deped-dashboard',
-        'Engineer': '/engineer-dashboard',
+        'Engineer': '/engineer-projects',
         'Local Government Unit': '/lgu-dashboard',
         'School Head': '/my-activity',
         'Human Resource': '/hr-dashboard',

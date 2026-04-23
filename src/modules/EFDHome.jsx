@@ -12,6 +12,22 @@ import { createPortal } from 'react-dom';
 import ProjectLogModal from '../components/ProjectLogModal';
 import FilterDrawer from '../components/FilterDrawer';
 import { FiActivity } from 'react-icons/fi';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default Leaflet icon
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: icon,
+    shadowUrl: iconShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 const MultiSelectDropdown = ({ label, options, selected, onChange, icon: Icon }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -106,6 +122,12 @@ const EFDHome = () => {
     const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 15, totalPages: 1 });
     const fileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
+
+    // Map & School Modal State
+    const [selectedSchool, setSelectedSchool] = useState(null);
+    const [isSchoolModalOpen, setIsSchoolModalOpen] = useState(false);
+    const [schoolProjects, setSchoolProjects] = useState([]);
+
     
     useEffect(() => {
         sessionStorage.setItem('efd_activeTab', activeTab);
@@ -187,7 +209,7 @@ const EFDHome = () => {
                 addToSearchHistory(localSearchQuery);
             }
             setCurrentPage(1); // reset pagination on new search
-        }, 800);
+        }, 3000);
         return () => clearTimeout(timer);
     }, [localSearchQuery]);
 
@@ -602,6 +624,33 @@ const EFDHome = () => {
         });
     }, [projects, searchQuery, selectedRegions, selectedDivision, selectedCategories, accomplishmentRange, minPhotos]);
 
+    const schoolMarkers = useMemo(() => {
+        const schools = {};
+        filteredProjects.forEach(p => {
+            const lat = parseFloat(p.latitude);
+            const lng = parseFloat(p.longitude);
+            if (lat && lng && !isNaN(lat) && !isNaN(lng) && p.schoolId) {
+                if (!schools[p.schoolId]) {
+                    schools[p.schoolId] = {
+                        id: p.schoolId,
+                        name: p.schoolName || p.school_name,
+                        lat: lat,
+                        lng: lng,
+                        projects: []
+                    };
+                }
+                schools[p.schoolId].projects.push(p);
+            }
+        });
+        return Object.values(schools);
+    }, [filteredProjects]);
+
+    const handleSchoolClick = (school) => {
+        setSelectedSchool(school);
+        setSchoolProjects(school.projects);
+        setIsSchoolModalOpen(true);
+    };
+
     const totalABC = useMemo(() => {
         // Prioritize aggregate budget from summary API, fallback to 0
         return summaryData?.totalStats?.totalABC || 0;
@@ -833,6 +882,73 @@ const EFDHome = () => {
         return filters;
     }, [selectedRegions, selectedDivision, selectedProvince, selectedMunicipality, selectedDistrict, selectedCategories, selectedYears, selectedBatches, searchQuery]);
 
+    const SchoolProjectsModal = () => {
+        if (!isSchoolModalOpen || !selectedSchool) return null;
+        
+        return createPortal(
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setIsSchoolModalOpen(false)}></div>
+                <div className="relative bg-slate-50 w-full max-w-4xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                    <div className="p-8 border-b border-slate-200 bg-white flex justify-between items-start">
+                        <div>
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-1">School Infrastructure</p>
+                            <h2 className="text-2xl font-black text-slate-800 uppercase leading-tight">{selectedSchool.name}</h2>
+                            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">School ID: {selectedSchool.id} • {schoolProjects.length} Projects</p>
+                        </div>
+                        <button onClick={() => setIsSchoolModalOpen(false)} className="p-3 bg-slate-100 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-2xl transition-all active:scale-95">
+                            <FiX size={24} />
+                        </button>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {schoolProjects.map((p) => {
+                                const progress = parseInt(p.accomplishmentPercentage || 0);
+                                return (
+                                    <div key={p.id} onClick={() => { setIsSchoolModalOpen(false); handleNavigateToProject(p.id); }} className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all group cursor-pointer relative overflow-hidden">
+                                        <div className="flex items-center justify-between gap-4 mb-4">
+                                            <span className="text-[8px] font-black uppercase px-2 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100 tracking-widest">
+                                                {p.projectCategory || 'General'}
+                                            </span>
+                                            <div className="bg-blue-600 text-white rounded-xl px-2.5 py-1.5 text-[10px] font-black shadow-lg shadow-blue-100">
+                                                {progress}%
+                                            </div>
+                                        </div>
+                                        <h3 className="text-sm font-black text-slate-800 leading-tight group-hover:text-blue-600 transition-colors uppercase mb-4 line-clamp-2">
+                                            {p.projectName}
+                                        </h3>
+                                        <div className="flex items-center gap-3 text-slate-400">
+                                            <LuCalendar size={14} />
+                                            <span className="text-[10px] font-bold uppercase tracking-widest">FY {p.fundingYear}</span>
+                                        </div>
+                                        <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                                            <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${p.status === 'Completed' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                                {p.status}
+                                            </span>
+                                            <FiChevronRight size={16} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    };
+
+    const RobustMapCenter = ({ schoolMarkers }) => {
+        const map = useMap();
+        useEffect(() => {
+            if (schoolMarkers.length > 0) {
+                const bounds = L.latLngBounds(schoolMarkers.map(m => [m.lat, m.lng]));
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }, [schoolMarkers, map]);
+        return null;
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -1005,316 +1121,220 @@ const EFDHome = () => {
                 <div className="px-5">
                     {activeTab === 'summary' ? (
                         <div className="space-y-6 animate-in fade-in duration-700 pb-10">
-                            {/* Analytics Drilldown Layout */}
-                            <div className="max-w-7xl mx-auto w-full px-0 space-y-6">
-                                <div className="flex flex-col lg:flex-row gap-6">
-                                    {/* Left Column Container */}
-                                    <div className="w-full lg:w-96 shrink-0 flex flex-col gap-6">
-                                        {/* Pie Chart */}
-                                        <div className="bg-white px-5 py-8 rounded-[2.5rem] shadow-sm border border-slate-100 min-h-[500px] flex flex-col">
-                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                            <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>
-                                            National Category Distribution
+                            {/* Top Side: Regional/Division Analysis Bar Chart */}
+                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                            <FiTrendingUp className="text-blue-600" />
+                                            {selectedRegions.length === 1 ? `Division Analysis: ${selectedRegions[0]}` : 'Regional Project Distribution'}
                                         </h3>
-                                        <div className="flex-1 w-full relative">
-                                            <ResponsiveContainer width="100%" height={260}>
-                                                <PieChart>
-                                                    <Pie
-                                                        data={pieChartData}
-                                                        cx="50%"
-                                                        cy="50%"
-                                                        innerRadius={40}
-                                                        outerRadius={120}
-                                                        paddingAngle={5}
-                                                        dataKey="value"
-                                                        labelLine={false}
-                                                        label={renderCustomizedLabel}
-                                                        stroke="none"
-                                                    >
-                                                        {pieChartData.map((entry, index) => (
-                                                            <Cell 
-                                                                key={`cell-${index}`} 
-                                                                fill={COLORS[index % COLORS.length]}
-                                                                className="hover:opacity-80 transition-opacity cursor-pointer outline-none"
-                                                            />
-                                                        ))}
-                                                    </Pie>
-                                                    <Tooltip 
-                                                        contentStyle={{ 
-                                                            borderRadius: '16px', 
-                                                            border: 'none', 
-                                                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                                                            fontSize: '11px',
-                                                            fontWeight: 'bold'
-                                                        }} 
-                                                    />
-                                                </PieChart>
-                                            </ResponsiveContainer>
-                                            
-                                            <div className="mt-6 space-y-2 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar border-t border-slate-50 pt-4 px-1">
-                                                {pieChartData.filter(e => e.value > 0).map((entry) => (
-                                                    <div key={entry.name} className="flex items-start justify-between text-[9px] font-black uppercase tracking-wider text-slate-600 hover:bg-slate-50 p-1.5 rounded-lg transition-colors gap-2">
-                                                        <div className="flex items-start gap-2 min-w-0 flex-1">
-                                                            <div className="w-2 h-2 rounded-full shadow-sm shrink-0 mt-1" style={{ backgroundColor: categoryColors[entry.name] || '#94a3b8' }}></div>
-                                                            <span className="break-words leading-tight whitespace-normal">{entry.name}</span>
-                                                        </div>
-                                                        <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md font-black min-w-[30px] text-center shrink-0">{entry.value}</span>
-                                                    </div>
-                                                ))}
-                                                {pieChartData.every(e => e.value === 0) && (
-                                                    <div className="text-center py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">No data available</div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        </div>
-                                        
-                                        {/* Funding Year Histogram */}
-                                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col">
-                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                                                <span className="w-2 h-2 bg-blue-600 rounded-full shadow-[0_0_8px_rgba(37,99,235,0.4)]"></span>
-                                                Funding Year Distribution
-                                            </h3>
-                                            <div className="w-full max-h-[350px] overflow-y-auto no-scrollbar pr-1">
-                                                <div style={{ height: Math.max(200, (yearData?.length || 0) * 45) + 'px' }} className="w-full">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <BarChart
-                                                            data={yearData}
-                                                            layout="vertical"
-                                                            margin={{ top: 5, right: 50, left: 10, bottom: 5 }}
-                                                        >
-                                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                                            <YAxis
-                                                                dataKey="name"
-                                                                type="category"
-                                                                tick={{ fontSize: 10, fontWeight: 800, fill: '#64748b' }}
-                                                                axisLine={false}
-                                                                tickLine={false}
-                                                                width={45}
-                                                            />
-                                                            <XAxis type="number" hide domain={[0, 'auto']} />
-                                                            <Tooltip
-                                                                cursor={{ fill: '#f8fafc' }}
-                                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                                            />
-                                                            <Bar dataKey="value" fill="#004A99" radius={[0, 6, 6, 0]} barSize={22}>
-                                                                <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: '900', fill: '#004A99' }} />
-                                                            </Bar>
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                                            {selectedRegions.length === 1 ? 'Breakdown of projects per division' : 'National overview of project counts by region'}
+                                        </p>
                                     </div>
-
-                                    {/* Main Area: Consolidated Drilldown Chart & Building Standards */}
-                                    <div className="flex-1 space-y-6 flex flex-col">
-                                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col">
-                                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                                                <div>
-                                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                                                        <FiMapPin className="text-blue-600" />
-                                                        {selectedRegions.length === 1 ? `Division Analysis for ${selectedRegions[0]}` : 'Regional Analysis'}
-                                                    </h3>
-                                                    <p className="text-[9px] font-bold text-slate-400 mt-1.5 uppercase tracking-widest">
-                                                        {selectedRegions.length === 1 ? 'Viewing breakdown per division' : 'National overview by region'}
-                                                    </p>
-                                                </div>
-                                                
-                                                <div className="flex bg-slate-100 p-1.5 rounded-2xl w-full sm:w-auto self-end">
-                                                    <button
-                                                        onClick={() => setChartMetric('count')}
-                                                        className={`flex-1 sm:px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${chartMetric === 'count' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-                                                    >
-                                                        Count
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setChartMetric('abc')}
-                                                        className={`flex-1 sm:px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${chartMetric === 'abc' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-                                                    >
-                                                        Allocation
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {selectedRegions.length === 1 && (
-                                                <button 
-                                                    onClick={() => {setSelectedRegions([]); setSelectedDivision('');}}
-                                                    className="mb-6 self-start flex items-center gap-2 text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-4 py-2.5 rounded-2xl hover:bg-blue-100 transition-all group active:scale-95"
-                                                >
-                                                    <FiChevronRight className="rotate-180 group-hover:-translate-x-1 transition-transform" /> 
-                                                    <span>Back to Regions</span>
-                                                </button>
-                                            )}
-
-                                            <div className="h-[450px] w-full animate-in fade-in slide-in-from-right-4 duration-500" key={selectedRegions.join(',') + chartMetric}>
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart
-                                                        data={selectedRegions.length === 1 ? divisionData.slice(0, 50) : regionalData.slice(0, 30)}
-                                                        layout="vertical"
-                                                        margin={{ right: 90, left: 10, top: 10, bottom: 10 }}
-                                                        onClick={(data) => {
-                                                            if (data && data.activeLabel) {
-                                                                if (selectedRegions.length === 0) {
-                                                                    setSelectedRegions([data.activeLabel]);
-                                                                    setSelectedDivision('');
-                                                                } else if (selectedRegions.length === 1) {
-                                                                    setSelectedDivision(data.activeLabel);
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                                        <XAxis type="number" hide />
-                                                        <YAxis
-                                                            dataKey="name"
-                                                            type="category"
-                                                            tick={{ fontSize: 9, fontWeight: 800, fill: '#64748b' }}
-                                                            width={selectedRegions.length === 1 ? 140 : 90}
-                                                            axisLine={false}
-                                                            tickLine={false}
-                                                        />
-                                                        <Tooltip
-                                                            cursor={{ fill: '#f8fafc' }}
-                                                            formatter={(val, name) => {
-                                                                const formattedVal = chartMetric === 'abc' ? formatLargeCurrency(val) : `${val} Projects`;
-                                                                return [formattedVal, name];
-                                                            }}
-                                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                                                        />
-                                                        {allCategories.map((cat) => (
-                                                            <Bar 
-                                                                key={cat}
-                                                                dataKey={cat} 
-                                                                stackId="a" 
-                                                                fill={categoryColors[cat] || '#94a3b8'} 
-                                                                barSize={28}
-                                                                className="hover:opacity-80 transition-opacity cursor-pointer"
-                                                            />
-                                                        ))}
-                                                        
-                                                        {/* Transparent anchor for the total label at the end of stack */}
-                                                        <Bar dataKey="labelAnchor" stackId="a" isAnimationActive={false}>
-                                                            <LabelList 
-                                                                dataKey="totalValue" 
-                                                                position="right"
-                                                                offset={12}
-                                                                formatter={(val) => chartMetric === 'abc' ? formatLargeCurrency(val) : val}
-                                                                style={{ fontSize: '10px', fontWeight: '900', fill: '#475569', pointerEvents: 'none' }} 
-                                                            />
-                                                        </Bar>
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Building Standards Chart (Moved) */}
-                                        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 min-w-0 overflow-hidden">
-                                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8 w-full">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                                                        <FiLayers size={24} />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                                                            Building Standards 
-                                                        </h3>
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                                            {drillDownLevel === 'storey' ? 'Select storey level to explore classrooms' : `Classroom prototypes for ${selectedStorey} Storey buildings`}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                                                        <button 
-                                                            onClick={() => { setDataMode('masterlist'); setDrillDownLevel('storey'); setSelectedStorey(null); }}
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dataMode === 'masterlist' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                        >
-                                                            Masterlist
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => { setDataMode('2026'); setDrillDownLevel('storey'); setSelectedStorey(null); }}
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dataMode === '2026' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                                        >
-                                                            2026
-                                                        </button>
-                                                    </div>
-
-                                                    <select 
-                                                        className="bg-white border-2 border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-400 transition-all cursor-pointer hover:border-indigo-200 shadow-sm"
-                                                        value={selectedStorey || ''}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value ? Number(e.target.value) : null;
-                                                            setSelectedStorey(val);
-                                                            setDrillDownLevel(val ? 'prototype' : 'storey');
-                                                        }}
-                                                    >
-                                                        <option value="">All Storeys</option>
-                                                        {storeyAggregated.map(s => <option key={s.storey} value={s.storey}>{s.storey} Storey</option>)}
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div className="h-[370px] w-full mt-4">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <BarChart
-                                                        layout="vertical"
-                                                        data={activeChartData}
-                                                        margin={{ top: 5, right: 20, left: -25, bottom: 5 }}
-                                                    >
-                                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                                                        <XAxis type="number" hide />
-                                                        <YAxis 
-                                                            dataKey="name" 
-                                                            type="category" 
-                                                            axisLine={false} 
-                                                            tickLine={false} 
-                                                            tick={{ fill: '#475569', fontSize: 9, fontWeight: 900 }} 
-                                                            width={65}
-                                                        />
-                                                        <Tooltip 
-                                                            cursor={{ fill: '#f8fafc' }}
-                                                            contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
-                                                            labelStyle={{ fontWeight: 900, color: '#1e293b', marginBottom: '4px' }}
-                                                        />
-                                                        <Bar 
-                                                            dataKey="count" 
-                                                            radius={[0, 8, 8, 0]} 
-                                                            barSize={32} 
-                                                            className="cursor-pointer"
-                                                            onClick={(payload) => {
-                                                                if (payload) {
-                                                                    if (drillDownLevel === 'storey') {
-                                                                        setSelectedStorey(payload.storey);
-                                                                        setDrillDownLevel('prototype');
-                                                                    } else if (drillDownLevel === 'prototype') {
-                                                                        // Set filters for the list view to show relevant projects
-                                                                        setSelectedCategories(['New Construction']);
-                                                                        // Use a search query that typically matches the naming convention
-                                                                        setSearchQuery(`${payload.storey} Storey ${payload.classrooms} Classroom`);
-                                                                        setActiveTab('list');
-                                                                    }
-                                                                }
-                                                            }}
-                                                        >
-                                                            {activeChartData.map((entry, index) => (
-                                                                <Cell 
-                                                                    key={`cell-${index}`} 
-                                                                    fill={drillDownLevel === 'storey' ? '#818cf8' : '#c7d2fe'} 
-                                                                    className="transition-all duration-300 hover:opacity-80"
-                                                                />
-                                                            ))}
-                                                            <LabelList dataKey="count" position="right" offset={10} style={{ fill: '#6366f1', fontSize: 11, fontWeight: 900 }} />
-                                                        </Bar>
-                                                    </BarChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                        </div>
+                                    
+                                    <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                                        <button
+                                            onClick={() => setChartMetric('count')}
+                                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${chartMetric === 'count' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Count
+                                        </button>
+                                        <button
+                                            onClick={() => setChartMetric('abc')}
+                                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${chartMetric === 'abc' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            Allocation
+                                        </button>
                                     </div>
                                 </div>
 
+                                {selectedRegions.length === 1 && (
+                                    <button 
+                                        onClick={() => {setSelectedRegions([]); setSelectedDivision('');}}
+                                        className="mb-6 self-start flex items-center gap-2 text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-4 py-2.5 rounded-2xl hover:bg-blue-100 transition-all group active:scale-95 border border-blue-100"
+                                    >
+                                        <FiChevronRight className="rotate-180 group-hover:-translate-x-1 transition-transform" /> 
+                                        <span>Back to National Overview</span>
+                                    </button>
+                                )}
 
+                                <div className="h-[350px] w-full" key={selectedRegions.join(',') + chartMetric}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={selectedRegions.length === 1 ? divisionData.slice(0, 50) : regionalData.slice(0, 30)}
+                                            layout="vertical"
+                                            margin={{ right: 100, left: 10, top: 0, bottom: 0 }}
+                                            onClick={(data) => {
+                                                if (data && data.activeLabel) {
+                                                    if (selectedRegions.length === 0) {
+                                                        setSelectedRegions([data.activeLabel]);
+                                                        setSelectedDivision('');
+                                                    } else if (selectedRegions.length === 1) {
+                                                        setSelectedDivision(data.activeLabel);
+                                                    }
+                                                }
+                                            }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                            <XAxis type="number" hide />
+                                            <YAxis
+                                                dataKey="name"
+                                                type="category"
+                                                tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }}
+                                                width={selectedRegions.length === 1 ? 150 : 100}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            <Tooltip
+                                                cursor={{ fill: '#f8fafc' }}
+                                                formatter={(val, name) => {
+                                                    if (name === 'totalValue' || name === 'labelAnchor') return [null, null];
+                                                    const formattedVal = chartMetric === 'abc' ? formatLargeCurrency(val) : `${val} Projects`;
+                                                    return [formattedVal, name];
+                                                }}
+                                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                                            />
+                                            {allCategories.map((cat) => (
+                                                <Bar 
+                                                    key={cat}
+                                                    dataKey={cat} 
+                                                    stackId="a" 
+                                                    fill={categoryColors[cat] || '#94a3b8'} 
+                                                    barSize={24}
+                                                    className="hover:opacity-80 transition-opacity cursor-pointer"
+                                                    radius={[0, 0, 0, 0]}
+                                                />
+                                            ))}
+                                            
+                                            <Bar dataKey="labelAnchor" stackId="a" isAnimationActive={false}>
+                                                <LabelList 
+                                                    dataKey="totalValue" 
+                                                    position="right"
+                                                    offset={12}
+                                                    formatter={(val) => chartMetric === 'abc' ? formatLargeCurrency(val) : val}
+                                                    style={{ fontSize: '10px', fontWeight: '900', fill: '#475569', pointerEvents: 'none' }} 
+                                                />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
 
+                            {/* Bottom Side: Split List & Map */}
+                            <div className="flex flex-col lg:flex-row gap-6 min-h-[600px]">
+                                {/* Left Side: Tabular List of Projects */}
+                                <div className="w-full lg:w-2/5 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                            <FiList className="text-blue-500" />
+                                            Filtered Projects ({filteredProjects.length})
+                                        </h3>
+                                        <button 
+                                            onClick={() => setActiveTab('list')}
+                                            className="text-[9px] font-black text-blue-600 uppercase tracking-widest hover:underline"
+                                        >
+                                            View Detailed List
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 overflow-auto custom-scrollbar">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="sticky top-0 bg-white z-10">
+                                                <tr className="border-b border-slate-50">
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Project Name</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">School ID</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Year</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {filteredProjects.slice(0, 50).map((p) => (
+                                                    <tr 
+                                                        key={p.id} 
+                                                        onClick={() => handleNavigateToProject(p.id)}
+                                                        className="hover:bg-blue-50 transition-colors cursor-pointer group"
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            <p className="text-[11px] font-bold text-slate-700 line-clamp-1 group-hover:text-blue-700">{p.projectName}</p>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <p className="text-[10px] font-medium text-slate-400">{p.schoolId}</p>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <span className="text-[10px] font-black text-slate-500">FY {p.fundingYear}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {filteredProjects.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="3" className="px-4 py-20 text-center text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+                                                            No projects found in this area
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {filteredProjects.length > 50 && (
+                                                    <tr>
+                                                        <td colSpan="3" className="px-4 py-4 text-center bg-slate-50">
+                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Showing first 50 results. Use filters to narrow down.</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Map */}
+                                <div className="flex-1 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden relative min-h-[500px]">
+                                    <div className="absolute top-4 left-4 z-[500] pointer-events-none">
+                                        <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl border border-white/40">
+                                            <p className="text-[10px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                                <FiMapPin className="text-red-500" />
+                                                Active Markers: {schoolMarkers.length}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <MapContainer
+                                        center={[12.8797, 121.7740]}
+                                        zoom={6}
+                                        scrollWheelZoom={true}
+                                        style={{ height: '100%', width: '100%' }}
+                                        className="z-0"
+                                    >
+                                        <TileLayer
+                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        />
+                                        <RobustMapCenter schoolMarkers={schoolMarkers} />
+                                        {schoolMarkers.map((school) => (
+                                            <Marker 
+                                                key={school.id} 
+                                                position={[school.lat, school.lng]}
+                                                eventHandlers={{
+                                                    click: () => handleSchoolClick(school)
+                                                }}
+                                            >
+                                                <Popup className="custom-popup">
+                                                    <div className="p-2">
+                                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-tighter mb-1">{school.id}</p>
+                                                        <h4 className="text-xs font-black text-slate-800 uppercase leading-tight mb-2">{school.name}</h4>
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded-lg border border-blue-100">
+                                                                {school.projects.length} Projects
+                                                            </span>
+                                                        </div>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleSchoolClick(school); }}
+                                                            className="w-full bg-blue-600 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
+                                                        >
+                                                            View Projects
+                                                        </button>
+                                                    </div>
+                                                </Popup>
+                                            </Marker>
+                                        ))}
+                                    </MapContainer>
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -1845,6 +1865,7 @@ const EFDHome = () => {
             {/* Hidden Inputs for Photos */}
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
             <input type="file" ref={cameraInputRef} onChange={handleFileUpload} accept="image/*" capture="environment" className="hidden" />
+            <SchoolProjectsModal />
             <ProjectLogModal 
                 isOpen={isLogOpen} 
                 onClose={() => setIsLogOpen(false)} 

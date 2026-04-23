@@ -119,7 +119,7 @@ const EFDMonitoring = () => {
                 }
                 setCurrentPage(1);
             }
-        }, 800);
+        }, 3000);
         return () => clearTimeout(timer);
     }, [localSearchQuery, searchQuery, setSearchQuery, addToSearchHistory]);
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { FiSearch, FiPlus, FiFilter, FiCamera, FiImage, FiSettings, FiChevronRight, FiEdit, FiEye, FiX } from "react-icons/fi";
+import { FiSearch, FiPlus, FiFilter, FiCamera, FiImage, FiSettings, FiChevronRight, FiEdit, FiEye, FiX, FiActivity } from "react-icons/fi";
 import { LuClipboardList, LuCalendar, LuDollarSign, LuActivity, LuFileText, LuX } from "react-icons/lu";
 
 import BottomNav from "./BottomNav";
@@ -91,18 +91,21 @@ const formatDateTime = (dateString) => {
 
 // --- SUB-COMPONENTS ---
 
-const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariation, onRevert, isLoading, searchQuery, readOnly, handleStatusChange, userRole }) => {
+const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariation, onRevert, isLoading, searchQuery, readOnly, handleStatusChange, userRole, activeFilter }) => {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 animate-pulse">
-            <div className="h-4 w-3/4 bg-slate-100 dark:bg-slate-700 rounded-lg mb-4"></div>
-            <div className="h-6 w-1/2 bg-slate-200 dark:bg-slate-600 rounded-lg mb-6"></div>
-            <div className="space-y-3">
-              <div className="h-3 w-full bg-slate-50 dark:bg-slate-700/50 rounded-lg"></div>
-              <div className="h-3 w-5/6 bg-slate-50 dark:bg-slate-700/50 rounded-lg"></div>
+          <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border-l-4 border-slate-200 dark:border-slate-700 animate-pulse">
+            <div className="flex justify-between mb-4">
+              <div className="h-4 w-1/3 bg-slate-100 dark:bg-slate-700 rounded"></div>
+              <div className="h-6 w-12 bg-slate-200 dark:bg-slate-600 rounded-lg"></div>
+            </div>
+            <div className="h-6 w-3/4 bg-slate-200 dark:bg-slate-600 rounded mb-4"></div>
+            <div className="space-y-2">
+              <div className="h-2 w-full bg-slate-100 dark:bg-slate-700 rounded"></div>
+              <div className="h-2 w-1/2 bg-slate-100 dark:bg-slate-700 rounded"></div>
             </div>
           </div>
         ))}
@@ -112,15 +115,23 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
 
   if (projects.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 h-[300px] flex items-center justify-center flex-col p-8 text-center mt-6">
-        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4 text-slate-300">
-          <LuClipboardList size={32} />
+      <div className="bg-[#0f172a] rounded-3xl shadow-2xl border border-slate-800 h-[350px] flex items-center justify-center flex-col p-8 text-center mt-6 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #334155 25%, transparent 25%, transparent 50%, #334155 50%, #334155 75%, transparent 75%, transparent)', backgroundSize: '30px 30px' }}></div>
+        <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center mb-6 text-orange-500 border border-slate-700 shadow-xl relative z-10">
+          <LuClipboardList size={40} />
         </div>
-        <p className="text-lg font-bold text-slate-700 dark:text-slate-200">
-          {searchQuery ? "No matching projects" : "No Projects Yet"}
+        <p className="text-xl font-black text-white uppercase tracking-widest relative z-10 px-6 text-center">
+          {activeFilter === 'photos' ? "No Photo Records" : (activeFilter === 'completed' ? "No Completed Projects" : "No Projects Found")}
         </p>
-        <p className="text-sm text-slate-400 mt-1 max-w-[200px]">
-          {searchQuery ? "Try adjusting your search terms." : "Start by adding your first school infrastructure project."}
+        <p className="text-xs text-slate-400 mt-2 max-w-[280px] font-bold uppercase tracking-tight relative z-10 text-center">
+          {searchQuery 
+            ? "No matching projects found for this query." 
+            : (activeFilter === 'photos' 
+                ? "No project with photo documentation." 
+                : (activeFilter === 'completed'
+                    ? "No Projects Completed (with photo documentation) as of this moment."
+                    : "Zero projects registered in the 2022-2026 funding cycle."))
+          }
         </p>
       </div>
     );
@@ -130,169 +141,144 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6 pb-12">
       {projects.map((p, idx) => {
         const isReverted = p?.status === 'Reverted';
+        const hasPhotos = (p.images_count || 0) > 0;
+        const isCompletedInDB = p?.status === "Completed" || p?.accomplishmentPercentage === 100;
+        const isVerifiedCompleted = isCompletedInDB && hasPhotos;
+
         const isUpdateLocked =
-          ["Completed", "Terminated", "Reverted"].includes(p?.status) ||
+          (p?.status === "Terminated" || p?.status === "Reverted") ||
+          (isVerifiedCompleted) || // ONLY LOCK IF VERIFIED (HAS PHOTOS)
           (p?.approvalStatus === "Pending" && ["Division Engineer", "Architect"].includes(userRole)) ||
           userRole === "Regional Engineer";
         const updateLabel = isUpdateLocked
           ? (p?.approvalStatus === "Pending" && !["Completed", "Terminated"].includes(p?.status) ? "PENDING" : "LOCKED")
           : "UPDATE";
+        
         return (
         <div
           key={p.id}
           onClick={() => onView(p)}
-          className={`group bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/40 dark:shadow-none border transition-all duration-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 cursor-pointer relative ${
+          className={`group bg-white dark:bg-[#0f172a] rounded-2xl shadow-xl border-l-[6px] transition-all duration-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 cursor-pointer relative ${
             isReverted
-              ? 'border-purple-200 dark:border-purple-900 opacity-70 hover:opacity-90'
-              : 'border-slate-100 dark:border-slate-700 hover:border-[#004A99] dark:hover:border-blue-500'
+              ? 'border-purple-500 opacity-70'
+              : 'border-[#002244] hover:border-orange-500 dark:border-slate-800 dark:hover:border-orange-500'
           }`}
           style={{ animationDelay: `${idx * 100}ms` }}
         >
           {isReverted && (
-            <div className="absolute inset-0 bg-purple-50/40 dark:bg-purple-900/10 rounded-3xl pointer-events-none z-10" />
+            <div className="absolute inset-0 bg-purple-50/10 dark:bg-purple-900/10 rounded-2xl pointer-events-none z-10" />
           )}
-          {/* Card Header (Location & IPC) */}
-          <div className="p-6 pb-0">
-            <div className="flex justify-between items-start mb-2">
+
+          {/* Technical Header */}
+          <div className="p-5 pb-0">
+            <div className="flex justify-between items-start mb-3">
               <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#004A99] dark:text-blue-400 opacity-60">
-                   {p.region} • {p.division}
-                </span>
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-300">
-                  {p.province}
-                </span>
-                <span className="text-[11px] font-bold text-slate-400">
-                  {p?.municipality || p?.city || "Municipality Not Set"}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-1.5 h-1.5 bg-orange-500 rounded-full ring-2 ring-orange-200 shadow-[0_0_8px_rgba(249,115,22,0.4)]"></span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    IPC: {p.ipc || '---'} • {p.fundingYear}
+                  </span>
+                </div>
+                <span className="text-[11px] font-black text-[#002244] dark:text-blue-400 uppercase tracking-tight">
+                   {p.division} • {p.province} • {p.municipality || p.city}
                 </span>
               </div>
-              <div className="flex flex-col items-end gap-1.5">
-                {/* Combined Row for Last Updated By and Percentage */}
-                <div className="flex items-center gap-2 mt-1">
-                  {/* Accomplishment Percentage Badge */}
-                  <div className="relative">
-                    <div className="px-3 py-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300 rounded-xl border-2 border-emerald-100 dark:border-emerald-800 shadow-sm flex flex-col items-center leading-tight">
-                      <div className="flex items-center gap-1.5">
-                        {(p?.previousPercentage !== undefined && p?.previousPercentage !== null && Number(p?.previousPercentage) !== Number(p?.accomplishmentPercentage)) || (p?.previousPercentage === null && Number(p?.accomplishmentPercentage) !== 0) ? (
-                          <>
-                            <span className="text-[10px] font-bold opacity-40 line-through">{p?.previousPercentage ?? 0}%</span>
-                            <span className="text-[10px] font-black opacity-30">→</span>
-                          </>
-                        ) : null}
-                        <span className="text-[18px] font-black">{p?.accomplishmentPercentage || 0}%</span>
-                      </div>
-                      { (p.statusAsOf || p.statusAsOfDate) && (
-                        <span className="text-[7px] font-black uppercase tracking-tighter opacity-60 mt-0.5">
-                          As of {new Date(p.statusAsOf || p.statusAsOfDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} {new Date(p.statusAsOf || p.statusAsOfDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                    </div>
-                    {p?.status === "Suspended" && (
-                      <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white animate-pulse">
-                        ⏸ SUSPENDED
-                      </div>
-                    )}
-                    {p?.status === "Terminated" && (
-                      <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white animate-pulse">
-                        🚫 TERMINATED
-                      </div>
-                    )}
-                    {p?.status === "Reverted" && (
-                      <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white">
-                        ↩ REVERTED
-                      </div>
-                    )}
-                    {(p?.approvalStatus === "Pending" || p?.is_duplicate) && (
-                      <div className="absolute -top-2 -left-2 bg-red-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-white animate-pulse">
-                        ⚠️ FOR VALIDATION
-                      </div>
-                    )}
+              
+              <div className="flex flex-col items-end">
+                  <div className="px-3 py-1.5 bg-[#0f172a] rounded-lg border border-slate-700 shadow-inner flex items-center gap-2">
+                    <span className="text-[14px] font-black text-white">{p?.accomplishmentPercentage || 0}%</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
                   </div>
-                </div>
               </div>
             </div>
-            {p.ipc && (
-              <div className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-[9px] font-black text-[#004A99] dark:text-blue-300 rounded-lg border border-blue-100 dark:border-blue-800 uppercase tracking-tighter w-fit mb-1">
-                IPC {p.ipc}
-              </div>
-            )}
-            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 leading-tight mb-2 group-hover:text-[#004A99] dark:group-hover:text-blue-400 transition-colors">
+
+            <h3 className="text-lg font-black text-slate-800 dark:text-white leading-tight mb-2 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors uppercase tracking-tight">
               {p.projectName}
             </h3>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 bg-slate-50 dark:bg-slate-900/50 w-fit px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
-                <span className="text-slate-600 dark:text-slate-300">{p.schoolName}</span>
-                {p.schoolId && <span className="text-slate-400">({p.schoolId})</span>}
+
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="px-2 py-1 bg-slate-100 dark:bg-slate-900/60 rounded-md border border-slate-200 dark:border-slate-800 text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase">
+                {p.schoolName} ({p.schoolId})
               </div>
               {p.projectCategory && (
-                <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 w-fit px-2 py-1 rounded-lg border border-blue-100/50 dark:border-blue-800/50 uppercase tracking-wider">
+                <div className="px-2 py-1 bg-[#002244] text-white rounded-md text-[8px] font-black uppercase tracking-tighter">
                   {p.projectCategory}
                 </div>
               )}
-            </div>
-
-            {/* Micro Progress Bar */}
-            <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden mb-2">
-              <div 
-                className="h-full bg-emerald-500 transition-all duration-1000 ease-out"
-                style={{ width: `${p.accomplishmentPercentage || 0}%` }}
-              ></div>
-            </div>
-
-            {/* Vitals Footer (Last Updated) */}
-            <div className="flex justify-end">
-              {p.engineerName && (
-                <div className="flex items-center gap-1 text-[7px] font-black text-slate-400 uppercase tracking-widest opacity-60">
-                   Updated by: <span className="text-[#004A99] dark:text-blue-400 ml-1">{p?.engineerName}</span>
+              {hasPhotos && (
+                <div className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 rounded-md border border-orange-100 dark:border-orange-800 text-[9px] font-black text-orange-600 dark:text-orange-400 uppercase flex items-center gap-1">
+                  <FiCamera size={10} /> {p.images_count} PHOTOS
                 </div>
               )}
             </div>
+
+            {/* Procurement Status Bar */}
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-slate-50 dark:bg-black/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+               <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+               <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Procurement:</span>
+               <span className="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase">{p.procurement_status || 'Under Procurement'}</span>
+            </div>
+
+            {/* Financial Audit */}
+            <div className="grid grid-cols-2 gap-4 mb-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+               <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1">Approved Budget (ABC)</p>
+                  <p className="text-[10px] font-bold text-slate-700 dark:text-slate-200">₱{Number(p.projectAllocation || 0).toLocaleString()}</p>
+               </div>
+               <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.1em] mb-1">Contract Amount</p>
+                  <p className="text-[10px] font-bold text-slate-700 dark:text-slate-200">₱{Number(p.contractAmount || 0).toLocaleString()}</p>
+               </div>
+            </div>
+
+            {/* Industrial Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-1 px-1">
+                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Construction Progress</span>
+                 <span className={`text-[8px] font-black uppercase tracking-widest ${isCompletedInDB && !hasPhotos ? 'text-orange-500 animate-pulse' : 'text-[#002244] dark:text-blue-400'}`}>
+                   {isCompletedInDB && !hasPhotos ? 'Awaiting Photos' : (p.status || 'Ongoing')}
+                 </span>
+              </div>
+              <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-700">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#002244] to-blue-600 dark:from-blue-600 dark:to-blue-400 rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${p.accomplishmentPercentage || 0}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Metadata Footer (Attribution) */}
+            <div className="flex justify-between items-center pb-4 px-1 border-t border-slate-50 dark:border-slate-800/50 pt-3">
+               <div className="flex flex-col">
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Last Updated By</span>
+                  <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 uppercase">{p.engineerName || 'System'}</span>
+               </div>
+               <div className="flex flex-col items-end">
+                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Timestamp</span>
+                  <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">{p.statusAsOf ? new Date(p.statusAsOf).toLocaleDateString() : 'N/A'}</span>
+               </div>
+            </div>
           </div>
 
-
-
-          {/* Actions */}
-          <div className="p-6 mt-auto flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-1" onClick={(e) => e.stopPropagation()}>
-              <button
+          {/* Card Footer (Actions) */}
+          <div className="p-5 mt-auto bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-slate-800/50 flex items-center gap-3">
+             <button
                 onClick={(e) => { e.stopPropagation(); onEdit(p, 'quick'); }}
                 disabled={isUpdateLocked}
-                className={`flex-1 py-2.5 text-[10px] font-black rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest ${
                   isUpdateLocked
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-700'
-                    : 'bg-[#004A99] text-white hover:bg-blue-800'
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800'
+                    : 'bg-[#002244] text-white hover:bg-orange-600 shadow-lg'
                 }`}
               >
-                <LuActivity size={14} />
-                {updateLabel}
+                <LuActivity size={14} /> {updateLabel}
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onViewLog(p); }}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 text-[10px] font-black rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="px-4 py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-black rounded-xl hover:bg-slate-100 transition-all active:scale-95 border border-slate-200 dark:border-slate-700 uppercase tracking-widest"
               >
-                <LuClipboardList size={14} /> LOGS
+                LOGS
               </button>
-            </div>
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              {/* Revert button — only for Division Engineer / Architect on active projects */}
-              {['Division Engineer', 'Architect'].includes(userRole) &&
-                !['Completed', 'Terminated', 'Reverted'].includes(p?.status) && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRevert(p); }}
-                  className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-black text-purple-500 hover:text-white hover:bg-purple-500 border border-purple-200 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-600 dark:hover:text-white rounded-2xl transition-all active:scale-95"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
-                  REVERT
-                </button>
-              )}
-              {!['Division Engineer', 'Architect', 'DepEd Engineer', 'Engineer', 'Regional Engineer'].includes(userRole) && (
-                <button
-                   onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
-                   className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                </button>
-              )}
-            </div>
           </div>
         </div>
         );
@@ -302,6 +288,9 @@ const ProjectCards = ({ projects, onEdit, onDelete, onView, onViewLog, onVariati
 };
 
 // --- MAIN PROJECT LIST COMPONENT ---
+
+// --- IN-MEMORY CACHE TO PREVENT NAVIGATION SHIMMER ---
+let MEMORY_PROJECTS_CACHE = null;
 
 const EngineerProjects = () => {
     const { user, token } = useAuth();
@@ -315,9 +304,10 @@ const EngineerProjects = () => {
         return role;
     });
   const [accountCategory, setAccountCategory] = useState(null);
-  const [projects, setProjects] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [projects, setProjects] = useState(MEMORY_PROJECTS_CACHE || []);
+  const [isLoading, setIsLoading] = useState(!MEMORY_PROJECTS_CACHE);
   const [searchQuery, setSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState('all');
   const PROJECTS_PER_PAGE = 10;
@@ -325,6 +315,9 @@ const EngineerProjects = () => {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [modalMode, setModalMode] = useState('quick');
+
+  // --- NEW NAVIGATION STATE ---
+  const [viewMode, setViewMode] = useState('registry'); // 'registry' or 'donated'
 
   // --- FILTER STATES ---
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -334,7 +327,7 @@ const EngineerProjects = () => {
   const [selectedRegions, setSelectedRegions] = useState([]);
   const [selectedDivisions, setSelectedDivisions] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedYears, setSelectedYears] = useState([]);
+  const [selectedYears, setSelectedYears] = useState(["2022", "2023", "2024", "2025", "2026"]);
   const [selectedBatchFunds, setSelectedBatchFunds] = useState([]);
 
   // --- LOG MODAL STATE ---
@@ -447,7 +440,6 @@ const EngineerProjects = () => {
       }
 
       try {
-        setIsLoading(true);
         // Normalize role for BottomNav and logic
         if (currentRole === 'deped_engineer' || currentRole === 'DepEd Engineer') currentRole = 'Division Engineer';
         if (currentRole === 'hrodi_engineer' || currentRole === 'HRODI Engineer' || currentRole === 'EFD' || currentRole === 'HRODI') currentRole = 'EFD Engineer';
@@ -458,16 +450,21 @@ const EngineerProjects = () => {
         setUserRole(currentRole);
         let currentProjects = [];
 
-        // 1. Refined Loading Strategy
-        // We no longer populate the UI from cache immediately to prevent "stale flicker".
-        // Instead, we only use the cache as a backup if the network fetch fails.
+        // 1. Stale-While-Revalidate Strategy (REFINED FOR SPEED)
+        // Show memory cache immediately. If empty, check IndexDB.
         try {
-          const cachedData = await getCachedProjects();
-          if (cachedData && cachedData.length > 0) {
-            currentProjects = cachedData;
+          if (!MEMORY_PROJECTS_CACHE || MEMORY_PROJECTS_CACHE.length === 0) {
+            const cachedData = await getCachedProjects();
+            if (cachedData && cachedData.length > 0) {
+              setProjects(cachedData);
+              MEMORY_PROJECTS_CACHE = cachedData;
+              setIsLoading(false);
+            } else {
+              setIsLoading(true);
+            }
           }
         } catch (err) {
-          console.warn("Cache read failed", err);
+          if (!MEMORY_PROJECTS_CACHE) setIsLoading(true);
         }
 
         // 2. Network Request
@@ -547,28 +544,12 @@ const EngineerProjects = () => {
             triangulated_percentage: item.triangulated_percentage,
             approvalStatus: item.approvalStatus,
             is_duplicate: item.is_duplicate,
-            images_count: item.images_count || 0,
+            images_count: item.imagesCount || item.images_count || 0,
           }));
 
           // Update Cache on success
-          await cacheProjects(currentProjects);  const baseFilteredProjects = React.useMemo(() => {
-    return projects.filter(p => {
-      const searchTerm = searchQuery.toLowerCase();
-      const matchesSearch = !searchQuery || 
-        p.schoolName?.toLowerCase().includes(searchTerm) ||
-        p.projectName?.toLowerCase().includes(searchTerm) ||
-        p.schoolId?.toString().includes(searchTerm) ||
-        p.ipc?.toLowerCase().includes(searchTerm);
-
-      const matchesRegion = selectedRegions.length === 0 || selectedRegions.includes(p.region);
-      const matchesDivision = selectedDivisions.length === 0 || selectedDivisions.includes(p.division);
-      const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(p.projectCategory);
-      const matchesYear = selectedYears.length === 0 || selectedYears.includes(p.fundingYear?.toString());
-      const matchesBatch = selectedBatchFunds.length === 0 || selectedBatchFunds.includes(p.batch_of_funds || p.batchOfFunds);
-
-      return matchesSearch && matchesRegion && matchesDivision && matchesCategory && matchesYear && matchesBatch;
-    });
-  }, [projects, searchQuery, selectedRegions, selectedDivisions, selectedCategories, selectedYears, selectedBatchFunds]);
+          await cacheProjects(currentProjects);
+          MEMORY_PROJECTS_CACHE = currentProjects; // SYNC TO MEMORY
 
           // Update state with fresh data — skip if filter drawer is open to prevent ghosting
           if (!isFilterOpenRef.current) setProjects(currentProjects);
@@ -612,23 +593,45 @@ const EngineerProjects = () => {
   }, [projects, searchQuery, selectedRegions, selectedDivisions, selectedCategories, selectedYears, selectedBatchFunds]);
 
   const stats = React.useMemo(() => {
+    const totalBeffCount = baseFilteredProjects.length - baseFilteredProjects.filter(p => p.isDonated).length;
+    const completedCount = baseFilteredProjects.filter(p => p.accomplishmentPercentage === 100 && (p.images_count || 0) > 0).length;
+
     return {
       total: baseFilteredProjects.length,
       ongoing: baseFilteredProjects.filter(p => p.status === 'Ongoing').length,
-      completed: baseFilteredProjects.filter(p => p.accomplishmentPercentage === 100).length,
+      completed: completedCount,
       withPhotos: baseFilteredProjects.filter(p => (p.images_count || 0) > 0).length,
+      health: totalBeffCount > 0 ? Math.round((completedCount / totalBeffCount) * 100) : 0,
+      totalAllocation: baseFilteredProjects.reduce((acc, curr) => acc + (Number(curr.projectAllocation) || 0), 0),
+      totalAwarded: baseFilteredProjects.reduce((acc, curr) => acc + (Number(curr.contractAmount) || 0), 0),
+      notStarted: baseFilteredProjects.filter(p => (p.status === 'Not Yet Started' || !p.status || p.status === 'Under procurement') && p.accomplishmentPercentage < 100).length,
+      donated: baseFilteredProjects.filter(p => p.isDonated).length,
     };
   }, [baseFilteredProjects]);
 
   const filteredProjects = React.useMemo(() => {
     return baseFilteredProjects.filter(p => {
+      // 1. Separate by ViewMode (Donated vs Registry)
+      if (viewMode === 'donated' && !p.isDonated) return false;
+      if (viewMode === 'registry' && p.isDonated) return false;
+
+      // 2. Filter by Status Button
       const matchesFilter = activeFilter === 'all' || 
                            (activeFilter === 'ongoing' && p.status === 'Ongoing') ||
-                           (activeFilter === 'completed' && p.accomplishmentPercentage === 100) ||
+                           (activeFilter === 'completed' && p.accomplishmentPercentage === 100 && (p.images_count || 0) > 0) ||
+                           (activeFilter === 'notStarted' && (p.status === 'Not Yet Started' || !p.status || p.status === 'Under procurement') && p.accomplishmentPercentage < 100) ||
                            (activeFilter === 'photos' && (p.images_count || 0) > 0);
       return matchesFilter;
     });
-  }, [baseFilteredProjects, activeFilter]);
+  }, [baseFilteredProjects, activeFilter, viewMode]);
+
+  // Debounce search update - reduced to 500ms for better responsiveness
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(localSearchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localSearchQuery]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -816,8 +819,13 @@ const EngineerProjects = () => {
       return;
     }
 
-    // 'Ongoing' — no reason needed, but Completed needs cert confirmation
+    // 'Ongoing' — no reason needed, but Completed needs cert confirmation AND photos
     if (newValue === 'Completed') {
+      const hasPhotos = (project.images_count || 0) > 0;
+      if (!hasPhotos) {
+        alert("⚠️ DOCUMENTATION REQUIRED\n\nProjects cannot be marked as 'Completed' without at least one submitted photo. Please use the 'Update' button to upload photos.");
+        return;
+      }
       const hasCert = window.confirm("Does this project have a Certificate of Completion?");
       const remarks = hasCert ? "With Certificate of Completion" : "Without Certificate of Completion";
       await applyStatusChange(project, type, newValue, remarks);
@@ -1193,100 +1201,136 @@ const EngineerProjects = () => {
     <PageTransition>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-24">
         {/* --- DYNAMIC PREMIUM HEADER --- */}
-        <div className="bg-gradient-to-br from-[#004A99] via-[#003366] to-[#001D3D] p-6 pb-16 rounded-b-[3.5rem] shadow-2xl relative overflow-hidden transition-all duration-500">
-          {/* Decorative Elements */}
-          <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-[-20%] left-[-10%] w-48 h-48 bg-blue-400/10 rounded-full blur-2xl"></div>
-
+        {/* --- DYNAMIC INDUSTRIAL HEADER --- */}
+        <div className="bg-[#002244] p-6 pb-20 rounded-b-[3.5rem] shadow-2xl relative overflow-hidden">
+          {/* Decorative Pattern */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #004A99 25%, transparent 25%, transparent 50%, #004A99 50%, #004A99 75%, transparent 75%, transparent)', backgroundSize: '40px 40px' }}></div>
+          
           <div className="relative z-10">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-start mb-8">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
-                  <p className="text-white/60 text-[10px] font-black uppercase tracking-[0.2em] leading-none">
-                     Infrastructure
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] leading-none">
+                     Infrastructure Lab
                   </p>
                 </div>
-                <h1 className="text-3xl font-black text-white tracking-tight">
-                  Project Monitoring
+                <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
+                  Project Registry
                 </h1>
               </div>
-              {['Division Engineer', 'Engineer', 'Architect', 'DepEd Engineer'].includes(userRole) && (
-                <button
-                  onClick={() => navigate('/new-project')}
-                  className="group bg-[#004A99] active:bg-[#003366] text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <FiPlus size={16} />
-                  New Project
-                </button>
-              )}
+
+              {/* REPOSITIONED: Completion Health Metric */}
+              <div className="flex flex-col items-end">
+                <div className="relative w-16 h-16 flex items-center justify-center">
+                  <svg className="w-full h-full -rotate-90">
+                    <circle className="text-slate-700/50" strokeWidth="4" stroke="currentColor" fill="transparent" r="28" cx="32" cy="32" />
+                    <circle className="text-orange-500" strokeWidth="4" strokeDasharray={175} strokeDashoffset={175 - (175 * stats.health) / 100} strokeLinecap="round" stroke="currentColor" fill="transparent" r="28" cx="32" cy="32" />
+                  </svg>
+                  <span className="absolute text-[12px] font-black text-white">{stats.health}%</span>
+                </div>
+                <p className="text-[7px] font-black text-orange-400 uppercase tracking-widest mt-1">Progress Rate</p>
+              </div>
             </div>
 
-            {/* --- GLASSMORPHISM SEARCH BAR --- */}
-            <div className="relative group transition-all duration-300">
+            {/* --- INDUSTRIAL SEARCH BAR --- */}
+            <div className="relative group">
               <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                <FiSearch className="text-white/40 group-focus-within:text-white transition-colors" />
+                <FiSearch className="text-slate-400 group-focus-within:text-orange-500 transition-colors" />
               </div>
               <input
                 type="text"
-                placeholder="Query schools, projects or ID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/10 backdrop-blur-xl border border-white/20 text-white placeholder:text-white/30 text-xs px-12 py-4 rounded-2xl outline-none focus:ring-4 focus:ring-white/10 focus:bg-white/15 transition-all shadow-inner"
+                placeholder="SCAN SCHOOL ID OR PROJECT NAME..."
+                value={localSearchQuery}
+                onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="w-full bg-[#0f172a] border border-slate-700 text-white placeholder:text-slate-600 text-[10px] font-black px-12 py-5 rounded-2xl outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 transition-all shadow-inner uppercase tracking-wider"
               />
               <div className="absolute inset-y-0 right-4 flex items-center">
-                <div className="h-6 w-[1px] bg-white/10 mx-2"></div>
-                <button onClick={() => setIsFilterOpen(true)} className="p-2 -mr-2">
-                  <FiFilter className={`transition-colors ${isFilterOpen || selectedDivisions.length > 0 || selectedCategories.length > 0 || selectedYears.length > 0 ? 'text-white' : 'text-white/40 hover:text-white'}`} />
+                <div className="h-8 w-[1px] bg-slate-700 mx-2"></div>
+                <button onClick={() => setIsFilterOpen(true)} className="p-2 -mr-2 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors">
+                  <FiFilter className={`transition-colors ${isFilterOpen || selectedDivisions.length > 0 || selectedCategories.length > 0 || selectedYears.length > 0 ? 'text-orange-500' : 'text-slate-400'}`} />
                 </button>
               </div>
+            </div>
+            
+            {/* --- TOP-LEVEL NAVIGATION (REGISTRY VS DONATED) --- */}
+            <div className="flex bg-[#0f172a]/50 backdrop-blur-sm p-1 rounded-2xl border border-slate-700/50 mt-6 shadow-inner">
+               <button 
+                 onClick={() => { setViewMode('registry'); setActiveFilter('all'); }}
+                 className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'registry' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'text-slate-400 hover:text-slate-200'}`}
+               >
+                 BEFF PROJECTS
+               </button>
+               <button 
+                 onClick={() => { setViewMode('donated'); setActiveFilter('all'); }}
+                 className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'donated' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-400 hover:text-slate-200'}`}
+               >
+                 DONATED INFRA
+               </button>
             </div>
           </div>
         </div>
 
-        {/* --- SUMMARY CARDS --- */}
-        <div className="px-5 -mt-10 relative z-20 grid grid-cols-2 gap-3 mb-6">
-          <button 
-            onClick={() => setActiveFilter('all')}
-            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'all' ? 'border-[#004A99] ring-2 ring-[#004A99]/10' : 'border-white/20'}`}
-          >
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Projects</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-black text-[#004A99] dark:text-blue-400">{stats.total}</span>
-              <LuClipboardList size={20} className={`${activeFilter === 'all' ? 'text-[#004A99]' : 'text-slate-200'}`} />
+        {/* --- SUMMARY STATS --- */}
+        {viewMode === 'registry' && (
+          <div className="px-5 -mt-12 relative z-20 space-y-3 mb-6 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => setActiveFilter('all')}
+                className={`p-4 rounded-2xl border-b-4 transition-all active:scale-95 text-left shadow-xl ${activeFilter === 'all' ? 'bg-[#0f172a] border-orange-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800'}`}
+              >
+                <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${activeFilter === 'all' ? 'text-slate-400' : 'text-slate-500'}`}>Total BEFF Projects (2022-2026)</p>
+                <div className="flex items-baseline justify-between">
+                  <span className={`text-3xl font-black ${activeFilter === 'all' ? 'text-white' : 'text-slate-800 dark:text-white'}`}>{stats.total - stats.donated}</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Total</span>
+                </div>
+              </button>
+              <button 
+                onClick={() => setActiveFilter('photos')}
+                className={`p-4 rounded-2xl border-b-4 transition-all active:scale-95 text-left shadow-xl ${activeFilter === 'photos' ? 'bg-[#0f172a] border-orange-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800'}`}
+              >
+                <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${activeFilter === 'photos' ? 'text-slate-400' : 'text-slate-500'}`}>Photo Documented</p>
+                <div className="flex items-baseline justify-between">
+                  <span className={`text-3xl font-black ${activeFilter === 'photos' ? 'text-white' : 'text-slate-800 dark:text-white'}`}>{stats.withPhotos}</span>
+                  <span className="text-[10px] font-black text-orange-500 uppercase">Photos</span>
+                </div>
+              </button>
             </div>
-          </button>
-          <button 
-            onClick={() => setActiveFilter('ongoing')}
-            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'ongoing' ? 'border-blue-500 ring-2 ring-blue-500/10' : 'border-white/20'}`}
-          >
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ongoing</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-black text-blue-500">{stats.ongoing}</span>
-              <LuActivity size={20} className={`${activeFilter === 'ongoing' ? 'text-blue-500' : 'text-slate-200'}`} />
+
+            <div className="grid grid-cols-3 gap-2">
+              <button 
+                onClick={() => setActiveFilter('completed')}
+                className={`p-4 rounded-2xl border-b-4 transition-all active:scale-95 text-left shadow-md ${activeFilter === 'completed' ? 'bg-emerald-600 border-emerald-900 text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800'}`}
+              >
+                <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${activeFilter === 'completed' ? 'text-emerald-100' : 'text-slate-500'}`}>Construction Completed</p>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-black leading-none">{stats.completed}</span>
+                  <span className={`text-[7px] font-black uppercase ${activeFilter === 'completed' ? 'text-emerald-200' : 'text-slate-400'}`}>Done</span>
+                </div>
+              </button>
+              <button 
+                onClick={() => setActiveFilter('ongoing')}
+                className={`p-4 rounded-2xl border-b-4 transition-all active:scale-95 text-left shadow-md ${activeFilter === 'ongoing' ? 'bg-blue-600 border-blue-900 text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800'}`}
+              >
+                <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${activeFilter === 'ongoing' ? 'text-blue-100' : 'text-slate-500'}`}>Construction Ongoing</p>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-black leading-none">{stats.ongoing}</span>
+                  <span className={`text-[7px] font-black uppercase ${activeFilter === 'ongoing' ? 'text-blue-200' : 'text-slate-400'}`}>Active</span>
+                </div>
+              </button>
+              <button 
+                onClick={() => setActiveFilter('notStarted')}
+                className={`p-4 rounded-2xl border-b-4 transition-all active:scale-95 text-left shadow-md ${activeFilter === 'notStarted' ? 'bg-slate-700 border-slate-900 text-white shadow-slate-900/40' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-800'}`}
+              >
+                <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${activeFilter === 'notStarted' ? 'text-slate-300' : 'text-slate-500'}`}>Not Yet Started</p>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-black leading-none">{stats.notStarted}</span>
+                  <span className={`text-[7px] font-black uppercase ${activeFilter === 'notStarted' ? 'text-slate-400' : 'text-slate-400'}`}>Pending</span>
+                </div>
+              </button>
             </div>
-          </button>
-          <button 
-            onClick={() => setActiveFilter('completed')}
-            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'completed' ? 'border-emerald-500 ring-2 ring-emerald-500/10' : 'border-white/20'}`}
-          >
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">100% Completed</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-black text-emerald-500">{stats.completed}</span>
-              <LuFileText size={20} className={`${activeFilter === 'completed' ? 'text-emerald-500' : 'text-slate-200'}`} />
-            </div>
-          </button>
-          <button 
-            onClick={() => setActiveFilter('photos')}
-            className={`bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-3xl shadow-lg border transition-all active:scale-95 text-left ${activeFilter === 'photos' ? 'border-amber-500 ring-2 ring-amber-500/10' : 'border-white/20'}`}
-          >
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">With Photos</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-black text-amber-500">{stats.withPhotos}</span>
-              <FiCamera size={20} className={`${activeFilter === 'photos' ? 'text-amber-500' : 'text-slate-200'}`} />
-            </div>
-          </button>
-        </div>
+          </div>
+        )}
 
         {/* --- PROJECT LISTING --- */}
         <div className="px-5 mt-2 relative z-20">
@@ -1294,10 +1338,45 @@ const EngineerProjects = () => {
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
                <div className="flex flex-col items-center gap-3">
                  <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Hydrating Dashboard...</p>
+                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Hydrating Registry...</p>
                </div>
             </div>
           ) : null}
+
+          {/* DONATED TAB VIEW: Explanatory Note & Add Button */}
+          {viewMode === 'donated' && (
+            <div className="mt-4 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
+               <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xl border border-indigo-100 dark:border-indigo-900/30 relative overflow-hidden">
+                  {/* Decorative element */}
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-indigo-50 dark:bg-indigo-900/10 rounded-full blur-2xl pointer-events-none"></div>
+                  
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-3">
+                         <div className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-[8px] font-black uppercase tracking-[0.2em] rounded">Information</div>
+                         <h2 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Non-BEFF Registry</h2>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                        This section contains projects that are <span className="text-indigo-600 dark:text-indigo-400 font-bold">non-BEFF</span>. This includes infrastructure donated by <span className="text-slate-700 dark:text-slate-200 font-bold uppercase underline decoration-indigo-500/30">Local Government Units (LGU)</span>, <span className="text-slate-700 dark:text-slate-200 font-bold uppercase underline decoration-indigo-500/30">NGOs</span>, and other private or public entities.
+                      </p>
+                    </div>
+                    
+                    {['Division Engineer', 'Engineer', 'Architect', 'DepEd Engineer', 'EFD Engineer', 'EFD'].includes(userRole) && (
+                      <button
+                        onClick={() => navigate('/new-project')}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-5 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 transition-all active:scale-95 border-b-4 border-indigo-900 group"
+                      >
+                        <div className="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center group-hover:rotate-90 transition-transform">
+                           <FiPlus size={18} />
+                        </div>
+                        Add Project
+                      </button>
+                    )}
+                  </div>
+               </div>
+            </div>
+          )}
+
           <ProjectCards
             projects={paginatedProjects}
             onEdit={handleEditProject}
@@ -1311,6 +1390,7 @@ const EngineerProjects = () => {
             readOnly={userRole === 'Super User'}
             handleStatusChange={handleStatusChange}
             userRole={userRole}
+            activeFilter={activeFilter}
           />
 
           {/* --- PAGINATION CONTROLS --- */}
@@ -1397,7 +1477,7 @@ const EngineerProjects = () => {
           initialYears={selectedYears}
           initialBatches={selectedBatchFunds}
           hideRegions={userRole !== 'EFD' && userRole !== 'EFD Engineer' && userRole !== 'HRODI'}
-          hideDivisions={true}
+          hideDivisions={userRole === 'Division Engineer'}
           hideProvinces={true}
           hideMunicipalities={true}
         />

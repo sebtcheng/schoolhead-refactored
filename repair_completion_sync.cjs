@@ -11,9 +11,9 @@ async function updateSchoolTotalCompletion(iern) {
   if (!iern) return;
   try {
     const res = await pool.query(
-      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9,
+      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9, unit10,
               unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-              unit5_completed, unit6_completed, unit7_completed, unit9_completed
+              unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed, unit10_completed
        FROM ph_schools WHERE iern = $1`,
       [iern]
     );
@@ -21,7 +21,7 @@ async function updateSchoolTotalCompletion(iern) {
 
     const row = res.rows[0];
     const schoolId = row.school_id;
-    const dbCols = [1, 2, 3, 4, 5, 6, 7, 9];
+    const dbCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let completedCount = 0;
     const boolValues = [];
     for (const idx of dbCols) {
@@ -30,17 +30,17 @@ async function updateSchoolTotalCompletion(iern) {
       if (done) completedCount++;
     }
 
-    const percentage = parseFloat(((completedCount / 8) * 100).toFixed(2));
+    const percentage = parseFloat(((completedCount / 10) * 100).toFixed(2));
 
     await pool.query(
       `INSERT INTO ph_school_completion
          (iern, school_id, unit1_completion, unit2_completion, unit3_completion, unit4_completion,
-          unit5_completion, unit6_completion, unit7_completion, unit8_completion, total_completion, updated_at)
-       VALUES ($10, $11, $2, $3, $4, $5, $6, $7, $8, $9, $1, CURRENT_TIMESTAMP)
+          unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, unit10_completion, total_completion, updated_at)
+       VALUES ($12, $13, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1, CURRENT_TIMESTAMP)
        ON CONFLICT (iern) DO UPDATE SET
          unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
          unit5_completion=$6, unit6_completion=$7, unit7_completion=$8, unit8_completion=$9,
-         total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
+         unit9_completion=$10, unit10_completion=$11, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
       [percentage, ...boolValues, iern, schoolId]
     );
 
@@ -49,7 +49,7 @@ async function updateSchoolTotalCompletion(iern) {
       [percentage, iern]
     );
 
-    console.log(`[REPAIR] Updated completion for ${iern}: ${percentage}% (${completedCount}/8)`);
+    console.log(`[REPAIR] Updated completion for ${iern}: ${percentage}% (${completedCount}/10)`);
   } catch (err) {
     console.error(`[ERROR] updateSchoolTotalCompletion failed for ${iern}:`, err.message);
   }

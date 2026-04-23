@@ -42,77 +42,175 @@ const formatAllocation = (value) => {
 const StatsOverview = ({ projects }) => {
   const now = new Date();
 
-  const isProjectDelayed = (p) => {
-    if (p.status === ProjectStatus.Completed) return false;
-    if (!p.targetCompletionDate) return false;
+  // Optimizing calculation to use a single pass for better performance
+  const stats = projects.reduce((acc, p) => {
+    const year = Number(p.fundingYear);
+    if (year < 2022 || year > 2026) return acc;
 
-    const target = new Date(p.targetCompletionDate);
-    return now > target && p.accomplishmentPercentage < 100;
-  };
+    acc.total++;
 
-  const stats = {
-    total: projects.length,
-    completed: projects.filter((p) => p.status === ProjectStatus.Completed).length,
-    delayed: projects.filter((p) => isProjectDelayed(p)).length,
-    ongoing: projects.filter((p) =>
-      p.status === ProjectStatus.Ongoing && !isProjectDelayed(p)
-    ).length,
-    totalAllocation: projects.reduce(
-      (acc, curr) => acc + (Number(curr.projectAllocation) || 0),
-      0
-    ),
-    totalContract: projects.reduce(
-      (acc, curr) => acc + (Number(curr.contractAmount) || 0),
-      0
-    ),
+    const isCompletedInDB = p.status === ProjectStatus.Completed || p.accomplishmentPercentage === 100;
+    const hasPhotos = (p.images_count || 0) > 0;
+    
+    if (isCompletedInDB && hasPhotos) {
+      acc.completed++;
+    } else if (p.targetCompletionDate) {
+      const target = new Date(p.targetCompletionDate);
+      if (now > target && p.accomplishmentPercentage < 100) {
+        acc.delayed++;
+      }
+    }
+
+    if (hasPhotos) {
+      acc.withPhotos++;
+    }
+
+    const isActive = (p.accomplishmentPercentage || 0) > 0 || hasPhotos;
+    if (isActive) {
+      acc.active++;
+    }
+
+    acc.totalAllocation += (Number(p.projectAllocation) || 0);
+    return acc;
+  }, { total: 0, completed: 0, delayed: 0, withPhotos: 0, totalAllocation: 0, active: 0 });
+
+  const photoPercentage = stats.total > 0 ? Math.round((stats.withPhotos / stats.total) * 100) : 0;
+  const activityLevel = stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Primary Stats Grid */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[#0f172a] dark:bg-[#020617] p-3 rounded-2xl border-b-4 border-orange-500 shadow-xl relative overflow-hidden group">
+          <p className="text-[7px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Projects (2022-2026)</p>
+          <div className="flex items-baseline gap-1">
+            <h2 className="text-2xl font-black text-white leading-none">{stats.total}</h2>
+            <span className="text-[8px] font-bold text-orange-500 uppercase tracking-tighter italic">Registry</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border-b-4 border-[#004A99] shadow-md relative overflow-hidden group">
+          <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Done</p>
+          <div className="flex items-baseline gap-1">
+            <h2 className="text-2xl font-black text-[#004A99] dark:text-blue-400 leading-none">{stats.completed}</h2>
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter italic">Finished</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border-b-4 border-emerald-500 shadow-md relative overflow-hidden group">
+          <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Activity Level</p>
+          <div className="flex items-baseline gap-1">
+            <h2 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">{activityLevel}%</h2>
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter italic">Active</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Photo Documentation Progress Card */}
+      <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-orange-100 dark:bg-orange-950/40 rounded-lg flex items-center justify-center text-orange-600">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              </div>
+              <h3 className="text-[10px] font-black text-slate-800 dark:text-white uppercase tracking-tight">Photo Documentation</h3>
+            </div>
+            <span className="text-sm font-black text-slate-900 dark:text-white">{photoPercentage}%</span>
+          </div>
+          <div className="relative w-full h-2.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5">
+            <div 
+              className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${photoPercentage}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
+const CriticalGaps = ({ projects }) => {
+  const filteredProjects = projects.filter(p => {
+    const year = Number(p.fundingYear);
+    return year >= 2022 && year <= 2026;
+  });
+
+  const gaps = {
+    noPhotos: filteredProjects.filter(p => (p.images_count || 0) === 0).length,
+    zeroProgress: filteredProjects.filter(p => Number(p.accomplishmentPercentage || 0) === 0).length,
+    procurement: filteredProjects.filter(p => p.status === 'Under procurement' || p.procurement_status === 'Under procurement').length,
   };
 
   return (
-    <div className="grid grid-cols-4 gap-2">
-      <div className="bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-center items-center text-center">
-        <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
-          ABC
-        </p>
-        <p className="text-[11px] font-black text-[#004A99] dark:text-blue-400 mt-0.5 antialiased">
-          {formatAllocation(stats.totalAllocation)}
-        </p>
+    <div className="space-y-3">
+      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Critical Operational Gaps</h3>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative group overflow-hidden">
+          <div className="absolute top-0 right-0 p-1 opacity-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+          </div>
+          <p className="text-[18px] font-black text-orange-600 dark:text-orange-400">{gaps.noPhotos}</p>
+          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-tight">No Photos</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative group overflow-hidden">
+          <div className="absolute top-0 right-0 p-1 opacity-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M2 12h20"/></svg>
+          </div>
+          <p className="text-[18px] font-black text-blue-600 dark:text-blue-400">{gaps.zeroProgress}</p>
+          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-tight">0% Progress</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative group overflow-hidden">
+          <div className="absolute top-0 right-0 p-1 opacity-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <p className="text-[18px] font-black text-indigo-600 dark:text-indigo-400">{gaps.procurement}</p>
+          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-tight">In-Procurement</p>
+        </div>
       </div>
-      <div className="bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-center items-center text-center">
-        <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
-          Contract
-        </p>
-        <p className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 mt-0.5 antialiased">
-          {formatAllocation(stats.totalContract)}
-        </p>
+    </div>
+  );
+};
+
+const FinancialPulse = ({ projects }) => {
+  const filteredProjects = projects.filter(p => {
+    const year = Number(p.fundingYear);
+    return year >= 2022 && year <= 2026;
+  });
+
+  const totalABC = filteredProjects.reduce((acc, curr) => acc + (Number(curr.projectAllocation) || 0), 0);
+  const totalAwarded = filteredProjects.reduce((acc, curr) => acc + (Number(curr.contractAmount) || 0), 0);
+  const savings = totalABC - totalAwarded;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Financial Trajectory (2022-26)</h3>
+        <div className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 rounded-md border border-emerald-100 dark:border-emerald-800">
+           <p className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">Savings: {formatAllocation(savings)}</p>
+        </div>
       </div>
-      <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-center items-center text-center">
-        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wide">
-          Projects
-        </p>
-        <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">{stats.total}</p>
-      </div>
-      <div
-        className={`p-3 rounded-xl shadow-sm border flex flex-col justify-center items-center text-center ${stats.delayed > 0
-          ? "bg-red-50 dark:bg-red-900/30 border-red-100 dark:border-red-800"
-          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-          }`}
-      >
-        <p
-          className={`text-[10px] font-bold uppercase tracking-wide ${stats.delayed > 0 ? "text-red-500 dark:text-red-400" : "text-slate-500 dark:text-slate-400"
-            }`}
-        >
-          Delayed
-        </p>
-        <div className="flex items-center gap-1 mt-1">
-          <p
-            className={`text-xl font-bold ${stats.delayed > 0 ? "text-red-600 dark:text-red-400" : "text-slate-800 dark:text-white"
-              }`}
-          >
-            {stats.delayed}
-          </p>
-          {stats.delayed > 0 && (
-            <span className="text-[10px] animate-pulse">⚠️</span>
-          )}
+      
+      <div className="grid grid-cols-2 gap-6">
+        <div>
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Allocation (ABC)</p>
+          <h4 className="text-xl font-black text-slate-900 dark:text-white mb-1">{formatAllocation(totalABC)}</h4>
+          <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+             <div className="w-full h-full bg-slate-400 opacity-20"></div>
+          </div>
+        </div>
+        <div>
+          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Awarded</p>
+          <h4 className="text-xl font-black text-[#002244] dark:text-blue-400 mb-1">{formatAllocation(totalAwarded)}</h4>
+          <div className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+             <div 
+              className="h-full bg-blue-600 rounded-full"
+              style={{ width: totalABC > 0 ? `${(totalAwarded / totalABC) * 100}%` : '0%' }}
+             ></div>
+          </div>
         </div>
       </div>
     </div>
@@ -121,21 +219,36 @@ const StatsOverview = ({ projects }) => {
 
 const StatsChart = ({ projects }) => {
   const now = new Date();
-  const isProjectDelayed = (p) => {
-    if (p.status === ProjectStatus.Completed) return false;
-    if (!p.targetCompletionDate) return false;
-    const target = new Date(p.targetCompletionDate);
-    return now > target && p.accomplishmentPercentage < 100;
-  };
 
-  const stats = {
-    total: projects.length,
-    completed: projects.filter((p) => p.status === ProjectStatus.Completed).length,
-    delayed: projects.filter((p) => isProjectDelayed(p)).length,
-    ongoing: projects.filter((p) =>
-      p.status === ProjectStatus.Ongoing && !isProjectDelayed(p)
-    ).length,
-  };
+  // Single pass implementation for the chart stats
+  const stats = projects.reduce((acc, p) => {
+    const year = Number(p.fundingYear);
+    if (year < 2022 || year > 2026) return acc;
+
+    acc.total++;
+
+    const isCompletedInDB = p.status === ProjectStatus.Completed || p.accomplishmentPercentage === 100;
+    const hasPhotos = (p.images_count || 0) > 0;
+    
+    if (isCompletedInDB && hasPhotos) {
+      acc.completed++;
+    } else {
+      let isDelayed = false;
+      if (p.targetCompletionDate) {
+        const target = new Date(p.targetCompletionDate);
+        if (now > target && p.accomplishmentPercentage < 100) {
+          isDelayed = true;
+          acc.delayed++;
+        }
+      }
+
+      if (!isDelayed) {
+        acc.ongoing++;
+      }
+    }
+
+    return acc;
+  }, { total: 0, completed: 0, delayed: 0, ongoing: 0 });
 
   const data = [
     { name: "Completed", value: stats.completed, color: "#10B981" },
@@ -149,44 +262,50 @@ const StatsChart = ({ projects }) => {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-      <div className="flex flex-col justify-center ml-2">
-        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">
-          Project Status Mix
-        </p>
-        <div className="text-[10px] text-slate-500 dark:text-slate-300 space-y-1">
+    <div className="bg-[#0f172a] p-6 rounded-3xl shadow-2xl border border-slate-800 flex items-center justify-between overflow-hidden relative min-h-[220px]">
+      {/* Technical Grid Background */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+      
+      <div className="flex flex-col justify-center relative z-10">
+        <p className="text-[12px] font-black text-orange-500 uppercase tracking-[0.2em] mb-4">Operational Pulse</p>
+        <div className="space-y-3">
           {data.map((d) => (
-            <div key={d.name} className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: d.color }}
-              ></span>
-              <span>
-                {d.name}: {d.value}
+            <div key={d.name} className="flex items-center gap-4">
+              <div className="w-2 h-2 rounded-full ring-2 ring-offset-2 ring-offset-[#0f172a]" style={{ backgroundColor: d.color, ringColor: d.color }}></div>
+              <span className="text-[11px] font-bold text-slate-300">
+                {d.name.toUpperCase()}: <span className="text-white ml-2 text-sm">{d.value}</span>
               </span>
             </div>
           ))}
         </div>
       </div>
-      <div className="w-24 h-24 mr-2">
+      <div className="w-40 h-40 relative z-10">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={18}
-              outerRadius={35}
-              paddingAngle={5}
+              innerRadius={30}
+              outerRadius={55}
+              paddingAngle={6}
               dataKey="value"
+              stroke="none"
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '12px', fontSize: '10px', color: '#fff' }}
+              itemStyle={{ color: '#fff' }}
+            />
           </PieChart>
         </ResponsiveContainer>
+        {/* Center Label */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Pulse</span>
+        </div>
       </div>
     </div>
   );
@@ -249,14 +368,14 @@ const EngineerDashboard = () => {
             }
           }
 
-          // ENGINEER: Stale-While-Revalidate Strategy (REFINED)
-          // We no longer show cache immediately to prevent "stale flicker" of 50+ projects.
-          // Instead, we only load the cache IF the network fails.
+          // ENGINEER: Stale-While-Revalidate Strategy (REFINED FOR SPEED)
+          // We show cached data immediately to give the user an instant UI.
+          // Then we fetch fresh data from the network in the background.
           try {
             const cachedData = await getCachedProjects();
             if (cachedData && cachedData.length > 0 && !hasForceFetched.current) {
-              // Store it in a variable but DON'T set state yet to avoid flicker
-              currentProjects = cachedData;
+              setProjects(cachedData); // Show cache immediately
+              setIsLoading(false); // Stop showing loading overlay if we have cache
             }
           } catch (err) {
             console.warn("Cache read failed", err);
@@ -324,6 +443,7 @@ const EngineerDashboard = () => {
               supplamental_moa_id: item.supplamental_moa_id,
               checklist: item.checklist,
               triangulated_percentage: item.triangulated_percentage,
+              images_count: item.imagesCount || item.images_count || 0,
             }));
 
             if (userRole !== 'Super User') {
@@ -388,27 +508,32 @@ const EngineerDashboard = () => {
           </div>
         )}
         {/* --- TOP HEADER --- */}
-        <div className="relative bg-[#004A99] pt-12 pb-24 px-6 rounded-b-[2.5rem] shadow-xl">
-          <div className="flex justify-between items-start">
+        <div className="relative bg-[#002244] pt-14 pb-28 px-6 rounded-b-[3rem] shadow-2xl overflow-hidden">
+          {/* Decorative Pattern */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #004A99 25%, transparent 25%, transparent 50%, #004A99 50%, #004A99 75%, transparent 75%, transparent)', backgroundSize: '40px 40px' }}></div>
+          
+          <div className="flex justify-between items-start relative z-10">
             <div>
-              <p className="text-blue-200 text-xs font-bold tracking-wider uppercase">
-                DepEd Infrastructure
-              </p>
-              <h1 className="text-2xl font-bold text-white mt-1">
-                {userRole === 'LocalGovernmentUnit' ? 'LGU Partner' : userRole === 'Architect' ? 'Archi.' : 'Engr.'} {userName.split(' ')[0]}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+                <p className="text-slate-400 text-[10px] font-black tracking-[0.2em] uppercase">
+                  Division Engineering Office
+                </p>
+              </div>
+              <h1 className="text-3xl font-black text-white mt-1 italic tracking-tighter uppercase">
+                {userRole === 'LocalGovernmentUnit' ? 'LGU' : userRole === 'Architect' ? 'ARCHI' : 'ENGR'} {userName.split(' ')[0]}
               </h1>
-              <p className="text-blue-100 mt-1 text-sm">
+              <p className="text-slate-400 mt-2 text-[11px] font-bold uppercase tracking-widest flex items-center gap-2">
+                <span className="w-4 h-[1px] bg-slate-700"></span>
                 {userRole === 'Super User' && sessionStorage.getItem('impersonatedDivision')
-                  ? `${sessionStorage.getItem('impersonatedDivision')} • ${projects.length} projects`
-                  : `Dashboard • Overview of ${projects.length} active projects.`
+                  ? `${sessionStorage.getItem('impersonatedDivision')} INFRA`
+                  : `Project Control Dashboard`
                 }
               </p>
             </div>
-            <div className="flex flex-col items-end gap-2">
-
-              <div className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 text-white shadow-inner">
-                👷‍♂️
-              </div>
+            <div className="w-14 h-14 bg-white/5 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/10 text-2xl shadow-inner relative group cursor-pointer hover:bg-orange-500/20 transition-colors duration-500">
+               <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-[#002244]"></div>
+               👷‍♂️
             </div>
           </div>
         </div>
@@ -416,80 +541,10 @@ const EngineerDashboard = () => {
         {/* --- MAIN CONTENT CONTAINER --- */}
         <div className="px-5 -mt-16 relative z-10 space-y-6">
           <StatsOverview projects={projects} />
-
-          <div className="w-full">
-            <Swiper
-              modules={[Pagination, Autoplay]}
-              spaceBetween={15}
-              slidesPerView={1}
-              pagination={{ clickable: true, dynamicBullets: true }}
-              autoplay={{ delay: 5000 }}
-              className="w-full"
-            >
-              <SwiperSlide className="pb-8">
-                <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border-l-4 border-[#FDB913] flex flex-col justify-center min-h-[140px]">
-                  <h3 className="text-[#004A99] dark:text-blue-400 font-bold text-sm flex items-center mb-1">
-                    <span className="text-xl mr-2">👷</span>
-                    Welcome, {userRole === 'LocalGovernmentUnit' ? 'LGU Partner' : userRole === 'Architect' ? 'Archi.' : 'Engr.'} {userName.split(' ')[0]}!
-                  </h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed ml-7">
-                    {userRole === 'Local Government Unit'
-                      ? "Your dashboard is ready. Monitor local infrastructure projects and progress."
-                      : "Your dashboard is ready. Track ongoing construction and validate school infrastructure data."
-                    }
-                  </p>
-                </div>
-              </SwiperSlide>
-
-              <SwiperSlide className="pb-8">
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-l-4 border-emerald-500 flex flex-col h-[140px]">
-                  <h3 className="text-emerald-700 dark:text-emerald-400 font-bold text-sm flex items-center mb-2 shrink-0">
-                    <span className="text-xl mr-2">🏗️</span>
-                    Active Projects ({projects.length})
-                  </h3>
-                  <div className="overflow-y-auto flex-1 pr-1 space-y-2 custom-scrollbar">
-                    {projects.length > 0 ? (
-                      projects.map((p) => (
-                        <div key={p.id} className="flex justify-between items-center text-xs border-b border-slate-100 dark:border-slate-700 last:border-0 pb-1">
-                          <span className="text-slate-700 dark:text-slate-200 font-medium truncate w-[70%]">{p.schoolName}</span>
-                          <span className={`font-bold ${p.accomplishmentPercentage === 100 ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"}`}>
-                            {p.accomplishmentPercentage || 0}%
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-slate-400 text-xs italic ml-7">No active projects found.</p>
-                    )}
-                  </div>
-                </div>
-              </SwiperSlide>
-
-              <SwiperSlide className="pb-8">
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col h-[140px]">
-                  <h3 className="text-blue-700 dark:text-blue-400 font-bold text-sm flex items-center mb-2 shrink-0">
-                    <span className="text-xl mr-2">📢</span>
-                    Latest Remarks
-                  </h3>
-                  <div className="overflow-y-auto flex-1 pr-1 space-y-2 custom-scrollbar">
-                    {projects.some(p => p.otherRemarks) ? (
-                      projects.filter(p => p.otherRemarks).map((p) => (
-                        <div key={p.id} className="text-xs border-b border-slate-100 dark:border-slate-700 last:border-0 pb-2">
-                          <p className="font-bold text-slate-700 dark:text-slate-200 truncate">{p.schoolName}</p>
-                          <p className="text-slate-500 dark:text-slate-400 line-clamp-2">{p.otherRemarks}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-slate-400 text-xs italic ml-7">No remarks available.</p>
-                    )}
-                  </div>
-                </div>
-              </SwiperSlide>
-            </Swiper>
-          </div>
-
+          
+          <CriticalGaps projects={projects} />
+          
           <StatsChart projects={projects} />
-
-          <CalendarWidget projects={projects} />
 
           {/* --- RECENT ACTIVITIES section --- */}
           {/* <div className="w-full mb-6">

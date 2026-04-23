@@ -6,7 +6,7 @@ export const EFDFilterProvider = ({ children }) => {
     // Basic Filters
     const [selectedRegions, setSelectedRegions] = useState(() => JSON.parse(localStorage.getItem('efd_selectedRegions') || '[]'));
     const [selectedCategories, setSelectedCategories] = useState(() => JSON.parse(localStorage.getItem('efd_selectedCategories') || '[]'));
-    const [selectedYears, setSelectedYears] = useState(() => JSON.parse(localStorage.getItem('efd_selectedYears') || '[]'));
+    const [selectedYears, setSelectedYears] = useState(() => JSON.parse(localStorage.getItem('efd_selectedYears') || '["2022", "2023", "2024", "2025", "2026"]'));
     const [selectedBatches, setSelectedBatches] = useState(() => JSON.parse(localStorage.getItem('efd_selectedBatches') || '[]'));
     const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem('efd_searchQuery') || '');
 
@@ -67,7 +67,7 @@ export const EFDFilterProvider = ({ children }) => {
     const clearFilters = useCallback(() => {
         setSelectedRegions([]);
         setSelectedCategories([]);
-        setSelectedYears([]);
+        setSelectedYears(["2022", "2023", "2024", "2025", "2026"]);
         setSelectedBatches([]);
         setSearchQuery('');
         setSelectedDivision('');

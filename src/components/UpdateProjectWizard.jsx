@@ -472,6 +472,15 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
   };
 
   const handleConstructionChange = (val) => {
+    const hasExistingPhotos = (project?.images_count || 0) > 0;
+    const hasNewPhotos = internalFiles.length > 0 || externalFiles.length > 0;
+    const projectHasPhotos = hasExistingPhotos || hasNewPhotos;
+
+    if (val === ConstructionStatus.Completed && !projectHasPhotos) {
+      alert("⚠️ ACTION REQUIRED\n\nProjects cannot be marked as 'Completed' without at least one submitted photo. Please upload photos in step 3.");
+      return;
+    }
+
     setConstructionStatus(val);
     if (val === ConstructionStatus.Completed) setPercentage(100);
     else if (val === ConstructionStatus.NotYetStarted) setPercentage(0);
@@ -479,6 +488,15 @@ const UpdateProjectWizard = ({ project, onSave, onClose, isOpen }) => {
   };
 
   const handlePercentageChange = (num) => {
+    const hasExistingPhotos = (project?.images_count || 0) > 0;
+    const hasNewPhotos = internalFiles.length > 0 || externalFiles.length > 0;
+    const projectHasPhotos = hasExistingPhotos || hasNewPhotos;
+
+    if (num === 100 && !projectHasPhotos) {
+      alert("⚠️ DOCUMENTATION REQUIRED\n\nProgress cannot reach 100% without photo documentation. Capping at 99% until photos are uploaded.");
+      setPercentage(99);
+      return;
+    }
     setPercentage(num);
     if (
       num === 0 &&

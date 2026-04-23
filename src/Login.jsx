@@ -41,8 +41,8 @@ const getDashboardPath = (role, accountCategory) => {
         'MGO': '/agency-dashboard',
         'DPWH': '/agency-dashboard',
         'CSO': '/agency-dashboard',
-        'Architect': '/engineer-dashboard',
-        'Regional Engineer': '/regional-engineer-dashboard',
+        'Architect': '/engineer-projects',
+        'Regional Engineer': '/engineer-projects',
     };
 
     if (roleMap[normalizedRole]) return roleMap[normalizedRole];
@@ -52,7 +52,7 @@ const getDashboardPath = (role, accountCategory) => {
         const normCategory = normalizeRole(accountCategory);
         return (normCategory === 'Non-DepEd Engineer' || normalizedRole === 'Non-DepEd Engineer')
             ? '/non-deped-dashboard'
-            : '/engineer-dashboard';
+            : '/engineer-projects';
     }
 
     // 3. GROUP-BASED FALLBACK

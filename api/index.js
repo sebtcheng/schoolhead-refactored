@@ -348,12 +348,12 @@ const { Pool } = pg;
 const pool = new Pool({
   connectionString: dbUrl,
   ssl: isLocal ? false : { rejectUnauthorized: false },
-  max: 100,   // Unrestricted throughput following PgBouncer-to-Azure fix
-  min: 10,
-  idleTimeoutMillis: 15000,
+  max: isLocal ? 20 : 100, // Throttled locally to prevent PgBouncer saturation; high throughput in prod
+  min: isLocal ? 2 : 10,
+  idleTimeoutMillis: isLocal ? 30000 : 15000, // More patient locally for network latency
   connectionTimeoutMillis: 10000, 
   maxUses: 7500,
-  application_name: 'InsightEd_API_Cluster'
+  application_name: isLocal ? 'InsightEd_Local_Dev' : 'InsightEd_API_Cluster'
 });
 
 pool.on('error', (err) => {
@@ -1858,9 +1858,9 @@ async function updateSchoolTotalCompletion(iern) {
     // This avoids reading the stale ph_school_completion booleans which can diverge
     // when pgBouncer (transaction mode) drops a COMMIT mid-flight.
     const res = await pool.query(
-      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9, unit10,
+      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9, unit10,
               unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-              unit5_completed, unit6_completed, unit7_completed, unit9_completed, unit10_completed
+              unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed, unit10_completed
        FROM ph_schools WHERE iern = $1`,
       [iern]
     );
@@ -1868,16 +1868,14 @@ async function updateSchoolTotalCompletion(iern) {
 
     const row = res.rows[0];
     const schoolId = row.school_id;
-    // Mapping: Unit 1-7 direct, Unit 9 (DB) maps to Unit 8 display, Unit 10 (DB) maps to Unit 9 display.
-    const dbCols = [1, 2, 3, 4, 5, 6, 7, 9, 10];
+    // Mapping: Explicit 1-10 mapping to ph_school_completion columns.
+    const dbCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let completedCount = 0;
     const boolValues = [];
     for (const idx of dbCols) {
       const val = parseFloat(row[`unit${idx}`]) || 0;
       const isDone = row[`unit${idx}_completed`] === true || val >= 1;
       
-      // If unit7 (ESF7) is 0.5, it counts as 0.5 completion.
-      // Other units typically use binary 0 or 1, but this logic is safe for them too.
       let unitProgress = 0;
       if (isDone) {
         unitProgress = 1;
@@ -1889,18 +1887,18 @@ async function updateSchoolTotalCompletion(iern) {
       boolValues.push(isDone);
     }
 
-    const percentage = parseFloat(((completedCount / 9) * 100).toFixed(2));
+    const percentage = parseFloat(((completedCount / 10) * 100).toFixed(2));
 
     // Upsert booleans + total to ph_school_completion.
     await pool.query(
       `INSERT INTO ph_school_completion
          (iern, school_id, unit1_completion, unit2_completion, unit3_completion, unit4_completion,
-          unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, total_completion, updated_at)
-       VALUES ($11, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $1, CURRENT_TIMESTAMP)
+          unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, unit10_completion, total_completion, updated_at)
+       VALUES ($12, $13, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1, CURRENT_TIMESTAMP)
        ON CONFLICT (iern) DO UPDATE SET
          unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
          unit5_completion=$6, unit6_completion=$7, unit7_completion=$8, unit8_completion=$9,
-         unit9_completion=$10, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
+         unit9_completion=$10, unit10_completion=$11, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
       [percentage, ...boolValues, iern, schoolId]
     );
 
@@ -3446,10 +3444,19 @@ app.post('/api/auth/migrate-login', async (req, res) => {
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const { uid } = req.user;
-    const result = await pool.query(
-      'SELECT uid, email, role, region, division, office, account_category, first_name, last_name, school_id, passcode, province, city FROM users WHERE uid = $1',
-      [uid]
-    );
+    const query = 'SELECT uid, email, role, region, division, office, account_category, first_name, last_name, school_id, passcode, province, city FROM users WHERE uid = $1';
+    
+    let result;
+    try {
+      result = await pool.query(query, [uid]);
+    } catch (err) {
+      if (err.message.includes('terminated unexpectedly')) {
+        console.warn(`♻️ [RECOVERY] Attempting immediate retry for /api/auth/me for: ${uid}`);
+        result = await pool.query(query, [uid]);
+      } else {
+        throw err;
+      }
+    }
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "User not found." });
@@ -3539,7 +3546,17 @@ app.post('/api/auth/pin-login', async (req, res) => {
       ? `SELECT ${selectCols} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
       : `SELECT ${selectCols} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
-    const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+    let userRes;
+    try {
+      userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+    } catch (err) {
+      if (err.message.includes('terminated unexpectedly')) {
+        console.warn(`♻️ [RECOVERY] Attempting immediate retry for Pin-Login for: ${identifier}`);
+        userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      } else {
+        throw err;
+      }
+    }
 
 
     if (userRes.rowCount === 0) {
@@ -8847,7 +8864,13 @@ app.post('/api/register-user', async (req, res) => {
     // 4. Generate JWT
     console.log(`[Reg] Signing JWT...`);
     const token = jwt.sign(
-      { uid, email: normalizedEmail, role: finalRole },
+      { 
+        uid, 
+        email: normalizedEmail, 
+        role: finalRole,
+        region: region || null,
+        division: division || null
+      },
       process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
       { expiresIn: '30d' }
     );
@@ -11213,6 +11236,16 @@ app.put('/api/update-project/:id', upload.fields([
             });
         }
     }
+    // --- [Photo Documentation Enforcement] ---
+    if (newAccomplishment === 100 || newStatus === 'Completed') {
+      const photoCheck = await client.query('SELECT COUNT(*) as count FROM engineer_image WHERE ipc = $1', [oldData.ipc]);
+      const photoCount = parseInt(photoCheck.rows[0].count || 0);
+      if (photoCount === 0) {
+        console.log(`📸 [PhotoEnforcement] Capping IPC ${oldData.ipc} at 99% due to missing photos.`);
+        insertValues[5] = 'Ongoing'; // status_of_construction_phase
+        insertValues[6] = 99;        // accomplishment_percentage
+      }
+    }
 
     // --- [Duplicate Shield] Digital Clone Check ---
     const dbColumns = [
@@ -12255,7 +12288,7 @@ app.get('/api/projects', authMiddleware, async (req, res) => {
     let whereClauses = [];
 
     let sql = `
-      WITH RankedProjects AS (
+      WITH BaseRanked AS (
           SELECT
             e.project_id, e.school_name, e.project_name, e.school_id, e.division, e.region, e.status_of_construction_phase AS status, e.ipc, e.engineer_name, e.engineer_id,
             e.accomplishment_percentage, e.is_duplicate,
@@ -12270,46 +12303,19 @@ app.get('/api/projects', authMiddleware, async (req, res) => {
             e.number_of_classrooms, e.number_of_storeys, e.number_of_sites, e.funds_utilized,
             e.is_donated, e.program_type, e.status_design_phase, e.procurement_status, e.actions, e.savings, e.funding_year, e.funding_year_justification, e.approval_status,
             e.sangguniang_resolution_id, e.mother_moa_id, e.supplamental_moa_id,
-            sp.district,
-            (NULLIF(d.moa_pdf, '') IS NOT NULL) AS has_moa,
-            (NULLIF(d.rta_pdf, '') IS NOT NULL) AS has_rta,
-            (NULLIF(d.pow_pdf, '') IS NOT NULL) AS has_pow,
-            (NULLIF(d.dupa_pdf, '') IS NOT NULL) AS has_dupa,
-            (NULLIF(d.contract_pdf, '') IS NOT NULL) AS has_contract,
-            d.pow_filename, d.dupa_filename, d.contract_filename,
             e.implementing_agency,
             e.implementing_agency_specific,
-            COALESCE(f.tranche_1, 0) as tranche_1,
-            COALESCE(f.tranche_2, 0) as tranche_2,
-            COALESCE(f.tranche_3, 0) as tranche_3,
-            COALESCE(f.liquidated_tranche_1, 0) as liquidated_tranche_1,
-            COALESCE(f.liquidated_tranche_2, 0) as liquidated_tranche_2,
-            COALESCE(f.liquidated_tranche_3, 0) as liquidated_tranche_3,
-            COALESCE(img_agg.img_count, 0) AS images_count,
+            f.tranche_1, f.tranche_2, f.tranche_3,
+            f.liquidated_tranche_1, f.liquidated_tranche_2, f.liquidated_tranche_3,
             ROW_NUMBER() OVER (
                 PARTITION BY COALESCE(e.ipc, e.school_id || '-' || e.project_name)
                 ORDER BY e.accomplishment_percentage DESC, e.project_id DESC
             ) as rn
           FROM engineer_form e
           LEFT JOIN co_finance f ON e.project_id = f.project_id
-          LEFT JOIN ph_schools sp ON e.school_id = sp.school_id
-          LEFT JOIN LATERAL (
-              SELECT pow_pdf, dupa_pdf, contract_pdf, moa_pdf, rta_pdf,
-                     pow_filename, dupa_filename, contract_filename
-              FROM engineer_documents
-              WHERE ipc = e.ipc
-              ORDER BY created_at DESC
-              LIMIT 1
-          ) d ON true
-          LEFT JOIN (
-              SELECT ipc, COUNT(*) AS img_count
-              FROM engineer_image
-              WHERE ipc IS NOT NULL
-              GROUP BY ipc
-          ) img_agg ON img_agg.ipc = e.ipc
       ),
       LatestProjects AS (
-          SELECT * FROM RankedProjects WHERE rn = 1
+          SELECT * FROM BaseRanked WHERE rn = 1
       )
       SELECT
         p.project_id AS "id", p.school_name AS "schoolName", p.school_name AS "school_name", p.project_name AS "projectName", p.project_name AS "project_name",
@@ -12341,21 +12347,12 @@ app.get('/api/projects', authMiddleware, async (req, res) => {
         p.sangguniang_resolution_id AS "sangguniang_resolution_id",
         p.mother_moa_id AS "mother_moa_id",
         p.supplamental_moa_id AS "supplamental_moa_id",
-        p.has_moa AS "hasMoa",
-        p.has_rta AS "hasRta",
-        p.has_pow AS "hasPow",
-        p.has_dupa AS "hasDupa",
-        p.has_contract AS "hasContract",
-        p.pow_filename AS "pow_filename",
-        p.dupa_filename AS "dupa_filename",
-        p.contract_filename AS "contract_filename",
         p.implementing_agency AS "implementingAgency",
         p.implementing_agency_specific AS "implementingAgencySpecific",
-        p.province, p.city, p.municipality, p.district,
+        p.province, p.city, p.municipality,
         p.tranche_1, p.tranche_2, p.tranche_3,
         p.liquidated_tranche_1, p.liquidated_tranche_2, p.liquidated_tranche_3,
         p.approval_status AS "approvalStatus",
-        p.images_count AS "imagesCount",
         COUNT(*) OVER() AS total_count
       FROM LatestProjects p
     `;
@@ -12364,10 +12361,21 @@ app.get('/api/projects', authMiddleware, async (req, res) => {
 
     // Include engineer_create rows for Division Engineers so their self-created projects appear
     const callerRole = req.user?.role?.trim().toLowerCase();
-    if (callerRole === 'division engineer') {
+    if (callerRole === 'division_engineer' || callerRole === 'division engineer') {
+      // Robust Union: Ensure both tables have the same schema for the final aggregate query
+      // and select only columns that exist in both engineer_form and engineer_create.
+      const COMMON_PROJECT_COLS = `
+        project_id, school_name, project_name, school_id, division, region, status_of_construction_phase, ipc, engineer_name, engineer_id,
+        accomplishment_percentage, is_duplicate, approved_budget_for_contract, contract_amount, batch_of_funds, contractor_name, other_remarks,
+        status_as_of, target_completion_date, actual_completion_date, notice_to_proceed, latitude, longitude,
+        construction_start_date, project_category, scope_of_work, province, city, municipality,
+        number_of_classrooms, number_of_storeys, number_of_sites, funds_utilized,
+        is_donated, program_type, status_design_phase, procurement_status, actions, savings, funding_year, funding_year_justification, approval_status,
+        sangguniang_resolution_id, mother_moa_id, supplamental_moa_id, implementing_agency, implementing_agency_specific
+      `;
       sql = sql.replace(
         'FROM engineer_form e',
-        'FROM (SELECT * FROM engineer_form UNION ALL SELECT * FROM engineer_create) e'
+        `FROM (SELECT ${COMMON_PROJECT_COLS} FROM engineer_form UNION ALL SELECT ${COMMON_PROJECT_COLS} FROM engineer_create) e`
       );
     }
 
@@ -14756,28 +14764,33 @@ app.post('/api/save-physical-facilities', async (req, res) => {
 
       for (const room of allRooms) {
         const parentBuild = buildings.find(b => b.building_name === room.building_name || b.id === room.building_local_id);
-        const roomDim = room.dimension || room.dimensions || '';
+        
+        // Standardize: consistently use 'dimension' and force lowercase for comparison
+        const rawDim = (room.dimension || room.dimensions || '').toString().toLowerCase().trim();
 
         await client.query(`
               INSERT INTO ph_buildings_inventory (
                   school_id, iern, building_name, room_name, category,
                   storey, classroom, year_completed, remarks,
                   less_than_7x9, "7x9", above_7x9, 
-                  grade_level, advisory_teacher, status, is_in_use, seats
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                  grade_level, advisory_teacher, status, is_in_use, seats,
+                  room_length, room_width
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
           `, [
           sId, data.iern || sId,
           room.building_name, room.room_name,
           parentBuild?.category || 'Classroom',
           sanitize(parentBuild?.storey) || 1, 1, // one classroom per row
           parentBuild?.year_completed || null, parentBuild?.remarks || '',
-          roomDim === 'less than 7x9' ? 1 : 0,
-          roomDim === '7x9' ? 1 : 0,
-          roomDim === 'above 7x9' ? 1 : 0,
+          rawDim === 'less than 7x9' ? 1 : 0,
+          rawDim === '7x9' ? 1 : 0,
+          rawDim === 'above 7x9' ? 1 : 0,
           room.grade_level || '', room.teacher_id || '',
           room.condition || 'Good Condition',
           (room.is_in_use !== undefined) ? room.is_in_use : true,
-          room.seats || ''
+          room.seats || '',
+          sanitize(room.room_length),
+          sanitize(room.room_width)
         ]);
       }
     }
@@ -20406,6 +20419,10 @@ app.get('/api/ph_schools/unit10/:schoolId/master', async (req, res) => {
         advisory_teacher: row.advisory_teacher,
         room_length: row.room_length,
         room_width: row.room_width,
+        // Reconstruct dimension string for the UI
+        dimension: row.less_than_7x9 ? 'Less than 7x9' : 
+                   row['7x9'] ? '7x9' : 
+                   row.above_7x9 ? 'Above 7x9' : '',
         condition: row.status, // Mapping 'status' back to condition for UI
         seats: row.seats || '',
         is_in_use: row.is_in_use !== false
@@ -21938,6 +21955,117 @@ app.post('/api/officials/vacate', authMiddleware, async (req, res) => {
     await client.query('ROLLBACK');
     console.error("POST /api/officials/vacate error:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// --- 45. [Master Harvesting] Sanity Check & Data Recovery ---
+/**
+ * Scans for discrepancies between a local draft payload and the current database state.
+ * Returns a list of 'repairable' fields (missing or 0 in DB but present in local).
+ */
+app.post('/api/check-school-data-sanity/:schoolId', async (req, res) => {
+  const { schoolId } = req.params;
+  const localData = req.body; // Full modular sync payload
+  
+  try {
+    const dbRes = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [schoolId]);
+    if (dbRes.rows.length === 0) return res.json({ healthy: true, repairable: [], message: "No base record found." });
+    
+    const dbData = dbRes.rows[0];
+    const repairable = [];
+    
+    // 1. Ph_Schools Check (Demographics, Identity, Literacy)
+    const schoolFields = [
+      'contact_number', 'head_first_name', 'head_last_name', 'head_position_title',
+      'multigrade_sections_count', 'als_total', 'als_kinder', 'als_g1', 'als_g2', 'als_g3', 'als_g4', 'als_g5', 'als_g6',
+      'als_g7', 'als_g8', 'als_g9', 'als_g10', 'als_g11', 'als_g12',
+      'displaced_kinder', 'displaced_g1', 'displaced_g2', 'displaced_g3', 'displaced_g4', 'displaced_g5', 'displaced_g6',
+      'displaced_g7', 'displaced_g8', 'displaced_g9', 'displaced_g10', 'displaced_g11', 'displaced_g12',
+      'lwd_kinder', 'lwd_g1', 'lwd_g2', 'lwd_g3', 'lwd_g4', 'lwd_g5', 'lwd_g6',
+      'lwd_g7', 'lwd_g8', 'lwd_g9', 'lwd_g10', 'lwd_g11', 'lwd_g12',
+      'sned_kinder', 'sned_g1', 'sned_g2', 'sned_g3', 'sned_g4', 'sned_g5', 'sned_g6',
+      'sned_g7', 'sned_g8', 'sned_g9', 'sned_g10', 'sned_g11', 'sned_g12',
+      'aral_math', 'aral_sci', 'aral_reading'
+    ];
+
+    schoolFields.forEach(f => {
+      const dbVal = dbData[f];
+      const localVal = localData[f];
+      
+      // Repairable if DB is 0 or NULL, but Local is non-zero/non-null
+      const isEmpty = dbVal === null || dbVal === 0 || dbVal === "0" || dbVal === "";
+      const hasData = localVal !== null && localVal !== 0 && localVal !== "0" && localVal !== "";
+      
+      if (isEmpty && hasData) {
+        repairable.push({ table: 'ph_schools', field: f, local: localVal, db: dbVal });
+      }
+    });
+
+    res.json({
+      healthy: repairable.length === 0,
+      repairable,
+      school_id: schoolId,
+      iern: dbData.iern
+    });
+  } catch (err) {
+    console.error("Sanity Check Failure:", err.message);
+    res.status(500).json({ error: "Sanity check failed" });
+  }
+});
+
+/**
+ * Non-destructive Upsert: Only updates columns that are currently 0 or NULL in the DB.
+ * Uses local draft data as the source of truth for missing entries.
+ */
+app.post('/api/harvest-master/:schoolId', async (req, res) => {
+  const { schoolId } = req.params;
+  const { repairable } = req.body; // Array of { table, field, local } objects
+  
+  if (!repairable || !Array.isArray(repairable) || repairable.length === 0) {
+    return res.json({ success: true, message: "No fields to harvest." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    console.log(`🌾 [MasterHarvester] Starting harvest for school: ${schoolId} (${repairable.length} fields)`);
+    
+    // Group repairs by table to optimize queries
+    const tables = [...new Set(repairable.map(r => r.table))];
+    
+    for (const table of tables) {
+      if (table !== 'ph_schools') continue; 
+      
+      const fieldsToHarvest = repairable.filter(r => r.table === table);
+      
+      // Construct atomic non-destructive update
+      const setClauses = fieldsToHarvest.map((r, i) => `${r.field} = $${i + 1}`);
+      const vals = fieldsToHarvest.map(r => r.local);
+      
+      // Secondary safety check: ensure column is still empty before writing (Final Guard)
+      // This ensures we NEVER overwrite existing data even if N requests hit simultaneously.
+      const whereClauses = fieldsToHarvest.map(r => `(${r.field} IS NULL OR ${r.field} = 0 OR ${r.field} = '0' OR ${r.field} = '')`);
+      
+      const query = `
+        UPDATE ${table} 
+        SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+        WHERE school_id = $${fieldsToHarvest.length + 1}
+        AND (${whereClauses.join(' OR ')})
+      `;
+      
+      await client.query(query, [...vals, schoolId]);
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, harvested: repairable.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error("Master Harvest Failure:", err.message);
+    res.status(500).json({ error: "Harvesting failed" });
   } finally {
     client.release();
   }
