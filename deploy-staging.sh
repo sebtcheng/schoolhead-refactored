@@ -49,7 +49,8 @@ $SSH_CMD "rm -rf $SERVER_DIR/dist $SERVER_DIR/api" || warn "Remote cleanup faile
 
 # --- PACK & SYNC ---
 info "📦 2. Packing artifacts into $TAR_FILE..."
-tar -czf "$TAR_FILE" dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs || fail "Failed to create archive."
+tar -czf "$TAR_FILE" dist api public package.json package-lock.json compress_pdf.py forensic_heal.sh ecosystem.config.cjs tmp_stride.conf || fail "Failed to create archive."
+
 ok "Archive created."
 
 info "📤 3. Syncing to VM Staging via SCP..."

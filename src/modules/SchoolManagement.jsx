@@ -154,12 +154,12 @@ const SchoolManagement = () => {
     const [checkingId, setCheckingId] = useState(false);
     const [nameError, setNameError] = useState('');
 
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [confirmTimer, setConfirmTimer] = useState(20);
     const [canConfirm, setCanConfirm] = useState(false);
 
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [lastSubmissionDetails, setLastSubmissionDetails] = useState(null);
     const [updateStatusData, setUpdateStatusData] = useState({
         school_id: '',

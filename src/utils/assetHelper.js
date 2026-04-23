@@ -60,3 +60,46 @@ export const resolveDocUrl = (value, opts = {}) => {
     // Legacy: raw base64 string
     return `data:application/pdf;base64,${value}`;
 };
+/**
+ * Resolves an API path to an absolute URL, aware of the current environment base.
+ * @param {string} apiPath e.g. "api/esf7/upload" or "/api/esf7/upload"
+ */
+export const resolveApiUrl = (apiPath) => {
+    if (!apiPath) return apiPath;
+    if (apiPath.startsWith('http')) return apiPath;
+
+    let resolvedUrl = '';
+    const vApiUrl = import.meta.env.VITE_API_URL;
+    
+    if (vApiUrl) {
+        const cleanPath = apiPath.startsWith('/') ? apiPath.substring(1) : apiPath;
+        const cleanApiUrl = vApiUrl.endsWith('/') ? vApiUrl : `${vApiUrl}/`;
+        resolvedUrl = `${cleanApiUrl}${cleanPath}`;
+    } else {
+        const appBase = import.meta.env.BASE_URL || '/';
+        const cleanBase = appBase.endsWith('/') ? appBase : `${appBase}/`;
+        const cleanPath = apiPath.startsWith('/') ? apiPath.substring(1) : apiPath;
+        
+        let finalBase = cleanBase;
+        
+        // FOOLPROOF STAGING DETECTION:
+        // If the current URL includes "insighted-staging" but the base doesn't, force it.
+        const path = typeof window !== 'undefined' ? window.location.pathname : '';
+        if (path.includes('/insighted-staging/') && !finalBase.includes('insighted-staging')) {
+            finalBase = '/insighted-staging/';
+            console.warn(`⚠️ [API-Path-Correction] Detected staging environment via URL. Forcing base to: ${finalBase}`);
+        } else if (finalBase === './') {
+            finalBase = '/';
+        }
+        
+        resolvedUrl = `${finalBase}${cleanPath}`;
+    }
+
+
+    if (import.meta.env.DEV || window.location.hostname !== 'localhost') {
+        console.log(`🔗 [API-Resolve] "${apiPath}" -> "${resolvedUrl}" (Base: ${import.meta.env.BASE_URL})`);
+    }
+
+    return resolvedUrl;
+};
+
