@@ -160,7 +160,6 @@ const SchoolManagement = () => {
 
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [lastSubmissionDetails, setLastSubmissionDetails] = useState(null);
     const [updateStatusData, setUpdateStatusData] = useState({
         school_id: '',
