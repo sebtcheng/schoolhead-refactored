@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "nodemon --watch api api/index.js",
+    "server": "node --watch api/index.js",
     "dev:full": "concurrently -n \"SERVER,VITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run server\" \"npm run dev\"",
     "dev:turbo": "node turbo-dev.js",
     "build": "vite build",

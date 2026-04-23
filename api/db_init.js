@@ -1895,6 +1895,12 @@ const runMigrations = async (client, dbLabel) => {
         console.error(`❌ [${dbLabel}] Failed to init TLM Registry tables:`, migErr.message);
     }
 
+    } catch (globalErr) {
+        console.error(`❌ [${dbLabel}] Global migration error:`, globalErr.message);
+    } finally {
+        await client.query('SELECT pg_advisory_unlock(7777777)').catch(() => {});
+        console.log(`🔓 [${dbLabel}] Migration lock (7777777) released.`);
+    }
 };
 
 export { initOtpTable, runMigrations };
