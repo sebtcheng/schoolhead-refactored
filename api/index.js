@@ -21580,7 +21580,6 @@ const startServer = async () => {
         try {
           const migClient = await pool.connect();
           try {
-<<<<<<< HEAD
             const lockRes = await migClient.query('SELECT pg_try_advisory_lock(6666666) as lock_granted');
             if (!lockRes.rows[0].lock_granted) {
               console.log(`⚠️ [Cluster] Migrations already in progress. skipping.`);
@@ -21603,12 +21602,7 @@ const startServer = async () => {
             // Initialize and start pg-boss
             console.log("💼 [JobQueue] Starting pg-boss instance...");
             await boss.start();
-            // ESF7 scaling disabled to restore stability
-            // await boss.createQueue('esf7-approve').catch(() => {});
-            await boss.createQueue('activity-log').catch(() => {});
-            await boss.createQueue('log-cleanup').catch(() => {});
-            // await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
-=======
+            
             console.log("💼 [JobQueue] Registering Workers...");
             await boss.createQueue('esf7-approve').catch(() => {});
             await boss.createQueue('activity-log').catch(() => {});
@@ -21617,7 +21611,6 @@ const startServer = async () => {
 
             // Register Workers (High Priority)
             await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
->>>>>>> fca3c1f (esf7ffdsdf)
             await boss.work('activity-log', { concurrency: 10 }, handleActivityLogJob);
             await boss.work('log-cleanup', handleLogCleanupJob);
             console.log("💼 [JobQueue] Registering esf7-local-scan worker...");
