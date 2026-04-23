@@ -166,6 +166,14 @@ info "Pruning orphaned PDF buffers in /tmp (>120m)..."
 find /tmp -maxdepth 1 -name "bin_*" -mmin +120 -delete 2>/dev/null
 ok "Orphaned buffers in /tmp pruned."
 
+# [ESF7] Draft Directory Cleanup (Disabled - Harvester handles per-file cleanup)
+# if [ -d "/mnt/esf7_draft" ]; then
+#     info "Clearing ESF7 draft folder: /mnt/esf7_draft..."
+#     run_sudo rm -rf /mnt/esf7_draft/*
+#     ok "Draft folder cleared."
+# fi
+
+
 # [Senior-Dev Harden] Repository Hygiene (Remove .git from staging)
 if [ -d "${STAGING_DIR}/.git" ]; then
     warn ".git folder detected in staging — removing to reclaim space."
@@ -234,6 +242,14 @@ else
     grep -q "proxy_connect_timeout 600s" "$NGINX_CONF" && ok "proxy_connect_timeout 600s ✓" || { warn "proxy_connect_timeout 600s missing."; NEEDS_DEPLOY=true; }
     grep -q 'location \^~ /uploads/' "$NGINX_CONF" && ok "/uploads/ block (410 deny) ✓" || { warn "/uploads/ block missing — legacy disk paths would leak."; NEEDS_DEPLOY=true; }
     grep -q "/mnt/uploads" "$NGINX_CONF" && { fail "/mnt/uploads still referenced in nginx config."; NEEDS_DEPLOY=true; } || ok "No /mnt/uploads references ✓"
+    
+    # Version-based sync check
+    LOCAL_VER=$(grep "VERSION:" "$AUTHORITATIVE_CONF" | head -1 || echo "none")
+    REMOTE_VER=$(grep "VERSION:" "$NGINX_CONF" | head -1 || echo "none")
+    if [ "$LOCAL_VER" != "$REMOTE_VER" ]; then
+        warn "Nginx config version mismatch ($REMOTE_VER -> $LOCAL_VER). Forcing update."
+        NEEDS_DEPLOY=true
+    fi
 fi
 
 if [ "$NEEDS_DEPLOY" = true ]; then
@@ -241,8 +257,12 @@ if [ "$NEEDS_DEPLOY" = true ]; then
         fail "Authoritative config not found at $AUTHORITATIVE_CONF."
         info "Fix: Ensure 'tmp_stride.conf' is in the root directory before deploying."
     else
-        run_sudo cp "$NGINX_CONF" "${NGINX_CONF}.bak.$(date +%s)" 2>/dev/null || true
-        ok "Backup of existing config saved."
+        # Clean up legacy backups in sites-enabled to prevent Nginx conflicts
+        run_sudo mkdir -p /etc/nginx/config_backups
+        run_sudo mv /etc/nginx/sites-enabled/*.bak.* /etc/nginx/config_backups/ 2>/dev/null || true
+        
+        run_sudo cp "$NGINX_CONF" "/etc/nginx/config_backups/stride.conf.bak.$(date +%s)" 2>/dev/null || true
+        ok "Backup of existing config saved to /etc/nginx/config_backups/"
         run_sudo cp "$AUTHORITATIVE_CONF" "$NGINX_CONF"
         ok "Deployed authoritative config from $AUTHORITATIVE_CONF"
 
@@ -275,13 +295,14 @@ if [ -n "$PM2_BIN" ]; then
     
     if [ -f "$ECOSYSTEM_PATH" ]; then
         info "Found ecosystem config at $ECOSYSTEM_PATH"
-        # Using --only ensures we only restart the specific app (staging vs production)
-        if "$PM2_BIN" restart "$ECOSYSTEM_PATH" --only "$PM2_NAME" --update-env 2>&1; then
-            ok "PM2 process '$PM2_NAME' restarted with ecosystem config."
+        # Hard Stop and Start is more reliable for picking up code changes
+        "$PM2_BIN" stop "$PM2_NAME" "esf7-scheduler" 2>/dev/null || true
+        if "$PM2_BIN" start "$ECOSYSTEM_PATH" --only "$PM2_NAME,esf7-scheduler" --update-env 2>&1; then
+            ok "PM2 processes '$PM2_NAME' and 'esf7-scheduler' hard-started with ecosystem config."
         else
-            warn "Restart failed. Attempting to start/reload from ecosystem..."
-            "$PM2_BIN" start "$ECOSYSTEM_PATH" --only "$PM2_NAME" --update-env && ok "PM2 process started." || fail "PM2 start failed."
+            fail "PM2 start failed."
         fi
+
     else
         warn "Ecosystem config NOT found. Falling back to manual restart..."
         if "$PM2_BIN" restart "$PM2_NAME" --update-env 2>&1; then

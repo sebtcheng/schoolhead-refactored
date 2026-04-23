@@ -142,7 +142,7 @@ const NodesDashboard = () => {
             color: esf7Status === 'VERIFIED' ? 'from-emerald-500 to-teal-600' : 'from-[#10346B] to-blue-800',
             textColor: esf7Status === 'VERIFIED' ? 'text-emerald-600' : 'text-[#10346B]',
             bgLight: esf7Status === 'VERIFIED' ? 'bg-emerald-50' : 'bg-blue-50',
-            progress: esf7Status === 'VERIFIED' ? 100 : (['PENDING_SDO', 'QUEUED', 'HARVESTING', 'ERROR'].includes(esf7Status) ? 50 : 0),
+            progress: esf7Status === 'VERIFIED' ? 100 : (['SUBMITTED', 'PENDING_SDO', 'QUEUED', 'HARVESTING', 'ERROR'].includes(esf7Status) ? 50 : 0),
             route: '/draft/esf7',
             badge: esf7Status === 'VERIFIED' ? 'VERIFIED' : (esf7Status === 'NOT_STARTED' ? 'BETA' : 'STAGED'),
             description: 'eSF7 will know about teacher and staff loading.',

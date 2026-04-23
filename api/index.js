@@ -318,7 +318,109 @@ const boss = new PgBoss({
   max: 10, // Max internal queue metadata connections
 });
 
-boss.on('error', error => console.error('💥 [PG-BOSS] Error:', error));
+boss.on('error', error => console.error('💥 [PG-BOSS] Global Error:', error));
+boss.on('monitor-states', states => {
+    const q = states.queues['esf7-local-scan'];
+    if (q) {
+        console.log(`📊 [PG-BOSS] Queue '${q.name}': [Active: ${q.active}, Pending: ${q.pending}, Completed: ${q.completed}]`);
+    }
+});
+
+// [Job Queue Architecture] Initialize Worker for ESF7 Scans
+
+
+
+// Shared Helper for Excel Parsing
+async function processEsf7Buffer(buffer, onProgress) {
+    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' }); 
+    const sheetName = workbook.SheetNames.find(n => n.toUpperCase() === 'DB_USER');
+    if (!sheetName) throw new Error("Missing 'DB_USER' sheet.");
+    const worksheet = workbook.Sheets[sheetName];
+
+    // Quick Audit Range (A-Z, 1000 rows)
+    const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null, range: 'A1:Z1001' });
+    let headerRowIdx = -1;
+    let colMap = { first: -1, last: -1, pos: -1, fund: -1 };
+    
+    for (let i = 0; i < Math.min(allRows.length, 100); i++) {
+        const row = allRows[i] || [];
+        const lowerRow = row.map(c => String(c || "").trim().toUpperCase());
+        if (lowerRow.includes("FIRST") && lowerRow.includes("LAST")) {
+            headerRowIdx = i;
+            colMap.last = lowerRow.indexOf("LAST");
+            colMap.first = lowerRow.indexOf("FIRST");
+            colMap.pos = lowerRow.findIndex(c => c === "POSITION" || c.includes("POS"));
+            colMap.fund = lowerRow.findIndex(c => c === "FUND SOURCE" || c.includes("FUND"));
+            break;
+        }
+    }
+
+    if (headerRowIdx === -1) throw new Error("Could not identify standard ESF7 headers.");
+
+    let teachingCount = 0;
+    let relatedCount = 0;
+    let nonTeachingCount = 0;
+    let schoolHead = { name: "N/A", position: "N/A", rank: -1 };
+
+    const scannedPersonnel = {
+        teaching: [],
+        related: [],
+        nonTeaching: []
+    };
+
+    const rowsToProcess = allRows.slice(headerRowIdx + 1);
+    const totalRows = rowsToProcess.length;
+
+    for (let i = 0; i < totalRows; i++) {
+        const row = rowsToProcess[i];
+        const hasName = (row[colMap.first] && String(row[colMap.first]).trim() !== "") || 
+                      (row[colMap.last] && String(row[colMap.last]).trim() !== "");
+
+        if (hasName) {
+            const pos = String(row[colMap.pos] || "").trim().toUpperCase();
+            const first = String(row[colMap.first] || "").trim();
+            const last = String(row[colMap.last] || "").trim();
+            const fullName = `${first} ${last}`;
+            const fund = String(row[colMap.fund] || "LOCAL").trim().toUpperCase();
+            
+            const staffObj = { first, last, position: row[colMap.pos], fund_source: fund };
+
+            if (TEACHING_POSITIONS.some(tp => pos.includes(tp))) {
+                teachingCount++;
+                scannedPersonnel.teaching.push(staffObj);
+            }
+            else if (RELATED_TEACHING_POSITIONS.some(rp => pos.includes(rp))) {
+                relatedCount++;
+                scannedPersonnel.related.push(staffObj);
+            }
+            else {
+                nonTeachingCount++;
+                scannedPersonnel.nonTeaching.push(staffObj);
+            }
+
+            const rank = getPositionRank(pos);
+            if (rank > schoolHead.rank) schoolHead = { name: fullName, position: row[colMap.pos] || pos, rank };
+        }
+
+        // Progress heartbeat (every 10% or at least every 50 rows)
+        if (onProgress && totalRows > 0 && (i % Math.max(1, Math.floor(totalRows / 10)) === 0)) {
+            const pct = Math.min(98, 10 + Math.round((i / totalRows) * 85));
+            await onProgress(pct).catch(() => {});
+        }
+    }
+
+    return {
+        summary: {
+            schoolHead: schoolHead.name,
+            schoolHeadPosition: schoolHead.position,
+            teaching: teachingCount,
+            relatedTeaching: relatedCount,
+            nonTeaching: nonTeachingCount,
+            total: teachingCount + relatedCount + nonTeachingCount
+        },
+        scannedPersonnel
+    };
+}
 
 const logActivity = (userUid, userName, role, actionType, targetEntity, details, superUserContext = null) => {
   if (!boss) return;
@@ -412,7 +514,7 @@ async function cachedQuery(key, fn) {
 }
 
 // --- [Hawkeye Protocol] DB INITIALIZATION & SCHEMA HARDENING (Consolidated) ---
-const hardenSchoolsIernSchema = async (client) => {
+const hardenSchoolsIernSchema_OLD = async (client) => {
     try {
         console.log('🏗️ [DB-Init] Verifying schools_IERN schema...');
         
@@ -441,6 +543,19 @@ const hardenSchoolsIernSchema = async (client) => {
         }
         
         console.log('✅ [DB-Init] schools_IERN schema verified & cleaned.');
+
+        // [Job Queue Architecture] Scan Results Table
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS esf7_scan_results (
+            job_id UUID PRIMARY KEY,
+            school_id TEXT,
+            result JSONB,
+            error TEXT,
+            status TEXT DEFAULT 'PENDING',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          CREATE INDEX IF NOT EXISTS idx_esf7_scan_job ON esf7_scan_results(job_id);
+        `);
     } catch (err) {
         console.error('❌ [DB-Init] Failed to harden schools_IERN schema:', err.message);
     }
@@ -599,6 +714,15 @@ let isDbConnected = false;
 
 const app = express();
 
+// --- CRITICAL DEBUG PING (TOP PRIORITY) ---
+app.get('/api/ping', (req, res) => res.json({ 
+  status: 'pong', 
+  version: 'v1.2.5-STAGING-OMEGA-TOP',
+  mode: 'API (/api/ping)',
+  path: req.path
+}));
+app.get('/ping', (req, res) => res.json({ status: 'pong-root' }));
+
 
 
 
@@ -644,15 +768,73 @@ const initESF7Tables = async () => {
                 );
                 ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS summary JSONB;
                 ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS audit_remarks TEXT;
+                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS file_path TEXT;
                 CREATE TABLE IF NOT EXISTS ESF7_Database (
                     id SERIAL PRIMARY KEY,
                     school_id TEXT,
-                    data JSONB,
+                    iern TEXT,
+                    esf7_id TEXT UNIQUE,
+                    first TEXT,
+                    last TEXT,
+                    middle TEXT,
+                    position TEXT,
+                    fund_source TEXT,
+                    gender TEXT,
+                    major__specialization TEXT,
+                    teaching_load TEXT,
+                    appt_mm TEXT,
+                    appt_yyyy TEXT,
+                    submitted_at TIMESTAMPTZ,
                     status TEXT,
                     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
                 );
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS iern TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS esf7_id TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS first TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS last TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS position TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS fund_source TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS gender TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS major__specialization TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS teaching_load TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS appt_mm TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS appt_yyyy TEXT;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS middle TEXT;
                 ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS data JSONB;
                 
+                CREATE TABLE IF NOT EXISTS esf7_scan_results (
+                    job_id UUID PRIMARY KEY,
+                    school_id TEXT,
+                    result JSONB,
+                    error TEXT,
+                    status TEXT DEFAULT 'PENDING',
+                    progress INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                ALTER TABLE esf7_scan_results ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0;
+                CREATE INDEX IF NOT EXISTS idx_esf7_scan_job ON esf7_scan_results(job_id);
+
+                CREATE TABLE IF NOT EXISTS esf7_resubmission_request (
+                    id SERIAL PRIMARY KEY,
+                    school_id TEXT UNIQUE,
+                    status TEXT DEFAULT 'PENDING',
+                    can_resubmit BOOLEAN DEFAULT false,
+                    request_reason TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS esf_link (
+                    id SERIAL PRIMARY KEY,
+                    school_id TEXT UNIQUE,
+                    link TEXT,
+                    status TEXT,
+                    row_count INTEGER,
+                    summary JSONB,
+                    audit_remarks TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE TABLE IF NOT EXISTS ESF7_Staging (
                     id SERIAL PRIMARY KEY,
                     school_id TEXT,
@@ -673,40 +855,19 @@ const initESF7Tables = async () => {
 
 app.get('/api/esf7/heartbeat', (req, res) => res.json({ status: 'alive' }));
 
+
+
+
+
+
+
 // 1. QUICK SCAN (Verify Access & Metadata)
 const TEACHING_POSITIONS = [
-    "TEACHER I", "TEACHER II", "TEACHER III", "SPED TEACHER I", "SPED TEACHER II", "SPED TEACHER III", "SPED TEACHER IV",
-    "SPECIAL SCIENCE TEACHER I", "SPECIAL SCIENCE TEACHER II", "SPECIAL SCIENCE TEACHER III", "SPECIAL SCIENCE TEACHER IV", "SPECIAL SCIENCE TEACHER V",
-    "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV",
-    "ALS TR - TEACHER I", "ALS TR - TEACHER II", "ALS TR - TEACHER III", "ALS TR - SPED TEACHER I", "ALS TR - SPED TEACHER II", "ALS TR - SPED TEACHER III", "ALS TR - SPED TEACHER IV",
-    "ALS TR - SPECIAL SCIENCE TEACHER I", "ALS TR - SPECIAL SCIENCE TEACHER II", "ALS TR - SPECIAL SCIENCE TEACHER III", "ALS TR - SPECIAL SCIENCE TEACHER IV", "ALS TR - SPECIAL SCIENCE TEACHER V",
-    "ALS TR - MASTER TEACHER I", "ALS TR - MASTER TEACHER II", "ALS TR - MASTER TEACHER III", "ALS TR - MASTER TEACHER IV",
-    "IP TR - TEACHER I", "IP TR - TEACHER II", "IP TR - TEACHER III", "IP TR - SPED TEACHER I", "IP TR - SPED TEACHER II", "IP TR - SPED TEACHER III", "IP TR - SPED TEACHER IV",
-    "IP TR - SPECIAL SCIENCE TEACHER I", "IP TR - SPECIAL SCIENCE TEACHER II", "IP TR - SPECIAL SCIENCE TEACHER III", "IP TR - SPECIAL SCIENCE TEACHER IV", "IP TR - SPECIAL SCIENCE TEACHER V",
-    "IP TR - MASTER TEACHER I", "IP TR - MASTER TEACHER II", "IP TR - MASTER TEACHER III", "IP TR - MASTER TEACHER IV",
-    "MADRASAH TR - TEACHER I", "MADRASAH TR - TEACHER II", "MADRASAH TR - TEACHER III", "MADRASAH TR - SPED TEACHER I", "MADRASAH TR - SPED TEACHER II", "MADRASAH TR - SPED TEACHER III", "MADRASAH TR - SPED TEACHER IV",
-    "MADRASAH TR - SPECIAL SCIENCE TEACHER I", "MADRASAH TR - SPECIAL SCIENCE TEACHER II", "MADRASAH TR - SPECIAL SCIENCE TEACHER III", "MADRASAH TR - SPECIAL SCIENCE TEACHER IV", "MADRASAH TR - SPECIAL SCIENCE TEACHER V",
-    "MADRASAH TR - MASTER TEACHER I", "MADRASAH TR - MASTER TEACHER II", "MADRASAH TR - MASTER TEACHER III", "MADRASAH TR - MASTER TEACHER IV",
-    "ALIVE TEACHER", "TIC - TEACHER I", "TIC - TEACHER II", "TIC - TEACHER III", "TIC - SPED TEACHER I", "TIC - SPED TEACHER II", "TIC - SPED TEACHER III", "TIC - SPED TEACHER IV",
-    "TIC - SPECIAL SCIENCE TEACHER I", "TIC - SPECIAL SCIENCE TEACHER II", "TIC - SPECIAL SCIENCE TEACHER III", "TIC - SPECIAL SCIENCE TEACHER IV", "TIC - SPECIAL SCIENCE TEACHER V",
-    "TIC - MASTER TEACHER I", "TIC - MASTER TEACHER II", "TIC - MASTER TEACHER III", "TIC - MASTER TEACHER IV",
-    "GUIDANCE DESIGNATE - TEACHER I", "GUIDANCE DESIGNATE - TEACHER II", "GUIDANCE DESIGNATE - TEACHER III", "GUIDANCE DESIGNATE - SPED TEACHER I", "GUIDANCE DESIGNATE - SPED TEACHER II", "GUIDANCE DESIGNATE - SPED TEACHER III", "GUIDANCE DESIGNATE - SPED TEACHER IV",
-    "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER I", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER II", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER III", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER IV", "GUIDANCE DESIGNATE - SPECIAL SCIENCE TEACHER V",
-    "GUIDANCE DESIGNATE - MASTER TEACHER I", "GUIDANCE DESIGNATE - MASTER TEACHER II", "GUIDANCE DESIGNATE - MASTER TEACHER III", "GUIDANCE DESIGNATE - MASTER TEACHER IV",
-    "CLINIC - TEACHER I", "CLINIC - TEACHER II", "CLINIC - TEACHER III", "CLINIC - SPED TEACHER I", "CLINIC - SPED TEACHER II", "CLINIC - SPED TEACHER III", "CLINIC - SPED TEACHER IV",
-    "CLINIC - SPECIAL SCIENCE TEACHER I", "CLINIC - SPECIAL SCIENCE TEACHER II", "CLINIC - SPECIAL SCIENCE TEACHER III", "CLINIC - SPECIAL SCIENCE TEACHER IV", "CLINIC - SPECIAL SCIENCE TEACHER V",
-    "CLINIC - MASTER TEACHER I", "CLINIC - MASTER TEACHER II", "CLINIC - MASTER TEACHER III", "CLINIC - MASTER TEACHER IV"
+    "TEACHER", "MASTER TEACHER", "SPED TEACHER", "SPECIAL SCIENCE TEACHER", "ALS TR", "IP TR", "MADRASAH TR", "ALIVE TEACHER", "TIC"
 ];
 
 const RELATED_TEACHING_POSITIONS = [
-    "TIC - HEAD TEACHER I", "TIC - HEAD TEACHER II", "TIC - HEAD TEACHER III", "TIC - HEAD TEACHER IV", "TIC - HEAD TEACHER V", "TIC - HEAD TEACHER VI",
-    "GUIDANCE DESIGNATE - HEAD TEACHER I", "GUIDANCE DESIGNATE - HEAD TEACHER II", "GUIDANCE DESIGNATE - HEAD TEACHER III", "GUIDANCE DESIGNATE - HEAD TEACHER IV", "GUIDANCE DESIGNATE - HEAD TEACHER V", "GUIDANCE DESIGNATE - HEAD TEACHER VI",
-    "CLINIC - HEAD TEACHER I", "CLINIC - HEAD TEACHER II", "CLINIC - HEAD TEACHER III", "CLINIC - HEAD TEACHER IV", "CLINIC - HEAD TEACHER V", "CLINIC - HEAD TEACHER VI",
-    "ASSISTANT SCHOOL PRINCIPAL I", "ASSISTANT SCHOOL PRINCIPAL II", "ASSISTANT SCHOOL PRINCIPAL III", "ASSISTANT SPECIAL SCHOOL PRINCIPAL",
-    "GUIDANCE COORDINATOR I", "GUIDANCE COORDINATOR II", "GUIDANCE COORDINATOR III", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III",
-    "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI",
-    "SCHOOL PRINCIPAL I", "SCHOOL PRINCIPAL II", "SCHOOL PRINCIPAL III", "SCHOOL PRINCIPAL IV", "SPECIAL SCHOOL PRINCIPAL I", "SPECIAL SCHOOL PRINCIPAL II",
-    "GUIDANCE SERVICES SPECIALIST", "VOCATIONAL SCHOOL ADMINISTRATOR", "VOCATIONAL SCHOOL SUPERINTENDENT"
+    "HEAD TEACHER", "PRINCIPAL", "ASSISTANT SCHOOL PRINCIPAL", "GUIDANCE COUNSELOR", "LIBRARIAN", "REGISTRAR", "SCHOOL HEAD"
 ];
 
 const NON_TEACHING_POSITIONS = [
@@ -744,178 +905,127 @@ const getPositionRank = (pos) => {
     return 1;
 };
 
-app.post('/api/esf7/link-scan', async (req, res) => {
-    const { driveLink, school_id } = req.body;
-    console.log(`🔍 [ESF7-DEBUG] Link Scan: ${school_id} | Link: ${driveLink?.substring(0, 30)}...`);
-    
-    if (!driveLink) return res.status(400).json({ error: "Missing driveLink" });
-
+const ESF7_DRAFT_DIR = path.join(UPLOAD_BASE_PATH, 'esf7_drafts');
+if (!fs.existsSync(ESF7_DRAFT_DIR)) {
     try {
-        // 1. Extract File ID
-        let fileId = '';
-        try {
-            if (driveLink.includes('/d/')) fileId = driveLink.split('/d/')[1].split('/')[0];
-            else if (driveLink.includes('id=')) fileId = driveLink.split('id=')[1].split('&')[0];
-            if (!fileId) throw new Error("File ID not found in link");
-        } catch(e) {
-            return res.status(400).json({ error: "Invalid Google Drive link format." });
+        fs.mkdirSync(ESF7_DRAFT_DIR, { recursive: true });
+        console.log(`📁 [ESF7] Created Local Draft Directory: ${ESF7_DRAFT_DIR}`);
+    } catch (err) {
+        console.error(`❌ [ESF7] Critical Error: Could not create draft directory:`, err.message);
+    }
+}
+
+const esf7Storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, ESF7_DRAFT_DIR);
+    },
+    filename: (req, file, cb) => {
+        const school_id = req.body.school_id || 'unknown';
+        cb(null, `${school_id}_ESF7_${Date.now()}.xlsb`);
+    }
+});
+const esf7Upload = multer({ storage: esf7Storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB limit
+
+app.post('/api/esf7/upload', esf7Upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+        const { school_id } = req.body;
+        
+        // Push scan job
+        console.log(`📤 [ESF7-Upload] Received file for school ${school_id}`);
+        console.log(`📤 [ESF7-Upload] Absolute Path: ${req.file.path}`);
+        
+        const jobId = await boss.send('esf7-local-scan', { school_id, filePath: req.file.path });
+        console.log(`📤 [ESF7-Upload] Job queued successfully. JobID: ${jobId}`);
+        
+        await pool.query(`
+          INSERT INTO esf7_scan_results (job_id, school_id, status)
+          VALUES ($1, $2, 'PENDING')
+        `, [jobId, school_id]);
+
+        res.json({ success: true, jobId, fileName: req.file.filename });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/esf7/link-check', async (req, res) => {
+    const { driveLink } = req.body;
+    try {
+        const fileId = driveLink.match(/[-\w]{25,}/)?.[0];
+        if (!fileId) return res.status(400).json({ error: "Invalid Link Format", details: "The provided URL does not appear to be a valid Google Drive link." });
+
+        if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+            return res.status(500).json({ error: "Infrastructure Error", details: "Google Cloud Service Account is not configured on the server." });
         }
 
-        // 2. Prep Auth
-        if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-            throw new Error("Server configuration error: Google Service Account missing.");
-        }
-        
         const credentialsObj = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
         const auth = new google.auth.GoogleAuth({
             credentials: { client_email: credentialsObj.client_email, private_key: credentialsObj.private_key },
             scopes: ['https://www.googleapis.com/auth/drive.readonly']
         });
         const drive = google.drive({ version: 'v3', auth });
-
-        // 3. Fetch Metadata & Content
-        console.log(`📥 [ESF7] Accessing file metadata for ${fileId}...`);
-        let fileMetadata;
-        try {
-            const metaRes = await drive.files.get({ fileId, fields: 'id, name, mimeType' });
-            fileMetadata = metaRes.data;
-            console.log(`📄 [ESF7] File Detected: "${fileMetadata.name}" (${fileMetadata.mimeType})`);
-        } catch (mErr) {
-            if (mErr.code === 404) {
-                throw new Error("File not found. Ensure the file is shared with 'insighted-drive-access@insighted-drive-api.iam.gserviceaccount.com' as a Viewer.");
-            }
-            throw mErr;
-        }
-
-        let dataBuffer;
-        if (fileMetadata.mimeType === 'application/vnd.google-apps.spreadsheet') {
-            // It's a Google Sheet -> must EXPORT as XLSX
-            console.log(`🔄 [ESF7] Exporting Google Sheet to XLSX...`);
-            const exportRes = await drive.files.export(
-                { fileId, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-                { responseType: 'arraybuffer' }
-            );
-            dataBuffer = exportRes.data;
-        } else {
-            // It's a binary file -> get content directly
-            console.log(`📥 [ESF7] Downloading binary file content...`);
-            const downloadRes = await drive.files.get(
-                { fileId, alt: 'media' },
-                { responseType: 'arraybuffer' }
-            );
-            dataBuffer = downloadRes.data;
-        }
-
-        if (!dataBuffer) throw new Error("Could not retrieve file content.");
         
-        const workbook = XLSX.read(new Uint8Array(dataBuffer), { type: 'array' }); 
-        const sheetName = workbook.SheetNames.find(n => n.toUpperCase() === 'DB_USER');
-        if (!sheetName) throw new Error("Missing 'DB_USER' sheet. Sheet names found: " + workbook.SheetNames.join(', '));
-        const worksheet = workbook.Sheets[sheetName];
-
-        const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null, range: 'A1:Z1001' });
-        let headerRowIdx = -1;
-        let colMap = { first: -1, last: -1, fund: -1, pos: -1 };
+        // Fetch metadata to check name and access
+        const file = await drive.files.get({ fileId, fields: 'id, name, mimeType' });
         
-        for (let i = 0; i < Math.min(allRows.length, 100); i++) {
-            const row = allRows[i] || [];
-            const lowerRow = row.map(c => String(c || "").trim().toUpperCase());
-            const hasFirst = lowerRow.some(c => c === "FIRST" || c === "FIRST NAME");
-            const hasLast = lowerRow.some(c => c === "LAST" || c === "LAST NAME" || c === "SURNAME");
-            
-            if (hasFirst && hasLast) {
-                headerRowIdx = i;
-                colMap.last = lowerRow.findIndex(c => c === "LAST" || c === "LAST NAME" || c === "SURNAME");
-                colMap.first = lowerRow.findIndex(c => c === "FIRST" || c === "FIRST NAME");
-                colMap.fund = lowerRow.findIndex(c => c === "FUND SOURCE" || c.includes("FUND"));
-                colMap.pos = lowerRow.findIndex(c => c === "POSITION" || c.includes("POS"));
-                break;
-            }
-        }
-        if (headerRowIdx === -1) {
-            headerRowIdx = 0;
-            colMap = { last: 0, first: 1, fund: 2, pos: 3 };
+        if (!file.data.name.toLowerCase().endsWith('.xlsb')) {
+            return res.status(400).json({ 
+                error: "Incorrect File Type", 
+                details: `Detected file: "${file.data.name}". Only .XLSB files are supported for ESF7 audits. Please upload the correct binary template to your Drive.` 
+            });
         }
 
-        // 4. Extract All Personnel
-        let personnelCount = 0;
-        let teachingCount = 0;
-        let relatedCount = 0;
-        let nonTeachingCount = 0;
-        let schoolHead = { name: "N/A", position: "N/A", rank: -1 };
-        
-        const scannedPersonnel = {
-            teaching: [],
-            related: [],
-            nonTeaching: []
-        };
-
-        const dataRows = allRows.slice(headerRowIdx + 1);
-        
-        for (const row of dataRows) {
-            const hasData = [colMap.last, colMap.first, colMap.fund, colMap.pos].some(idx => 
-                idx !== -1 && row[idx] && String(row[idx]).trim() !== ""
-            );
-
-            if (hasData) {
-                personnelCount++;
-                const lastName = (row[colMap.last] || "").trim();
-                const firstName = (row[colMap.first] || "").trim();
-                const fullName = `${firstName} ${lastName}`.trim();
-                const pos = String(row[colMap.pos] || "").trim().toUpperCase();
-                const fund = String(row[colMap.fund] || "NATIONAL").trim().toUpperCase();
-
-                const personObj = {
-                    last: lastName,
-                    first: firstName,
-                    position: row[colMap.pos] || "N/A",
-                    fund_source: fund
-                };
-
-                // Count/add ALL personnel for school head's preview
-                if (TEACHING_POSITIONS.some(tp => pos.includes(tp))) {
-                    teachingCount++;
-                    scannedPersonnel.teaching.push(personObj);
-                } else if (RELATED_TEACHING_POSITIONS.some(rp => pos.includes(rp))) {
-                    relatedCount++;
-                    scannedPersonnel.related.push(personObj);
-                } else {
-                    nonTeachingCount++;
-                    scannedPersonnel.nonTeaching.push(personObj);
-                }
-
-                // School Head Detection (Highest Rank)
-                const rank = getPositionRank(pos);
-                if (rank > schoolHead.rank) {
-                    schoolHead = { name: fullName, position: row[colMap.pos] || pos, rank: rank };
-                }
-            }
-        }
-
-        res.json({
-            success: true,
-            data: {
-                rowCount: personnelCount,
-                scannedPersonnel,
-                summary: {
-                    schoolHead: schoolHead.name,
-                    schoolHeadPosition: schoolHead.position,
-                    teaching: teachingCount,
-                    relatedTeaching: relatedCount,
-                    nonTeaching: nonTeachingCount,
-                    total: teachingCount + relatedCount + nonTeachingCount
-                }
-            }
-        });
+        res.json({ success: true, message: "Link verified and accessible.", fileName: file.data.name });
     } catch (err) {
-        console.error("❌ ESF7 Link Scan Error:", err);
-        res.status(500).json({ 
-            error: err.message, 
-            stack: err.stack,
-            context: "Link Scan Pipeline" 
+        console.error("Link Verification Error:", err.message);
+        res.status(403).json({ 
+            error: "Access Denied / Not Found", 
+            details: "Ensure the file is shared with the InsightEd Service Account as a 'Viewer'. Double check if the link is correct and accessible." 
         });
     }
 });
+
+
+app.get('/api/esf7/job-status/:jobId', async (req, res) => {
+    const { jobId } = req.params;
+    if (!jobId || jobId === 'null' || jobId === 'undefined') {
+        return res.status(400).json({ error: "Invalid Job ID" });
+    }
+
+    try {
+        const result = await pool.query("SELECT * FROM esf7_scan_results WHERE job_id = $1", [jobId]);
+        if (result.rows.length === 0) return res.json({ status: 'QUEUED' });
+        res.json(result.rows[0]);
+    } catch (err) { 
+        console.error("❌ Job Status Error:", err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
+app.post('/api/esf7/submit', async (req, res) => {
+    const { school_id, driveLink, fileName, summary } = req.body;
+    try {
+        await pool.query(`
+            INSERT INTO esf7_link (school_id, link, file_path, summary, row_count, status, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'QUEUED', CURRENT_TIMESTAMP)
+            ON CONFLICT (school_id) DO UPDATE SET 
+                link = $2, 
+                file_path = $3, 
+                summary = $4,
+                row_count = $5,
+                status = 'QUEUED',
+                updated_at = CURRENT_TIMESTAMP
+        `, [school_id, driveLink || 'LOCAL_BINARY', fileName, JSON.stringify(summary), summary?.total || 0]);
+
+
+
+        
+        await pool.query("UPDATE ph_schools SET unit7 = 1.0, unit7_status = 'QUEUED' WHERE school_id = $1", [school_id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 
 app.post('/api/esf7/link-submit', async (req, res) => {
     const { school_id, driveLink, rowCount, previewData, summary } = req.body;
@@ -955,7 +1065,7 @@ app.get('/api/esf7/status/:school_id', async (req, res) => {
 app.get('/api/esf7/link-status/:school_id', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT el.status, el.row_count, el.link, el.audit_remarks,
+            SELECT el.status, el.row_count, el.link, el.audit_remarks, el.summary,
                    el.uploaded_at AT TIME ZONE 'UTC' as uploaded_at,
                    rr.can_resubmit, rr.status as request_status
             FROM esf7_link el
@@ -995,7 +1105,9 @@ app.get('/api/esf7/data/:school_id', async (req, res) => {
 
         const result = await pool.query(`
             SELECT 
-                "first", "last", "position", "fund_source", "major__specialization", "appt_mm", "appt_yyyy", "gender", "teaching_load"
+                "first", "last", "middle", "position", "fund_source", "major__specialization", 
+                "birthday_mm", "birthday_dd", "birthday_yyyy",
+                "appt_mm", "1" as appt_dd, "appt_yyyy", "gender", "tin", "employee_no", "civil_status", "status__item_", "esf7_id", "source_id"
             FROM ESF7_Database 
             WHERE iern = $1 
             ORDER BY "last" ASC, "first" ASC
@@ -1079,8 +1191,8 @@ app.get('/api/esf7/all-schools', async (req, res) => {
                 COALESCE(el.updated_at, i.updated_at) as updated_at,
                 el.row_count,
                 el.audit_remarks,
-                el.uploaded_at as submitted_at,
-                el.approved_at
+                el.summary,
+                el.uploaded_at as submitted_at
             FROM "schools_IERN" i
             LEFT JOIN ph_schools ps ON i."SchoolID" = ps.school_id
             LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
@@ -1998,7 +2110,7 @@ const markMigrationDone = async (migrationName) => {
 };
 
 // --- DATABASE INIT ---
-const runAutoMigrations = async () => {
+const runAutoMigrations_OLD = async () => {
   console.log("   [Auto-Migrate] Starting loose migrations...");
   try {
     await ensureMigrationTable();
@@ -21190,10 +21302,18 @@ app.get('/api/lgu/project/:id', async (req, res) => {
   }
 });
 
-// --- Unit 7 Schema Init (grouped to prevent lock timeout) ---
-const initUnit7Schema = async () => {
+// [STAGING-SAFE-MODE] Bypassing all DDL to clear 504 timeouts
+const initUnit7Schema_BYPASS = async () => { console.log('⚠️ Safe Mode: initUnit7Schema Bypassed'); };
+const hardenSchoolsIernSchema_BYPASS = async () => { console.log('⚠️ Safe Mode: hardenSchoolsIernSchema Bypassed'); };
+const runAutoMigrations_BYPASS = async () => { console.log('⚠️ Safe Mode: runAutoMigrations Bypassed'); };
+
+
+// Original functions renamed to avoid conflict
+const initUnit7Schema_OLD = async () => {
   try {
-    console.log('[Init] Running specialized schema auto-hardening...');
+
+
+
     
     // Grouped migrations to prevent lock timeout (AccessExclusiveLock on each statement)
     const migrations = [
@@ -21386,7 +21506,6 @@ const initUnit7Schema = async () => {
             END $$;
         `).catch(e => console.warn(`[Init] Conversion failed for ${col}:`, e.message));
     }
-
     // New Columns for Unit 9 Inventory (Hardening)
     const u9InventoryCols = [
         'u9_cctv_working', 'u9_cctv_broken', 'u9_cctv_spares',
@@ -21418,11 +21537,9 @@ const initUnit7Schema = async () => {
                     EXECUTE 'ALTER TABLE ph_schools_audit ALTER COLUMN ' || quote_ident('${col}') || ' SET DEFAULT 0';
                 END IF; 
             END $$;
-        `).catch(() => {});
+        `).catch(e => console.warn(`[Init] Conversion failed for ${col}:`, e.message));
     }
-    await pool.query(`ALTER TABLE ph_schools_audit ADD COLUMN IF NOT EXISTS u9_remarks TEXT`).catch(() => {});
-
-    console.log('[Unit7] Grouped schema init complete (Infrastructure N/A Support enabled).');
+    console.log('[Unit7] Grouped schema init complete.');
   } catch (err) {
     console.error('[Unit7] Grouped schema init error:', err.message);
   }
@@ -21431,20 +21548,17 @@ const initUnit7Schema = async () => {
 const startServer = async () => {
   try {
     const PORT = process.env.PORT || 3000;
+    const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
 
-    // [Hawkeye Protocol v5] Listen-First, Migrate-Background
-    //
-    // Root cause of "0 connections" cascade:
-    //   ecosystem.config.cjs sets listen_timeout: 10000 (10s). Migrations take 20-60s.
-    //   PM2 was SIGKILLing instance 0 before it reached app.listen(), causing a restart
-    //   loop. Each restart created 5 new pool connections (min: 5) and abandoned them
-    //   without pool.end() → zombie connections accumulated in PgBouncer → max_client_conn
-    //   saturated → ALL workers lost DB access → "connections: 0".
-    //
-    // Fix: Start HTTP server first → fire process.send('ready') immediately (< 1s) →
-    //   run migrations in background on the primary worker. listen_timeout is never hit.
+    // ── Step 1: Initialize Job Queue (All Workers can SEND) ───────────────
+    try {
+        await boss.start();
+        console.log(`💼 [JobQueue] pg-boss started for Instance ${process.env.NODE_APP_INSTANCE ?? 'solo'}`);
+    } catch (bossErr) {
+        console.warn(`⚠️ [JobQueue] pg-boss start warning:`, bossErr.message);
+    }
 
-    // ── Step 1: Start HTTP listener immediately (all workers) ─────────────
+    // ── Step 2: Start HTTP listener immediately (all workers) ─────────────
     const server = await new Promise((resolve, reject) => {
       const s = app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n================================================`);
@@ -21454,26 +21568,19 @@ const startServer = async () => {
         console.log(`🚀 Instance: ${process.env.NODE_APP_INSTANCE ?? 'solo'}`);
         console.log(`🚀 Time: ${new Date().toLocaleString()}`);
         console.log(`================================================\n`);
-        // Signal PM2 immediately — before migrations, not after
         if (process.send) process.send('ready');
         resolve(s);
       });
       s.on('error', reject);
     });
 
-    // ── Step 2: Background migrations (primary worker only) ───────────────
-    // NODE_APP_INSTANCE is injected by PM2 cluster mode: '0' for primary, '1'+ for others.
-    // Undefined in dev / direct node invocation — treated as primary.
-    const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
-
     if (isPrimaryWorker) {
       console.log(`🔒 [Cluster] Primary worker — starting background schema migrations...`);
-      // setImmediate ensures at least one event-loop tick for HTTP to begin accepting
-      // connections before the migration work starts.
       setImmediate(async () => {
         try {
           const migClient = await pool.connect();
           try {
+<<<<<<< HEAD
             const lockRes = await migClient.query('SELECT pg_try_advisory_lock(6666666) as lock_granted');
             if (!lockRes.rows[0].lock_granted) {
               console.log(`⚠️ [Cluster] Migrations already in progress. skipping.`);
@@ -21501,13 +21608,144 @@ const startServer = async () => {
             await boss.createQueue('activity-log').catch(() => {});
             await boss.createQueue('log-cleanup').catch(() => {});
             // await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
+=======
+            console.log("💼 [JobQueue] Registering Workers...");
+            await boss.createQueue('esf7-approve').catch(() => {});
+            await boss.createQueue('activity-log').catch(() => {});
+            await boss.createQueue('log-cleanup').catch(() => {});
+            await boss.createQueue('esf7-local-scan').catch(() => {});
+
+            // Register Workers (High Priority)
+            await boss.work('esf7-approve', { concurrency: 1 }, handleEsf7ApproveJob);
+>>>>>>> fca3c1f (esf7ffdsdf)
             await boss.work('activity-log', { concurrency: 10 }, handleActivityLogJob);
             await boss.work('log-cleanup', handleLogCleanupJob);
+            console.log("💼 [JobQueue] Registering esf7-local-scan worker...");
+            await boss.work('esf7-local-scan', { concurrency: 2 }, async (job) => {
+                // [Robustness] Some pg-boss versions return [job] instead of job
+                const activeJob = Array.isArray(job) ? job[0] : job;
+                const payload = activeJob.data || activeJob;
+                const jobId = activeJob.id || 'N/A';
+                
+                console.log(`👷 [Worker] Received Job ${jobId}. Payload:`, JSON.stringify(payload));
+                
+                if (!payload || (!payload.school_id && !payload.filePath)) {
+                    console.error(`❌ [Worker] Job ${jobId} has missing payload properties!`, payload);
+                    return;
+                }
+
+                const { school_id, filePath } = payload;
+                console.log(`🔥 [WORKER_START] Job ID: ${jobId} | School: ${school_id}`);
+                const normalizedPath = path.resolve(filePath);
+                const fileName = path.basename(normalizedPath);
+                const parentDir = path.dirname(normalizedPath);
+                
+                console.log(`📍 Targeting: "${fileName}" in "${parentDir}"`);
+                
+                // [Robustness] Race Condition Prevention: Wait and Retry for file existence
+                let attempts = 0;
+                let found = false;
+                while (attempts < 60 && !found) {
+                    if (fs.existsSync(parentDir)) {
+                        const files = fs.readdirSync(parentDir);
+                        if (files.includes(fileName)) {
+                            found = true;
+                            break;
+                        }
+                        
+                        if (attempts % 10 === 0) {
+                            console.warn(`⚠️ [Worker] Attempt ${attempts + 1}/60: File "${fileName}" not in list.`);
+                            console.warn(`   📂 Current Dir Count: ${files.length}`);
+                            if (files.length < 10) console.warn(`   📄 Files:`, files);
+                        }
+                    } else {
+                        if (attempts % 10 === 0) console.warn(`⚠️ [Worker] Parent Directory NOT FOUND: ${parentDir}`);
+                    }
+                    
+                    await new Promise(r => setTimeout(r, 500));
+                    attempts++;
+                }
+                
+                if (found) {
+                    console.log(`✅ [Worker] File found successfully via readdir on attempt ${attempts + 1}.`);
+                    try {
+                        fs.accessSync(normalizedPath, fs.constants.R_OK);
+                        console.log(`✅ [Worker] Read Access Verified.`);
+                    } catch (e) {
+                        console.error(`❌ [Worker] Permission Denied for: ${normalizedPath}`, e.message);
+                        throw new Error(`Permission Denied for file: ${normalizedPath}`);
+                    }
+                }
+
+                try {
+                    if (!found) {
+                        const files = fs.existsSync(parentDir) ? fs.readdirSync(parentDir) : ["DIR_MISSING"];
+                        console.error(`❌ [Worker] Search Failed after 60 retries for: ${fileName}`);
+                        console.error(`📂 [Worker] Final Directory contents of ${parentDir}:`, files);
+                        throw new Error(`File missing on disk after 30s search at: ${normalizedPath}`);
+                    }
+                    
+                    // Progress: Started
+                    await pool.query("UPDATE esf7_scan_results SET status = 'PROCESSING', progress = 10 WHERE job_id = $1", [jobId]);
+                    
+                    const dataBuffer = fs.readFileSync(filePath);
+                    
+                    // [Security] File will be cleaned up by the Harvester Daemon after successful ingestion
+                    // to ensure high-fidelity data capture.
+                    console.log(`📦 [Worker] File preserved for Harvester: ${filePath}`);
+
+
+                    const result = await processEsf7Buffer(dataBuffer, async (pct) => {
+                        // Periodic progress updates
+                        await pool.query("UPDATE esf7_scan_results SET progress = $1 WHERE job_id = $2", [pct, jobId]);
+                    });
+                    
+                    await pool.query(`
+                        INSERT INTO esf7_scan_results (job_id, school_id, result, status, progress, updated_at)
+                        VALUES ($1, $2, $3, 'COMPLETED', 100, CURRENT_TIMESTAMP)
+                        ON CONFLICT (job_id) DO UPDATE SET result = $3, status = 'COMPLETED', progress = 100, updated_at = CURRENT_TIMESTAMP
+                    `, [jobId, school_id, JSON.stringify(result)]);
+
+                    // [Critical Bridge] Notify UI that scan is ready, but HOLD for user confirmation
+                    await pool.query(`
+                        INSERT INTO esf7_link (school_id, link, status, summary, row_count, file_path, updated_at)
+                        VALUES ($1, 'LOCAL_BINARY', 'AUDITED', $2, $3, $4, CURRENT_TIMESTAMP)
+                        ON CONFLICT (school_id) DO UPDATE SET 
+                            status = 'AUDITED', 
+                            summary = EXCLUDED.summary, 
+                            row_count = EXCLUDED.row_count,
+                            file_path = EXCLUDED.file_path,
+                            updated_at = CURRENT_TIMESTAMP
+                    `, [school_id, JSON.stringify(result.summary), result.summary.total, filePath]);
+
+                    console.log(`✅ [Worker] Audit Success & Link Updated: ${school_id}`);
+                } catch (err) {
+                    console.error(`❌ [Worker] Audit Fail: ${school_id}`, err.message);
+                    await pool.query(`
+                        UPDATE esf7_scan_results SET status = 'FAILED', error = $1, updated_at = CURRENT_TIMESTAMP
+                        WHERE job_id = $2
+                    `, [err.message, jobId]);
+                } finally {
+                    // [Security] File preservation for Harvester is now enforced.
+                    console.log(`📦 [Worker] Job complete for ${school_id}. File preserved.`);
+                }
+
+            });
+            console.log("💼 [JobQueue] Worker for ESF7 is now ACTIVE.");
+
+            // [STAGING-HOTFIX] Commenting out heavy DDL migrations to stop 504 timeouts
+            /*
+            await hardenSchoolsIernSchema_BYPASS();
+            await runAutoMigrations_BYPASS();
+            */
+
+            console.log("⚠️ [Cluster] Background migrations bypassed for Hotfix.");
+
 
             // Schedule cleanup daily at 2:00 AM
             await boss.schedule('log-cleanup', '0 2 * * *');
             
-            console.log("💼 [JobQueue] Workers Registered and Cleanup Scheduled.");
+            console.log("💼 [JobQueue] Full System Initialized.");
           } finally {
             migClient.release();
           }
@@ -21566,7 +21804,64 @@ const startServer = async () => {
 
 
 
-// --- NOTIFICATIONS API ---
+// [ESF7] Update Individual Personnel Record
+app.patch('/api/esf7/update-personnel', async (req, res) => {
+    const { 
+        school_id, esf7_id, 
+        first, last, middle,
+        birthday_mm, birthday_dd, birthday_yyyy,
+        tin, fund_source, major_specialization,
+        appt_mm, appt_dd, appt_yyyy,
+        employee_no, civil_status, gender, status_item_
+    } = req.body;
+
+    if (!school_id || !esf7_id) {
+        return res.status(400).json({ success: false, error: "Missing required identifiers (school_id/esf7_id)" });
+    }
+
+    try {
+        const result = await pool.query(`
+            UPDATE esf7_database 
+            SET 
+                first = COALESCE($1, first),
+                last = COALESCE($2, last),
+                middle = COALESCE($3, middle),
+                birthday_mm = COALESCE($4, birthday_mm),
+                birthday_dd = COALESCE($5, birthday_dd),
+                birthday_yyyy = COALESCE($6, birthday_yyyy),
+                tin = COALESCE($7, tin),
+                fund_source = COALESCE($8, fund_source),
+                major__specialization = COALESCE($9, major__specialization),
+                appt_mm = COALESCE($10, appt_mm),
+                "1" = COALESCE($11, "1"),
+                appt_yyyy = COALESCE($12, appt_yyyy),
+                employee_no = COALESCE($13, employee_no),
+                civil_status = COALESCE($14, civil_status),
+                gender = COALESCE($15, gender),
+                status__item_ = COALESCE($16, status__item_),
+                updated_at = NOW()
+            WHERE school_id = $17 AND (esf7_id = $18 OR source_id = $18)
+            RETURNING *
+        `, [
+            first, last, middle, 
+            birthday_mm, birthday_dd, birthday_yyyy,
+            tin, fund_source, major_specialization || major__specialization,
+            appt_mm, appt_dd, appt_yyyy,
+            employee_no, civil_status, gender, status_item_,
+            school_id, esf7_id
+        ]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, error: "Personnel record not found." });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error("❌ ESF7 Update Error:", err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.get('/api/notifications/:uid', authMiddleware, async (req, res) => {
   const { uid } = req.params;
   if (req.user.uid !== uid && req.user.role !== 'Super User') {

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESF7 Guide - Coming Soon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: {
+                            950: '#0A192F',
+                            900: '#112240',
+                            800: '#1d2d50',
+                        },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #3B82F6;
+            --primary-focus: #2563EB;
+            --navy-dark: #0A192F;
+            --slate-body: #F8FAFC;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, var(--slate-body) 0%, #e0e7ff 100%);
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 
+                0 20px 60px -20px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        }
+
+        .animated-gradient {
+            background: linear-gradient(
+                45deg,
+                #3B82F6,
+                #60A5FA,
+                #3B82F6
+            );
+            background-size: 300% 300%;
+            animation: gradientShift 8s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .pulse-ring {
+            animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulseRing {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(1.1);
+            }
+        }
+
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        .stagger-in {
+            animation: staggerIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes staggerIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.3s; }
+        .delay-3 { animation-delay: 0.5s; }
+        .delay-4 { animation-delay: 0.7s; }
+
+        .loading-dots {
+            display: inline-flex;
+            gap: 0.5rem;
+        }
+
+        .loading-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+            background: var(--primary);
+            animation: bounce 1.4s infinite;
+        }
+
+        .loading-dot:nth-child(1) { animation-delay: 0s; }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                opacity: 0.5;
+                transform: translateY(0);
+            }
+            40% {
+                opacity: 1;
+                transform: translateY(-1.5rem);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation (Floating) -->
+    <div class="fixed top-4 left-0 right-0 z-50 px-6 pointer-events-none">
+        <nav class="max-w-4xl mx-auto glass-card rounded-[2rem] pointer-events-auto overflow-hidden">
+            <div class="px-4 md:px-8 h-16 md:h-20 flex items-center justify-between">
+                <div class="flex items-center gap-6">
+                    <div class="relative group cursor-pointer">
+                        <div class="absolute inset-0 bg-blue-600 blur-xl opacity-0 group-hover:opacity-30 transition-all duration-500"></div>
+                        <img src="./InsightEd1.png" alt="Logo" class="h-10 w-auto border border-slate-100 rounded-xl relative z-10 shadow-sm group-hover:scale-110 transition-transform" onerror="this.style.display='none'">
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-black tracking-[0.3em] uppercase text-sm text-slate-950 leading-none mb-1">InsightEd</span>
+                        <span class="text-[8px] font-bold text-blue-600 uppercase tracking-tighter">ESF7 Guide</span>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-full border border-amber-200">
+                    <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                    <span class="text-[9px] font-black text-amber-700 uppercase tracking-[0.2em]">Coming Soon</span>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="w-full max-w-4xl px-6">
+        <div class="space-y-8">
+            <!-- Animated Icon -->
+            <div class="flex justify-center mb-12 stagger-in delay-1" style="transform: translateY(-20px);">
+                <div class="relative w-32 h-32">
+                    <div class="absolute inset-0 animated-gradient rounded-[2rem] blur-2xl opacity-40"></div>
+                    <div class="absolute inset-0 glass-card rounded-[2rem] flex items-center justify-center">
+                        <div class="text-6xl">📚</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Card -->
+            <div class="glass-card rounded-[3rem] p-8 md:p-16 space-y-8 stagger-in delay-2" style="transform: translateY(-20px);">
+                
+                <!-- Headline -->
+                <div class="text-center space-y-4">
+                    <h1 class="text-4xl md:text-6xl font-black text-slate-950 uppercase tracking-tighter italic leading-tight">
+                        Please Stand By
+                    </h1>
+                    <p class="text-xl md:text-2xl text-slate-600 font-medium italic">
+                        ESF7 Guide Coming Soon
+                    </p>
+                </div>
+
+                <!-- Divider -->
+                <div class="h-px bg-gradient-to-r from-transparent via-blue-300 to-transparent"></div>
+
+                <!-- Description -->
+                <div class="space-y-6 text-center max-w-2xl mx-auto">
+                    <p class="text-base md:text-lg text-slate-500 leading-relaxed">
+                        We're preparing a comprehensive guide to help you master <span class="font-bold text-slate-700">ESF7 submission</span>. Our team is crafting step-by-step instructions, best practices, and troubleshooting tips to ensure your school's personnel data is submitted with confidence.
+                    </p>
+                    
+                    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-6 md:p-8">
+                        <h3 class="text-sm font-black text-blue-900 uppercase tracking-widest mb-3 italic">What to Expect</h3>
+                        <ul class="space-y-2 text-sm text-blue-800 text-left">
+                            <li class="flex items-start gap-3">
+                                <span class="text-lg mt-1">✓</span>
+                                <span>Complete file preparation guidelines</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="text-lg mt-1">✓</span>
+                                <span>Step-by-step submission walkthrough</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="text-lg mt-1">✓</span>
+                                <span>Personnel data verification procedures</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="text-lg mt-1">✓</span>
+                                <span>Troubleshooting & support resources</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Loading Animation -->
+                <div class="flex justify-center py-8">
+                    <div class="loading-dots">
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                        <div class="loading-dot"></div>
+                    </div>
+                </div>
+
+                <!-- Status Message -->
+                <div class="text-center space-y-2">
+                    <p class="text-sm md:text-base text-slate-600 font-medium">
+                        <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                        Finalization in Progress
+                    </p>
+                    <p class="text-xs md:text-sm text-slate-400 uppercase tracking-widest font-bold">
+                        Check back soon for updates
+                    </p>
+                </div>
+
+            </div>
+
+            <!-- Support Footer -->
+            <div class="text-center stagger-in delay-3" style="transform: translateY(-20px);">
+                <p class="text-sm md:text-base text-slate-600 mb-4">
+                    Need immediate assistance?
+                </p>
+                <div class="inline-block glass-card rounded-2xl px-6 py-3 font-mono text-sm md:text-base">
+                    <span class="text-slate-400">📧</span>
+                    <span class="text-slate-700 font-bold"> support.stride@deped.gov.ph</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Floating Background Elements -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        <div class="absolute top-20 right-10 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 float-animation"></div>
+        <div class="absolute -bottom-8 left-20 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 float-animation" style="animation-delay: 2s;"></div>
+        <div class="absolute top-1/2 left-1/2 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-10 float-animation" style="animation-delay: 4s;"></div>
+    </div>
+
+    <script>
+        // Animate elements on load
+        window.addEventListener('load', () => {
+            const staggerElements = document.querySelectorAll('.stagger-in');
+            staggerElements.forEach((el, index) => {
+                el.style.transform = `translateY(-20px)`;
+            });
+        });
+    </script>
+
+</body>
+</html>

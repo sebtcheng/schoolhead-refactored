@@ -34,7 +34,9 @@ const ESF7Review = () => {
     const [filteredSchools, setFilteredSchools] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState('queue'); // queue, verified, missing, all
+    const [activeTab, setActiveTab] = useState('all'); // queue, verified, missing, all
+    const [viewMode, setViewMode] = useState('list'); // list, grid (for RO)
+
     const [selectedSchool, setSelectedSchool] = useState(null);
     const [schoolDetail, setSchoolDetail] = useState(null);
     const [specializationData, setSpecializationData] = useState(null);
@@ -59,6 +61,7 @@ const ESF7Review = () => {
     const isSuperUser = user?.role === 'Super User';
 
     useEffect(() => {
+        console.log("DEBUG [ESF7] User State:", user);
         if (user) {
             if (isSDO && !isSGOD && !isSuperUser) {
                 console.warn("Unauthorized access attempt to ESF7 Review by non-SGOD office.");
@@ -126,9 +129,9 @@ const ESF7Review = () => {
             }).toString();
             const res = await fetch(`/api/esf7/all-schools?${query}`);
             const data = await res.json();
-            console.log(`DEBUG [ESF7] Received ${data.data?.length} schools for ${selectedDivision}`);
             if (data.success) {
-                setAllSchools(data.data);
+                console.log(`DEBUG [ESF7] Setting AllSchools with ${data.data?.length} items`);
+                setAllSchools(data.data || []);
             }
         } catch (err) { console.error(err); }
         setLoading(false);
@@ -273,16 +276,36 @@ const ESF7Review = () => {
     return (
         <PageTransition>
             <div className="min-h-screen bg-slate-50 pb-20">
-                <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => selectedSchool ? setSelectedSchool(null) : navigate('/monitoring-dashboard')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                            <FiArrowLeft className="w-6 h-6 text-slate-600" />
-                        </button>
-                        <div>
-                            <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase italic">National ESF7 Review</h1>
-                            <p className="text-[10px] font-bold text-blue-500 mt-1 uppercase tracking-widest leading-none italic underline decoration-blue-200">
-                                {user?.division || "National"} Scale Ingestion Hub
-                            </p>
+                <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-6 sticky top-0 z-50">
+                    <div className="max-w-6xl mx-auto flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                            <button onClick={() => selectedSchool ? setSelectedSchool(null) : navigate('/monitoring-dashboard')} className="p-3 hover:bg-slate-100 rounded-2xl transition-all border border-slate-100 group">
+                                <FiArrowLeft className="w-5 h-5 text-slate-600 group-hover:-translate-x-1 transition-transform" />
+                            </button>
+                            <div>
+                                <h1 className="text-2xl font-black text-slate-800 tracking-tighter leading-none uppercase italic">eSF7 Ingestion Center</h1>
+                                <p className="text-[10px] font-black text-blue-500 mt-1.5 uppercase tracking-widest leading-none flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                    {user?.division || "National"} • {isRO ? "Regional Oversight" : "Division Audit"}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Overall Progress */}
+                        <div className="hidden md:flex items-center gap-6 pr-4">
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">System Completion</p>
+                                <p className="text-xl font-black text-slate-800 tracking-tighter">
+                                    {stats.total_registered > 0 ? ((stats.verified / stats.total_registered) * 100).toFixed(2) : "0.00"}%
+                                </p>
+                            </div>
+                            <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${stats.total_registered > 0 ? (stats.verified / stats.total_registered) * 100 : 0}%` }}
+                                    className="h-full bg-blue-600 rounded-full shadow-[0_0_10px_rgba(37,99,235,0.4)]"
+                                />
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -307,20 +330,64 @@ const ESF7Review = () => {
 
                             {/* Stats Summary */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                <StatCard label="Audit Center" value={stats.verified} icon={<FiActivity />} color="bg-blue-600" isActive={activeTab === 'queue'} onClick={() => setActiveTab('queue')} />
-                                <StatCard label="Action Required" value={allSchools.filter(s => s.status === 'NEEDS_RESUBMISSION').length} icon={<FiAlertCircle />} color="bg-rose-500" isActive={activeTab === 'needs_resubmission'} onClick={() => setActiveTab('needs_resubmission')} />
-                                <StatCard label="Unsubmitted" value={stats.missing_esf7} icon={<FiClock />} color="bg-slate-400" isActive={activeTab === 'missing'} onClick={() => setActiveTab('missing')} />
-                                <StatCard label="Total Registered" value={stats.total_registered} icon={<FiDatabase />} color="bg-slate-800" isActive={activeTab === 'all'} onClick={() => setActiveTab('all')} />
+                                <StatCard 
+                                    label="Verified Schools" 
+                                    value={stats.verified} 
+                                    total={stats.total_registered}
+                                    icon={<FiCheckCircle />} 
+                                    color="from-emerald-500 to-teal-600" 
+                                    isActive={activeTab === 'queue'} 
+                                    onClick={() => setActiveTab('queue')} 
+                                />
+                                <StatCard 
+                                    label="Action Required" 
+                                    value={allSchools.filter(s => s.status === 'NEEDS_RESUBMISSION').length} 
+                                    total={stats.total_registered}
+                                    icon={<FiAlertCircle />} 
+                                    color="from-rose-500 to-orange-600" 
+                                    isActive={activeTab === 'needs_resubmission'} 
+                                    onClick={() => setActiveTab('needs_resubmission')} 
+                                />
+                                <StatCard 
+                                    label="Pending Ingestion" 
+                                    value={stats.missing_esf7} 
+                                    total={stats.total_registered}
+                                    icon={<FiClock />} 
+                                    color="from-slate-400 to-slate-600" 
+                                    isActive={activeTab === 'missing'} 
+                                    onClick={() => setActiveTab('missing')} 
+                                />
+                                <StatCard 
+                                    label="Total Registered" 
+                                    value={stats.total_registered} 
+                                    icon={<FiDatabase />} 
+                                    color="from-slate-700 to-slate-900" 
+                                    isActive={activeTab === 'all'} 
+                                    onClick={() => setActiveTab('all')} 
+                                />
                             </div>
+
 
                             <div className="space-y-6">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
-                                    <div className="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm self-start">
+                                    <div className="flex flex-wrap items-center gap-2 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm self-start">
+                                        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All Schools" />
                                         <TabButton active={activeTab === 'queue'} onClick={() => setActiveTab('queue')} label="Harvested" />
                                         <TabButton active={activeTab === 'needs_resubmission'} onClick={() => setActiveTab('needs_resubmission')} label="For Resubmission" />
                                         <TabButton active={activeTab === 'missing'} onClick={() => setActiveTab('missing')} label="Missing" />
-                                        <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All" />
+                                        {isRO && (
+                                            <div className="w-px h-6 bg-slate-200 mx-2" />
+                                        )}
+                                        {isRO && (
+                                            <button 
+                                                onClick={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${viewMode === 'grid' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                {viewMode === 'list' ? 'Show Division Summary' : 'Show All Schools'}
+                                            </button>
+                                        )}
                                     </div>
+
                                     <div className="relative">
                                         <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input 
@@ -335,12 +402,16 @@ const ESF7Review = () => {
 
                                 <div className="grid gap-3">
                                     {/* REGIONAL DIVISION SUMMARY VIEW */}
-                                    {isRO && selectedDivision === 'All Divisions' ? (
+                                    {/* REGIONAL DIVISION SUMMARY VIEW (Only if Grid mode selected) */}
+                                    {isRO && viewMode === 'grid' && selectedDivision === 'All Divisions' ? (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {regionalSummary.map((div) => (
                                                 <div 
                                                     key={div.division}
-                                                    onClick={() => setSelectedDivision(div.division)}
+                                                    onClick={() => {
+                                                        setSelectedDivision(div.division);
+                                                        setViewMode('list');
+                                                    }}
                                                     className="bg-white border border-slate-100 p-8 rounded-[2.5rem] cursor-pointer hover:border-blue-200 hover:shadow-2xl hover:shadow-blue-500/5 transition-all group relative overflow-hidden"
                                                 >
                                                     <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -350,14 +421,19 @@ const ESF7Review = () => {
                                                         </h3>
                                                         <div className="space-y-4">
                                                             <div className="flex items-center justify-between border-b border-slate-50 pb-2">
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Submitted</span>
-                                                                <span className="text-sm font-black text-slate-700">{div.harvested_schools} Schools</span>
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Schools Submitted</span>
+                                                                <span className="text-sm font-black text-slate-700">{div.harvested_schools} / {div.total_schools}</span>
                                                             </div>
                                                             <div className="flex items-center justify-between">
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Personnel</span>
-                                                                <span className="text-sm font-black text-blue-600">{(div.total_rows || 0).toLocaleString()}</span>
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completion</span>
+                                                                <span className="text-sm font-black text-blue-600">
+                                                                    {div.total_schools > 0 
+                                                                        ? ((div.harvested_schools / div.total_schools) * 100).toFixed(2) 
+                                                                        : "0.00"}%
+                                                                </span>
                                                             </div>
                                                         </div>
+
                                                         <div className="mt-8 flex items-center gap-2 text-blue-500">
                                                             <span className="text-[10px] font-black uppercase tracking-[0.2em] italic">Open Division Audit</span>
                                                             <FiArrowLeft className="rotate-180" />
@@ -377,6 +453,7 @@ const ESF7Review = () => {
                                             ))}
                                         </>
                                     )}
+
                                     {filteredSchools.length === 0 && (isRO && selectedDivision !== 'All Divisions' || !isRO) && (
                                         <div className="text-center py-20 bg-white rounded-[2.5rem] border border-slate-100">
                                             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No activity in this category</p>
@@ -455,21 +532,28 @@ const ESF7Review = () => {
                                     </h2>
                                     <div className="flex items-center gap-3">
                                         <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-3 py-1 rounded-full uppercase tracking-widest">School ID: {selectedSchool}</span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">• Harvested Data Audit</span>
                                     </div>
-                                </div>
-                                <div className="flex gap-3">
-                                    <button 
-                                        onClick={() => window.open(schoolDetail?.link, '_blank')}
-                                        className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 italic"
-                                    >
-                                        <FiExternalLink /> Source Link
-                                    </button>
                                 </div>
                             </div>
 
                             <div className="grid md:grid-cols-3 gap-6">
-                                <div className="md:col-span-2 space-y-6">
+                                {(!specializationData || Object.values(specializationData).every(v => v === 0)) && (schoolDetail?.status === 'SUBMITTED' || schoolDetail?.status === 'PENDING_SDO' || schoolDetail?.status === 'QUEUED') ? (
+                                    <div className="md:col-span-3">
+                                        <div className="bg-blue-50/50 p-24 rounded-[3rem] border border-blue-100 flex flex-col items-center text-center space-y-8">
+                                            <div className="w-24 h-24 rounded-3xl bg-white flex items-center justify-center text-blue-500 shadow-xl shadow-blue-500/5">
+                                                <FiClock className="w-12 h-12" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-3xl font-black text-blue-800 uppercase italic tracking-tighter leading-tight">Data Sync Pending</h3>
+                                                <p className="text-sm font-bold text-blue-600/70 mt-4 uppercase tracking-widest max-w-md mx-auto leading-relaxed">
+                                                    Please Standby, School already submitted ESF7 but the data is not yet in the DATABASE, please check again later.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="md:col-span-2 space-y-6">
                                      {/* School Head Banner */}
                                      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center justify-between gap-6 relative overflow-hidden group">
                                          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl opacity-40 -mr-10 -mt-10 transition-all group-hover:scale-150" />
@@ -565,121 +649,7 @@ const ESF7Review = () => {
                                              </div>
                                          </div>
                                      )}
-                                     {/* AUDIT REMARKS PANEL */}
-                                     {!isRO && (
-                                         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                                            <button 
-                                                onClick={() => setShowAuditPanel(!showAuditPanel)}
-                                                className="w-full p-8 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${showAuditPanel ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'}`}>
-                                                        <FiActivity className="w-6 h-6" />
-                                                    </div>
-                                                    <div className="text-left">
-                                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Auditor's Desk</h3>
-                                                        <p className="text-lg font-black text-slate-800 tracking-tight leading-none uppercase italic">Review Remarks & Feedback</p>
-                                                    </div>
-                                                </div>
-                                                <div className={`w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center transition-transform duration-300 ${showAuditPanel ? 'rotate-180' : ''}`}>
-                                                   <FiChevronDown className="text-slate-400" />
-                                                </div>
-                                            </button>
 
-                                            <AnimatePresence>
-                                                {showAuditPanel && (
-                                                    <motion.div 
-                                                        initial={{ height: 0, opacity: 0 }}
-                                                        animate={{ height: 'auto', opacity: 1 }}
-                                                        exit={{ height: 0, opacity: 0 }}
-                                                        className="px-8 pb-8 space-y-6"
-                                                    >
-                                                        <div className="h-px bg-slate-100 w-full" />
-                                                        
-                                                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3 items-start">
-                                                            <FiAlertCircle className="text-amber-600 w-5 h-5 flex-shrink-0 mt-0.5" />
-                                                            <p className="text-xs font-bold text-amber-800 leading-relaxed">
-                                                                "In case of incomplete eSF7 data, return the submission and inform the concerned school for their appropriate action."
-                                                            </p>
-                                                        </div>
-
-                                                        <textarea 
-                                                            className="w-full min-h-[150px] p-6 bg-slate-50 border border-slate-200 rounded-[2rem] text-xs font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all resize-none"
-                                                            placeholder="Enter discrepancies or instructions for resubmission here..."
-                                                            value={schoolDetail?.audit_remarks || ''}
-                                                            onChange={(e) => setSchoolDetail(prev => ({ ...prev, audit_remarks: e.target.value }))}
-                                                        />
-                                                        
-                                                        {!isRO && (
-                                                            <div className="flex gap-4">
-                                                                <button 
-                                                                    onClick={async () => {
-                                                                        const remark = schoolDetail?.audit_remarks;
-                                                                        if (!remark) return alert("Please enter a remark first.");
-                                                                        if (!window.confirm("FLAG FOR RESUBMISSION? This will notify the school to verify and re-upload their ESF7.")) return;
-                                                                        
-                                                                        setActionLoading(true);
-                                                                        try {
-                                                                            const token = localStorage.getItem('token');
-                                                                            const res = await fetch('/api/esf7/audit-remark', {
-                                                                                method: 'POST',
-                                                                                headers: { 
-                                                                                    'Content-Type': 'application/json',
-                                                                                    'Authorization': `Bearer ${token}`
-                                                                                },
-                                                                                body: JSON.stringify({ school_id: selectedSchool, remark, status: 'NEEDS_RESUBMISSION' })
-                                                                            });
-                                                                            if (res.ok) {
-                                                                                alert("Audit remarks saved and school flagged for resubmission.");
-                                                                                await fetchSchools();
-                                                                                setSelectedSchool(null);
-                                                                            } else {
-                                                                                const errData = await res.json();
-                                                                                alert(`Error: ${errData.error || 'Failed to update status'}`);
-                                                                            }
-                                                                        } catch (err) { console.error(err); }
-                                                                        setActionLoading(false);
-                                                                    }}
-                                                                    disabled={actionLoading}
-                                                                    className="flex-1 py-5 bg-rose-600 text-white font-black rounded-2xl uppercase text-[10px] tracking-widest hover:bg-rose-700 transition-all shadow-xl shadow-rose-600/20 italic flex items-center justify-center gap-2"
-                                                                >
-                                                                     <FiAlertCircle /> Flag for Resubmission
-                                                                </button>
-                                                                <button 
-                                                                    onClick={async () => {
-                                                                        const remark = schoolDetail?.audit_remarks;
-                                                                        setActionLoading(true);
-                                                                        try {
-                                                                            const token = localStorage.getItem('token');
-                                                                            const res = await fetch('/api/esf7/audit-remark', {
-                                                                                method: 'POST',
-                                                                                headers: { 
-                                                                                    'Content-Type': 'application/json',
-                                                                                    'Authorization': `Bearer ${token}`
-                                                                                },
-                                                                                body: JSON.stringify({ school_id: selectedSchool, remark, status: 'VERIFIED' })
-                                                                            });
-                                                                            if (res.ok) {
-                                                                                alert("Remarks saved successfully.");
-                                                                            } else {
-                                                                                const errData = await res.json();
-                                                                                alert(`Error: ${errData.error || 'Failed to save remarks'}`);
-                                                                            }
-                                                                        } catch (err) { console.error(err); }
-                                                                        setActionLoading(false);
-                                                                    }}
-                                                                    disabled={actionLoading}
-                                                                    className="px-8 py-5 bg-white border-2 border-slate-200 text-slate-800 font-black rounded-2xl uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all italic"
-                                                                >
-                                                                     Save Only
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                         </div>
-                                     )}
 
                                 </div>
 
@@ -712,11 +682,12 @@ const ESF7Review = () => {
                                                                 })()}
                                                             </p>
                                                         </div>
-                                                    </div>
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
+                                        </div>
 
-                                            <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2">
+                                        <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2">
                                                 <div className="flex items-center gap-2 text-blue-600">
                                                     <FiClock className="w-4 h-4" />
                                                     <span className="text-[10px] font-black uppercase tracking-widest">System Ingestion</span>
@@ -726,17 +697,11 @@ const ESF7Review = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                         <div className="pt-4 space-y-4">
-                                             {schoolDetail?.status === 'QUEUED' && (
-                                                 <div className="w-full py-5 bg-amber-50 text-amber-600 font-black rounded-3xl uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 italic">
-                                                     <FiLoader className="animate-spin" /> Ingestion in Progress
-                                                 </div>
-                                             )}
-                                          </div>
-                                      </div>
-                                  </div>
-                              </div>
-                          </motion.div>
+                                    </div>
+                                </>
+                            )}
+                            </div>
+                        </motion.div>
                     )}
                 </div>
 
@@ -878,15 +843,39 @@ const CategoryCard = ({ label, value, icon, color, onClick }) => (
     </div>
 );
 
-const StatCard = ({ label, value, icon, color, onClick, isActive }) => (
-    <div onClick={onClick} className={`p-6 rounded-[2.5rem] bg-white border transition-all cursor-pointer flex items-center gap-5 ${isActive ? 'border-blue-500 ring-4 ring-blue-50 shadow-lg' : 'border-slate-100 hover:border-slate-200 shadow-sm'}`}>
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl shadow-xl ${color}`}>{icon}</div>
-        <div>
-            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</h4>
-            <p className="text-3xl font-black text-slate-800 tracking-tighter">{value}</p>
+const StatCard = ({ label, value, icon, color, onClick, isActive, total }) => {
+    const percentage = total > 0 ? ((value / total) * 100).toFixed(2) : null;
+    
+    return (
+        <div 
+            onClick={onClick} 
+            className={`p-6 rounded-[2.5rem] bg-white border transition-all cursor-pointer relative overflow-hidden group ${
+                isActive ? 'border-blue-500 ring-4 ring-blue-50 shadow-xl' : 'border-slate-100 hover:border-slate-200 shadow-sm'
+            }`}
+        >
+            <div className="relative z-10 flex items-center gap-5">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg bg-gradient-to-br ${color} group-hover:scale-110 transition-transform`}>
+                    {icon}
+                </div>
+                <div>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{label}</h4>
+                    <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-black text-slate-800 tracking-tighter">{value}</p>
+                        {percentage !== null && (
+                            <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">
+                                {percentage}%
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+            
+            {/* Subtle Background Arc/Accent */}
+            <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full blur-3xl opacity-5 transition-opacity group-hover:opacity-20 bg-gradient-to-br ${color}`} />
         </div>
-    </div>
-);
+    );
+};
+
 
 const TabButton = ({ active, onClick, label }) => (
     <button onClick={onClick} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${active ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
@@ -907,21 +896,29 @@ const SchoolRow = ({ school, onClick }) => (
                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight leading-none group-hover:text-blue-600 transition-colors uppercase italic">{school.school_name}</h3>
                 <div className="flex items-center gap-3 mt-1.5">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID: {school.school_id}</p>
-                    {school.row_count && <span className="text-[9px] font-black bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{school.row_count} Rows</span>}
                 </div>
+
             </div>
         </div>
-        <div className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
-            school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600' : 
-            school.status === 'QUEUED' ? 'bg-blue-50 text-blue-600' :
-            school.status === 'NEEDS_RESUBMISSION' ? 'bg-rose-50 text-rose-600' :
-            school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-600' : 
-            'bg-slate-50 text-slate-400'
-        }`}>
-            {school.status === 'QUEUED' && <FiLoader className="animate-spin" />}
-            {school.status.replace(/_/g, ' ')}
+        <div className="flex items-center gap-2">
+            {school.audit_remarks && (school.status === 'SUBMITTED' || school.status === 'PENDING_SDO' || school.status === 'QUEUED') && (
+                <div className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 animate-pulse">
+                    Resubmission
+                </div>
+            )}
+            <div className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                school.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-600' : 
+                school.status === 'QUEUED' ? 'bg-blue-50 text-blue-600' :
+                school.status === 'NEEDS_RESUBMISSION' ? 'bg-rose-50 text-rose-600' :
+                school.status === 'PENDING_SDO' ? 'bg-amber-50 text-amber-600' : 
+                'bg-slate-50 text-slate-400'
+            }`}>
+                {school.status === 'QUEUED' && <FiLoader className="animate-spin" />}
+                {school.status.replace(/_/g, ' ')}
+            </div>
         </div>
     </div>
 );
+
 
 export default ESF7Review;

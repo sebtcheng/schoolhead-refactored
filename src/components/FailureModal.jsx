@@ -2,7 +2,7 @@ import React from 'react';
 import { FiXCircle, FiAlertCircle } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const FailureModal = ({ isOpen, onClose, title = "Submission Failed", message = "There was an error processing your request. Please try again." }) => {
+const FailureModal = ({ isOpen, onClose, title = "Submission Failed", message = "There was an error processing your request. Please try again.", details }) => {
     if (!isOpen) return null;
 
     return (
@@ -23,9 +23,16 @@ const FailureModal = ({ isOpen, onClose, title = "Submission Failed", message = 
                         </div>
 
                         <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic mb-2">{title}</h3>
-                        <p className="text-[11px] font-bold text-slate-500 uppercase leading-relaxed mb-8 italic">
-                            {message}
-                        </p>
+                        <div className="space-y-4 mb-8">
+                            <p className="text-[11px] font-bold text-slate-500 uppercase leading-relaxed italic">
+                                {message}
+                            </p>
+                            {details && (
+                                <p className="text-[9px] font-black text-rose-600 bg-rose-50/50 p-3 rounded-xl border border-rose-100 uppercase tracking-widest leading-relaxed">
+                                    {details}
+                                </p>
+                            )}
+                        </div>
 
                         <button
                             onClick={onClose}
