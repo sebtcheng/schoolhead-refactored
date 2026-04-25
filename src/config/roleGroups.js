@@ -1,8 +1,5 @@
 export const ROLE_GROUPS = {
-    EDUCATIONAL_ADMIN: 'HROD', // Exclusive to Super User 2.0 (National HROD Portal)
-    TECHNICAL_FINANCE: 'Infrastructure', // Exclusive to Super User 2.0 (National Project Summary)
-    MANAGEMENT: 'Management', // RO, SDO, CO, Admin, HR
-    INFRA_OPERATIONAL: 'Infra_Operational', // Engineers, Agencies, Finance, LGU
+    MANAGEMENT: 'Management', // Admin, SDO
     SCHOOL: 'School' // School-level personnel
 };
 
@@ -15,52 +12,12 @@ export const NEXUS_AUTHORIZED_EMAILS = [
 ];
 
 export const ROLE_GROUP_MAP = {
-    // HROD (Group 1 - Super User 2.0 Exclusive)
-    'Super User': ROLE_GROUPS.EDUCATIONAL_ADMIN,
-    'Super Admin': ROLE_GROUPS.EDUCATIONAL_ADMIN,
-
-    // Infrastructure National (Group 2 - Super User 2.0 Exclusive)
-    // Both groups are accessible to Super Users but represent different domain portals
-    // 'Super User': also mapped above
-
-    // Management (Group 4 - Operational Monitoring)
-    'Regional Office': ROLE_GROUPS.MANAGEMENT,
-    'School Division Office': ROLE_GROUPS.MANAGEMENT,
-    'Central Office': ROLE_GROUPS.MANAGEMENT,
     'Admin': ROLE_GROUPS.MANAGEMENT,
-    'Human Resource': ROLE_GROUPS.MANAGEMENT,
-
-    // Infra Operations (Group 5 - Interactive Tools)
-    'Engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'DepEd Engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Division Engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Non-DepEd Engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'EFD Engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Implementing Agency': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Local Government Unit': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Central Office Finance': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Finance': ROLE_GROUPS.INFRA_OPERATIONAL,
-
-    // School (Group 3 - Specific School Data)
     'School Head': ROLE_GROUPS.SCHOOL,
     'school_head': ROLE_GROUPS.SCHOOL,
-
-    // Normalized roles
-    'deped_engineer': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'hrodi_engineer': ROLE_GROUPS.EDUCATIONAL_ADMIN,
-    'efd': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'hrodi': ROLE_GROUPS.EDUCATIONAL_ADMIN,
-    'lgu': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'PGO': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'CGO': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'MGO': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'DPWH': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'CSO': ROLE_GROUPS.INFRA_OPERATIONAL,
-
-    // New roles
-    'Architect': ROLE_GROUPS.INFRA_OPERATIONAL,
-    'Regional Engineer': ROLE_GROUPS.MANAGEMENT,
-    'Third Level Applicant': ROLE_GROUPS.MANAGEMENT
+    'Super User': ROLE_GROUPS.MANAGEMENT,
+    'Super Admin': ROLE_GROUPS.MANAGEMENT,
+    'School Division Office': ROLE_GROUPS.MANAGEMENT,
 };
 
 export const normalizeRole = (role) => {

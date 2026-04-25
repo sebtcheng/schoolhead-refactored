@@ -13,17 +13,8 @@ import Register from './Register';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Dashboards
-import EngineerDashboard from './modules/EngineerDashboard';
-import RegionalEngineerDashboard from './modules/RegionalEngineerDashboard';
-import RegionalEngineerLookup from './modules/RegionalEngineerLookup';
-import EngineerProjects from './modules/EngineerProjects';
-
-// import LguDashboard from './modules/lgu'; // Import LguDashboard
-// import LguProjects from './modules/LguProjects';
 import SchoolHeadDashboard from './modules/SchoolHeadDashboard';
-import HRDashboard from './modules/HRDashboard';
 import AdminDashboard from './modules/AdminDashboard';
-import MonitoringDashboard from './modules/MonitoringDashboard';
 import SchoolManagement from './modules/SchoolManagement';
 import UserManagement from './modules/UserManagement';
 import LocationManagement from './modules/LocationManagement';
@@ -33,41 +24,21 @@ import SchoolAuditView from './modules/SchoolAuditView';
 import UserProfile from './modules/UserProfile';
 import Activity from './modules/Activity';
 import MyActivityDashboard from './modules/MyActivityDashboard';
-import ProjectGallery from './modules/ProjectGallery';
 import Outbox from './modules/Outbox';
-import EngineerOutbox from './modules/EngineerOutbox';
 import SuperAdminDashboard from './modules/SuperAdminDashboard';
 import SuperUserSelector from './modules/SuperUserSelector';
-import FinanceDashboard from './modules/FinanceDashboard';
-import AgencyDashboard from './modules/AgencyDashboard';
-import LguDashboard from './modules/LguDashboard';
-import NonDepEdDashboard from './modules/NonDepEdDashboard'; // Dedicated Dashboard
-import LguForms from './modules/LguForms'; // Import newly created LguForms
-import LguProjectDetails from './modules/LguProjectDetails'; // Import LguProjectDetails
-import PSIP from './modules/PSIP'; // Import PSIP
-import SyncCenter from './modules/SyncCenter'; // Sync Center for modular units
-import ProtectedRoute from './components/ProtectedRoute'; // Import ProtectedRoute
-import PasscodeSetupPrompt from './components/PasscodeSetupPrompt'; // <--- IMPORT THIS
-import EFDHome from './modules/EFDHome';
-import EFDMonitoring from './modules/EFDMonitoring';
-import EFDNewconMonitoring from './modules/EFDNewconMonitoring';
-import EFDProjects2026 from './modules/EFDProjects2026';
-import BEFFDashboard from './modules/BEFFDashboard';
-import ChatModule from './modules/ChatModule'; // <--- RESTORED THIS
-import EducationalDashboard from './modules/EducationalDashboard';
-import ProjectSummaryDashboard from './modules/ProjectSummaryDashboard';
+import SyncCenter from './modules/SyncCenter';
+import ProtectedRoute from './components/ProtectedRoute';
+import PasscodeSetupPrompt from './components/PasscodeSetupPrompt';
+import ChatModule from './modules/ChatModule';
 import { ROLE_GROUPS, NEXUS_AUTHORIZED_EMAILS } from './config/roleGroups';
 import { EFDFilterProvider } from './context/EFDFilterContext';
-import CentralOfficeNexus from './modules/CentralOfficeNexus';
-import ThirdLevelDirectory from './modules/ThirdLevelDirectory';
-import OfficialApplication from './modules/OfficialApplication';
-import OfficialProfiling from './modules/OfficialProfiling';
 
 
 
 // Forms
 import SchoolForms from './modules/SchoolForms';
-import EngineerForms from './modules/EngineerForms';
+import SchoolForms from './modules/SchoolForms';
 
 // Form Imports (School Head)
 import SchoolProfile from './forms/SchoolProfile';
@@ -78,13 +49,6 @@ import ShiftingModalities from './forms/ShiftingModalities';
 import SchoolResources from './forms/SchoolResources';
 import PhysicalFacilities from './forms/PhysicalFacilities';
 import LearnerStatistics from './forms/LearnerStatistics';
-
-// Form Imports (DepEd Engineer)
-import EngineerSchoolResources from './forms/EngineerSchoolResources';
-import DamageAssessment from './forms/DamageAssessment';
-import ProjectMonitoring from './forms/ProjectMonitoring';
-import SiteInspection from './forms/SiteInspection';
-import MaterialInventory from './forms/MaterialInventory';
 import NewProjects from './modules/NewProjects';
 import DetailedProjInfo from './modules/DetailedProjInfo';
 import ProjectValidation from './modules/ProjectValidation';
@@ -108,11 +72,8 @@ import SDONexusDashboard from './modules/SDONexusDashboard';
 import ESF7Draft from './forms/ESF7Draft';
 import NSPPDraft from './forms/NSPPDraft';
 import ESF7Review from './modules/ESF7Review';
-import LaunchPad from './components/LaunchPad';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
-import DivisionEngineerQuickStart from './guides/DivisionEngineerQuickStart';
-import EFDEngineerQuickStart from './guides/EFDEngineerQuickStart';
 
 
 
@@ -138,18 +99,7 @@ const AnimatedRoutes = () => {
       const roleToPathId = {
         'School Head': 'path_school_head',
         'school_head': 'path_school_head',
-        'Regional Office': 'path_ro_sd',
-        'Regional Division Office': 'path_ro_sd',
-        'School Division Office': 'path_ro_sd',
-        'DepEd Engineer': 'path_engineers',
-        'Division Engineer': 'path_engineers',
-        'Architect': 'path_engineers',
-        'Regional Engineer': 'path_engineers',
-        'Engineer': 'path_engineers',
-        'Non-DepEd Engineer': 'path_engineers',
         'Implementing Agency': 'path_agencies',
-        'PGO': 'path_agencies', 'CGO': 'path_agencies', 'MGO': 'path_agencies', 'DPWH': 'path_agencies', 'CSO': 'path_agencies',
-        'EFD': 'path_efd', 'EFD Engineer': 'path_efd', 'HRODI': 'path_efd',
         'Central Office': 'path_central_office'
       };
 
@@ -215,64 +165,19 @@ const AnimatedRoutes = () => {
   return (
     <Routes>
       {/* Authentication */}
-      <Route path="/" element={<LaunchPad />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/guide/school-head" element={<LegacyGuideWrapper />} />
-      <Route path="/guide/division-engineer" element={<DivisionEngineerQuickStart />} />
-      <Route path="/guide/efd-engineer" element={<EFDEngineerQuickStart />} />
 
 
 
       {/* Dashboards */}
-      <Route path="/engineer-dashboard" element={<EngineerDashboard />} />
-      <Route path="/regional-engineer-dashboard" element={<ProtectedRoute allowedRoles={['Division Engineer', 'Regional Engineer', 'Architect', 'DepEd Engineer', 'Super User', 'EFD Engineer', 'EFD']}><RegionalEngineerDashboard /></ProtectedRoute>} />
-      <Route path="/regional-engineer-lookup" element={<ProtectedRoute allowedRoles={['Regional Engineer', 'Super User']}><RegionalEngineerLookup /></ProtectedRoute>} />
-      <Route path="/non-deped-dashboard" element={<NonDepEdDashboard />} />
-      {/* <Route path="/lgu" element={<LguDashboard />} /> */}
-      {/* <Route path="/lgu-form" element={<LguForm />} /> */}
-      {/* <Route path="/lgu-projects" element={<LguProjects />} /> */}
-      <Route path="/engineer-projects" element={<EngineerProjects />} />
-      <Route path="/super-admin" element={<Navigate to="/super-user-selector" replace />} />
-      <Route path="/finance-dashboard" element={<FinanceDashboard />} />
       <Route
         path="/nodes-dashboard"
         element={
           <ProtectedRoute allowedRoles={['School Head']}>
             <NodesDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/lgu-dashboard" element={<LguDashboard />} />
-      <Route path="/lgu-form" element={<LguForms />} /> {/* Mapped to LguForms */}
-      <Route path="/lgu-project-details/:id" element={<LguProjectDetails />} />
-
-      {/* Central Office Nexus */}
-      <Route
-        path="/central-office-nexus"
-        element={
-          <ProtectedRoute allowedRoles={['Central Office', 'Super User']} allowedGroups={[ROLE_GROUPS.MANAGEMENT]}>
-            <CentralOfficeNexus />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/official-application"
-        element={
-          <ProtectedRoute allowedGroups={[ROLE_GROUPS.MANAGEMENT]}>
-            <OfficialApplication />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/official-profiling" element={<OfficialProfiling />} />
-      <Route
-        path="/officials"
-        element={
-          <ProtectedRoute
-            allowedRoles={['Central Office', 'Super User']}
-            customCheck={() => user?.email && NEXUS_AUTHORIZED_EMAILS.includes(user.email.toLowerCase())}
-          >
-            <ThirdLevelDirectory />
           </ProtectedRoute>
         }
       />
@@ -288,28 +193,16 @@ const AnimatedRoutes = () => {
       />
 
       <Route path="/schoolhead-dashboard" element={<SchoolHeadDashboard />} />
-      <Route path="/hr-dashboard" element={<HRDashboard />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
-      <Route path="/monitoring-dashboard" element={<MonitoringDashboard />} />
-      <Route path="/efd-dashboard" element={<EFDHome />} />
-      <Route path="/agency-dashboard" element={<AgencyDashboard />} />
-      <Route path="/efd-monitoring" element={<EFDMonitoring />} />
-      <Route path="/beff-dashboard" element={<BEFFDashboard />} />
-      <Route path="/efd-newcon-monitoring" element={<EFDNewconMonitoring />} />
-      <Route path="/efd-mother-moa" element={<EFDProjects2026 />} />
       <Route path="/school-management" element={<SchoolManagement />} />
       <Route path="/user-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><UserManagement /></ProtectedRoute>} />
       <Route path="/location-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><LocationManagement /></ProtectedRoute>} />
       <Route path="/jurisdiction-schools" element={<SchoolJurisdictionList />} />
       <Route path="/school-audit" element={<SchoolAuditView />} />
-      <Route path="/esf7-review" element={<Navigate to="/esf7/review" replace />} />
       <Route path="/esf7/review" element={<ProtectedRoute allowedRoles={['Super User', 'School Division Office']}><ESF7Review /></ProtectedRoute>} />
       <Route path="/division-nexus" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User', 'Super Admin']}><SDONexusDashboard /></ProtectedRoute>} />
-      <Route path="/educational-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.EDUCATIONAL_ADMIN, ROLE_GROUPS.MANAGEMENT]}><EducationalDashboard /></ProtectedRoute>} />
-      <Route path="/project-summary-dashboard" element={<ProtectedRoute allowedGroups={[ROLE_GROUPS.TECHNICAL_FINANCE]}><ProjectSummaryDashboard /></ProtectedRoute>} />
 
       <Route path="/dummy-forms" element={<DummyDashboard />} />
-      <Route path="/psip" element={<PSIP />} />
 
       {/* School Head Modular Flow */}
       <Route
@@ -428,14 +321,12 @@ const AnimatedRoutes = () => {
 
       {/* Menus */}
       <Route path="/school-forms" element={<SchoolForms />} />
-      <Route path="/engineer-forms" element={<EngineerForms />} />
 
       {/* Utilities */}
       <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
       <Route path="/activities" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
       <Route path="/outbox" element={<ProtectedRoute><Outbox /></ProtectedRoute>} />
       <Route path="/sync-center" element={<ProtectedRoute allowedRoles={['School Head']}><SyncCenter /></ProtectedRoute>} />
-      <Route path="/engineer-outbox" element={<ProtectedRoute><EngineerOutbox /></ProtectedRoute>} />
 
       {/* School Head Forms */}
       <Route path="/school-profile" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolProfile /></ProtectedRoute>} />
@@ -450,16 +341,7 @@ const AnimatedRoutes = () => {
       <Route path="/leaderboard" element={<ProtectedRoute allowedRoles={['School Head']}><Leaderboard /></ProtectedRoute>} />
 
       {/* DepEd Engineer Forms */}
-      <Route path="/engineer-school-resources" element={<ProtectedRoute allowedRoles={['DepEd Engineer', 'Division Engineer', 'Architect', 'Super User']}><EngineerSchoolResources /></ProtectedRoute>} />
-      <Route path="/damage-assessment" element={<ProtectedRoute allowedRoles={['DepEd Engineer', 'Division Engineer', 'Architect', 'Super User']}><DamageAssessment /></ProtectedRoute>} />
-      <Route path="/project-monitoring" element={<ProtectedRoute allowedRoles={['DepEd Engineer', 'Division Engineer', 'Architect', 'Super User']}><ProjectMonitoring /></ProtectedRoute>} />
-      <Route path="/site-inspection" element={<ProtectedRoute allowedRoles={['DepEd Engineer', 'Division Engineer', 'Architect', 'Super User']}><SiteInspection /></ProtectedRoute>} />
-      <Route path="/material-inventory" element={<ProtectedRoute allowedRoles={['DepEd Engineer', 'Division Engineer', 'Architect', 'Super User']}><MaterialInventory /></ProtectedRoute>} />
-      <Route path="/new-project" element={<ProtectedRoute allowedRoles={['DepEd Engineer', 'Division Engineer', 'Architect', 'Super User', 'EFD Engineer', 'HRODI Engineer', 'EFD']}><NewProjects /></ProtectedRoute>} />
       <Route path="/project-details/:id" element={<ProtectedRoute><DetailedProjInfo /></ProtectedRoute>} />
-      <Route path="/project-gallery" element={<ProtectedRoute><ProjectGallery /></ProtectedRoute>} />
-      <Route path="/project-gallery/:projectId" element={<ProtectedRoute><ProjectGallery /></ProtectedRoute>} />
-      <Route path="/project-gallery/:projectId" element={<ProtectedRoute><ProjectGallery /></ProtectedRoute>} />
 
       {/* Hidden Admin Login Route */}
       <Route path="/adminlogin" element={<Login />} />

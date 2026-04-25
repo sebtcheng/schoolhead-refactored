@@ -1,17 +1,26 @@
-# React + Vite
+# InsightEd School Head Node
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Standalone server and frontend environment optimized for School Head operations.
 
-Currently, two official plugins are available:
+## Overview
+This codebase has been surgically decoupled from the monolithic InsightEd backend to provide a lean, performant, and stable deployment for school-level personnel. All infrastructure, engineering, and SDO-level monitoring systems have been removed.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
+- **ESF7 Modular Flow:** Units 1-9 for school identity, learners, resources, and facilities.
+- **Offline Reliability:** Service worker integration for field data collection.
+- **Role-Based Portals:** Dedicated access for School Heads and Admins.
+- **Secure Authentication:** Passcode and password login with session persistent.
 
-## React Compiler
+## Key Changes (Phase 2 Decoupling)
+- **Backend:** Removed all infrastructure, engineering, and LGU-related DDL and logic.
+- **Frontend:** Flushed 50+ routes and 100+ components related to non-school functions.
+- **Sanitization:** Deleted 200+ diagnostic and migration scripts to reduce attack surface and codebase weight.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development
+- `npm run dev`: Start Vite dev server.
+- `npm run dev:turbo`: Start backend server with instant reload.
+- `api/index.js`: Core backend entry point.
+- `src/App.jsx`: Frontend route management.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-# InsightEd-Mobile-PWA
+---
+© 2026 InsightED. Secure & Encrypted.

@@ -1,1 +1,0 @@
-ERROR: no pg_hba.conf entry for host "210.5.115.146", user "Administrator1", database "insightEd", no encryption

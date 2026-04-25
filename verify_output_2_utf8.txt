@@ -1,9 +1,0 @@
-﻿Fetching project to update...
-Found project: 10STY 20CL (ID: 1000031)
-Sending PUT request...
-Γ¥î API Update Failed!
-Error: {
-  error: 'Internal Server Error',
-  message: 'insert or update on table "engineer_documents" violates foreign key constraint "engineer_documents_project_id_fkey"',
-  detail: 'Key (project_id)=(1000033) is not present in table "engineer_form_legacy_1774683767".'
-}

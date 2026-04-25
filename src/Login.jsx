@@ -18,80 +18,16 @@ import { getRoleGroup, ROLE_GROUPS, normalizeRole } from './config/roleGroups';
 const getDashboardPath = (role, accountCategory) => {
     const normalizedRole = normalizeRole(role);
     
-    // 1. SPECIFIC ROLE OVERRIDES (Highest Priority)
     const roleMap = {
         'School Head': '/nodes-dashboard',
-        'Regional Office': '/division-nexus',
-        'Regional Division Office': '/division-nexus',
-        'School Division Office': '/division-nexus',
-        'Central Office': '/central-office-nexus',
+        'school_head': '/nodes-dashboard',
         'Admin': '/admin-dashboard',
-        'Human Resource': '/hr-dashboard',
         'Super User': '/super-user-selector',
-        'Super Admin': '/educational-dashboard',
-        'Local Government Unit': '/lgu-dashboard',
-        'Central Office Finance': '/finance-dashboard',
-        'Finance': '/finance-dashboard',
-        'Implementing Agency': '/agency-dashboard',
-        'EFD': '/efd-dashboard',
-        'EFD Engineer': '/efd-dashboard',
-        'HRODI': '/efd-dashboard',
-        'PGO': '/agency-dashboard',
-        'CGO': '/agency-dashboard',
-        'MGO': '/agency-dashboard',
-        'DPWH': '/agency-dashboard',
-        'CSO': '/agency-dashboard',
-        'Architect': '/engineer-projects',
-        'Regional Engineer': '/engineer-projects',
+        'Super Admin': '/admin-dashboard',
+        'School Division Office': '/division-nexus',
     };
 
-    if (roleMap[normalizedRole]) return roleMap[normalizedRole];
-
-    // 2. ENGINEER SPECIAL REDIRECTS
-    if (normalizedRole === 'DepEd Engineer' || normalizedRole === 'Non-DepEd Engineer' || normalizedRole === 'Engineer' || normalizedRole === 'Division Engineer') {
-        const normCategory = normalizeRole(accountCategory);
-        return (normCategory === 'Non-DepEd Engineer' || normalizedRole === 'Non-DepEd Engineer')
-            ? '/non-deped-dashboard'
-            : '/engineer-projects';
-    }
-
-    // 3. GROUP-BASED FALLBACK
-    const userGroup = getRoleGroup(normalizedRole);
-    if (userGroup === ROLE_GROUPS.MANAGEMENT) {
-        return '/monitoring-dashboard';
-    }
-    if (userGroup === ROLE_GROUPS.INFRA_OPERATIONAL) {
-        return '/engineer-dashboard'; // Default infra fallback
-    }
-    if (userGroup === ROLE_GROUPS.EDUCATIONAL_ADMIN) {
-        return '/educational-dashboard';
-    }
-    if (userGroup === ROLE_GROUPS.TECHNICAL_FINANCE) {
-        return '/project-summary-dashboard';
-    }
-
-    const fallbackRoleMap = {
-        'Local Government Unit': '/project-summary-dashboard',
-        'School Head': '/nodes-dashboard',
-        'Human Resource': '/educational-dashboard',
-        'Regional Office': '/educational-dashboard',
-        'School Division Office': '/educational-dashboard',
-        'Admin': '/educational-dashboard',
-        'Super User': '/educational-dashboard',
-        'Super Admin': '/educational-dashboard',
-        'Central Office': '/educational-dashboard',
-        'Central Office Finance': '/project-summary-dashboard',
-        'Implementing Agency': '/project-summary-dashboard',
-        'EFD': '/project-summary-dashboard',
-        'EFD Engineer': '/project-summary-dashboard',
-        'HRODI': '/project-summary-dashboard',
-        'PGO': '/project-summary-dashboard',
-        'CGO': '/project-summary-dashboard',
-        'MGO': '/project-summary-dashboard',
-        'DPWH': '/project-summary-dashboard',
-        'CSO': '/project-summary-dashboard',
-    };
-    return fallbackRoleMap[normalizedRole] || '/';
+    return roleMap[normalizedRole] || '/';
 };
 
 
@@ -107,8 +43,7 @@ const Login = () => {
     const [showForgotPasscodeModal, setShowForgotPasscodeModal] = useState(false);
     const [loginMode, setLoginMode] = useState('password'); // 'password' | 'passcode'
     const [isSchoolHead, setIsSchoolHead] = useState(true);
-    const [isPortalEnforced, setIsPortalEnforced] = useState(false); // NEW: Track if a portal is active
-    const [showBackPrompt, setShowBackPrompt] = useState(false);
+    const [isPortalEnforced, setIsPortalEnforced] = useState(true); // NEW: Track if a portal is active
     const [showDialpadModal, setShowDialpadModal] = useState(false);
     const [showTrafficModal, setShowTrafficModal] = useState(false);
     
@@ -133,17 +68,9 @@ const Login = () => {
             console.log("[Login] Received path identifier from state:", pathId);
             setIsSchoolHead(pathId === 'path_school_head');
             setIsPortalEnforced(true);
-        } else if (lastRole) {
-            // Mapping from role to portal type
-            const isSH = lastRole === 'School Head';
-            console.log("[Login] Fallback to lastRole portal layout. isSchoolHead:", isSH);
-            setIsSchoolHead(isSH);
-            setIsPortalEnforced(true);
-            // Clear lastRole so it doesn't affect future fresh logins
-            localStorage.removeItem('lastRole');
-        } else if (location.state?.roleType) {
-            // Fallback for legacy roleType state if any
-            setIsSchoolHead(location.state.roleType === 'School Head');
+        } else {
+            // Default to School Head portal for this standalone server
+            setIsSchoolHead(true);
             setIsPortalEnforced(true);
         }
     }, [location.state]);
@@ -209,14 +136,8 @@ const Login = () => {
                 isRoleCompatible = authUser.role === 'School Head' || authUser.role === 'Super User' || authUser.role === 'Super Admin';
             } else if (pathId === 'path_ro_sd') {
                 isRoleCompatible = ['Regional Office', 'School Division Office', 'Super User', 'Super Admin'].includes(authUser.role);
-            } else if (pathId === 'path_engineers') {
-                isRoleCompatible = ['DepEd Engineer', 'Division Engineer', 'Engineer', 'Non-DepEd Engineer', 'Super User', 'Super Admin'].includes(authUser.role);
-            } else if (pathId === 'path_agencies') {
-                isRoleCompatible = ['Implementing Agency', 'PGO', 'CGO', 'MGO', 'DPWH', 'CSO', 'Super User', 'Super Admin'].includes(authUser.role);
-            } else if (pathId === 'path_efd') {
-                isRoleCompatible = ['EFD', 'EFD Engineer', 'HRODI', 'Central Office', 'Super User', 'Super Admin'].includes(authUser.role);
             } else if (pathId === 'path_central_office') {
-                isRoleCompatible = ['Central Office', 'Central Office Finance', 'Super User', 'Super Admin'].includes(authUser.role);
+                isRoleCompatible = ['Central Office', 'Super User', 'Super Admin'].includes(authUser.role);
             }
 
 
@@ -436,14 +357,6 @@ const Login = () => {
                     {/* GLASSMORMISM CARD */}
                     <div className="bg-white/70 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-8 transform transition-all hover:scale-[1.01] duration-500 relative">
                         
-                        {/* BACK TO LAUNCH PAD */}
-                        <button 
-                            onClick={() => setShowBackPrompt(true)}
-                            className="absolute top-6 left-6 p-2 rounded-xl bg-white/50 text-slate-400 hover:text-[#004A99] hover:bg-white transition-all shadow-sm border border-slate-100 group z-20"
-                            title="Back to Launch Pad"
-                        >
-                            <FiArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
-                        </button>
 
 
                         {/* HEADER */}
@@ -455,24 +368,6 @@ const Login = () => {
                             <p className="text-slate-500 text-sm mt-2 font-medium">Department of Education</p>
                         </div>
 
-                        {/* TOGGLE SECTION: Are you a School Head? (Hidden if path is pre-selected or logout redirect) */}
-                        {(!rememberedUser || usePassword) && !isPortalEnforced ? (
-                            <div className="flex items-center justify-between mb-8 px-2 animate-in fade-in duration-500">
-                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Are you a School Head?</span>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const newState = !isSchoolHead;
-                                        setIsSchoolHead(newState);
-                                    }}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none ${isSchoolHead ? 'bg-blue-600' : 'bg-slate-300'}`}
-                                >
-                                    <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${isSchoolHead ? 'translate-x-6' : 'translate-x-1'}`}
-                                    />
-                                </button>
-                            </div>
-                        ) : null}
 
 
                         {rememberedUser && !usePassword ? (
