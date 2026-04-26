@@ -46,6 +46,7 @@ const Login = () => {
     const [isPortalEnforced, setIsPortalEnforced] = useState(true); // NEW: Track if a portal is active
     const [showDialpadModal, setShowDialpadModal] = useState(false);
     const [showTrafficModal, setShowTrafficModal] = useState(false);
+    const [showBackPrompt, setShowBackPrompt] = useState(false); // NEW: Fix ReferenceError
     
     // UI flows
     const [rememberedUser, setRememberedUser] = useState(() => {
@@ -552,16 +553,7 @@ const Login = () => {
                             <span>Troubleshoot</span>
                         </button>
 
-                        <button
-                            type="button"
-                            onClick={() => navigate('/chat')}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-white text-[11px] font-bold shadow-lg hover:bg-white/20 transition-all active:scale-95 shadow-blue-900/10"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                            </svg>
-                            <span>Help Desk Chat</span>
-                        </button>
+                        {/* Help Desk Chat Button Removed */}
 
                         <button
                             type="button"

@@ -1,3 +1,0 @@
-﻿FirebaseScrypt named exports: [ 'FirebaseScrypt', '__esModule', 'default', 'module.exports' ]
-FirebaseScrypt default export: object
-FirebaseScrypt from named: function

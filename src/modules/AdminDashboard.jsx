@@ -4,7 +4,6 @@ import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
 import { FiSearch, FiChevronLeft, FiChevronRight, FiRefreshCw, FiGrid, FiList, FiActivity, FiBriefcase, FiUser, FiTrash2, FiSlash, FiCheckCircle, FiStar, FiMessageSquare, FiKey, FiCopy, FiX, FiMapPin, FiCheck, FiLock } from "react-icons/fi";
 import { TbSchool } from "react-icons/tb";
-import KnowledgeManager from '../components/KnowledgeManager';
 
 
 // --- REUSABLE STAT COMPONENT ---
@@ -1435,12 +1434,7 @@ const AdminDashboard = () => {
                             >
                                 Account Management
                             </button>
-                            <button
-                                onClick={() => { setActiveTab('knowledge'); setSearchTerm(''); }}
-                                className={`px-4 py-2 text-xs font-bold rounded-lg whitespace-nowrap transition-all ${activeTab === 'knowledge' ? 'bg-[#004A99] text-white shadow-md' : 'text-gray-500 hover:bg-gray-100'}`}
-                            >
-                                Knowledge Base
-                            </button>
+                            {/* Knowledge Base Tab Removed */}
                         </div>
 
                         {/* CONTENT AREA */}
@@ -1458,7 +1452,7 @@ const AdminDashboard = () => {
                                     {activeTab === 'audit' && renderAuditTable()}
                                     {activeTab === 'feedback' && renderFeedbackView()}
                                     {activeTab === 'accounts' && renderAccountManagement()}
-                                    {activeTab === 'knowledge' && <KnowledgeManager />}
+                                    {/* {activeTab === 'knowledge' && <KnowledgeManager />} Component Removed */}
                                 </>
                             )}
                         </div>

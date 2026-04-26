@@ -20,6 +20,7 @@ Identify the current state of the system without requiring manual user input.
    - Nginx logs (`/var/log/nginx/error.log`).
    - Database logs (if accessible).
 3. **Infrastructure Check:** Verify PgBouncer connectivity, root disk usage (`df -h`), and memory pressure.
+4. **Verbose Diagnostic Instrumentation:** When stabilizing infrastructure, always wrap critical API routes in high-granularity `try-catch` blocks that log the full request context (payload, headers, pool status) to `stderr` using `console.error`. This ensures immediate root-cause identification for type mismatches (e.g., boolean syntax errors) and resource exhaustion.
 
 ### Phase 2: Surgical UI Interaction Tracing (Client-Side)
 When a frontend interaction fails, use the **Interaction Tracer Pro** engine to capture the runtime context.

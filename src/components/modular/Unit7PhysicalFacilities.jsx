@@ -403,7 +403,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 if (json.success && json.data) {
                     const { inventory, repairs, isCompleted, has_no_building } = json.data;
                     const allRooms = [];
-                    const normalizedInventory = inventory.map(b => ({
+                    const normalizedInventory = (inventory || []).map(b => ({
                         ...b,
                         classroom: b.classroom || b.classroom_count || (b.rooms ? b.rooms.length : 0),
                         storey: b.storey || b.storey_count || 1
@@ -432,12 +432,19 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                         }
                     });
                     setRoomsData(allRooms);
-                    const assessments = repairs.map(r => ({
-                        id: r.id, roomId: r.building_name + '-' + r.room_name,
-                        building_name: r.building_name, room_name: r.room_name,
-                        item: r.item_name, oms: r.oms, condition: r.condition,
-                        damage_ratio: r.damage_ratio, recommend_action: r.recommended_action,
-                        demo_justification: r.demo_justification, remarks: r.remarks
+                    const repairsArray = Array.isArray(repairs) ? repairs : [];
+                    const assessments = repairsArray.map(r => ({
+                        id: r.id, 
+                        roomId: r.building_name + '-' + (r.room_name || r.room_no || 'Room'),
+                        building_name: r.building_name, 
+                        room_name: r.room_name || r.room_no,
+                        item: r.item_name || 'Repair', 
+                        oms: r.oms, 
+                        condition: r.condition,
+                        damage_ratio: r.damage_ratio, 
+                        recommend_action: r.recommended_action,
+                        demo_justification: r.demo_justification, 
+                        remarks: r.remarks
                     }));
                     setRepairAssessments(assessments);
                     if (assessments.length > 0) setHasRepair(true);
@@ -1668,7 +1675,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                             <RecenterMap center={centerMap} />
 
                                             {/* Render existing spaces */}
-                                            {spaces.map((s, idx) => {
+                                            {Array.isArray(spaces) && spaces.map((s, idx) => {
                                                 const poly = calculateRotatedPolygon(parseFloat(s.center_lat), parseFloat(s.center_lng), parseFloat(s.length_m), parseFloat(s.width_m), parseFloat(s.rotation_deg) || 0);
                                                 if (!poly) return null;
                                                 return (

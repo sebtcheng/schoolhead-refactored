@@ -12,8 +12,8 @@ const UnitRemarkAlert = ({ unitId, schoolId }) => {
             const res = await fetch(`/api/audit/remarks/${schoolId}`);
             if (res.ok) {
                 const result = await res.json();
-                // Filter for this unit and unresolved
-                const active = (result.data || []).filter(r => r.unit_id === unitId && !r.is_resolved);
+                // Backend returns array directly. Also using 'instruction' column from DB.
+                const active = (Array.isArray(result) ? result : (result.data || [])).filter(r => r.unit_id === unitId && !r.is_resolved);
                 setRemarks(active);
             }
         } catch (e) {
@@ -72,7 +72,7 @@ const UnitRemarkAlert = ({ unitId, schoolId }) => {
                     </div>
 
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">
-                        "{rem.remark}"
+                        "{rem.instruction || rem.remark}"
                     </p>
 
                     {rem.status !== 'fixed' && (

@@ -60,6 +60,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
+// --- [Hawkeye Protocol] Global Safety Handlers (v1.0) ---
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception thrown:', err);
+});
+
 // --- PROJECT CATEGORY NORMALIZER (auto-cleans messy imports & API saves) ---
 
 
@@ -454,8 +462,7 @@ setInterval(() => {
   }
 }, 10000);
 
-// Inject pool into chatbot module
-setPool(pool);
+
 
 // --- [Hawkeye Protocol] IN-MEMORY TTL CACHE (v1.0) ---
 // Prevents 200+ concurrent users from each running the same heavy aggregation query.
@@ -1956,7 +1963,7 @@ const runAutoMigrations_OLD = async () => {
     `);
 
     // Unit 4
-    await unit4MigrateCols();
+    // await unit4MigrateCols(); // [DECOMMISSIONED] Function missing in current codebase, causing ReferenceError at startup.
 
     // Unit 1: Ownership Document Type
     const columnPromises = [
@@ -2401,6 +2408,19 @@ const initDB = async () => {
     const unitPromises = unitCols.map(col => checkAndAddColumn('ph_schools', col, 'SMALLINT DEFAULT 0'));
     await Promise.all(unitPromises);
 
+    currentSegment = "Segment 14: settings table";
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO settings (key, value)
+      VALUES ('nexus_module_locks', '{"school-info": false, "esf7": false, "nspp": true}')
+      ON CONFLICT (key) DO NOTHING;
+    `);
+
     await checkAndAddColumn('ph_teachers_list', 'designations', 'TEXT');
 
     console.log("✅ DB Init: All migrations completed successfully.");
@@ -2415,7 +2435,475 @@ const initDB = async () => {
 // initMasterlistDB(); // Moved to awaited startup
 
 
+
+// --- [InsightEd Quest] SCHOOL HEAD DASHBOARD ENDPOINTS ---
+
+// 1. GET /api/school-by-user/:uid
+app.get('/api/school-by-user/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const userRes = await pool.query('SELECT school_id FROM users WHERE uid = $1', [uid]);
+    if (userRes.rowCount === 0) return res.status(404).json({ exists: false, error: 'User not found' });
+    const schoolId = userRes.rows[0].school_id;
+    if (!schoolId) return res.status(404).json({ exists: false, error: 'User has no school assigned' });
+    const schoolRes = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [schoolId]);
+    res.json({ exists: schoolRes.rowCount > 0, data: schoolRes.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. GET /api/school-head/:uid
+app.get('/api/school-head/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const result = await pool.query('SELECT first_name, last_name, office, region, division, account_category FROM users WHERE uid = $1', [uid]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'School Head not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. GET /api/schools_iern/:id
+app.get('/api/schools_iern/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1', [id]);
+    res.json({ exists: result.rowCount > 0, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. GET /api/ph_schools/:id
+app.get('/api/ph_schools/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [id]);
+    res.json({ exists: result.rowCount > 0, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. GET /api/audit/remarks/:id
+// Replaces legacy /api/audit/remarks with unified audit_feedback_tasks lookup
+app.get('/api/audit/remarks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM audit_feedback_tasks WHERE school_id = $1 ORDER BY created_at DESC', [id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(`❌ [API] GET /api/audit/remarks/${req.params.id} ERROR:`, {
+        message: err.message,
+        stack: err.stack,
+        pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount }
+    });
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+// 6. GET /api/schools/:id/activity (CRITICAL FOR QUEST DASHBOARD)
+app.get('/api/schools/:id/activity', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const schoolRes = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [id]);
+    const completionRes = await pool.query('SELECT * FROM ph_school_completion WHERE school_id = $1', [id]);
+    
+    // Construct progress flags (Units 1-8 are SMALLINT 0 or 100 in ph_schools)
+    const school = schoolRes.rows[0] || {};
+    const flags = {};
+    const completedUnits = [];
+    for (let i = 1; i <= 8; i++) {
+        const val = school[`unit${i}`];
+        if (Number(val) === 100) {
+            flags[`unit${i}`] = true;
+            completedUnits.push(i);
+        }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        schoolInfo: school,
+        progress: {
+          percentage: school.completion_percentage || 0,
+          completedUnits,
+          flags
+        },
+        gamification: completionRes.rows[0] || {}
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. GET /api/ph_schools/unit10/:id/master (UNIT 7 MASTER REPAIR/INVENTORY)
+app.get('/api/ph_schools/unit10/:id/master', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // 1. Fetch Inventory from ph_buildings_inventory (Rooms list)
+    const invRes = await pool.query('SELECT * FROM ph_buildings_inventory WHERE school_id = $1', [id]);
+    
+    // Group rooms by building_name
+    const buildingsMap = {};
+    invRes.rows.forEach(room => {
+      const bName = room.building_name || 'Unnamed Building';
+      if (!buildingsMap[bName]) {
+        buildingsMap[bName] = { 
+          building_name: bName,
+          category: room.category,
+          storey: room.storey,
+          classroom: room.classroom,
+          rooms: []
+        };
+      }
+      buildingsMap[bName].rooms.push({
+        id: room.id,
+        room_name: room.room_name,
+        grade_level: room.grade_level,
+        advisory_teacher: room.advisory_teacher,
+        room_length: room.room_length,
+        room_width: room.room_width,
+        seats: room.seats,
+        is_in_use: room.is_in_use
+      });
+    });
+    
+    const inventory = Object.values(buildingsMap);
+
+    // 2. Fetch Repairs from ph_buildings_repairs
+    // Note: ph_buildings_repairs uses school_id
+    const repairRes = await pool.query('SELECT * FROM ph_buildings_repairs WHERE school_id = $1', [id]);
+    
+    // 3. Fetch Unit 7 flags from main table
+    const schoolRes = await pool.query('SELECT unit7_completed, unit7_has_no_building FROM ph_schools WHERE school_id = $1', [id]);
+    const school = schoolRes.rows[0] || {};
+
+    res.json({ 
+      success: true, 
+      data: { 
+        inventory: inventory,
+        repairs: repairRes.rows,
+        isCompleted: school.unit7_completed === true,
+        has_no_building: school.unit7_has_no_building === true
+      } 
+    });
+  } catch (err) {
+    console.error("Unit 7 Master Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. GET /api/school-location/:id (UNIT 8 TERRAIN DATA)
+app.get('/api/school-location/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM school_location_profiles WHERE school_id = $1', [id]);
+    res.json({ success: true, exists: result.rowCount > 0, data: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8.5. GET /api/ph_schools/unit10/:id/spaces (UNIT 7/10 BUILDABLE SPACES)
+app.get('/api/ph_schools/unit10/:id/spaces', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Map to the dedicated ph_school_buildable_spaces table
+    const result = await pool.query('SELECT * FROM public.ph_school_buildable_spaces WHERE school_id = $1', [id]);
+    res.json({ success: true, spaces: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8.6. GET /api/unit8/teachers/:id (UNIT 7 ADVISORY TEACHER LOOKUP)
+app.get('/api/unit8/teachers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT first as first_name, last as last_name, id FROM teachers_list WHERE school_id = $1',
+      [id]
+    );
+    res.json({ success: true, teachers: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. GET /api/ph_schools/progress/:schoolId (GRANULAR QUEST PROGRESS)
+app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+
+    // Ensure necessary columns exist for progress tracking
+    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7_completed BOOLEAN DEFAULT FALSE`).catch(() => {});
+    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10_completed BOOLEAN DEFAULT FALSE`).catch(() => {});
+    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10_spaces JSONB`).catch(() => {});
+    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7_has_no_building BOOLEAN DEFAULT FALSE`).catch(() => {});
+
+    // We prioritize ph_schools columns for real-time progress flags
+    const schoolRes = await pool.query(
+      `SELECT school_id, school_name, region, division, unit_completion,
+       unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9, unit10,
+       unit1_completed, unit2_completed, unit3_completed, unit4_completed,
+       unit5_completed, unit6_completed, unit7_completed, unit8_completed,
+       unit9_completed, unit10_completed
+       FROM ph_schools WHERE school_id = $1`, [schoolId]
+    );
+
+    if (schoolRes.rowCount === 0) return res.status(404).json({ success: false, error: 'School not found' });
+
+    const school = schoolRes.rows[0];
+    const completedUnits = [];
+    const timestamps = {};
+    const unitsToTrack = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    for (const i of unitsToTrack) {
+        // Handle BOTH SmallInt (1, 100) and Booleans
+        const val = school[`unit${i}`];
+        const boolVal = school[`unit${i}_completed`];
+        const isDone = (val === 100 || val === 1 || boolVal === true);
+        
+        if (isDone) {
+            completedUnits.push(i);
+            // Defaulting to CURRENT_TIMESTAMP if specific unit update time is missing
+            timestamps[`unit${i}`] = new Date().toISOString(); 
+        }
+    }
+
+    res.json({
+      success: true,
+      progress: {
+        schoolId: school.school_id,
+        school_name: school.school_name,
+        xp: completedUnits.length * 50, // 50 XP per unit
+        completedUnits,
+        timestamps,
+        percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. GET /api/settings/:key (NEXUS LOCKS & MAINTENANCE)
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
+    if (result.rowCount === 0) {
+        // Resilient Fallbacks
+        if (key === 'nexus_module_locks') {
+            return res.json({ value: JSON.stringify({ "school-info": false, "esf7": false, "nspp": true }) });
+        }
+        if (key === 'maintenance_mode') {
+            return res.json({ value: 'false' });
+        }
+        return res.status(404).json({ error: 'Setting not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 16. PUT /api/ph_schools/:id (SCHOOL RESOURCES - Unit 6 Wash/ICT)
+app.put('/api/ph_schools/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { iern, unit7_furniture, unit7_ict, unit7_has_ecart, unit7_ecarts, unit7_wash, unit7_utilities, unit6_completed } = req.body;
+    await pool.query(
+      `UPDATE ph_schools SET
+       iern = COALESCE($1, iern),
+       unit7_furniture = $2, unit7_ict = $3, unit7_has_ecart = $4, unit7_ecarts = $5,
+       unit7_wash = $6, unit7_utilities = $7, unit6_completed = $8,
+       unit6 = 100, unit6_updated_at = CURRENT_TIMESTAMP
+       WHERE school_id = $9`,
+      [iern, unit7_furniture, unit7_ict, unit7_has_ecart, unit7_ecarts, unit7_wash, unit7_utilities, unit6_completed, id]
+    );
+    res.json({ success: true, message: 'Unit 6 resources updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 17. POST /api/save-physical-facilities (UNIT 7 MASTER)
+app.post('/api/save-physical-facilities', async (req, res) => {
+  try {
+    const { school_id, iern, inventoryEntries, rooms, repairEntries, demolitionEntries, build_classrooms_total, build_classrooms_new, build_classrooms_good, build_classrooms_repair, build_classrooms_demolition, spaces, has_no_building } = req.body;
+    // We store the complex mapping in ph_schools for simplicity in this node
+    await pool.query(
+      `UPDATE ph_schools SET
+       unit7_data = $1, unit7_rooms = $2, unit7_repair = $3, unit7_demolition = $4,
+       unit7_spaces = $5, has_no_building = $6,
+       build_classrooms_total = $7, build_classrooms_new = $8, build_classrooms_good = $9,
+       build_classrooms_repair = $10, build_classrooms_demolition = $11,
+       unit7 = 100, unit7_completed = TRUE, unit7_updated_at = CURRENT_TIMESTAMP
+       WHERE school_id = $12`,
+      [JSON.stringify(inventoryEntries), JSON.stringify(rooms), JSON.stringify(repairEntries), JSON.stringify(demolitionEntries), JSON.stringify(spaces), has_no_building, build_classrooms_total, build_classrooms_new, build_classrooms_good, build_classrooms_repair, build_classrooms_demolition, school_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 18. POST /api/school-location (UNIT 8 TERRAIN)
+app.post('/api/school-location', async (req, res) => {
+  try {
+    const { school_id, formData } = req.body;
+    await pool.query(
+      `INSERT INTO school_location_profiles (school_id, data)
+       VALUES ($1, $2)
+       ON CONFLICT (school_id) DO UPDATE SET data = $2`,
+      [school_id, JSON.stringify(formData)]
+    );
+    await pool.query(
+      `UPDATE ph_schools SET
+       unit8 = 100, unit8_completed = TRUE, unit8_updated_at = CURRENT_TIMESTAMP
+       WHERE school_id = $1`, [school_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 19. GET/PUT /api/ph_schools/unit9/:id (INFRASTRUCTURE & SAFETY)
+app.get('/api/ph_schools/unit9/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ success: false, error: 'School not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error(`❌ [API] GET /api/ph_schools/unit9/${req.params.id} ERROR:`, {
+        message: err.message,
+        stack: err.stack,
+        pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount }
+    });
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+app.put('/api/ph_schools/unit9/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    // Normalize boolean-ish values (0, 1, 2) from tri-state UI to standard DB booleans
+    const toBool = (v) => {
+        if (v === 1 || v === true || v === 'true' || v === '1') return true;
+        if (v === 0 || v === false || v === 'false' || v === '0') return false;
+        return null; // Handle '2' (N/A) or unknown as NULL
+    };
+
+    await pool.query(
+      `UPDATE ph_schools SET
+       unit9 = 100, unit9_completed = TRUE, unit9_updated_at = CURRENT_TIMESTAMP,
+       u9_general = $1, u9_wiring = $2, u9_cords_cctv = $3, u9_final = $4,
+       u9_fire_exit_exists = $5, u9_backup_light_exists = $6, u9_ecart_load_ready = $7,
+       u9_has_surge_protection = $8, u9_remarks = $9,
+       u9_cctv_working = $10, u9_cctv_broken = $11, u9_cctv_spares = $12,
+       u9_fire_ext_working = $13, u9_fire_ext_broken = $14, u9_fire_ext_spares = $15,
+       u9_first_aid_working = $16, u9_first_aid_broken = $17, u9_first_aid_spares = $18,
+       u9_bullhorns_working = $19, u9_bullhorns_broken = $20, u9_bullhorns_spares = $21,
+       u9_radios_working = $22, u9_radios_broken = $23, u9_radios_spares = $24,
+       u9_flashlight_working = $25, u9_flashlight_broken = $26, u9_flashlight_spares = $27,
+       u9_whistles_quantity = $28, u9_bulbs_working = $29, u9_bulbs_broken = $30,
+       u9_bulbs_spares = $31, u9_covers_working = $32, u9_covers_broken = $33,
+       u9_covers_spares = $34, u9_breakers_working = $35, u9_breakers_broken = $36,
+       u9_breakers_spares = $37, u9_ext_cords_working = $38, u9_ext_cords_broken = $39,
+       u9_ext_cords_spares = $40, u9_tape_quantity = $41
+       WHERE school_id = $42`,
+      [
+        body.u9_general, body.u9_wiring, body.u9_cords_cctv, body.u9_final,
+        toBool(body.u9_fire_exit_exists), toBool(body.u9_backup_light_exists), toBool(body.u9_ecart_load_ready),
+        toBool(body.u9_has_surge_protection), body.u9_remarks,
+        body.u9_cctv_working, body.u9_cctv_broken, body.u9_cctv_spares,
+        body.u9_fire_ext_working, body.u9_fire_ext_broken, body.u9_fire_ext_spares,
+        body.u9_first_aid_working, body.u9_first_aid_broken, body.u9_first_aid_spares,
+        body.u9_bullhorns_working, body.u9_bullhorns_broken, body.u9_bullhorns_spares,
+        body.u9_radios_working, body.u9_radios_broken, body.u9_radios_spares,
+        body.u9_flashlight_working, body.u9_flashlight_broken, body.u9_flashlight_spares,
+        body.u9_whistles_quantity, body.u9_bulbs_working, body.u9_bulbs_broken,
+        body.u9_bulbs_spares, body.u9_covers_working, body.u9_covers_broken,
+        body.u9_covers_spares, body.u9_breakers_working, body.u9_breakers_broken,
+        body.u9_breakers_spares, body.u9_ext_cords_working, body.u9_ext_cords_broken,
+        body.u9_ext_cords_spares, body.u9_tape_quantity, id
+      ]
+    );
+    res.json({ success: true, message: 'Unit 9 data updated successfully' });
+  } catch (err) {
+    console.error(`❌ [API] PUT /api/ph_schools/unit9/${req.params.id} ERROR:`, {
+        message: err.message,
+        stack: err.stack,
+        payload: req.body,
+        pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount }
+    });
+    res.status(500).json({ error: err.message, stack: err.stack });
+  }
+});
+
+// (Removing duplicate unit10 spaces logic that used ph_schools JSON column)
+
+// 21. POST /api/esf7/approve (FINAL VERIFICATION)
+app.post('/api/esf7/approve', async (req, res) => {
+  try {
+    const { school_id, remarks } = req.body;
+    await pool.query(
+      `UPDATE ph_schools SET
+       verification_status = 'VERIFIED',
+       verification_remarks = $1,
+       verified_at = CURRENT_TIMESTAMP
+       WHERE school_id = $2`, [remarks, school_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 22. POST /api/esf7/return (REJECTION FOR CORRECTION)
+app.post('/api/esf7/return', async (req, res) => {
+  try {
+    const { school_id, remarks } = req.body;
+    await pool.query(
+      `UPDATE ph_schools SET
+       verification_status = 'RETURNED',
+       verification_remarks = $1,
+       unit10 = 0, unit10_completed = FALSE
+       WHERE school_id = $2`, [remarks, school_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // --- REFERENCE API ENDPOINTS ---
+
+app.get('/api/reference/building-types', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM reference_building_types ORDER BY name ASC');
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.json({ success: true, data: [
+        { id: 1, name: "Gabo Type" },
+        { id: 2, name: "Marcos Type" },
+        { id: 3, name: "Bagong Lipunan" },
+        { id: 4, name: "DepEd Standard" }
+    ] }); // Fallback for stability
+  }
+});
+
+// (Removing duplicate teachers logic that used non-existent ph_teachers_list)
 
 
 
@@ -2484,6 +2972,70 @@ app.get('/api/lists/municipalities', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// --- LOCATION LOOKUP APIS (Unified) ---
+app.get('/api/locations/regions', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT DISTINCT region FROM schools WHERE region IS NOT NULL ORDER BY region');
+    res.json(result.rows.map(r => r.region));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/provinces', async (req, res) => {
+  try {
+    const { region } = req.query;
+    let query = 'SELECT DISTINCT province FROM schools WHERE province IS NOT NULL';
+    let params = [];
+    if (region && region !== 'BLANK REGION') {
+      query += ' AND region = $1';
+      params.push(region);
+    }
+    query += ' ORDER BY province';
+    const result = await pool.query(query, params);
+    res.json(result.rows.map(r => r.province));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/municipalities-by-province', async (req, res) => {
+  try {
+    const { province } = req.query;
+    const result = await pool.query('SELECT DISTINCT municipality FROM schools WHERE province = $1 ORDER BY municipality', [province]);
+    res.json(result.rows.map(r => r.municipality));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/barangays', async (req, res) => {
+  try {
+    const { municipality } = req.query;
+    // Note: 'schools' table might not have distinct barangays for all, but we use it as source for now
+    const result = await pool.query('SELECT DISTINCT barangay FROM schools WHERE municipality = $1 AND barangay IS NOT NULL ORDER BY barangay', [municipality]);
+    res.json(result.rows.map(r => r.barangay));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/divisions', async (req, res) => {
+  try {
+    const { region } = req.query;
+    const result = await pool.query('SELECT DISTINCT division FROM schools WHERE region = $1 ORDER BY division', [region]);
+    res.json(result.rows.map(r => r.division));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/legislative-districts', async (req, res) => {
+  try {
+    const { province } = req.query;
+    const result = await pool.query('SELECT DISTINCT leg_district FROM schools WHERE province = $1 AND leg_district IS NOT NULL ORDER BY leg_district', [province]);
+    res.json(result.rows.map(r => r.leg_district));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/districts', async (req, res) => {
+  try {
+    const { municipality } = req.query;
+    const result = await pool.query('SELECT DISTINCT district FROM schools WHERE municipality = $1 AND district IS NOT NULL ORDER BY district', [municipality]);
+    res.json(result.rows.map(r => r.district));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // --- NEW LAZY MIGRATION LOGIN ENDPOINT ---
@@ -2735,6 +3287,42 @@ app.post('/api/auth/setup-pin', async (req, res) => {
     return res.json({ success: true, message: "PIN set successfully." });
   } catch (err) {
     console.error("Setup PIN Error:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+});
+
+app.post('/api/auth/verify-passcode', authMiddleware, async (req, res) => {
+  try {
+    const { passcode } = req.body;
+    const { uid } = req.user;
+
+    if (!passcode) {
+      return res.status(400).json({ success: false, error: "Passcode is required." });
+    }
+
+    const userRes = await pool.query('SELECT passcode FROM users WHERE uid = $1', [uid]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "User not found." });
+    }
+
+    const storedPasscode = userRes.rows[0].passcode;
+    if (!storedPasscode) {
+      return res.status(400).json({ success: false, error: "No PIN setup for this account." });
+    }
+
+    // Robust passcode comparison (handles both plain-text and hashed)
+    const isBcryptHash = storedPasscode.startsWith('$2b$');
+    const isValid = isBcryptHash 
+      ? await bcrypt.compare(passcode, storedPasscode)
+      : (passcode === storedPasscode);
+
+    if (isValid) {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, error: "Invalid passcode. Please try again." });
+    }
+  } catch (err) {
+    console.error("Verify Passcode Error:", err);
     res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 });

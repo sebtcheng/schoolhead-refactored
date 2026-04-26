@@ -241,7 +241,7 @@ const runMigrations = async (client, dbLabel) => {
         console.error(`❌ [${dbLabel}] Failed to init audit_feedback_tasks table:`, tableErr.message);
     }
 
-    // --- 2. NOTIFICATIONS TABLE ---
+    // --- 3. NOTIFICATIONS TABLE ---
     try {
         await client.query(`
             CREATE TABLE IF NOT EXISTS notifications (
@@ -256,9 +256,44 @@ const runMigrations = async (client, dbLabel) => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        // console.log(`✅ [${dbLabel}] Notifications Table Initialized`);
     } catch (tableErr) {
         console.error(`❌ [${dbLabel}] Failed to init notifications table:`, tableErr.message);
+    }
+
+    // --- 4. SETTINGS TABLE ---
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO settings (key, value)
+            VALUES ('nexus_module_locks', '{"school-info": false, "esf7": false, "nspp": true}')
+            ON CONFLICT (key) DO NOTHING;
+        `);
+    } catch (tableErr) {
+        console.error(`❌ [${dbLabel}] Failed to init settings table:`, tableErr.message);
+    }
+
+    // --- 5. UNIT PROGRESS COLUMNS ---
+    try {
+        await client.query(`
+            ALTER TABLE ph_schools 
+            ADD COLUMN IF NOT EXISTS unit1 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit2 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit3 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit4 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit5 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit6 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit7 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit8 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit9 SMALLINT DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS unit10 SMALLINT DEFAULT 0;
+        `);
+    } catch (colErr) {
+        console.error(`❌ [${dbLabel}] Failed to add unit progress columns:`, colErr.message);
     }
 
     // --- 2.2. SCHOOL COMPLETION TABLE ---
@@ -1133,10 +1168,56 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit8_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 9: School Location / Terrain ────────────────────────────────
+        // ── UNIT 9: Infrastructure & Safety Audit ─────────────────────────────
         await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS hazard_risk_score          INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_general                 TEXT,
+            ADD COLUMN IF NOT EXISTS u9_wiring                  TEXT,
+            ADD COLUMN IF NOT EXISTS u9_cords_cctv              TEXT,
+            ADD COLUMN IF NOT EXISTS u9_final                   TEXT,
+            ADD COLUMN IF NOT EXISTS u9_fire_exit_exists        BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS u9_backup_light_exists     BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS u9_ecart_load_ready        BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS u9_has_surge_protection    BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS u9_remarks                 TEXT,
+            
+            -- Security Inventory
+            ADD COLUMN IF NOT EXISTS u9_cctv_working            INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_cctv_broken             INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_cctv_spares             INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_fire_ext_working        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_fire_ext_broken         INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_fire_ext_spares         INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_first_aid_working       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_first_aid_broken        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_first_aid_spares        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_bullhorns_working       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_bullhorns_broken        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_bullhorns_spares        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_radios_working          INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_radios_broken           INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_radios_spares           INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_flashlight_working      INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_flashlight_broken       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_flashlight_spares       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_whistles_quantity       INTEGER DEFAULT 0,
+
+            -- Electrical Inventory
+            ADD COLUMN IF NOT EXISTS u9_bulbs_working           INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_bulbs_broken            INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_bulbs_spares            INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_covers_working          INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_covers_broken           INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_covers_spares           INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_breakers_working        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_breakers_broken         INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_breakers_spares         INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_ext_cords_working       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_ext_cords_broken        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_ext_cords_spares        INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS u9_tape_quantity           INTEGER DEFAULT 0,
+
             ADD COLUMN IF NOT EXISTS unit9                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit9_completed            BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit9_updated_at           TIMESTAMPTZ;
@@ -1177,7 +1258,8 @@ const runMigrations = async (client, dbLabel) => {
         }
     }
 
-    // --- 18. CHATBOT KNOWLEDGE TABLE ---
+    // --- 18. CHATBOT KNOWLEDGE TABLE --- [DECOMMISSIONED]
+    /*
     try {
         await client.query(`
             CREATE TABLE IF NOT EXISTS chatbot_knowledge (
@@ -1192,8 +1274,10 @@ const runMigrations = async (client, dbLabel) => {
     } catch (migErr) {
         console.error(`❌ [${dbLabel}] Failed to init chatbot_knowledge table:`, migErr.message);
     }
+    */
 
-    // --- 19. SYSTEM FEEDBACK TABLE ---
+    // --- 19. SYSTEM FEEDBACK TABLE --- [DECOMMISSIONED]
+    /*
     try {
         await client.query(`
             CREATE TABLE IF NOT EXISTS system_feedback (
@@ -1208,8 +1292,10 @@ const runMigrations = async (client, dbLabel) => {
     } catch (migErr) {
         console.error(`❌ [${dbLabel}] Failed to init system_feedback table:`, migErr.message);
     }
+    */
 
-    // --- 20. APP FEEDBACK TABLE (DETAILED) ---
+    // --- 20. APP FEEDBACK TABLE (DETAILED) --- [DECOMMISSIONED]
+    /*
     try {
         await client.query(`
             CREATE TABLE IF NOT EXISTS app_feedback (
@@ -1229,6 +1315,7 @@ const runMigrations = async (client, dbLabel) => {
     } catch (migErr) {
         console.error(`❌ [${dbLabel}] Failed to init app_feedback table:`, migErr.message);
     }
+    */
 
     // --- 21. SCHOOL OWNERSHIP DOCUMENTS TABLE ---
     try {
@@ -1254,7 +1341,8 @@ const runMigrations = async (client, dbLabel) => {
         await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS school_id TEXT;`).catch(() => {});
 
         // Data Healing: Cleanup orphans to allow FK creation
-        await client.query("DELETE FROM school_ownership_docs WHERE iern NOT IN (SELECT iern FROM ph_schools)");
+        // [LOCKED] Table is append-only (InsightEd-2026-DocLock). Orphan cleanup via DELETE is skipped.
+        // await client.query("DELETE FROM school_ownership_docs WHERE iern NOT IN (SELECT iern FROM ph_schools)");
 
         // Idempotent Unique Constraint Enforcement (HAWKEYE Protocol)
         // Step 1: Deduplicate — keep only the latest row per IERN before applying constraint

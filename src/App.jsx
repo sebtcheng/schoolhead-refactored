@@ -4,7 +4,7 @@ import { HashRouter as Router, Routes, Route, useLocation, Navigate, useNavigate
 
 import { AnimatePresence } from 'framer-motion'; // <--- IMPORT THIS
 import SuperUserFloatingSwitch from './components/SuperUserFloatingSwitch'; // Super User Switch
-import ChatWidget from './components/ChatWidget'; // Chatbot Widget
+// import ChatWidget from './components/ChatWidget'; // Chatbot Widget Removed
 import { useState, useEffect } from 'react'; // Ensure React hooks are imported
 
 // Auth
@@ -30,14 +30,13 @@ import SuperUserSelector from './modules/SuperUserSelector';
 import SyncCenter from './modules/SyncCenter';
 import ProtectedRoute from './components/ProtectedRoute';
 import PasscodeSetupPrompt from './components/PasscodeSetupPrompt';
-import ChatModule from './modules/ChatModule';
+// import ChatModule from './modules/ChatModule'; // Chatbot Module Removed
 import { ROLE_GROUPS, NEXUS_AUTHORIZED_EMAILS } from './config/roleGroups';
 import { EFDFilterProvider } from './context/EFDFilterContext';
 
 
 
 // Forms
-import SchoolForms from './modules/SchoolForms';
 import SchoolForms from './modules/SchoolForms';
 
 // Form Imports (School Head)
@@ -86,7 +85,7 @@ const AnimatedRoutes = () => {
 
   useEffect(() => {
     // List of public paths that don't require authentication
-    const publicPaths = ['/', '/login', '/register', '/adminlogin', '/chat'];
+    const publicPaths = ['/', '/login', '/register', '/adminlogin'];
 
 
     // If auth is finished loading and no user is found on a non-public path, redirect to login
@@ -173,6 +172,7 @@ const AnimatedRoutes = () => {
 
 
       {/* Dashboards */}
+
       <Route
         path="/nodes-dashboard"
         element={
@@ -317,7 +317,7 @@ const AnimatedRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route path="/chat" element={<ChatModule />} />
+      {/* <Route path="/chat" element={<ChatModule />} /> */}
 
       {/* Menus */}
       <Route path="/school-forms" element={<SchoolForms />} />
@@ -374,7 +374,7 @@ const AppContent = () => {
       <ScrollToTop />
       <ForceUpdateModal />
       <SuperUserFloatingSwitch />
-      <ChatWidget showFloatingButton={showChatFloating} />
+      {/* <ChatWidget showFloatingButton={showChatFloating} /> */}
       <PasscodeSetupPrompt />
       <AnimatedRoutes />
     </>
