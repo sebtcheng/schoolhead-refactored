@@ -449,20 +449,7 @@ try {
 }
 
 // --- GOOGLE DRIVE CLIENT ---
-let drive;
-try {
-  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly'],
-    });
-    drive = google.drive({ version: 'v3', auth });
-    console.log("✅ Google Drive API Initialized");
-  }
-} catch (error) {
-  console.error("❌ Failed to initialize Google Drive API:", error.message);
-}
+// Removed for School Head Portal (ESF7 Decoupling)
 
 // --- PDF OPTIMIZATION PIPELINE (Hydra Transformation Engine) ---
 const compressBufferTo96Dpi = async (buffer) => {
