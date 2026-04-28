@@ -68,9 +68,8 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 // Nexus & Drafts
 import NodesDashboard from './modules/NexusDashboard';
 import SDONexusDashboard from './modules/SDONexusDashboard';
-import ESF7Draft from './forms/ESF7Draft';
+// ESF7 removed
 import NSPPDraft from './forms/NSPPDraft';
-import ESF7Review from './modules/ESF7Review';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
 
@@ -119,7 +118,7 @@ const AnimatedRoutes = () => {
 
     const checkMaintenance = async () => {
       try {
-        const res = await fetch('/api/settings/maintenance_mode', { signal: controller.signal });
+        const res = await fetch('api/settings/maintenance_mode', { signal: controller.signal });
         const text = await res.text();
         const data = text ? JSON.parse(text) : {};
         setMaintenanceMode(data.value === 'true');
@@ -199,7 +198,7 @@ const AnimatedRoutes = () => {
       <Route path="/location-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><LocationManagement /></ProtectedRoute>} />
       <Route path="/jurisdiction-schools" element={<SchoolJurisdictionList />} />
       <Route path="/school-audit" element={<SchoolAuditView />} />
-      <Route path="/esf7/review" element={<ProtectedRoute allowedRoles={['Super User', 'School Division Office']}><ESF7Review /></ProtectedRoute>} />
+      {/* ESF7 Review removed */}
       <Route path="/division-nexus" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User', 'Super Admin']}><SDONexusDashboard /></ProtectedRoute>} />
 
       <Route path="/dummy-forms" element={<DummyDashboard />} />
@@ -229,14 +228,7 @@ const AnimatedRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/draft/esf7"
-        element={
-          <ProtectedRoute allowedRoles={['School Head']}>
-            <ESF7Draft />
-          </ProtectedRoute>
-        }
-      />
+      {/* ESF7 Draft removed */}
       <Route
         path="/draft/nspp"
         element={

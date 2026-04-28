@@ -35,7 +35,7 @@ const SchoolAuditView = () => {
 
     const fetchRemarks = async (schoolId) => {
         try {
-            const res = await fetch(`/api/audit/remarks/${schoolId}`, {
+            const res = await fetch(`api/audit/remarks/${schoolId}`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (res.ok) {
@@ -51,7 +51,7 @@ const SchoolAuditView = () => {
         if (!newRemark.trim() || !schoolData || !remarkUnitId) return;
         setIsSubmitting(true);
         try {
-            const res = await fetch('/api/audit/remarks', {
+            const res = await fetch('api/audit/remarks', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -89,7 +89,7 @@ const SchoolAuditView = () => {
 
     const handleVerifyRemark = async (remarkId) => {
         try {
-            const res = await fetch(`/api/audit/remarks/${remarkId}/resolve`, {
+            const res = await fetch(`api/audit/remarks/${remarkId}/resolve`, {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',

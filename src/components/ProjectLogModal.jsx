@@ -33,7 +33,7 @@ const ProjectLogModal = ({ isOpen, onClose, project }) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/project-history/${encodeURIComponent(project.ipc)}`, {
+            const res = await fetch(`api/project-history/${encodeURIComponent(project.ipc)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);

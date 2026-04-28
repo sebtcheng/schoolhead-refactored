@@ -486,22 +486,22 @@ const SchoolResources = ({ embedded }) => {
                 }
 
                 if (!restored) {
-                    let profileFetchUrl = `/api/school-by-user/${user.uid}`;
-                    let resourcesFetchUrl = `/api/school-resources/${user.uid}`;
+                    let profileFetchUrl = `api/school-by-user/${user.uid}`;
+                    let resourcesFetchUrl = `api/school-resources/${user.uid}`;
 
                     if (isAuditMode) {
-                        profileFetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
-                        resourcesFetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                        profileFetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
+                        resourcesFetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                     } else if ((viewOnly || isCORole) && schoolIdParam) {
-                        profileFetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
-                        resourcesFetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                        profileFetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
+                        resourcesFetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                     }
 
-                    let shiftingFetchUrl = `/api/learning-modalities/${user.uid}`;
+                    let shiftingFetchUrl = `api/learning-modalities/${user.uid}`;
                     if (isAuditMode) {
-                        shiftingFetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                        shiftingFetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                     } else if ((viewOnly || isCORole) && schoolIdParam) {
-                        shiftingFetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                        shiftingFetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                     }
 
                     if (!loadedFromCache) setLoading(true);
@@ -570,7 +570,7 @@ const SchoolResources = ({ embedded }) => {
                         const resolvedSchoolId = dbData.school_id || schoolIdParam || auditTargetId || localStorage.getItem('schoolId');
                         if (loaded.res_buildable_space === 'Yes' && resolvedSchoolId) {
                             try {
-                                const spacesRes = await fetch(`/api/buildable-spaces/${resolvedSchoolId}`);
+                                const spacesRes = await fetch(`api/buildable-spaces/${resolvedSchoolId}`);
                                 if (spacesRes.ok) {
                                     const spacesData = await spacesRes.json();
                                     const mappedSpaces = spacesData.map(s => ({
@@ -589,7 +589,7 @@ const SchoolResources = ({ embedded }) => {
 
                         if (resolvedSchoolId) {
                             try {
-                                const ecartRes = await fetch(`/api/ecart-batches/${resolvedSchoolId}`);
+                                const ecartRes = await fetch(`api/ecart-batches/${resolvedSchoolId}`);
                                 if (ecartRes.ok) {
                                     const ecartData = await ecartRes.json();
                                     if (ecartData.length > 0) {
@@ -742,7 +742,7 @@ const SchoolResources = ({ embedded }) => {
         }
 
         try {
-            const res = await fetch('/api/save-school-resources', {
+            const res = await fetch('api/save-school-resources', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -771,7 +771,7 @@ const SchoolResources = ({ embedded }) => {
         await addToOutbox({
             type: 'SCHOOL_RESOURCES',
             label: 'School Resources',
-            url: '/api/save-school-resources',
+            url: 'api/save-school-resources',
             payload: payload
         });
         if (user) clearSpaceDrafts(user.uid).catch(console.error);

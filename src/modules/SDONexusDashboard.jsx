@@ -18,7 +18,7 @@ const SDONexusDashboard = () => {
     useEffect(() => {
         const loadNexusSettings = async () => {
             try {
-                const locksRes = await fetch('/api/settings/nexus_module_locks');
+                const locksRes = await fetch('api/settings/nexus_module_locks');
                 if (locksRes.ok) {
                     const locksData = await locksRes.json();
                     if (locksData && locksData.value) {
@@ -84,20 +84,7 @@ const SDONexusDashboard = () => {
             isLocked: dynamicLocks['cloud-monitoring'] || false,
             isVisible: true
         },
-        {
-            id: 'esf7-review',
-            title: 'ESF7 Review',
-            subtitle: 'Personnel Audit',
-            type: 'AUDIT',
-            icon: <TbReportAnalytics className="w-8 h-8" />,
-            color: 'from-emerald-600 to-teal-700',
-            textColor: 'text-emerald-600',
-            bgLight: 'bg-emerald-50',
-            route: '/esf7-review',
-            description: 'Verify and audit teacher personnel itemization reports for compliance.',
-            isLocked: dynamicLocks['esf7-review'] || false,
-            isVisible: isSGOD || isRO // VISIBLE IF SGOD OR REGIONAL
-        },
+        // ESF7 Review removed
         {
             id: 'nspp-review',
             title: 'NSPP Review',

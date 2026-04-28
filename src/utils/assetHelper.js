@@ -16,7 +16,7 @@ export const resolveAssetUrl = (rawPath, opts = {}) => {
     if (!rawPath) return rawPath;
     if (rawPath.startsWith('http') || rawPath.startsWith('data:')) return rawPath;
 
-    if (rawPath.startsWith('/api/') || rawPath.startsWith('/uploads/')) {
+    if (rawPath.startsWith('api/') || rawPath.startsWith('/uploads/')) {
         const vBase = import.meta.env.VITE_API_BASE_URL;
         
         // If VITE_API_BASE_URL is explicitly set, use it
@@ -62,7 +62,7 @@ export const resolveDocUrl = (value, opts = {}) => {
 };
 /**
  * Resolves an API path to an absolute URL, aware of the current environment base.
- * @param {string} apiPath e.g. "api/esf7/upload" or "/api/esf7/upload"
+ * @param {string} apiPath e.g. "api/esf7/upload" or "api/esf7/upload"
  */
 export const resolveApiUrl = (apiPath) => {
     if (!apiPath) return apiPath;

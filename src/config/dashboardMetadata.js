@@ -1,5 +1,5 @@
 import { FiHome, FiUsers, FiGrid, FiBookOpen, FiClock, FiMapPin, FiUser, FiLayers, FiBox, FiZap } from "react-icons/fi";
-import { TbSchool, TbUsers, TbActivity, TbReportAnalytics } from "react-icons/tb";
+import { TbSchool, TbUsers, TbActivity, TbReportAnalytics, TbShieldCheck } from "react-icons/tb";
 
 export const DASHBOARD_METADATA = {
     units: [

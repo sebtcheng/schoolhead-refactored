@@ -434,7 +434,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
   // --- Calculate Latest Data Timestamp (As Of Date) ---
   const timestampCols = [
     'unit1_updated_at', 'unit2_updated_at', 'unit3_updated_at', 'unit4_updated_at', 'unit5_updated_at',
-    'unit6_updated_at', 'unit7_updated_at', 'unit8_updated_at', 'unit9_updated_at', 'unit10_updated_at',
+    'unit6_updated_at', 'unit7_updated_at', 'unit8_updated_at', 'unit9_updated_at',
     'verified_as_of', 'updated_at'
   ];
   let latestTimestamp = null;
@@ -1026,16 +1026,6 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
           ${renderInfrastructureUnit(s)}
         </section>
 
-        <!-- UNIT 10: VERIFICATION -->
-        <section>
-          <h2>Unit 10: Final Verification & Commitment</h2>
-          <div class="info-box" style="border: 2px dashed var(--primary); background: transparent;">
-             <p style="font-size: 13px; text-align: center; margin: 10px 0;">
-                Status: <strong>${s.unit10_completed ? 'PERSONALLY VERIFIED BY SCHOOL HEAD' : 'AWAITING FINAL VERIFICATION'}</strong><br>
-                <span style="font-size: 11px; color: var(--text-muted); font-style: italic;">Verified on: ${s.verified_as_of ? new Date(s.verified_as_of).toLocaleString() : 'Pending'}</span>
-             </p>
-          </div>
-        </section>
 
         <footer style="margin-top: 50px; border-top: 1px solid var(--border); padding-top: 20px; text-align: center; color: var(--text-muted); font-size: 11px;">
           <p>© 2026 InsightEd Monitoring System | Department of Education</p>

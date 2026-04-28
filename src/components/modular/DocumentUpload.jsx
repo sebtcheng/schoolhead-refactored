@@ -77,7 +77,7 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
         formData.append("doc_type", docType);
 
         try {
-            const response = await fetch(`/api/schools/${iern}/ownership-docs`, {
+            const response = await fetch(`api/schools/${iern}/ownership-docs`, {
                 method: "POST",
                 body: formData,
             });
@@ -170,7 +170,7 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
         setUploading(true);
         setStatus("uploading"); // Reusing for consistency
         try {
-            const response = await fetch(`/api/schools/${iern}/ownership-docs/${documentId}`, {
+            const response = await fetch(`api/schools/${iern}/ownership-docs/${documentId}`, {
                 method: "DELETE",
             });
 

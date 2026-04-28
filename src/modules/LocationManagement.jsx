@@ -87,7 +87,7 @@ const LocationManagement = () => {
 
     const prefillLocation = async (division) => {
         try {
-            const res = await fetch(`/api/locations/division-info?division=${encodeURIComponent(division)}`, {
+            const res = await fetch(`api/locations/division-info?division=${encodeURIComponent(division)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -100,7 +100,7 @@ const LocationManagement = () => {
 
     const fetchRegions = async () => {
         try {
-            const res = await fetch('/api/locations/regions', {
+            const res = await fetch('api/locations/regions', {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -116,7 +116,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/provinces?region=${encodeURIComponent(region)}`, {
+            const res = await fetch(`api/locations/provinces?region=${encodeURIComponent(region)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -132,7 +132,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            let url = `/api/locations/districts?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`;
+            let url = `api/locations/districts?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`;
             if (legislativeDistrict) url += `&legislative_district=${encodeURIComponent(legislativeDistrict)}`;
             if (municipality) url += `&municipality=${encodeURIComponent(municipality)}`;
             
@@ -152,7 +152,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+            const res = await fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -169,7 +169,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/barangays?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`, {
+            const res = await fetch(`api/locations/barangays?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -209,7 +209,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+            const res = await fetch(`api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -245,7 +245,7 @@ const LocationManagement = () => {
         let endpoint = '';
 
         if (type === 'barangay') {
-            endpoint = '/api/locations/barangays';
+            endpoint = 'api/locations/barangays';
             body = {
                 region: selectedRegion,
                 province: selectedProvince,
@@ -253,7 +253,7 @@ const LocationManagement = () => {
                 barangay: value
             };
         } else {
-            endpoint = '/api/locations/all_locations';
+            endpoint = 'api/locations/all_locations';
             body = {
                 region: type === 'region' ? value : selectedRegion,
                 province: type === 'province' ? value : (selectedProvince || 'NOT SPECIFIED'),
@@ -324,7 +324,7 @@ const LocationManagement = () => {
         let endpoint = '';
 
         if (type === 'barangay') {
-            endpoint = `/api/locations/barangays/${encodeURIComponent(id)}`;
+            endpoint = `api/locations/barangays/${encodeURIComponent(id)}`;
             body = {
                 region: selectedRegion,
                 province: selectedProvince,
@@ -333,7 +333,7 @@ const LocationManagement = () => {
             };
         } else {
             // Rename logic for District, Municipality, Legislative District
-            endpoint = '/api/locations/rename';
+            endpoint = 'api/locations/rename';
             body = {
                 type,
                 oldValue: oldValue,
@@ -387,7 +387,7 @@ const LocationManagement = () => {
         if (!window.confirm(`Are you sure you want to delete this ${type.toUpperCase()}? This action cannot be undone.`)) return;
 
         let endpoint = '';
-        if (type === 'barangay') endpoint = `/api/locations/barangays/${encodeURIComponent(id)}`;
+        if (type === 'barangay') endpoint = `api/locations/barangays/${encodeURIComponent(id)}`;
         else {
             alert("Delete for this level is not yet fully implemented in UI.");
             return;

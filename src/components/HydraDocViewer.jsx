@@ -13,7 +13,7 @@ const HydraDocViewer = ({ manifest, fileName, onClose, onDownload }) => {
         if (currentPage < manifest.length - 1) {
             const nextPage = manifest[currentPage + 1];
             const img = new Image();
-            img.src = resolveAssetUrl(`/api/asset/${nextPage.binary_id}`);
+            img.src = resolveAssetUrl(`api/asset/${nextPage.binary_id}`);
         }
     }, [currentPage, manifest]);
 
@@ -59,7 +59,7 @@ const HydraDocViewer = ({ manifest, fileName, onClose, onDownload }) => {
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
-                        src={resolveAssetUrl(`/api/asset/${manifest[currentPage].binary_id}`)}
+                        src={resolveAssetUrl(`api/asset/${manifest[currentPage].binary_id}`)}
                         className="max-h-full max-w-full object-contain shadow-2xl"
                         alt={`Page ${currentPage + 1}`}
                         onLoad={() => setLoadedPages(prev => ({ ...prev, [currentPage]: true }))}
@@ -98,7 +98,7 @@ const HydraDocViewer = ({ manifest, fileName, onClose, onDownload }) => {
                         onClick={() => setCurrentPage(idx)}
                         className={`flex-shrink-0 w-12 h-16 rounded-lg border-2 transition-all overflow-hidden ${currentPage === idx ? 'border-blue-500 scale-105 shadow-lg shadow-blue-500/20' : 'border-transparent opacity-40 hover:opacity-100'}`}
                     >
-                        <img src={resolveAssetUrl(`/api/asset/${page.binary_id}`)} className="w-full h-full object-cover" alt="" />
+                        <img src={resolveAssetUrl(`api/asset/${page.binary_id}`)} className="w-full h-full object-cover" alt="" />
                     </button>
                 ))}
             </div>

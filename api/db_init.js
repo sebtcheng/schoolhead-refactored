@@ -200,6 +200,88 @@ const initUnit8Schema = async (client, dbLabel) => {
     }
 };
 
+const initUnitTimestampTrigger = async (client, dbLabel) => {
+    try {
+        // [Hawkeye Protocol] Automated Accomplishment Timestamp Trigger
+        // This ensures every unit completion (1-10) is timestamped at the moment of persistence.
+        await client.query(`
+            CREATE OR REPLACE FUNCTION update_unit_timestamp() 
+            RETURNS TRIGGER AS $$
+            BEGIN
+                -- Unit 1
+                IF (NEW.unit1 = 1 OR NEW.unit1 = 100 OR NEW.unit1_completed = TRUE) 
+                   AND (OLD.unit1 IS DISTINCT FROM NEW.unit1 OR OLD.unit1_completed IS DISTINCT FROM NEW.unit1_completed) 
+                   AND (NEW.unit1_updated_at IS NULL OR NEW.unit1_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit1_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 2
+                IF (NEW.unit2 = 1 OR NEW.unit2 = 100 OR NEW.unit2_completed = TRUE) 
+                   AND (OLD.unit2 IS DISTINCT FROM NEW.unit2 OR OLD.unit2_completed IS DISTINCT FROM NEW.unit2_completed) 
+                   AND (NEW.unit2_updated_at IS NULL OR NEW.unit2_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit2_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 3
+                IF (NEW.unit3 = 1 OR NEW.unit3 = 100 OR NEW.unit3_completed = TRUE) 
+                   AND (OLD.unit3 IS DISTINCT FROM NEW.unit3 OR OLD.unit3_completed IS DISTINCT FROM NEW.unit3_completed) 
+                   AND (NEW.unit3_updated_at IS NULL OR NEW.unit3_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit3_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 4
+                IF (NEW.unit4 = 1 OR NEW.unit4 = 100 OR NEW.unit4_completed = TRUE) 
+                   AND (OLD.unit4 IS DISTINCT FROM NEW.unit4 OR OLD.unit4_completed IS DISTINCT FROM NEW.unit4_completed) 
+                   AND (NEW.unit4_updated_at IS NULL OR NEW.unit4_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit4_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 5
+                IF (NEW.unit5 = 1 OR NEW.unit5 = 100 OR NEW.unit5_completed = TRUE) 
+                   AND (OLD.unit5 IS DISTINCT FROM NEW.unit5 OR OLD.unit5_completed IS DISTINCT FROM NEW.unit5_completed) 
+                   AND (NEW.unit5_updated_at IS NULL OR NEW.unit5_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit5_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 6
+                IF (NEW.unit6 = 1 OR NEW.unit6 = 100 OR NEW.unit6_completed = TRUE) 
+                   AND (OLD.unit6 IS DISTINCT FROM NEW.unit6 OR OLD.unit6_completed IS DISTINCT FROM NEW.unit6_completed) 
+                   AND (NEW.unit6_updated_at IS NULL OR NEW.unit6_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit6_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 7
+                IF (NEW.unit7 = 1 OR NEW.unit7 = 100 OR NEW.unit7_completed = TRUE) 
+                   AND (OLD.unit7 IS DISTINCT FROM NEW.unit7 OR OLD.unit7_completed IS DISTINCT FROM NEW.unit7_completed) 
+                   AND (NEW.unit7_updated_at IS NULL OR NEW.unit7_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit7_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 8
+                IF (NEW.unit8 = 1 OR NEW.unit8 = 100 OR NEW.unit8_completed = TRUE) 
+                   AND (OLD.unit8 IS DISTINCT FROM NEW.unit8 OR OLD.unit8_completed IS DISTINCT FROM NEW.unit8_completed) 
+                   AND (NEW.unit8_updated_at IS NULL OR NEW.unit8_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit8_updated_at := CURRENT_TIMESTAMP; END IF;
+
+                -- Unit 9
+                IF (NEW.unit9 = 1 OR NEW.unit9 = 100 OR NEW.unit9_completed = TRUE) 
+                   AND (OLD.unit9 IS DISTINCT FROM NEW.unit9 OR OLD.unit9_completed IS DISTINCT FROM NEW.unit9_completed) 
+                   AND (NEW.unit9_updated_at IS NULL OR NEW.unit9_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
+                THEN NEW.unit9_updated_at := CURRENT_TIMESTAMP; END IF;
+
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        `);
+
+        await client.query(`
+            DROP TRIGGER IF EXISTS trg_update_unit_timestamp ON ph_schools;
+            CREATE TRIGGER trg_update_unit_timestamp 
+            BEFORE INSERT OR UPDATE ON ph_schools 
+            FOR EACH ROW 
+            EXECUTE FUNCTION update_unit_timestamp();
+        `);
+
+        console.log(`✅ [${dbLabel}] Unit Accomplishment Trigger is active.`);
+    } catch (err) {
+        console.error(`❌ [${dbLabel}] Failed to initialize timestamp trigger:`, err.message);
+    }
+};
+
 const runMigrations = async (client, dbLabel) => {
     // [Master Protocol] Strategic Advisory Lock (ID: 7777777) 
     // Prevents race conditions when multiple workers attempt schema changes simultaneously.
@@ -214,6 +296,7 @@ const runMigrations = async (client, dbLabel) => {
         // --- 0. UNIT SCHEMAS ---
         await initUnit7Schema(client, dbLabel);
         await initUnit8Schema(client, dbLabel);
+        await initUnitTimestampTrigger(client, dbLabel);
 
         // --- 1. AUDIT FEEDBACK TASKS TABLE ---
     try {
@@ -289,8 +372,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit6 SMALLINT DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit7 SMALLINT DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit8 SMALLINT DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit9 SMALLINT DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit10 SMALLINT DEFAULT 0;
+            ADD COLUMN IF NOT EXISTS unit9 SMALLINT DEFAULT 0;
         `);
     } catch (colErr) {
         console.error(`❌ [${dbLabel}] Failed to add unit progress columns:`, colErr.message);
@@ -1223,13 +1305,6 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit9_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 10: Verification ────────────────────────────────────────────
-        await client.query(`
-            ALTER TABLE ph_schools
-            ADD COLUMN IF NOT EXISTS unit10                     INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit10_completed           BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit10_updated_at          TIMESTAMPTZ;
-        `);
 
         // ── MONITORING / COMPLETION SNAPSHOT ─────────────────────────────────
         await client.query(`

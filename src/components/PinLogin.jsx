@@ -58,7 +58,7 @@ const PinLogin = ({ rememberedUser, onSwitchAccount, onUsePassword }) => {
     const useSchoolIdField = (rememberedUser?.role?.toLowerCase()?.includes('school head') || isNumericId);
 
     try {
-      const response = await fetch('/api/auth/pin-login', {
+      const response = await fetch('api/auth/pin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

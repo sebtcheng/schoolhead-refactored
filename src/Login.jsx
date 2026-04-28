@@ -183,7 +183,7 @@ const Login = () => {
             const masterTimeoutId = setTimeout(() => masterAbort.abort(), 10000); 
 
             try {
-                const masterResponse = await fetch('/api/auth/master-login', {
+                const masterResponse = await fetch('api/auth/master-login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -213,7 +213,7 @@ const Login = () => {
         const loginTimeoutId = setTimeout(() => loginAbort.abort(), 30000); // 30s timeout
 
         try {
-            const endpoint = loginMode === 'passcode' ? '/api/auth/pin-login' : '/api/auth/migrate-login';
+            const endpoint = loginMode === 'passcode' ? 'api/auth/pin-login' : 'api/auth/migrate-login';
             
             // Robust identifier logic: If it's 6+ digits or toggled as SH, use school_id field
             // FIX: If the identifier contains an '@', it's definitely an email, so we must NOT use the school_id field.
@@ -261,7 +261,7 @@ const Login = () => {
                     
                     // PROACTIVE CACHING FOR OFFLINE READINESS (UNIT 1 AUTOFILL)
                     try {
-                        const iernRes = await fetch(`/api/schools_iern/${data.user.school_id}`).catch(() => null);
+                        const iernRes = await fetch(`api/schools_iern/${data.user.school_id}`).catch(() => null);
                         if (iernRes?.ok) {
                             const iernData = await iernRes.json();
                             if (iernData.exists && iernData.data) {

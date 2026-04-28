@@ -144,7 +144,7 @@ const ProjectEditModal = ({ project, isOpen, onClose, onSaveDetails, onSaveVO, o
             setIsSchoolChecked(!!project.schoolId);
             
             // Load initial dropdown options
-            fetch('/api/reference/funding-years').then(r => r.json()).then(years => setLookupOptions(prev => ({ ...prev, fundingYears: years }))).catch(() => {});
+            fetch('api/reference/funding-years').then(r => r.json()).then(years => setLookupOptions(prev => ({ ...prev, fundingYears: years }))).catch(() => {});
             
             if (project.province) {
                 // If we have a province, maybe try to load its municipalities if needed, 
@@ -161,7 +161,7 @@ const ProjectEditModal = ({ project, isOpen, onClose, onSaveDetails, onSaveVO, o
     useEffect(() => {
         if (activeTab === 'realign' && project && realignCandidates.length === 0) {
             setIsFetchingCandidates(true);
-            fetch(`/api/projects?category=${encodeURIComponent(project.projectCategory || '')}&district=${encodeURIComponent(project.legislative_district || project.division || '')}`)
+            fetch(`api/projects?category=${encodeURIComponent(project.projectCategory || '')}&district=${encodeURIComponent(project.legislative_district || project.division || '')}`)
                 .then(r => r.json())
                 .then(data => setRealignCandidates(Array.isArray(data) ? data.filter(p => p.id !== project.id) : []))
                 .catch(() => setRealignCandidates([]))
@@ -280,7 +280,7 @@ const ProjectEditModal = ({ project, isOpen, onClose, onSaveDetails, onSaveVO, o
 
         setIsCheckingSchool(true);
         try {
-            const response = await fetch(`/api/schools_iern/${schoolId}`);
+            const response = await fetch(`api/schools_iern/${schoolId}`);
             
             if (response.status === 404) {
                 alert("School ID not found. Please contact us in support.stride@deped.gov.ph");
@@ -310,9 +310,9 @@ const ProjectEditModal = ({ project, isOpen, onClose, onSaveDetails, onSaveVO, o
                 if (region) {
                     const province = data.Province || data.province;
                     Promise.all([
-                        fetch(`/api/locations/provinces?region=${encodeURIComponent(region)}`).then(r => r.json()),
-                        fetch(`/api/locations/leg-districts?region=${encodeURIComponent(region)}`).then(r => r.json()),
-                        fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province || '')}`).then(r => r.json())
+                        fetch(`api/locations/provinces?region=${encodeURIComponent(region)}`).then(r => r.json()),
+                        fetch(`api/locations/leg-districts?region=${encodeURIComponent(region)}`).then(r => r.json()),
+                        fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province || '')}`).then(r => r.json())
                     ]).then(([provinces, legDistricts, municipalities]) => {
                         const pOpts = provinces || [];
                         const lOpts = legDistricts || [];

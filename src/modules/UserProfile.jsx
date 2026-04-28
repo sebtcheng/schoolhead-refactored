@@ -188,7 +188,7 @@ const UserProfile = () => {
                     setSchoolId(currentSchoolId);
                 } else if (mappedUser.uid) {
                     try {
-                        const response = await fetch(`/api/school-by-user/${mappedUser.uid}`, {
+                        const response = await fetch(`api/school-by-user/${mappedUser.uid}`, {
                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                         });
                         if (response.ok) {
@@ -263,7 +263,7 @@ const UserProfile = () => {
                 currentPasscode: securityData.passcode
             };
 
-            const response = await fetch('/api/users/update', {
+            const response = await fetch('api/users/update', {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -323,7 +323,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/auth/change-password', {
+            const response = await fetch('api/auth/change-password', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -386,7 +386,7 @@ const UserProfile = () => {
         setLoading(true);
         try {
             // If user has a passcode, we should ideally verify it first or pass it to the setup endpoint
-            const response = await fetch('/api/auth/setup-passcode', {
+            const response = await fetch('api/auth/setup-passcode', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -432,7 +432,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/feedback', {
+            const response = await fetch('api/feedback', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -1295,7 +1295,7 @@ const UserProfile = () => {
                                         
                                         try {
                                             // 1. Remote Repair Protocol: Align Unit 8 JSONB
-                                            await fetch('/api/system/align-unit8', {
+                                            await fetch('api/system/align-unit8', {
                                                 method: 'POST',
                                                 headers: {
                                                     'Authorization': `Bearer ${localStorage.getItem('token')}`,

@@ -103,7 +103,12 @@ const MyActivityDashboard = () => {
         // Only use cache if not impersonating
         if (!impersonatedUid) {
             const cached = localStorage.getItem('activity_data');
-            return cached ? JSON.parse(cached) : null;
+            try {
+                return cached && cached !== 'undefined' ? JSON.parse(cached) : null;
+            } catch (e) {
+                console.error('Failed to parse cached activity_data', e);
+                return null;
+            }
         }
         return null;
     });
@@ -130,7 +135,7 @@ const MyActivityDashboard = () => {
                 
                 // --- SUPER USER IMPERSONATION ---
                 if (user?.role === 'Super User' && impersonatedUid) {
-                    const profileRes = await fetch(`/api/school-by-user/${impersonatedUid}`);
+                    const profileRes = await fetch(`api/school-by-user/${impersonatedUid}`);
                     const profileJson = await profileRes.json();
                     if (profileJson.exists && profileJson.data.school_id) {
                         schoolId = profileJson.data.school_id;
@@ -144,12 +149,14 @@ const MyActivityDashboard = () => {
                 
                 setTargetSchoolId(schoolId);
 
-                const response = await fetch(`/api/schools/${schoolId}/activity`);
+                const response = await fetch(`api/ph_schools/progress/${schoolId}`);
                 if (response.ok) {
                     const json = await response.json();
-                    setData(json.data);
-                    if (!impersonatedUid) {
-                        localStorage.setItem('activity_data', JSON.stringify(json.data));
+                    if (json.data) {
+                        setData(json.data);
+                        if (!impersonatedUid) {
+                            localStorage.setItem('activity_data', JSON.stringify(json.data));
+                        }
                     }
                 }
             } catch (err) {
@@ -184,15 +191,15 @@ const MyActivityDashboard = () => {
         setExporting(true);
         try {
             // 1. Fetch ph_schools full data
-            const phRes = await fetch(`/api/ph_schools/${targetSchoolId}`);
+            const phRes = await fetch(`api/ph_schools/${targetSchoolId}`);
             const phJson = await phRes.json();
             
             // 2. Fetch Unit 7 Child Tables (Master)
-            const u7Res = await fetch(`/api/ph_schools/unit10/${targetSchoolId}/master`);
+            const u7Res = await fetch(`api/ph_schools/unit7/${targetSchoolId}/master`);
             const u7Json = await u7Res.json();
             
             // 3. Fetch Unit 8 (Terrain) Data
-            const u8Res = await fetch(`/api/school-location/${targetSchoolId}`);
+            const u8Res = await fetch(`api/school-location/${targetSchoolId}`);
             const u8Json = await u8Res.json();
 
             if (phJson.exists && phJson.data) {
@@ -213,9 +220,20 @@ const MyActivityDashboard = () => {
         }
     };
 
-    const xp = useMemo(() => getXPForUnits(data?.progress?.completedUnits, data?.progress?.flags), [data]);
+    const filteredCompletedUnits = useMemo(() => {
+        const units = Array.isArray(data?.progress?.completedUnits) ? data.progress.completedUnits : [];
+        return units.filter(id => DASHBOARD_METADATA.units.some(u => u.id == id));
+    }, [data]);
+
+    const xp = useMemo(() => getXPForUnits(filteredCompletedUnits, data?.progress?.flags), [filteredCompletedUnits, data]);
     const maxXP = useMemo(() => DASHBOARD_METADATA.units.reduce((sum, u) => sum + u.xp, 0), []);
     const levelInfo = useMemo(() => getLevelFromXP(xp, maxXP), [xp, maxXP]);
+
+    const displayPercentage = useMemo(() => {
+        const total = DASHBOARD_METADATA.units.length;
+        if (total === 0) return 0;
+        return Math.min(Math.round((filteredCompletedUnits.length / total) * 100), 100);
+    }, [filteredCompletedUnits]);
 
     const nextUnit = useMemo(() => {
         if (!data?.progress?.flags) return unitMap[0];
@@ -413,7 +431,7 @@ const MyActivityDashboard = () => {
                             <div className="flex-1">
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-2">Mission Progress</p>
                                 <h2 className="text-2xl font-black text-slate-800 mb-1">
-                                    {Array.isArray(data?.progress?.completedUnits) ? data.progress.completedUnits.length : (data?.progress?.completedUnits || 0)} <span className="text-slate-300 text-lg">/ {DASHBOARD_METADATA.units.length}</span>
+                                    {filteredCompletedUnits.length} <span className="text-slate-300 text-lg">/ {DASHBOARD_METADATA.units.length}</span>
                                 </h2>
                                 <p className="text-emerald-500 text-[11px] font-bold">Units Conquered</p>
                                 
@@ -433,7 +451,7 @@ const MyActivityDashboard = () => {
                                     </div>
                                 </div>
                             </div>
-                            <ProgressRing percentage={data?.progress?.percentage || 0} />
+                            <ProgressRing percentage={displayPercentage} />
                         </div>
 
                         {/* Continue Button */}

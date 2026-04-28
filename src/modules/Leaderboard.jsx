@@ -31,7 +31,7 @@ const Leaderboard = () => {
 
             try {
                 // Fetch basic user context to know their region
-                const headRes = await fetch(`/api/school-head/${user.uid}`);
+                const headRes = await fetch(`api/school-head/${user.uid}`);
                 const headJson = await headRes.json();
 
                 let regionFilter = user.region || 'Region VIII'; // Use region from AuthContext if available
@@ -74,7 +74,7 @@ const Leaderboard = () => {
         setSearch('');
         setLoading(true);
         try {
-            const url = `/api/leaderboard?scope=division&filter=${encodeURIComponent(divisionName)}`;
+            const url = `api/leaderboard?scope=division&filter=${encodeURIComponent(divisionName)}`;
             setUserScope(`${divisionName} Schools`);
             const res = await fetch(url);
             const json = await res.json();
@@ -93,17 +93,17 @@ const Leaderboard = () => {
 
             if (tab === 'regions') {
                 // National View: Fetch all regions
-                url = `/api/leaderboard?scope=national`;
+                url = `api/leaderboard?scope=national`;
                 setUserScope('National');
             } else {
                 // Divisions View: 
                 // If a region is specified (Drill-down or User's Region), show divisions for that region
                 if (regionOverride) {
-                    url = `/api/leaderboard?scope=region&filter=${encodeURIComponent(regionOverride)}`;
+                    url = `api/leaderboard?scope=region&filter=${encodeURIComponent(regionOverride)}`;
                     setUserScope(regionOverride);
                 } else {
                     // Fallback: Fetch ALL divisions (National)
-                    url = `/api/leaderboard?scope=national_divisions`;
+                    url = `api/leaderboard?scope=national_divisions`;
                     setUserScope('National');
                 }
             }

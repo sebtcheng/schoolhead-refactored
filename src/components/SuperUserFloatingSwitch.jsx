@@ -35,7 +35,7 @@ const SuperUserFloatingSwitch = () => {
 
             if (location.pathname === '/engineer-dashboard') {
                 // Engineer export — fetch projects and generate PDF
-                let url = '/api/projects';
+                let url = 'api/projects';
                 if (division) url += `?division=${encodeURIComponent(division)}`;
                 const res = await fetch(url);
                 const projects = await res.json();
@@ -57,7 +57,7 @@ const SuperUserFloatingSwitch = () => {
                 if (region) params.set('region', region);
                 if (division) params.set('division', division);
 
-                const res = await fetch(`/api/super-user/export-summary?${params.toString()}`);
+                const res = await fetch(`api/super-user/export-summary?${params.toString()}`);
                 const kpiData = await res.json();
                 generateMonitoringReport(kpiData);
             }

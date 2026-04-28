@@ -11,7 +11,7 @@ window.React = window.React || React;
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
   let [resource, config] = args;
-  if (typeof resource === 'string' && resource.startsWith('/api/')) {
+  if (typeof resource === 'string' && resource.startsWith('api/')) {
     if (window.location.pathname.includes('/insighted-staging')) {
       // Prepend the staging base path if we are in the staging environment
       resource = '/insighted-staging' + resource;

@@ -3,7 +3,7 @@ import express from 'express';
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js <<< 📌");
 // Robust Login Fix v1.1 - Optimized teachers_list connections removed.
 
-import { google } from 'googleapis';
+// import { google } from 'googleapis'; // Removed ESF7 dependency
 // Force restart to pick up .env changes - Robust Login Fix v1
 import pg from 'pg';
 import QueryStream from 'pg-query-stream';
@@ -38,7 +38,7 @@ import busboy from 'busboy'; // --- FAST FILE PARSER ---
 import multer from 'multer';
 import { createRequire } from "module"; // Added for JSON import
 const require = createRequire(import.meta.url);
-const { PgBoss } = require('pg-boss');
+// import { PgBoss } from 'pg-boss'; // Removed
 import { exec } from 'child_process';
 import util from 'util';
 const execAsync = util.promisify(exec);
@@ -53,7 +53,7 @@ import { upsertBinary } from './utils/binaryPipeline.js';
 import { z } from 'zod'; // For validation
 import jwt from 'jsonwebtoken';
 import authMiddleware from './middleware/authMiddleware.js';
-import XLSX from 'xlsx';
+// import XLSX from 'xlsx'; // Removed ESF7 dependency
 
 // Load environment variables
 const __filename = fileURLToPath(import.meta.url);
@@ -290,143 +290,17 @@ const isLocal = isLoopback && process.env.NODE_ENV !== 'production' && process.e
 
 console.log(`🔌 Database Connection: ${isVmProxy ? 'Remote VM (Azure Proxy)' : (isLoopback ? 'Local Loopback' : 'Remote')} (${dbUrl.replace(/:[^:@]*@/, ':****@')}) [ENV: ${process.env.NODE_ENV || 'dev'}]`);
 
-// [Job Queue Architecture] Initialize PgBoss for ESF7 scaling
-// Use the existing pool via db.executeSql so pg-boss never opens its own
-// connection — this sidesteps the PgBouncer database-alias mismatch where
-// port 5432 does not recognise the name that PgBouncer exposes on port 6432.
-// pg-boss falls back to SQL polling instead of LISTEN/NOTIFY which is fine
-// for async scan jobs.
-let bossReady = false;
-let bossStartError = null;
-
-const boss = new PgBoss({
-  db: {
-    executeSql: (text, values) => pool.query(text, values),
-  },
-  schedule: false, // [Fix] correctly disables timekeeper in pg-boss v12
-});
-
-boss.on('error', error => console.error('💥 [PG-BOSS] Global Error:', error));
-boss.on('monitor-states', states => {
-    const q = states.queues['esf7-local-scan'];
-    if (q) {
-        console.log(`📊 [PG-BOSS] Queue '${q.name}': [Active: ${q.active}, Pending: ${q.pending}, Completed: ${q.completed}]`);
-    }
-});
+// [Job Queue Architecture] Removed — eSF7 logic moved to separate codebase.
 
 // [Job Queue Architecture] Initialize Worker for ESF7 Scans
 
 
 
-// Shared Helper for Excel Parsing
-async function processEsf7Buffer(buffer, onProgress) {
-    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' }); 
-    const sheetName = workbook.SheetNames.find(n => n.toUpperCase() === 'DB_USER');
-    if (!sheetName) throw new Error("Missing 'DB_USER' sheet.");
-    const worksheet = workbook.Sheets[sheetName];
-
-    // Quick Audit Range (A-Z, 1000 rows)
-    const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null, range: 'A1:Z1001' });
-    let headerRowIdx = -1;
-    let colMap = { first: -1, last: -1, pos: -1, fund: -1 };
-    
-    for (let i = 0; i < Math.min(allRows.length, 100); i++) {
-        const row = allRows[i] || [];
-        const lowerRow = row.map(c => String(c || "").trim().toUpperCase());
-        if (lowerRow.includes("FIRST") && lowerRow.includes("LAST")) {
-            headerRowIdx = i;
-            colMap.last = lowerRow.indexOf("LAST");
-            colMap.first = lowerRow.indexOf("FIRST");
-            colMap.pos = lowerRow.findIndex(c => c === "POSITION" || c.includes("POS"));
-            colMap.fund = lowerRow.findIndex(c => c === "FUND SOURCE" || c.includes("FUND"));
-            break;
-        }
-    }
-
-    if (headerRowIdx === -1) throw new Error("Could not identify standard ESF7 headers.");
-
-    let teachingCount = 0;
-    let relatedCount = 0;
-    let nonTeachingCount = 0;
-    let schoolHead = { name: "N/A", position: "N/A", rank: -1 };
-
-    const scannedPersonnel = {
-        teaching: [],
-        related: [],
-        nonTeaching: []
-    };
-
-    const rowsToProcess = allRows.slice(headerRowIdx + 1);
-    const totalRows = rowsToProcess.length;
-
-    for (let i = 0; i < totalRows; i++) {
-        const row = rowsToProcess[i];
-        const hasName = (row[colMap.first] && String(row[colMap.first]).trim() !== "") || 
-                      (row[colMap.last] && String(row[colMap.last]).trim() !== "");
-
-        if (hasName) {
-            const pos = String(row[colMap.pos] || "").trim().toUpperCase();
-            const first = String(row[colMap.first] || "").trim();
-            const last = String(row[colMap.last] || "").trim();
-            const fullName = `${first} ${last}`;
-            const fund = String(row[colMap.fund] || "LOCAL").trim().toUpperCase();
-            
-            const staffObj = { first, last, position: row[colMap.pos], fund_source: fund };
-
-            if (TEACHING_POSITIONS.some(tp => pos.includes(tp))) {
-                teachingCount++;
-                scannedPersonnel.teaching.push(staffObj);
-            }
-            else if (RELATED_TEACHING_POSITIONS.some(rp => pos.includes(rp))) {
-                relatedCount++;
-                scannedPersonnel.related.push(staffObj);
-            }
-            else {
-                nonTeachingCount++;
-                scannedPersonnel.nonTeaching.push(staffObj);
-            }
-
-            const rank = getPositionRank(pos);
-            if (rank > schoolHead.rank) schoolHead = { name: fullName, position: row[colMap.pos] || pos, rank };
-        }
-
-        // Progress heartbeat (every 10% or at least every 50 rows)
-        if (onProgress && totalRows > 0 && (i % Math.max(1, Math.floor(totalRows / 10)) === 0)) {
-            const pct = Math.min(98, 10 + Math.round((i / totalRows) * 85));
-            await onProgress(pct).catch(() => {});
-        }
-    }
-
-    return {
-        summary: {
-            schoolHead: schoolHead.name,
-            schoolHeadPosition: schoolHead.position,
-            teaching: teachingCount,
-            relatedTeaching: relatedCount,
-            nonTeaching: nonTeachingCount,
-            total: teachingCount + relatedCount + nonTeachingCount
-        },
-        scannedPersonnel
-    };
-}
+// // [Excel Parsing] Removed — eSF7 logic moved to separate codebase.
 
 const logActivity = (userUid, userName, role, actionType, targetEntity, details, superUserContext = null) => {
-  if (!boss) return;
-  
-  let dbDetails = details;
-  if (superUserContext) {
-    dbDetails = `[SUPER USER VIEW] ${details} (Context: ${superUserContext})`;
-  }
-
-  boss.send('activity-log', {
-    user_uid: userUid,
-    user_name: userName || 'System',
-    role: role || 'User',
-    action_type: actionType,
-    details: dbDetails,
-    target_entity: targetEntity,
-    timestamp: new Date().toISOString()
-  }).catch(err => console.error("⚠️ [AsyncLog-Fail] Could not queue log:", err.message));
+  // PgBoss removed. Activity logging now console-only for isolation.
+  console.log(`📝 [Activity] ${userName} (${role}): ${actionType} on ${targetEntity} - ${details}`);
 };
 
 
@@ -733,114 +607,9 @@ app.use(express.urlencoded({ limit: '500mb', extended: true }));
 // --- [Status Check] Friendly Root Message ---
 // --- ESF7 NATIONAL SCALE ROUTES (High Priority) ---
 // Initialize ESF7 Link Registry if not exists
-const initESF7Tables = async () => {
-    try {
-        const lockRes = await pool.query('SELECT pg_try_advisory_lock(5555555) as lock_granted');
-        if (!lockRes.rows[0].lock_granted) {
-            console.log("⚠️ [ESF7-Init] Tables already being initialized by another worker.");
-            return;
-        }
+// [ESF7 Initialization] Removed — eSF7 logic moved to separate codebase.
 
-        try {
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS esf7_link (
-                    school_id TEXT PRIMARY KEY,
-                    link TEXT NOT NULL,
-                    row_count INTEGER,
-                    preview_data JSONB,
-                    summary JSONB,
-                    status TEXT DEFAULT 'PENDING_SDO',
-                    uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS summary JSONB;
-                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS audit_remarks TEXT;
-                ALTER TABLE esf7_link ADD COLUMN IF NOT EXISTS file_path TEXT;
-                CREATE TABLE IF NOT EXISTS ESF7_Database (
-                    id SERIAL PRIMARY KEY,
-                    school_id TEXT,
-                    iern TEXT,
-                    esf7_id TEXT UNIQUE,
-                    first TEXT,
-                    last TEXT,
-                    middle TEXT,
-                    position TEXT,
-                    fund_source TEXT,
-                    gender TEXT,
-                    major__specialization TEXT,
-                    teaching_load TEXT,
-                    appt_mm TEXT,
-                    appt_yyyy TEXT,
-                    submitted_at TIMESTAMPTZ,
-                    status TEXT,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS iern TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS esf7_id TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS first TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS last TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS position TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS fund_source TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS gender TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS major__specialization TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS teaching_load TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS appt_mm TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS appt_yyyy TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS middle TEXT;
-                ALTER TABLE ESF7_Database ADD COLUMN IF NOT EXISTS data JSONB;
-                
-                CREATE TABLE IF NOT EXISTS esf7_scan_results (
-                    job_id UUID PRIMARY KEY,
-                    school_id TEXT,
-                    result JSONB,
-                    error TEXT,
-                    status TEXT DEFAULT 'PENDING',
-                    progress INTEGER DEFAULT 0,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                ALTER TABLE esf7_scan_results ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0;
-                CREATE INDEX IF NOT EXISTS idx_esf7_scan_job ON esf7_scan_results(job_id);
-
-                CREATE TABLE IF NOT EXISTS esf7_resubmission_request (
-                    id SERIAL PRIMARY KEY,
-                    school_id TEXT UNIQUE,
-                    status TEXT DEFAULT 'PENDING',
-                    can_resubmit BOOLEAN DEFAULT false,
-                    request_reason TEXT,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-
-                CREATE TABLE IF NOT EXISTS esf_link (
-                    id SERIAL PRIMARY KEY,
-                    school_id TEXT UNIQUE,
-                    link TEXT,
-                    status TEXT,
-                    row_count INTEGER,
-                    summary JSONB,
-                    audit_remarks TEXT,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-
-                CREATE TABLE IF NOT EXISTS ESF7_Staging (
-                    id SERIAL PRIMARY KEY,
-                    school_id TEXT,
-                    data JSONB,
-                    status TEXT,
-                    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                );
-                ALTER TABLE ESF7_Staging ADD COLUMN IF NOT EXISTS data JSONB;
-            `);
-            console.log("✅ ESF7 link/database tables verified.");
-        } finally {
-            await pool.query('SELECT pg_advisory_unlock(5555555)');
-        }
-    } catch (err) {
-        console.error("❌ Failed to init ESF7 tables:", err.message);
-    }
-};
-
-app.get('/api/esf7/heartbeat', (req, res) => res.json({ status: 'alive' }));
+// [ESF7 Routes] Removed — eSF7 logic moved to separate codebase.
 
 
 
@@ -849,502 +618,7 @@ app.get('/api/esf7/heartbeat', (req, res) => res.json({ status: 'alive' }));
 
 
 // 1. QUICK SCAN (Verify Access & Metadata)
-const TEACHING_POSITIONS = [
-    "TEACHER", "MASTER TEACHER", "SPED TEACHER", "SPECIAL SCIENCE TEACHER", "ALS TR", "IP TR", "MADRASAH TR", "ALIVE TEACHER", "TIC"
-];
-
-const RELATED_TEACHING_POSITIONS = [
-    "HEAD TEACHER", "PRINCIPAL", "ASSISTANT SCHOOL PRINCIPAL", "GUIDANCE COUNSELOR", "LIBRARIAN", "REGISTRAR", "SCHOOL HEAD"
-];
-
-const NON_TEACHING_POSITIONS = [
-    "ACCOUNTANT", "ACCOUNTING CLERK", "ADMINISTRATIVE AIDE", "ADMINISTRATIVE ASSISTANT", "ADMINISTRATIVE OFFICER", "AGRICULTURIST",
-    "AQUACULTURAL TECHNICIAN", "AQUACULTURST", "BOOKKEEPER", "CASHIER", "CHIEF ADMINISTRATIVE OFFICER", "CLERK", "COLLEGE LIBRARIAN",
-    "COMMUNICATIONS EQUIPMENT OPERATOR", "COMPUTER MAINTENANCE TECHNOLOGIST", "CONSTRUCTION AND MAINTENANCE MAN", "COOK", "COXSWAIN",
-    "DENTAL AIDE", "DENTIST", "DISBURSING OFFICER", "DRIVER", "ENGINEER", "FARM WORKER", "FISCAL CLERK", "FISHERMAN", "HANDICRAFT WORKER",
-    "HEAVY EQUIPMENT OPERATOR", "HOUSEPARENT", "INFORMATION SYSTEMS ANALYST", "INFORMATION TECHNOLOGY OFFICER", "LABORATORY TECHNICIAN",
-    "LIBRARIAN", "LIGHT EQUIPMENT OPERATOR", "LINEMAN", "MARINE ENGINEMAN", "MASTER FISHERMAN", "MECHANIC", "MECHANICAL PLANT OPERATOR",
-    "MEDICAL OFFICER", "NURSE", "NURSE MAID", "NURSING ATTENDANT", "NUTRITIONIST-DIETITIAN", "PLANNING OFFICER", "PROJECT DEVELOPMENT OFFICER",
-    "PSYCHOLOGIST", "REGISTRAR", "REPRODUCTION MACHINE OPERATOR", "SCHOOL LIBRARIAN", "SCHOOLS DIVISION SUPERINTENDENT", "SECURITY GUARD",
-    "SECURITY OFFICER", "SENIOR BOOKKEEPER", "SOCIAL WELFARE OFFICER", "STATISTICIAN AIDE", "SUPPLY OFFICER",
-    "TECHNICAL EDUCATION AND SKILLS DEVELOPMENT SPECIALIST", "TELEGRAM CARRIER", "UTILITY FOREMAN", "UTILITY WORKER", "VOCATIONAL PLACEMENT COORDINATOR",
-    "WATCHMAN", "LEARNING SUPPORT AIDE", "INTERN", "OTHERS"
-];
-
-const getPositionRank = (pos) => {
-    if (!pos) return -1;
-    const p = pos.toUpperCase();
-    if (p.includes("PRINCIPAL IV")) return 100;
-    if (p.includes("PRINCIPAL III")) return 90;
-    if (p.includes("PRINCIPAL II")) return 80;
-    if (p.includes("PRINCIPAL I")) return 70;
-    if (p.includes("HEAD TEACHER VI")) return 60;
-    if (p.includes("HEAD TEACHER V")) return 55;
-    if (p.includes("HEAD TEACHER IV")) return 50;
-    if (p.includes("HEAD TEACHER III")) return 45;
-    if (p.includes("HEAD TEACHER II")) return 40;
-    if (p.includes("HEAD TEACHER I")) return 35;
-    if (p.includes("TIC") || p.includes("OIC")) return 30;
-    if (p.includes("MASTER TEACHER")) return 20;
-    if (p.includes("TEACHER III")) return 15;
-    if (p.includes("TEACHER II")) return 10;
-    if (p.includes("TEACHER I")) return 5;
-    return 1;
-};
-
-const ESF7_DRAFT_DIR = path.join(UPLOAD_BASE_PATH, 'esf7_drafts');
-if (!fs.existsSync(ESF7_DRAFT_DIR)) {
-    try {
-        fs.mkdirSync(ESF7_DRAFT_DIR, { recursive: true });
-        console.log(`📁 [ESF7] Created Local Draft Directory: ${ESF7_DRAFT_DIR}`);
-    } catch (err) {
-        console.error(`❌ [ESF7] Critical Error: Could not create draft directory:`, err.message);
-    }
-}
-
-const esf7Storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, ESF7_DRAFT_DIR);
-    },
-    filename: (req, file, cb) => {
-        const school_id = req.body.school_id || 'unknown';
-        cb(null, `${school_id}_ESF7_${Date.now()}.xlsb`);
-    }
-});
-const esf7Upload = multer({ storage: esf7Storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB limit
-
-app.post('/api/esf7/upload', esf7Upload.single('file'), async (req, res) => {
-    try {
-        if (!req.file) return res.status(400).json({ error: "No file uploaded." });
-        if (!bossReady) {
-            return res.status(503).json({ error: `Job queue not ready. Reason: ${bossStartError || 'still starting'}` });
-        }
-        const { school_id } = req.body;
-        
-        // Push scan job
-        console.log(`📤 [ESF7-Upload] Received file for school ${school_id}`);
-        console.log(`📤 [ESF7-Upload] Absolute Path: ${req.file.path}`);
-        
-        const jobId = await boss.send('esf7-local-scan', { school_id, filePath: req.file.path });
-        console.log(`📤 [ESF7-Upload] Job queued successfully. JobID: ${jobId}`);
-        
-        await pool.query(`
-          INSERT INTO esf7_scan_results (job_id, school_id, status)
-          VALUES ($1, $2, 'PENDING')
-        `, [jobId, school_id]);
-
-        res.json({ success: true, jobId, fileName: req.file.filename });
-    } catch (err) {
-        console.error('💥 [ESF7-Upload] Unexpected error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/esf7/link-check', async (req, res) => {
-    const { driveLink } = req.body;
-    try {
-        const fileId = driveLink.match(/[-\w]{25,}/)?.[0];
-        if (!fileId) return res.status(400).json({ error: "Invalid Link Format", details: "The provided URL does not appear to be a valid Google Drive link." });
-
-        if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
-            return res.status(500).json({ error: "Infrastructure Error", details: "Google Cloud Service Account is not configured on the server." });
-        }
-
-        const credentialsObj = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-        const auth = new google.auth.GoogleAuth({
-            credentials: { client_email: credentialsObj.client_email, private_key: credentialsObj.private_key },
-            scopes: ['https://www.googleapis.com/auth/drive.readonly']
-        });
-        const drive = google.drive({ version: 'v3', auth });
-        
-        // Fetch metadata to check name and access
-        const file = await drive.files.get({ fileId, fields: 'id, name, mimeType' });
-        
-        if (!file.data.name.toLowerCase().endsWith('.xlsb')) {
-            return res.status(400).json({ 
-                error: "Incorrect File Type", 
-                details: `Detected file: "${file.data.name}". Only .XLSB files are supported for ESF7 audits. Please upload the correct binary template to your Drive.` 
-            });
-        }
-
-        res.json({ success: true, message: "Link verified and accessible.", fileName: file.data.name });
-    } catch (err) {
-        console.error("Link Verification Error:", err.message);
-        res.status(403).json({ 
-            error: "Access Denied / Not Found", 
-            details: "Ensure the file is shared with the InsightEd Service Account as a 'Viewer'. Double check if the link is correct and accessible." 
-        });
-    }
-});
-
-
-app.get('/api/esf7/job-status/:jobId', async (req, res) => {
-    const { jobId } = req.params;
-    if (!jobId || jobId === 'null' || jobId === 'undefined') {
-        return res.status(400).json({ error: "Invalid Job ID" });
-    }
-
-    try {
-        const result = await pool.query("SELECT * FROM esf7_scan_results WHERE job_id = $1", [jobId]);
-        if (result.rows.length === 0) return res.json({ status: 'QUEUED' });
-        res.json(result.rows[0]);
-    } catch (err) { 
-        console.error("❌ Job Status Error:", err.message);
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-app.post('/api/esf7/submit', async (req, res) => {
-    const { school_id, driveLink, fileName, summary } = req.body;
-    try {
-        await pool.query(`
-            INSERT INTO esf7_link (school_id, link, file_path, summary, row_count, status, updated_at)
-            VALUES ($1, $2, $3, $4, $5, 'QUEUED', CURRENT_TIMESTAMP)
-            ON CONFLICT (school_id) DO UPDATE SET 
-                link = $2, 
-                file_path = $3, 
-                summary = $4,
-                row_count = $5,
-                status = 'QUEUED',
-                updated_at = CURRENT_TIMESTAMP
-        `, [school_id, driveLink || 'LOCAL_BINARY', fileName, JSON.stringify(summary), summary?.total || 0]);
-
-
-
-        
-        await pool.query("UPDATE ph_schools SET unit7 = 1.0, unit7_status = 'QUEUED' WHERE school_id = $1", [school_id]);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-
-app.post('/api/esf7/link-submit', async (req, res) => {
-    const { school_id, driveLink, rowCount, previewData, summary } = req.body;
-    try {
-        // DELETE previous data to ensure clean ingestion
-        await pool.query("DELETE FROM ESF7_Database WHERE school_id = $1", [school_id]);
-        
-        await pool.query(`
-            INSERT INTO esf7_link (school_id, link, row_count, preview_data, summary, status, uploaded_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, 'QUEUED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT (school_id) DO UPDATE SET 
-                link = $2, 
-                row_count = $3, 
-                preview_data = $4,
-                summary = NULL,
-                status = 'QUEUED',
-                updated_at = CURRENT_TIMESTAMP
-        `, [school_id, driveLink, rowCount, JSON.stringify(previewData), JSON.stringify(summary)]);
-        await pool.query("UPDATE ph_schools SET unit7 = 0.5, unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-        res.json({ success: true });
-    } catch (err) { 
-        console.error("Clean-Slate Error:", err);
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-app.get('/api/esf7/status/:school_id', async (req, res) => {
-    try {
-        const result = await pool.query("SELECT status FROM esf7_link WHERE school_id = $1", [req.params.school_id]);
-        if (result.rows.length === 0) {
-            return res.json({ success: true, status: 'NOT_STARTED' });
-        }
-        res.json({ success: true, status: result.rows[0].status });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/esf7/link-status/:school_id', async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT el.status, el.row_count, el.link, el.audit_remarks, el.summary,
-                   el.uploaded_at AT TIME ZONE 'UTC' as uploaded_at,
-                   rr.can_resubmit, rr.status as request_status
-            FROM esf7_link el
-            LEFT JOIN esf7_resubmission_request rr ON el.school_id = rr.school_id
-            WHERE el.school_id = $1
-        `, [req.params.school_id]);
-        res.json({ success: true, data: result.rows[0] || { status: 'NOT_STARTED' } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/esf7/link-detail/:school_id', async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT *, uploaded_at AT TIME ZONE 'UTC' as submitted_at 
-            FROM esf7_link WHERE school_id = $1
-        `, [req.params.school_id]);
-        if (result.rows.length === 0) return res.status(404).json({ error: "No link submitted." });
-        res.json({ success: true, data: result.rows[0] });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/esf7/enqueue-harvest', async (req, res) => {
-    try {
-        await pool.query("UPDATE esf7_link SET status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
-        await pool.query("UPDATE ph_schools SET unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
-        res.json({ success: true, message: "Enqueued for harvesting." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/esf7/data/:school_id', async (req, res) => {
-    try {
-        // First get the verified IERn for this school_id
-        const schoolInfo = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [req.params.school_id]);
-        const iern = schoolInfo.rows[0]?.iern;
-
-        if (!iern) return res.status(404).json({ error: "School not found." });
-
-        const result = await pool.query(`
-            SELECT 
-                "first", "last", "middle", "position", "fund_source", "major__specialization", 
-                "birthday_mm", "birthday_dd", "birthday_yyyy",
-                "appt_mm", "1" as appt_dd, "appt_yyyy", "gender", "tin", "employee_no", "civil_status", "status__item_", "esf7_id", "source_id"
-            FROM ESF7_Database 
-            WHERE iern = $1 
-            ORDER BY "last" ASC, "first" ASC
-        `, [iern]);
-        res.json({ success: true, data: result.rows });
-    } catch (err) { 
-        console.error("Fetch ESF7 Data Error:", err);
-        res.status(500).json({ error: err.message }); 
-    }
-});
-
-app.get('/api/esf7/stats', async (req, res) => {
-    const { region, division } = req.query;
-    let whereClause = ' WHERE 1=1';
-    const params = [];
-    if (region && region !== 'All') {
-        params.push(region);
-        whereClause += ` AND UPPER(TRIM(ps.region)) = UPPER(TRIM($${params.length}))`;
-    }
-    if (division && division !== 'All Divisions') {
-        params.push(division);
-        whereClause += ` AND UPPER(TRIM(ps.division)) = UPPER(TRIM($${params.length}))`;
-    }
-    try {
-        const query = `
-            SELECT 
-                COUNT(DISTINCT i."SchoolID")::int as total_registered,
-                COUNT(DISTINCT CASE WHEN el.status IN ('PENDING_SDO', 'QUEUED') THEN i."SchoolID" END)::int as pending_sdo,
-                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' THEN i."SchoolID" END)::int as verified,
-                COUNT(DISTINCT CASE WHEN el.status = 'NEEDS_RESUBMISSION' THEN i."SchoolID" END)::int as needs_resubmission,
-                COUNT(DISTINCT i."SchoolID") - COUNT(DISTINCT el.school_id)::int as missing_esf7
-            FROM "schools_IERN" i
-            JOIN ph_schools ps ON i."SchoolID" = ps.school_id
-            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
-            ${whereClause}
-        `;
-        const result = await pool.query(query, params);
-        res.json({ success: true, data: result.rows[0] });
-    } catch (err) {
-        console.error("Fetch ESF7 Stats Error:", err);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-app.get('/api/esf7/regional-summary', async (req, res) => {
-    const { region } = req.query;
-    if (!region) return res.status(400).json({ error: "Region is required" });
-    try {
-        const query = `
-            SELECT 
-                ps.division,
-                COUNT(DISTINCT i."SchoolID")::int as total_schools,
-                COUNT(DISTINCT CASE WHEN el.status IN ('VERIFIED', 'PENDING_SDO', 'QUEUED', 'NEEDS_RESUBMISSION') THEN i."SchoolID" END)::int as harvested_schools,
-                COUNT(DISTINCT CASE WHEN el.status IN ('PENDING_SDO', 'QUEUED') THEN i."SchoolID" END)::int as pending_sdo,
-                COUNT(DISTINCT CASE WHEN el.status = 'VERIFIED' THEN i."SchoolID" END)::int as verified,
-                COUNT(DISTINCT CASE WHEN el.status = 'NEEDS_RESUBMISSION' THEN i."SchoolID" END)::int as needs_resubmission,
-                COUNT(DISTINCT i."SchoolID") - COUNT(DISTINCT el.school_id)::int as missing_esf7
-            FROM "schools_IERN" i
-            JOIN ph_schools ps ON i."SchoolID" = ps.school_id
-            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
-            WHERE UPPER(TRIM(ps.region)) = UPPER(TRIM($1))
-            GROUP BY ps.division
-            ORDER BY ps.division ASC
-        `;
-        const result = await pool.query(query, [region]);
-        res.json({ success: true, data: result.rows });
-    } catch (err) {
-        console.error("Fetch Regional ESF7 Summary Error:", err);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-app.get('/api/esf7/all-schools', async (req, res) => {
-    const { region, division } = req.query;
-    try {
-        let query = `
-            SELECT 
-                i."SchoolID" as school_id, 
-                i."School_Name" as school_name, 
-                COALESCE(el.status, 'NOT_STARTED') as status, 
-                COALESCE(el.updated_at, i.updated_at) as updated_at,
-                el.row_count,
-                el.audit_remarks,
-                el.summary,
-                el.uploaded_at as submitted_at
-            FROM "schools_IERN" i
-            LEFT JOIN ph_schools ps ON i."SchoolID" = ps.school_id
-            LEFT JOIN esf7_link el ON i."SchoolID" = el.school_id
-            WHERE 1=1
-        `; 
-        const params = [];
-        if (region && region !== 'All') {
-            params.push(region);
-            query += ` AND UPPER(TRIM(ps.region)) = UPPER(TRIM($${params.length}))`;
-        }
-        if (division && division !== 'All Divisions') {
-            params.push(division);
-            query += ` AND UPPER(TRIM(ps.division)) = UPPER(TRIM($${params.length}))`;
-        }
-        query += ` ORDER BY updated_at DESC, i."School_Name" ASC`;
-        console.log("DEBUG [ESF7 All-Schools] Executing:", { query, params });
-        const result = await pool.query(query, params);
-        console.log("DEBUG [ESF7 All-Schools] Count =", result.rows.length);
-        res.json({ success: true, data: result.rows });
-    } catch (err) {
-        console.error("Fetch All Schools ESF7 Error:", err);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-app.post('/api/esf7/audit-remark', async (req, res) => {
-    const { school_id, remark, status } = req.body;
-    try {
-        await pool.query(`
-            UPDATE esf7_link 
-            SET audit_remarks = $1, 
-                status = $2, 
-                updated_at = CURRENT_TIMESTAMP 
-            WHERE school_id = $3
-        `, [remark, status || 'NEEDS_RESUBMISSION', school_id]);
-
-        if (status === 'NEEDS_RESUBMISSION') {
-            await pool.query("UPDATE ph_schools SET unit7 = 0, unit7_status = 'NEEDS_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-        }
-        
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Audit Remark Error:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/esf7/reject-link', async (req, res) => {
-    try {
-        await pool.query("UPDATE esf7_link SET status = 'REJECTED' WHERE school_id = $1", [req.body.school_id]);
-        await pool.query("UPDATE ph_schools SET unit7 = 0 WHERE school_id = $1", [req.body.school_id]);
-        res.json({ success: true });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/esf7/request-resubmission', async (req, res) => {
-    try {
-        await pool.query("UPDATE esf7_link SET status = 'PENDING_RESUBMISSION', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [req.body.school_id]);
-        res.json({ success: true, message: "Resubmission request sent to SDO." });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/esf7/specialization-summary/:school_id', async (req, res) => {
-    try {
-        const { school_id } = req.params;
-        const result = await pool.query(`
-            SELECT * 
-            FROM ESF7_Database 
-            WHERE school_id = $1 
-        `, [school_id]);
-        
-        const counts = {};
-        const LIST = [
-            "GENERAL EDUCATION", "FAMILY LIFE AND CHILD DEVELOPMENT", "SPECIAL NEEDS EDUCATION",
-            "EARLY CHILDHOOD EDUCATION", "FILIPINO", "ENGLISH", "MATHEMATICS", "SCIENCE",
-            "ARALING PANLIPUNAN", "TLE/EPP", "MAPEH", "ESP/VALUES EDUCATION", "BIOLOGICAL SCIENCES",
-            "PHYSICAL SCIENCES", "AGRICULTURE AND FISHERY ARTS"
-        ];
-        
-        LIST.forEach(s => counts[s] = 0);
-        counts["OTHERS"] = 0;
-
-        let teaching = 0, related = 0, nonTeaching = 0;
-        const TEACHING = ["TEACHER I", "TEACHER II", "TEACHER III", "MASTER TEACHER I", "MASTER TEACHER II", "MASTER TEACHER III", "MASTER TEACHER IV", "SPET I", "SPET II", "SPET III", "SPET IV", "SST I", "SST II", "SST III"];
-        const RELATED = ["PRINCIPAL I", "PRINCIPAL II", "PRINCIPAL III", "PRINCIPAL IV", "HEAD TEACHER I", "HEAD TEACHER II", "HEAD TEACHER III", "HEAD TEACHER IV", "HEAD TEACHER V", "HEAD TEACHER VI", "GUIDANCE COUNSELOR I", "GUIDANCE COUNSELOR II", "GUIDANCE COUNSELOR III", "LIBRARIAN I", "LIBRARIAN II", "LIBRARIAN III"];
-
-
-        result.rows.forEach(row => {
-            // Check for National Funding
-            const fundSource = (row.fund_source || row.funding_source || row.funding__source || "").toUpperCase();
-            if (fundSource !== "NATIONAL" && fundSource !== "DEPED" && fundSource !== "DEPED-NATIONAL") return;
-
-            // Categories
-            const pos = (row.position || "").toUpperCase();
-            if (TEACHING.some(t => pos.includes(t))) teaching++;
-            else if (RELATED.some(r => pos.includes(r))) related++;
-            else nonTeaching++;
-
-            // Specializations
-            const spec = (row.major__specialization || "").toUpperCase().trim();
-            if (LIST.includes(spec)) counts[spec] = (counts[spec] || 0) + 1;
-            else if (spec) counts["OTHERS"] += 1;
-        });
-
-        res.json({ 
-            success: true, 
-            data: counts,
-            personnel: {
-                teaching,
-                relatedTeaching: related,
-                nonTeaching: nonTeaching,
-                total: teaching + related + nonTeaching
-            }
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/esf7/force-harvest', async (req, res) => {
-    try {
-        const { school_id } = req.body;
-        await pool.query("UPDATE esf7_link SET status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-        await pool.query("UPDATE ph_schools SET unit7 = 0.5, unit7_status = 'QUEUED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-        res.json({ success: true, message: "School enqueued for immediate re-harvest." });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/esf7/approve-resubmission', async (req, res) => {
-    let client;
-    try {
-        client = await pool.connect();
-        await client.query('BEGIN');
-        const school_id = req.body.school_id;
-
-        // Get IERn first
-        const iernRes = await client.query('SELECT iern FROM ph_schools WHERE school_id = $1', [school_id]);
-        const iern = iernRes.rows[0]?.iern;
-
-        // 1. Reset link status
-        await client.query("UPDATE esf7_link SET status = 'NOT_STARTED', link = NULL, row_count = NULL, updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-        
-        // 2. Reset school progress
-        await client.query("UPDATE ph_schools SET unit7 = 0, unit7_status = 'NOT_STARTED', updated_at = CURRENT_TIMESTAMP WHERE school_id = $1", [school_id]);
-
-        // 3. Delete ESF7_Database entries for this IERn to allow clean re-harvest
-        if (iern) {
-            await client.query("DELETE FROM ESF7_Database WHERE iern = $1", [iern]);
-        }
-
-        await client.query('COMMIT');
-        res.json({ success: true, message: "Module unsealed. School can now re-submit." });
-    } catch (err) { 
-        if (client) await client.query('ROLLBACK');
-        res.status(500).json({ error: err.message }); 
-    } finally {
-        if (client) client.release();
-    }
-});
+// [ESF7 Routes Block 1] Removed — eSF7 logic moved to separate codebase.
 
 app.get('/', (req, res) => {
   res.status(200).send(`
@@ -1700,9 +974,9 @@ app.get('/api/schools/:schoolId/activity', async (req, res) => {
     const schoolRes = await pool.query(
       `SELECT
         school_id, school_name,
-        unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit9, unit10,
+        unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9,
         unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-        unit5_completed, unit6_completed, unit7_completed, unit9_completed, unit10_completed,
+        unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed,
         unit_completion, region, division
        FROM ph_schools WHERE school_id = $1`,
       [schoolId]
@@ -1714,8 +988,8 @@ app.get('/api/schools/:schoolId/activity', async (req, res) => {
     let completedUnitsCount = 0;
     let completedFlags = {};
 
-    // Maps DB column index to display unit ID (unit9=Terrain, unit10=Infrastructure)
-    const unitMapping = [1, 2, 3, 4, 5, 6, 7, 9, 10]; // DB column -> new display ID
+    // Maps DB column index to display unit ID
+    const unitMapping = [1, 2, 3, 4, 5, 6, 7, 8, 9]; // DB column -> display ID
     for (let i = 0; i < unitMapping.length; i++) {
       const dbIdx = unitMapping[i];
       const displayId = i + 1;
@@ -1799,9 +1073,9 @@ async function updateSchoolTotalCompletion(iern) {
     // This avoids reading the stale ph_school_completion booleans which can diverge
     // when pgBouncer (transaction mode) drops a COMMIT mid-flight.
     const res = await pool.query(
-      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9, unit10,
+      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9,
               unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-              unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed, unit10_completed
+              unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed
        FROM ph_schools WHERE iern = $1`,
       [iern]
     );
@@ -1810,7 +1084,7 @@ async function updateSchoolTotalCompletion(iern) {
     const row = res.rows[0];
     const schoolId = row.school_id;
     // Mapping: Explicit 1-10 mapping to ph_school_completion columns.
-    const dbCols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const dbCols = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     let completedCount = 0;
     const boolValues = [];
     for (const idx of dbCols) {
@@ -1828,18 +1102,18 @@ async function updateSchoolTotalCompletion(iern) {
       boolValues.push(isDone);
     }
 
-    const percentage = parseFloat(((completedCount / 10) * 100).toFixed(2));
+    const percentage = parseFloat(((completedCount / 9) * 100).toFixed(2));
 
     // Upsert booleans + total to ph_school_completion.
     await pool.query(
       `INSERT INTO ph_school_completion
          (iern, school_id, unit1_completion, unit2_completion, unit3_completion, unit4_completion,
-          unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, unit10_completion, total_completion, updated_at)
-       VALUES ($12, $13, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1, CURRENT_TIMESTAMP)
+          unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, total_completion, updated_at)
+       VALUES ($11, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $1, CURRENT_TIMESTAMP)
        ON CONFLICT (school_id) DO UPDATE SET
          iern = EXCLUDED.iern, unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
          unit5_completion=$6, unit6_completion=$7, unit7_completion=$8, unit8_completion=$9,
-         unit9_completion=$10, unit10_completion=$11, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
+         unit9_completion=$10, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
       [percentage, ...boolValues, iern, schoolId]
     );
 
@@ -1945,7 +1219,6 @@ const runAutoMigrations_OLD = async () => {
     // [Hawkeye Protocol] Consolidate multiple ALTER TABLEs into single bulk queries
     await pool.query(`
       ALTER TABLE ph_schools 
-      ADD COLUMN IF NOT EXISTS unit10_completed BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS school_head TEXT,
       ADD COLUMN IF NOT EXISTS contact_number TEXT,
       ADD COLUMN IF NOT EXISTS unit2_simplified_enrollment JSONB,
@@ -1976,7 +1249,7 @@ const runAutoMigrations_OLD = async () => {
     }
     
     // Unit Updated At Timestamps
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 9; i++) {
       const colName = `unit${i}_updated_at`;
       columnPromises.push(checkAndAddColumn('ph_schools', colName, 'TIMESTAMPTZ', pool));
       if (poolNew) columnPromises.push(checkAndAddColumn('ph_schools', colName, 'TIMESTAMPTZ', poolNew));
@@ -2515,9 +1788,9 @@ app.get('/api/schools/:id/activity', async (req, res) => {
     const school = schoolRes.rows[0] || {};
     const flags = {};
     const completedUnits = [];
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 9; i++) {
         const val = school[`unit${i}`];
-        if (Number(val) === 100) {
+        if (Number(val) === 100 || school[`unit${i}_completed`] === true) {
             flags[`unit${i}`] = true;
             completedUnits.push(i);
         }
@@ -2540,8 +1813,8 @@ app.get('/api/schools/:id/activity', async (req, res) => {
   }
 });
 
-// 7. GET /api/ph_schools/unit10/:id/master (UNIT 7 MASTER REPAIR/INVENTORY)
-app.get('/api/ph_schools/unit10/:id/master', async (req, res) => {
+// 7. GET /api/ph_schools/unit7/:id/master (UNIT 7 MASTER REPAIR/INVENTORY)
+app.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -2609,8 +1882,8 @@ app.get('/api/school-location/:id', async (req, res) => {
   }
 });
 
-// 8.5. GET /api/ph_schools/unit10/:id/spaces (UNIT 7/10 BUILDABLE SPACES)
-app.get('/api/ph_schools/unit10/:id/spaces', async (req, res) => {
+// 8.5. GET /api/ph_schools/unit7/:id/spaces (UNIT 7 BUILDABLE SPACES)
+app.get('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
   try {
     const { id } = req.params;
     // Map to the dedicated ph_school_buildable_spaces table
@@ -2640,51 +1913,49 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
   try {
     const { schoolId } = req.params;
 
-    // Ensure necessary columns exist for progress tracking
-    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7_completed BOOLEAN DEFAULT FALSE`).catch(() => {});
-    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10_completed BOOLEAN DEFAULT FALSE`).catch(() => {});
-    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit10_spaces JSONB`).catch(() => {});
-    await pool.query(`ALTER TABLE ph_schools ADD COLUMN IF NOT EXISTS unit7_has_no_building BOOLEAN DEFAULT FALSE`).catch(() => {});
-
-    // We prioritize ph_schools columns for real-time progress flags
     const schoolRes = await pool.query(
       `SELECT school_id, school_name, region, division, unit_completion,
-       unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9, unit10,
+       unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9,
        unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-       unit5_completed, unit6_completed, unit7_completed, unit8_completed,
-       unit9_completed, unit10_completed
+       unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed,
+       unit1_updated_at, unit2_updated_at, unit3_updated_at, unit4_updated_at,
+       unit5_updated_at, unit6_updated_at, unit7_updated_at, unit8_updated_at, unit9_updated_at
        FROM ph_schools WHERE school_id = $1`, [schoolId]
     );
-
-    if (schoolRes.rowCount === 0) return res.status(404).json({ success: false, error: 'School not found' });
-
+    
+    if (schoolRes.rowCount === 0) return res.status(404).json({ error: 'School not found' });
     const school = schoolRes.rows[0];
-    const completedUnits = [];
-    const timestamps = {};
-    const unitsToTrack = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-    for (const i of unitsToTrack) {
-        // Handle BOTH SmallInt (1, 100) and Booleans
-        const val = school[`unit${i}`];
-        const boolVal = school[`unit${i}_completed`];
-        const isDone = (val === 100 || val === 1 || boolVal === true);
-        
-        if (isDone) {
-            completedUnits.push(i);
-            // Defaulting to CURRENT_TIMESTAMP if specific unit update time is missing
-            timestamps[`unit${i}`] = new Date().toISOString(); 
-        }
+    const completedUnits = [];
+    const flags = {};
+    for (let i = 1; i <= 9; i++) {
+      const isCompleted = school[`unit${i}_completed`] === true || String(school[`unit${i}_completed`]) === 'true';
+      const isHundred = Math.round(Number(school[`unit${i}`]) || 0) === 100;
+      
+      if (isCompleted || isHundred) {
+        completedUnits.push(i);
+        flags[`unit${i}`] = true;
+      }
     }
+
+    // Fetch gamification from ph_school_completion
+    const completionRes = await pool.query('SELECT * FROM ph_school_completion WHERE school_id = $1', [schoolId]);
 
     res.json({
       success: true,
-      progress: {
-        schoolId: school.school_id,
-        school_name: school.school_name,
-        xp: completedUnits.length * 50, // 50 XP per unit
-        completedUnits,
-        timestamps,
-        percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0
+      data: {
+        schoolInfo: {
+          school_id: school.school_id,
+          school_name: school.school_name,
+          region: school.region,
+          division: school.division
+        },
+        progress: {
+          percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0,
+          completedUnits: completedUnits,
+          flags: flags
+        },
+        gamification: completionRes.rows[0] || {}
       }
     });
   } catch (err) {
@@ -2850,41 +2121,9 @@ app.put('/api/ph_schools/unit9/:id', async (req, res) => {
   }
 });
 
-// (Removing duplicate unit10 spaces logic that used ph_schools JSON column)
 
-// 21. POST /api/esf7/approve (FINAL VERIFICATION)
-app.post('/api/esf7/approve', async (req, res) => {
-  try {
-    const { school_id, remarks } = req.body;
-    await pool.query(
-      `UPDATE ph_schools SET
-       verification_status = 'VERIFIED',
-       verification_remarks = $1,
-       verified_at = CURRENT_TIMESTAMP
-       WHERE school_id = $2`, [remarks, school_id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// 22. POST /api/esf7/return (REJECTION FOR CORRECTION)
-app.post('/api/esf7/return', async (req, res) => {
-  try {
-    const { school_id, remarks } = req.body;
-    await pool.query(
-      `UPDATE ph_schools SET
-       verification_status = 'RETURNED',
-       verification_remarks = $1,
-       unit10 = 0, unit10_completed = FALSE
-       WHERE school_id = $2`, [remarks, school_id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// [ESF7 Routes Block 2] Removed — eSF7 logic moved to separate codebase.
 
 
 // --- REFERENCE API ENDPOINTS ---
@@ -3583,10 +2822,7 @@ const startServer = async () => {
     try {
         console.log("🚀 Initializing InsightEd Master Services...");
 
-        // 1. Initialise Job Queue (pg-boss)
-        await boss.start();
-        bossReady = true;
-        console.log("✅ [PG-BOSS] Ready to handle async tasks.");
+        // 1. Initialise Job Queue (pg-boss) — Removed for School Head Portal
 
         // 2. Database Migrations (Clustered Resilience)
         // Only the first worker (Instance 0) handles DDL to avoid AccessExclusiveLock contention.
@@ -3598,7 +2834,7 @@ const startServer = async () => {
             try {
                 await initOtpTable(migClient);
                 await runMigrations(migClient, 'Primary');
-                await initESF7Tables();
+                // initESF7Tables removed
                 console.log("✅ [Primary] Pre-flight migrations complete.");
             } finally {
                 migClient.release();

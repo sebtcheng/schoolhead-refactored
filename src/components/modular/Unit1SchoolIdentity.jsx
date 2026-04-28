@@ -179,8 +179,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
                 // Normal load path
                 const [savedRes, iernRes, draft] = await Promise.all([
-                    fetch(`/api/ph_schools/${storedId}`).catch(() => null),
-                    fetch(`/api/schools_iern/${storedId}`).catch(() => null),
+                    fetch(`api/ph_schools/${storedId}`).catch(() => null),
+                    fetch(`api/schools_iern/${storedId}`).catch(() => null),
                     getUnitDraft(1, storedId).catch(() => null)
                 ]);
 
@@ -368,7 +368,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     // ── Logic sync ───────────────────────────────────────────────────────────
     useEffect(() => {
         if (!formData.region) { setProvinceOptions([]); return; }
-        fetch(`/api/locations/provinces?region=${encodeURIComponent(formData.region)}`)
+        fetch(`api/locations/provinces?region=${encodeURIComponent(formData.region)}`)
             .then(r => r.json())
             .then(data => {
                 let options = Array.isArray(data) ? data : [];
@@ -390,7 +390,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     useEffect(() => {
         if (!formData.region || !formData.province) { setCityOptions([]); return; }
-        fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
+        fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
             .then(r => r.json())
             .then(data => {
                 let options = Array.isArray(data) ? data : [];
@@ -409,7 +409,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     useEffect(() => {
         if (!formData.region || !formData.province || !formData.municipality) { setBarangayOptions([]); return; }
-        fetch(`/api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(formData.municipality)}`)
+        fetch(`api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(formData.municipality)}`)
             .then(r => r.json())
             .then(data => {
                 let options = Array.isArray(data) ? data.map(item => (typeof item === 'object' && item !== null) ? item.barangay : item) : [];
@@ -434,7 +434,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         }
 
         // 1. Fetch Divisions dynamically
-        fetch(`/api/locations/divisions?region=${encodeURIComponent(formData.region)}`)
+        fetch(`api/locations/divisions?region=${encodeURIComponent(formData.region)}`)
             .then(r => r.json())
             .then(divs => {
                 let dOptions = Array.isArray(divs) ? divs : [];
@@ -450,7 +450,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             .catch(() => setDivisionOptions([]));
 
         // 2. Fetch Legislative Districts dynamically
-        fetch(`/api/locations/legislative-districts?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
+        fetch(`api/locations/legislative-districts?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
             .then(r => r.json())
             .then(legs => {
                 let lOptions = Array.isArray(legs) ? legs : [];
@@ -484,7 +484,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     useEffect(() => {
         if (!formData.region || !formData.division) { setDistrictOptions([]); return; }
-        fetch(`/api/locations/districts?region=${encodeURIComponent(formData.region)}&division=${encodeURIComponent(formData.division)}`)
+        fetch(`api/locations/districts?region=${encodeURIComponent(formData.region)}&division=${encodeURIComponent(formData.division)}`)
             .then(r => r.json())
             .then(data => {
                 let options = Array.isArray(data) ? data : [];
@@ -502,7 +502,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     }, [formData.region, formData.division, formData.district]);
 
     useEffect(() => {
-        fetch('/api/locations/regions')
+        fetch('api/locations/regions')
             .then(r => r.json())
             .then(data => {
                 let options = Array.isArray(data) ? data : [];
@@ -561,7 +561,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     setIdValidation({ isValidating: false, valid: true, reason: "", occupied: false, schoolName: "" });
                     try {
                         let iernRow = null;
-                        const res = await fetch(`/api/schools_iern/${sid}`).catch(() => null);
+                        const res = await fetch(`api/schools_iern/${sid}`).catch(() => null);
                         if (res?.ok) {
                             const j = await res.json();
                             if (j.exists && j.data) {
@@ -594,7 +594,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // If it's DIFFERENT, trigger the strict conversion validation
                 setIdValidation(prev => ({ ...prev, isValidating: true, valid: false, reason: "" }));
                 try {
-                    const res = await fetch(`/api/sdo/validate-conversion/${sid}?requester_uid=${user?.uid}`).catch(() => null);
+                    const res = await fetch(`api/sdo/validate-conversion/${sid}?requester_uid=${user?.uid}`).catch(() => null);
                     if (res?.ok) {
                         const data = await res.json();
                         if (data.valid) {
@@ -714,7 +714,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         setDriveLinkError("");
 
         try {
-            const response = await fetch("/api/validate-google-drive-link", {
+            const response = await fetch("api/validate-google-drive-link", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ link }),
@@ -805,7 +805,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         setIsShifting(true);
         try {
             // 1. Perform Backend Identity Shift
-            const res = await fetch("/api/ph_schools/identity-shift", {
+            const res = await fetch("api/ph_schools/identity-shift", {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
@@ -850,7 +850,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             setLoading(true);
             let finalIern = formData.iern;
             if (!finalIern && formData.school_id) {
-                const r = await fetch(`/api/schools_iern/${formData.school_id}`).catch(() => null);
+                const r = await fetch(`api/schools_iern/${formData.school_id}`).catch(() => null);
                 if (r?.ok) { const j = await r.json(); if (j.exists && j.data?.iern) finalIern = j.data.iern; }
             }
             // STRICT VALIDATION WARNING (Frontend)
@@ -927,7 +927,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 1,
                     label: "Unit 1: School Identity",
-                    url: "/api/ph_schools/unit1",
+                    url: "api/ph_schools/unit1",
                     payload: dataToSend,
                     isCompleted: isCompleted,
                     schoolId: formData.school_id
@@ -941,7 +941,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 return;
             }
 
-            const res = await fetch("/api/ph_schools/unit1", {
+            const res = await fetch("api/ph_schools/unit1", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(dataToSend),
@@ -972,7 +972,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             localStorage.setItem("schoolOffering", formData.curricular_offering);
             
             // Sync progress to cloud for Activity Dashboard
-            fetch('/api/user/progress', {
+            fetch('api/user/progress', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -991,7 +991,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 1,
                     label: "Unit 1: School Identity",
-                    url: "/api/ph_schools/unit1",
+                    url: "api/ph_schools/unit1",
                     payload: dataToSend,
                     isCompleted: isCompleted,
                     schoolId: formData.school_id
@@ -2074,7 +2074,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                             });
                                                             
                                                             if (val.length === 6 && /^\d+$/.test(val)) {
-                                                                fetch(`/api/schools_iern/${val}`)
+                                                                fetch(`api/schools_iern/${val}`)
                                                                     .then(r => r.ok ? r.json() : null)
                                                                     .then(data => {
                                                                         if (data?.exists && data.data?.School_Name) {
@@ -2163,7 +2163,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                             // Auto-fetch school name when 6 digits entered
                                                             if (val.length === 6 && /^\d+$/.test(val)) {
                                                                 setFetchingMotherSchool(true);
-                                                                fetch(`/api/schools_iern/${val}`)
+                                                                fetch(`api/schools_iern/${val}`)
                                                                     .then(r => r.ok ? r.json() : null)
                                                                     .then(data => {
                                                                         if (data?.exists && data.data?.School_Name) {

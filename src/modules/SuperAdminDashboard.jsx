@@ -13,7 +13,7 @@ const SuperAdminDashboard = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const res = await fetch('/api/admin/users', {
+                const res = await fetch('api/admin/users', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {

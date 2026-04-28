@@ -284,13 +284,13 @@ const LearnerStatistics = ({ embedded }) => {
 
                 // 2. FETCH FROM API (If not restored)
                 if (!restored) {
-                    let fetchUrl = `/api/learner-statistics/${user.uid}`;
+                    let fetchUrl = `api/learner-statistics/${user.uid}`;
                     // Check logic for CO/Monitoring
                     const role = user.role;
                     if (isAuditMode) {
-                        fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                        fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                     } else if ((viewOnly || role === 'Central Office' || isDummy) && monitorSchoolId) {
-                        fetchUrl = `/api/monitoring/school-detail/${monitorSchoolId}`;
+                        fetchUrl = `api/monitoring/school-detail/${monitorSchoolId}`;
                     }
 
                     const res = await fetch(fetchUrl);
@@ -483,7 +483,7 @@ const LearnerStatistics = ({ embedded }) => {
                 await addToOutbox({
                     type: 'LEARNER_STATISTICS',
                     label: 'Learner Statistics',
-                    url: '/api/save-learner-statistics',
+                    url: 'api/save-learner-statistics',
                     payload: payload
                 });
                 setShowOfflineModal(true);
@@ -499,7 +499,7 @@ const LearnerStatistics = ({ embedded }) => {
 
         // 2. ONLINE SAVE
         try {
-            const res = await fetch('/api/save-learner-statistics', {
+            const res = await fetch('api/save-learner-statistics', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -517,7 +517,7 @@ const LearnerStatistics = ({ embedded }) => {
                 await addToOutbox({
                     type: 'LEARNER_STATISTICS',
                     label: 'Learner Statistics',
-                    url: '/api/save-learner-statistics',
+                    url: 'api/save-learner-statistics',
                     payload: payload
                 });
                 setShowOfflineModal(true);

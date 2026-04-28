@@ -40,7 +40,7 @@ const UserManagement = () => {
 
         setIsSearchingUser(true);
         try {
-            const res = await fetch(`/api/sdo/user-details/${userSearchId}?region=${encodeURIComponent(userData.region)}&division=${encodeURIComponent(userData.division)}`, {
+            const res = await fetch(`api/sdo/user-details/${userSearchId}?region=${encodeURIComponent(userData.region)}&division=${encodeURIComponent(userData.division)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -68,7 +68,7 @@ const UserManagement = () => {
 
         setIsSavingPasscode(true);
         try {
-            const res = await fetch('/api/sdo/set-passcode', {
+            const res = await fetch('api/sdo/set-passcode', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

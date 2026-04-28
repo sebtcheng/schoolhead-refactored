@@ -22,7 +22,6 @@ const NodesDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [isNavigating, setIsNavigating] = useState(false);
     const [showEdWelcome, setShowEdWelcome] = useState(false);
-    const [esf7Status, setEsf7Status] = useState('NOT_STARTED');
     const [dynamicLocks, setDynamicLocks] = useState({});
 
 
@@ -36,25 +35,21 @@ const NodesDashboard = () => {
             const schoolId = localStorage.getItem('schoolId') || user?.school_id;
             if (schoolId) {
                 try {
-                    const res = await fetch(`/api/ph_schools/progress/${schoolId}`);
+                    const res = await fetch(`api/ph_schools/progress/${schoolId}`);
                     if (res.ok) {
-                        const data = await res.json();
-                        if (data.success) {
+                        const json = await res.json();
+                        if (json.success && json.data) {
                             setQuestProgress({
-                                ...data.progress,
-                                schoolId: schoolId
+                                ...json.data.progress,
+                                schoolId: schoolId,
+                                school_name: json.data.schoolInfo?.school_name
                             });
                         }
                     }
  
-                    // Fetch ESF7 Status
-                    const esf7Res = await fetch(`/api/esf7/status/${schoolId}`);
-                    if (esf7Res.ok) {
-                        const esf7Data = await esf7Res.json();
-                        if (esf7Data.success) setEsf7Status(esf7Data.status);
-                    }
+                    // ESF7 Status check removed
 
-                    const locksRes = await fetch('/api/settings/nexus_module_locks');
+                    const locksRes = await fetch('api/settings/nexus_module_locks');
                     if (locksRes.ok) {
                         const locksData = await locksRes.json();
                         if (locksData && locksData.value) {
@@ -75,14 +70,7 @@ const NodesDashboard = () => {
     }, [user]);
 
     const handleCardClick = (route, id) => {
-        if (id === 'esf7') {
-            setIsNavigating(true);
-            setTimeout(() => {
-                navigate(route);
-            }, 600); // Small delay to show the high-impact loader
-        } else {
             navigate(route);
-        }
     };
 
     const calculateProgress = (unitIds) => {
@@ -103,7 +91,7 @@ const NodesDashboard = () => {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mt-6 italic"
                     >
-                        Initializing ESF7 Hub...
+                        Loading...
                     </motion.p>
                 )}
             </div>
@@ -128,26 +116,12 @@ const NodesDashboard = () => {
             color: 'from-blue-500 to-blue-700',
             textColor: 'text-blue-600',
             bgLight: 'bg-blue-50',
-            progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
             route: '/my-activity',
             description: 'CLOUD will look into getting to know more about a school.',
             isLocked: dynamicLocks['school-info'] || false,
         },
-        {
-            id: 'esf7',
-            title: 'ESF7 Hub',
-            subtitle: 'Teacher workload',
-            emoji: '🛡️',
-            icon: <TbReportAnalytics className="w-8 h-8" />,
-            color: esf7Status === 'VERIFIED' ? 'from-emerald-500 to-teal-600' : 'from-[#10346B] to-blue-800',
-            textColor: esf7Status === 'VERIFIED' ? 'text-emerald-600' : 'text-[#10346B]',
-            bgLight: esf7Status === 'VERIFIED' ? 'bg-emerald-50' : 'bg-blue-50',
-            progress: esf7Status === 'VERIFIED' ? 100 : (['SUBMITTED', 'PENDING_SDO', 'QUEUED', 'HARVESTING', 'ERROR'].includes(esf7Status) ? 50 : 0),
-            route: '/draft/esf7',
-            badge: esf7Status === 'VERIFIED' ? 'VERIFIED' : (esf7Status === 'NOT_STARTED' ? 'BETA' : 'STAGED'),
-            description: 'eSF7 will know about teacher and staff loading.',
-            isLocked: true, 
-        },
+        // ESF7 Hub removed
         {
             id: 'nspp',
             title: 'NSPP Path',
@@ -225,12 +199,23 @@ const NodesDashboard = () => {
                                         <h4 className={`font-black leading-tight mb-1 ${isPrimary ? 'text-2xl' : 'text-xl'}`}>{mod.title}</h4>
                                         <p className={`text-[12px] font-black uppercase tracking-[0.15em] leading-tight ${isPrimary ? 'text-blue-200' : 'text-slate-400'}`}>{mod.subtitle}</p>
                                     </div>
-                                    {mod.isLocked ? (
+                                     {mod.isLocked ? (
                                         <div className={`p-2 rounded-xl ${isPrimary ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                             <FiLock size={18} />
                                         </div>
                                     ) : (
-                                        <FiMoreVertical className={isPrimary ? 'text-blue-200/50' : 'text-slate-300'} />
+                                        <div className="flex items-center gap-3">
+                                            {mod.progress === 100 && (
+                                                <motion.span 
+                                                    initial={{ scale: 0.5, opacity: 0 }}
+                                                    animate={{ scale: 1, opacity: 1 }}
+                                                    className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest ${isPrimary ? 'bg-emerald-400 text-white shadow-emerald-900/20' : 'bg-emerald-500 text-white shadow-emerald-500/30'} shadow-lg border border-emerald-400 flex items-center gap-1`}
+                                                >
+                                                    <FiAward size={10} /> COMPLETED
+                                                </motion.span>
+                                            )}
+                                            <FiMoreVertical className={isPrimary ? 'text-blue-200/50' : 'text-slate-300'} />
+                                        </div>
                                     )}
                                 </div>
 
@@ -250,27 +235,40 @@ const NodesDashboard = () => {
                                     </div>
                                 </div>
 
-                                <div className="mt-auto">
-                                    <div className="flex justify-between items-end mb-3">
-                                        <div className="flex flex-col">
-                                            <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isPrimary ? 'text-blue-200/60' : 'text-slate-400'}`}>Completion</span>
-                                            <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>{mod.progress}%</span>
+                                {mod.id !== 'school-info' && (
+                                    <div className="mt-auto">
+                                        <div className="flex justify-between items-end mb-3">
+                                            <div className="flex flex-col">
+                                                <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isPrimary ? 'text-blue-200/60' : 'text-slate-400'}`}>Completion Percentage</span>
+                                                <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>{mod.progress}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {mod.progress === 100 && mod.id !== 'school-info' && (
+                                                    <motion.span 
+                                                        initial={{ scale: 0.5, opacity: 0 }}
+                                                        animate={{ scale: 1, opacity: 1 }}
+                                                        className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 border border-emerald-400 flex items-center gap-1`}
+                                                    >
+                                                        <FiAward size={10} /> COMPLETED
+                                                    </motion.span>
+                                                )}
+                                                {mod.badge && (
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : (isPrimary ? 'bg-white/20 text-white border border-white/10' : 'bg-[#10346B] text-white')}`}>
+                                                        {mod.isLocked ? 'LOCKED' : mod.badge}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        {mod.badge && (
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : (isPrimary ? 'bg-white/20 text-white border border-white/10' : 'bg-[#10346B] text-white')}`}>
-                                                {mod.isLocked ? 'LOCKED' : mod.badge}
-                                            </span>
-                                        )}
+                                        <div className={`h-2.5 w-full rounded-full overflow-hidden ${isPrimary ? 'bg-white/10' : 'bg-slate-100'}`}>
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${mod.progress}%` }}
+                                                transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 + (idx * 0.1) }}
+                                                className={`h-full rounded-full ${isPrimary ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-[#10346B]'}`}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className={`h-2.5 w-full rounded-full overflow-hidden ${isPrimary ? 'bg-white/10' : 'bg-slate-100'}`}>
-                                        <motion.div 
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${mod.progress}%` }}
-                                            transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 + (idx * 0.1) }}
-                                            className={`h-full rounded-full ${isPrimary ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-[#10346B]'}`}
-                                        />
-                                    </div>
-                                </div>
+                                )}
                             </motion.div>
                         );
                     })}

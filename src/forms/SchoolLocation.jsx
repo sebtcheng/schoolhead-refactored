@@ -116,7 +116,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
         const fetchExisting = async () => {
             if (!schoolId) return;
             try {
-                const res = await fetch(`/api/school-location/${schoolId}`);
+                const res = await fetch(`api/school-location/${schoolId}`);
                 const result = await res.json();
                 if (result.success && result.data) {
                     const sanitizedData = {
@@ -179,7 +179,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                 await addModularToOutbox({
                     unitId: 8,
                     label: "Unit 8: School Terrain & Location Profile",
-                    url: '/api/school-location',
+                    url: 'api/school-location',
                     method: 'POST',
                     payload: payload,
                     schoolId: schoolId
@@ -189,7 +189,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                 return;
             }
 
-            const res = await fetch('/api/school-location', {
+            const res = await fetch('api/school-location', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -240,7 +240,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                 await addModularToOutbox({
                     unitId: 8,
                     label: "Unit 8: School Terrain & Location Profile",
-                    url: '/api/school-location',
+                    url: 'api/school-location',
                     method: 'POST',
                     payload: { ...data, school_id: schoolId, iern },
                     schoolId: schoolId

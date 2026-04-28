@@ -375,7 +375,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                 const pendingUnit9 = outbox.find(e => e.unitId === 9 && (e.schoolId === storedId || e.payload?.schoolId === storedId));
                 const draft = await getUnitDraft(9, storedId);
 
-                const resU6 = await fetch(`/api/ph_schools/${storedId}`, {
+                const resU6 = await fetch(`api/ph_schools/${storedId}`, {
                     headers: { 'Authorization': `Bearer ${user.token}` }
                 });
                 let u6PowerSource = "";
@@ -419,7 +419,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     setShowWelcomeBack(true);
                     setTimeout(() => setShowWelcomeBack(false), 3000);
                 } else {
-                    const resMaster = await fetch(`/api/ph_schools/unit9/${storedId}`);
+                    const resMaster = await fetch(`api/ph_schools/unit9/${storedId}`);
                     if (resMaster.ok) {
                         const masterData = await resMaster.json();
                         if (masterData.success && masterData.data) {
@@ -674,7 +674,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
         };
 
         try {
-            const res = await fetch(`/api/ph_schools/unit9/${schoolId}`, {
+            const res = await fetch(`api/ph_schools/unit9/${schoolId}`, {
                 method: "PUT",
                 headers: { 
                     "Content-Type": "application/json",
@@ -698,7 +698,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                 await addModularToOutbox({
                     unitId: 9,
                     label: "Unit 9: Infrastructure & Safety Audit",
-                    url: `/api/ph_schools/unit9/${schoolId}`,
+                    url: `api/ph_schools/unit9/${schoolId}`,
                     method: 'PUT',
                     payload,
                     schoolId

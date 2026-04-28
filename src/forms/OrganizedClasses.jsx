@@ -219,12 +219,12 @@ const OrganizedClasses = ({ embedded }) => {
 
                 // STEP 3: BACKGROUND FETCH
                 if (!restored) {
-                    let fetchUrl = `/api/organized-classes/${user.uid}`;
+                    let fetchUrl = `api/organized-classes/${user.uid}`;
                     const role = user.role;
                     if (isAuditMode) {
-                        fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                        fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                     } else if ((viewOnly || role === 'Central Office' || isDummy) && schoolIdParam) {
-                        fetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                        fetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                     }
 
                     // CRITICAL: Only show loading if NOT loaded from cache
@@ -446,7 +446,7 @@ const OrganizedClasses = ({ embedded }) => {
         if (!navigator.onLine) {
             try {
                 await addToOutbox({
-                    type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: '/api/save-organized-classes', payload
+                    type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: 'api/save-organized-classes', payload
                 });
                 setShowOfflineModal(true);
                 setOriginalData({ ...formData });
@@ -457,7 +457,7 @@ const OrganizedClasses = ({ embedded }) => {
         }
 
         try {
-            const res = await fetch('/api/save-organized-classes', {
+            const res = await fetch('api/save-organized-classes', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
             if (res.ok) {
@@ -467,7 +467,7 @@ const OrganizedClasses = ({ embedded }) => {
             } else { throw new Error("Server Error"); }
         } catch (err) {
             await addToOutbox({
-                type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: '/api/save-organized-classes', payload
+                type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: 'api/save-organized-classes', payload
             });
             setShowOfflineModal(true);
             setIsLocked(true);

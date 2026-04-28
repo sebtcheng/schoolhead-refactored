@@ -138,13 +138,13 @@ const SchoolProfile = ({ embedded }) => {
         if (!data) return;
 
         if (data.region) {
-            const provRes = await fetch(`/api/locations/provinces?region=${encodeURIComponent(data.region)}`).catch(() => null);
+            const provRes = await fetch(`api/locations/provinces?region=${encodeURIComponent(data.region)}`).catch(() => null);
             if (provRes?.ok) setProvinceOptions(await provRes.json());
             if (data.province) {
-                const cityRes = await fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(data.region)}&province=${encodeURIComponent(data.province)}`).catch(() => null);
+                const cityRes = await fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(data.region)}&province=${encodeURIComponent(data.province)}`).catch(() => null);
                 if (cityRes?.ok) setCityOptions(await cityRes.json());
                 if (data.municipality) {
-                    const brgyRes = await fetch(`/api/locations/barangays?region=${encodeURIComponent(data.region)}&province=${encodeURIComponent(data.province)}&municipality=${encodeURIComponent(data.municipality)}`).catch(() => null);
+                    const brgyRes = await fetch(`api/locations/barangays?region=${encodeURIComponent(data.region)}&province=${encodeURIComponent(data.province)}&municipality=${encodeURIComponent(data.municipality)}`).catch(() => null);
                     if (brgyRes?.ok) setBarangayOptions(await brgyRes.json());
                 }
             }
@@ -166,7 +166,7 @@ const SchoolProfile = ({ embedded }) => {
     };
 
     useEffect(() => {
-        fetch('/api/locations/regions')
+        fetch('api/locations/regions')
             .then(r => r.json())
             .then(data => {
                 const options = data || [];
@@ -328,11 +328,11 @@ const SchoolProfile = ({ embedded }) => {
             // STEP 2: BACKGROUND FETCH
             try {
                 const role = user.role;
-                let fetchUrl = `/api/school-by-user/${user.uid}`;
+                let fetchUrl = `api/school-by-user/${user.uid}`;
                 if (isAuditMode) {
-                    fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                    fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                 } else if ((viewOnly || role === 'Central Office' || isDummy) && monitorSchoolId) {
-                    fetchUrl = `/api/monitoring/school-detail/${monitorSchoolId}`;
+                    fetchUrl = `api/monitoring/school-detail/${monitorSchoolId}`;
                 }
 
                 const response = await fetch(fetchUrl);
@@ -383,7 +383,7 @@ const SchoolProfile = ({ embedded }) => {
         if (!formData.region) return;
 
         // Populate Province/City/Barangay (API)
-        fetch(`/api/locations/provinces?region=${encodeURIComponent(formData.region)}`)
+        fetch(`api/locations/provinces?region=${encodeURIComponent(formData.region)}`)
             .then(r => r.json())
             .then(data => {
                 const options = data || [];
@@ -395,7 +395,7 @@ const SchoolProfile = ({ embedded }) => {
             })
             .catch(() => {});
         if (formData.province) {
-            fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
+            fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}`)
                 .then(r => r.json())
                 .then(data => {
                     const options = data || [];
@@ -407,7 +407,7 @@ const SchoolProfile = ({ embedded }) => {
                 })
                 .catch(() => {});
             if (formData.municipality) {
-                fetch(`/api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(formData.municipality)}`)
+                fetch(`api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(formData.municipality)}`)
                     .then(r => r.json())
                     .then(data => {
                         const options = (data || []).map(item => (typeof item === 'object' && item !== null) ? item.barangay : item);
@@ -484,7 +484,7 @@ const SchoolProfile = ({ embedded }) => {
 
         if (navigator.onLine) {
             try {
-                const response = await fetch(`/api/check-school/${targetId}`);
+                const response = await fetch(`api/check-school/${targetId}`);
                 if (response.ok) {
                     const res = await response.json();
                     if (res.exists) {
@@ -525,14 +525,14 @@ const SchoolProfile = ({ embedded }) => {
                 let matchedMun = getVal('municipality');
                 let matchedBrgy = getVal('barangay');
 
-                const provRes = await fetch(`/api/locations/provinces?region=${encodeURIComponent(matchedRegion)}`).catch(() => null);
+                const provRes = await fetch(`api/locations/provinces?region=${encodeURIComponent(matchedRegion)}`).catch(() => null);
                 const provOpts = provRes?.ok ? await provRes.json() : [];
                 matchedProv = findMatch(provOpts, matchedProv);
                 setProvinceOptions(provOpts);
 
                 let cityOpts = [];
                 if (matchedProv) {
-                    const cityRes = await fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(matchedRegion)}&province=${encodeURIComponent(matchedProv)}`).catch(() => null);
+                    const cityRes = await fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(matchedRegion)}&province=${encodeURIComponent(matchedProv)}`).catch(() => null);
                     cityOpts = cityRes?.ok ? await cityRes.json() : [];
                     matchedMun = findMatch(cityOpts, matchedMun);
                     setCityOptions(cityOpts);
@@ -540,7 +540,7 @@ const SchoolProfile = ({ embedded }) => {
 
                 let brgyOpts = [];
                 if (matchedMun) {
-                    const brgyRes = await fetch(`/api/locations/barangays?region=${encodeURIComponent(matchedRegion)}&province=${encodeURIComponent(matchedProv)}&municipality=${encodeURIComponent(matchedMun)}`).catch(() => null);
+                    const brgyRes = await fetch(`api/locations/barangays?region=${encodeURIComponent(matchedRegion)}&province=${encodeURIComponent(matchedProv)}&municipality=${encodeURIComponent(matchedMun)}`).catch(() => null);
                     const brgyData = brgyRes?.ok ? await brgyRes.json() : [];
                     brgyOpts = (brgyData || []).map(item => (typeof item === 'object' && item !== null) ? item.barangay : item);
                     matchedBrgy = findMatch(brgyOpts, matchedBrgy);
@@ -609,7 +609,7 @@ const SchoolProfile = ({ embedded }) => {
         setFormData(prev => ({ ...prev, region: val, province: '', municipality: '', barangay: '', division: '', district: '' }));
         setCityOptions([]); setBarangayOptions([]); setDistrictOptions([]);
         if (val) {
-            fetch(`/api/locations/provinces?region=${encodeURIComponent(val)}`)
+            fetch(`api/locations/provinces?region=${encodeURIComponent(val)}`)
                 .then(r => r.json())
                 .then(data => {
                     const options = data || [];
@@ -627,7 +627,7 @@ const SchoolProfile = ({ embedded }) => {
         setFormData(prev => ({ ...prev, province: val, municipality: '', barangay: '' }));
         setBarangayOptions([]);
         if (val && formData.region) {
-            fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(val)}`)
+            fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(val)}`)
                 .then(r => r.json())
                 .then(data => {
                     const options = data || [];
@@ -644,7 +644,7 @@ const SchoolProfile = ({ embedded }) => {
         const val = e.target.value;
         setFormData(prev => ({ ...prev, municipality: val, barangay: '' }));
         if (val && formData.province && formData.region) {
-            fetch(`/api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(val)}`)
+            fetch(`api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(val)}`)
                 .then(r => r.json())
                 .then(data => {
                     const options = data || [];
@@ -687,7 +687,7 @@ const SchoolProfile = ({ embedded }) => {
                 await addToOutbox({
                     type: 'SCHOOL_PROFILE',
                     label: 'School Profile',
-                    url: '/api/save-school',
+                    url: 'api/save-school',
                     payload: payload
                 });
                 setShowOfflineModal(true); // USE MODAL
@@ -700,7 +700,7 @@ const SchoolProfile = ({ embedded }) => {
         console.log("SENDING SCHOOL PROFILE:", payload); // DEBUG LOG
 
         try {
-            const response = await fetch('/api/save-school', {
+            const response = await fetch('api/save-school', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
             });
             if (response.ok) {

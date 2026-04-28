@@ -33,7 +33,7 @@ const SuperUserSelector = () => {
 
     // --- FETCH REGIONS ON MOUNT (from schools table) ---
     useEffect(() => {
-        fetch('/api/locations/regions')
+        fetch('api/locations/regions')
             .then(res => res.json())
             .then(data => {
                 const options = data || [];
@@ -48,7 +48,7 @@ const SuperUserSelector = () => {
         setSdoDivisions([]);
         setSelectedDivision('');
         if (selectedRegion) {
-            fetch(`/api/locations/divisions?region=${encodeURIComponent(selectedRegion)}`)
+            fetch(`api/locations/divisions?region=${encodeURIComponent(selectedRegion)}`)
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -64,7 +64,7 @@ const SuperUserSelector = () => {
         setEngDivisions([]);
         setEngDivision('');
         if (engRegion) {
-            fetch(`/api/locations/divisions?region=${encodeURIComponent(engRegion)}`)
+            fetch(`api/locations/divisions?region=${encodeURIComponent(engRegion)}`)
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -81,7 +81,7 @@ const SuperUserSelector = () => {
         setLguProvince('');
         setLguMunicipality('');
         if (lguRegion) {
-            fetch(`/api/locations/provinces?region=${encodeURIComponent(lguRegion)}`)
+            fetch(`api/locations/provinces?region=${encodeURIComponent(lguRegion)}`)
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -97,7 +97,7 @@ const SuperUserSelector = () => {
         setLguMunicipalities([]);
         setLguMunicipality('');
         if (lguRegion && lguProvince) {
-            fetch(`/api/locations/municipalities-by-province?region=${encodeURIComponent(lguRegion)}&province=${encodeURIComponent(lguProvince)}`)
+            fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(lguRegion)}&province=${encodeURIComponent(lguProvince)}`)
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];

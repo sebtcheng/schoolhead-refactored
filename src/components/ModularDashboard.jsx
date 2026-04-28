@@ -107,7 +107,7 @@ const ModularDashboard = () => {
                 // --- SUPER USER IMPERSONATION ---
                 if (user?.role === 'Super User' && impersonatedUid) {
                     console.log(`[ModularDashboard] Impersonating UID: ${impersonatedUid}`);
-                    const profileRes = await fetch(`/api/school-by-user/${impersonatedUid}`);
+                    const profileRes = await fetch(`api/school-by-user/${impersonatedUid}`);
                     const profileJson = await profileRes.json();
                     if (profileJson.exists && profileJson.data.school_id) {
                         schoolId = profileJson.data.school_id;
@@ -116,22 +116,31 @@ const ModularDashboard = () => {
                 }
 
                 if (schoolId) {
-                    const res = await fetch(`/api/ph_schools/progress/${schoolId}`);
+                    const res = await fetch(`api/ph_schools/progress/${schoolId}`);
                     if (res.ok) {
-                        const data = await res.json();
-                        if (data.success && data.progress) {
-                            if (data.progress.curricular_offering) {
-                                setCurricularOffering(data.progress.curricular_offering);
+                        const json = await res.json();
+                        // [Fix] Backend now returns data nested under 'data' property
+                        if (json.success && json.data && json.data.progress) {
+                            const { progress, schoolInfo } = json.data;
+                            
+                            if (progress.curricular_offering) {
+                                setCurricularOffering(progress.curricular_offering);
                             }
                             // Sync if server has more/different data
-                            setQuestProgress({ ...data.progress, schoolId: schoolId, isFromCache: false });
-                            if (data.progress.timestamps) {
-                                setUnitTimestamps(data.progress.timestamps);
+                            setQuestProgress({ 
+                                ...progress, 
+                                schoolId: schoolInfo?.school_id || schoolId, 
+                                school_name: schoolInfo?.school_name,
+                                isFromCache: false 
+                            });
+                            
+                            if (progress.timestamps) {
+                                setUnitTimestamps(progress.timestamps);
                             }
                             
                             // Only cache if not impersonating
                             if (!impersonatedUid) {
-                                localStorage.setItem('quest_progress', JSON.stringify(data.progress));
+                                localStorage.setItem('quest_progress', JSON.stringify(progress));
                             }
                         }
                     }

@@ -241,12 +241,12 @@ const ShiftingModalities = ({ embedded }) => {
 
                     // B. Network Fetch
                     if (!restored) {
-                        let fetchUrl = `/api/learning-modalities/${user.uid}`;
+                        let fetchUrl = `api/learning-modalities/${user.uid}`;
                         const role = user.role;
                         if (isAuditMode) {
-                            fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                            fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                         } else if ((viewOnly || role === 'Central Office' || isDummy) && schoolIdParam) {
-                            fetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                            fetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                         }
 
                         // Only show loading if we didn't load from cache
@@ -396,7 +396,7 @@ const ShiftingModalities = ({ embedded }) => {
                 await addToOutbox({
                     type: 'SHIFTING_MODALITIES',
                     label: 'Shifting & Modalities',
-                    url: '/api/save-learning-modalities',
+                    url: 'api/save-learning-modalities',
                     payload: payload
                 });
                 setShowOfflineModal(true);
@@ -412,7 +412,7 @@ const ShiftingModalities = ({ embedded }) => {
         }
 
         try {
-            const res = await fetch('/api/save-learning-modalities', {
+            const res = await fetch('api/save-learning-modalities', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

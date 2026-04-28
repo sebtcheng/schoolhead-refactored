@@ -14,7 +14,7 @@ const NotificationCenter = () => {
         if (!user) return;
 
         try {
-            const res = await fetch(`/api/notifications/${user.uid}`);
+            const res = await fetch(`api/notifications/${user.uid}`);
             if (res.ok) {
                 const data = await res.json();
                 setNotifications(data);
@@ -37,7 +37,7 @@ const NotificationCenter = () => {
     // Mark as Read
     const markAsRead = async (id) => {
         try {
-            await fetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+            await fetch(`api/notifications/${id}/read`, { method: 'PUT' });
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (err) {

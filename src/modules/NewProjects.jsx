@@ -272,7 +272,7 @@ const NewProjects = () => {
         setIsSearchingProjects(true);
         try {
             // Use existing /api/projects endpoint but we'll filter on frontend or add search param if backend supports it
-            const res = await fetch(`/api/projects?search=${encodeURIComponent(query)}`, {
+            const res = await fetch(`api/projects?search=${encodeURIComponent(query)}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -477,7 +477,7 @@ const NewProjects = () => {
 
         // ========== ONLINE MODE: Use database API ==========
         try {
-            const res = await fetch(`/api/school-profile/${schoolId}`, {
+            const res = await fetch(`api/school-profile/${schoolId}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -706,7 +706,7 @@ const NewProjects = () => {
 
             // --- OFFLINE/ONLINE CHECK ---
             // Determine endpoint based on role
-            const endpointUrl = (user.role === 'Local Government Unit') ? '/api/lgu/save-project' : '/api/save-project';
+            const endpointUrl = (user.role === 'Local Government Unit') ? 'api/lgu/save-project' : 'api/save-project';
 
             const payload = {
                 url: endpointUrl,
@@ -729,11 +729,11 @@ const NewProjects = () => {
             }
 
             // --- ONLINE SUBMISSION ---
-            let endpoint = '/api/save-project';
+            let endpoint = 'api/save-project';
 
             // LGU SPECIFIC ENDPOINT
             if (user.role === 'Local Government Unit') {
-                endpoint = '/api/lgu/save-project';
+                endpoint = 'api/lgu/save-project';
             }
 
             const projectRes = await fetch(endpoint, {
@@ -779,7 +779,7 @@ const NewProjects = () => {
             if (hasDocs) {
                 console.log("Uploading documents in bulk via Multer...");
                 try {
-                    const bulkEndpoint = (user?.role === 'Local Government Unit') ? '/api/lgu/bulk-upload-project-documents' : '/api/bulk-upload-project-documents';
+                    const bulkEndpoint = (user?.role === 'Local Government Unit') ? 'api/lgu/bulk-upload-project-documents' : 'api/bulk-upload-project-documents';
                     
                     const bulkRes = await fetch(bulkEndpoint, {
                         method: 'POST',

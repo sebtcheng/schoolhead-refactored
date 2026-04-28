@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig({
-  base: './',
+  base: process.env.VITE_BASE_PATH || './',
   define: {
     // Exposes version to the app as import.meta.env.VITE_APP_VERSION
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
@@ -56,7 +56,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
       },
       workbox: {
-        cacheId: 'insighted-v1.2.0'
+        cacheId: 'insighted-v1.3.0'
       }
     })
   ],

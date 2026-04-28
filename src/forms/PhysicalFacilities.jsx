@@ -298,7 +298,7 @@ const PhysicalFacilities = ({ embedded }) => {
     useEffect(() => {
         const fetchBuildingTypes = async () => {
             try {
-                const res = await fetch('/api/reference/building-types');
+                const res = await fetch('api/reference/building-types');
                 if (res.ok) {
                     const data = await res.json();
                     setBuildingTypes(data);
@@ -549,7 +549,7 @@ const PhysicalFacilities = ({ embedded }) => {
             try {
                 await addRepairToLocal(payload);
                 if (navigator.onLine) {
-                    const res = await fetch('/api/save-facility-repair', {
+                    const res = await fetch('api/save-facility-repair', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -626,7 +626,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
         for (const payload of payloadList) {
             try {
-                const res = await fetch('/api/save-facility-demolition', {
+                const res = await fetch('api/save-facility-demolition', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -665,7 +665,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
             setIsLoadingDemolitions(true);
             try {
-                const res = await fetch(`/api/facility-demolitions/${iern}`);
+                const res = await fetch(`api/facility-demolitions/${iern}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data.length > 0) {
@@ -690,7 +690,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
             setIsLoadingInventory(true);
             try {
-                const res = await fetch(`/api/facility-inventory/${iern}`);
+                const res = await fetch(`api/facility-inventory/${iern}`);
                 if (res.ok) {
                     const data = await res.json();
                     console.log('📦 Inventory API response:', data.length, 'rows, statuses:', [...new Set(data.map(d => d.status))]);
@@ -760,7 +760,7 @@ const PhysicalFacilities = ({ embedded }) => {
                 let data = [];
                 if (navigator.onLine) {
                     try {
-                        const res = await fetch(`/api/facility-repairs/${iern}`);
+                        const res = await fetch(`api/facility-repairs/${iern}`);
                         if (res.ok) {
                             data = await res.json();
                         }
@@ -907,12 +907,12 @@ const PhysicalFacilities = ({ embedded }) => {
 
                     // STEP 3: BACKGROUND FETCH
                     if (!restored) {
-                        let fetchUrl = `/api/physical-facilities/${user.uid}`;
+                        let fetchUrl = `api/physical-facilities/${user.uid}`;
                         const role = user.role;
                         if (isAuditMode) {
-                            fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                            fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                         } else if ((viewOnly || role === 'Central Office' || isDummy) && schoolIdParam) {
-                            fetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                            fetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                         }
 
                         // Only show loading if we didn't load from cache
@@ -1098,7 +1098,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
         try {
             if (!navigator.onLine) throw new Error("Offline");
-            const res = await fetch('/api/save-physical-facilities', {
+            const res = await fetch('api/save-physical-facilities', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

@@ -70,7 +70,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     if (pendingU8.payload.iern) setIern(pendingU8.payload.iern);
                     if (!propReadOnly) setIsReadOnly(true); // Treat as read-only if it's in outbox
                 } else if (effectiveReadOnly) {
-                    const res = await fetch(`/api/school-location/${schoolId}`);
+                    const res = await fetch(`api/school-location/${schoolId}`);
                     const result = await res.json();
                     if (result.success && result.data) {
                         setLocationData(result.data);
@@ -81,7 +81,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // Check for Draft (only if not viewing a completed unit)
                 if (!effectiveReadOnly && !pendingU8) {
                     // Also fetch IERN from the main school record to ensure we have it for the form
-                    const schoolRes = await fetch(`/api/ph_schools/${schoolId}?t=${Date.now()}`);
+                    const schoolRes = await fetch(`api/ph_schools/${schoolId}?t=${Date.now()}`);
                     if (schoolRes.ok) {
                         const schoolData = await schoolRes.json();
                         if (schoolData.exists && schoolData.data && schoolData.data.iern) {
@@ -131,7 +131,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         }
 
         // Mandatory Sync to backend on every successful save to update timestamp
-        fetch('/api/user/progress', {
+        fetch('api/user/progress', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ unitId: 8, schoolId })

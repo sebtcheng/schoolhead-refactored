@@ -201,13 +201,13 @@ const Enrolment = ({ embedded = false }) => {
             }
 
             if (!restored) {
-                let fetchUrl = `/api/enrolment/${user.uid}`;
+                let fetchUrl = `api/enrolment/${user.uid}`;
                 const role = user.role;
 
                 if (isAuditMode) {
-                    fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                    fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                 } else if ((viewOnly || role === 'Central Office' || isDummy) && schoolIdParam) {
-                    fetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                    fetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                 }
 
                 if (!cachedData) setLoading(true);
@@ -359,7 +359,7 @@ const Enrolment = ({ embedded = false }) => {
                 console.log("Offline detected");
                 throw new Error("Offline");
             }
-            const res = await fetch('/api/save-enrolment', {
+            const res = await fetch('api/save-enrolment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -380,7 +380,7 @@ const Enrolment = ({ embedded = false }) => {
             console.error("Save error caught:", e);
             try {
                 await addToOutbox({
-                    type: 'ENROLMENT', label: 'Enrolment Data', url: '/api/save-enrolment', payload
+                    type: 'ENROLMENT', label: 'Enrolment Data', url: 'api/save-enrolment', payload
                 });
                 console.log("Added to outbox");
                 setShowOfflineModal(true);

@@ -565,7 +565,7 @@ const DetailedProjInfo = () => {
         if (data.startsWith('data:') || data.startsWith('http')) {
             return data;
         }
-        if (data.startsWith('/uploads/') || data.startsWith('/api/asset/')) {
+        if (data.startsWith('/uploads/') || data.startsWith('api/asset/')) {
             return resolveAssetUrl(data);
         }
 
@@ -637,7 +637,7 @@ const DetailedProjInfo = () => {
                 // 2. Network Request (Background Sync)
                 console.log("DEBUG: Starting network fetch for ID:", id);
                 try {
-                    const response = await fetch(`/api/projects/${id}?_t=${Date.now()}`, {
+                    const response = await fetch(`api/projects/${id}?_t=${Date.now()}`, {
                         headers: token ? { Authorization: `Bearer ${token}` } : {}
                     });
                     if (!response.ok) throw new Error("Project not found");
@@ -655,7 +655,7 @@ const DetailedProjInfo = () => {
                     if (type === 'LGU') {
                         console.log("DEBUG: Fetching LGU project...");
                         // LGU Fetch
-                        const response = await fetch(`/api/lgu/project/${id}`, {
+                        const response = await fetch(`api/lgu/project/${id}`, {
                             headers: token ? { Authorization: `Bearer ${token}` } : {}
                         });
                         console.log("DEBUG: LGU response status:", response.status);
@@ -762,7 +762,7 @@ const DetailedProjInfo = () => {
             setImageLoading(true);
             try {
                 // Network First
-                const res = await fetch(`/api/project-images/${id}?t=${Date.now()}`, {
+                const res = await fetch(`api/project-images/${id}?t=${Date.now()}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
                 const data = await res.json();
@@ -795,7 +795,7 @@ const DetailedProjInfo = () => {
         const fetchHistory = async (ipc) => {
             setHistoryLoading(true);
             try {
-                const res = await fetch(`/api/project-history/${ipc}`, {
+                const res = await fetch(`api/project-history/${ipc}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
                 if (!res.ok) throw new Error("Failed to fetch history");
@@ -830,7 +830,7 @@ const DetailedProjInfo = () => {
         const fetchHistory = async () => {
             setHistoryLoading(true);
             try {
-                const res = await fetch(`/api/project-history/${project.ipc}`, {
+                const res = await fetch(`api/project-history/${project.ipc}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
                 if (!res.ok) throw new Error("Failed to fetch history");
@@ -846,7 +846,7 @@ const DetailedProjInfo = () => {
         const fetchVOHistory = async () => {
             setVoHistoryLoading(true);
             try {
-                const res = await fetch(`/api/projects/variation-orders/${project.ipc}`, {
+                const res = await fetch(`api/projects/variation-orders/${project.ipc}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
                 if (res.ok) {
@@ -1864,7 +1864,7 @@ const DetailedProjInfo = () => {
             onSaveDetails={async (payload, siteImages = []) => {
                 const isFormData = payload instanceof FormData;
                 const projectId = isFormData ? payload.get('id') : payload.id;
-                const res = await fetch(`/api/update-project/${projectId}`, {
+                const res = await fetch(`api/update-project/${projectId}`, {
                     method: 'PUT',
                     headers: isFormData ? {} : { 'Content-Type': 'application/json' },
                     body: isFormData ? payload : JSON.stringify(payload),
@@ -1888,7 +1888,7 @@ const DetailedProjInfo = () => {
                             imgFormData.append('uploadedBy', user?.uid);
                             imgFormData.append('category', item.category);
 
-                            await fetch(`/api/upload-image`, {
+                            await fetch(`api/upload-image`, {
                                 method: 'POST',
                                 body: imgFormData,
                             });
@@ -1905,7 +1905,7 @@ const DetailedProjInfo = () => {
                 try {
                     const isFormData = payload instanceof FormData;
                     const projectId = isFormData ? payload.get('id') : payload.id;
-                    const res = await fetch(`/api/update-project/${projectId}`, {
+                    const res = await fetch(`api/update-project/${projectId}`, {
                         method: 'PUT',
                         headers: isFormData ? {} : { 'Content-Type': 'application/json' },
                         body: isFormData ? payload : JSON.stringify(payload),
@@ -1920,7 +1920,7 @@ const DetailedProjInfo = () => {
                 try {
                     const isFormData = payload instanceof FormData;
                     const projectId = isFormData ? payload.get('id') : payload.id;
-                    const res = await fetch(`/api/update-project/${projectId}`, {
+                    const res = await fetch(`api/update-project/${projectId}`, {
                         method: 'PUT',
                         headers: isFormData ? {} : { 'Content-Type': 'application/json' },
                         body: isFormData ? payload : JSON.stringify(payload),

@@ -45,7 +45,7 @@ const ProjectValidation = () => {
 
                 // If no schoolId in URL, we try to get it from the user's school profile (Normal Flow)
                 if (!targetSchoolId) {
-                    const profileRes = await fetch(`/api/school-by-user/${user.uid}`);
+                    const profileRes = await fetch(`api/school-by-user/${user.uid}`);
                     const profileJson = await profileRes.json();
                     if (profileJson.exists) {
                         targetSchoolId = profileJson.data.school_id;
@@ -59,7 +59,7 @@ const ProjectValidation = () => {
                 }
 
                 if (targetSchoolId) {
-                    const projectRes = await fetch(`/api/projects-by-school-id/${targetSchoolId}`);
+                    const projectRes = await fetch(`api/projects-by-school-id/${targetSchoolId}`);
                     if (projectRes.ok) {
                         const projectData = await projectRes.json();
                         setProjects(projectData);
@@ -86,7 +86,7 @@ const ProjectValidation = () => {
         const fetchImages = async () => {
             setImageLoading(true);
             try {
-                const res = await fetch(`/api/project-images/${selectedProject.id}`);
+                const res = await fetch(`api/project-images/${selectedProject.id}`);
                 const data = await res.json();
                 setProjectImages(data);
             } catch (error) {
@@ -107,7 +107,7 @@ const ProjectValidation = () => {
         if (!confirm(`Are you sure you want to ${action} this project?`)) return;
 
         try {
-            const res = await fetch('/api/validate-project', {
+            const res = await fetch('api/validate-project', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

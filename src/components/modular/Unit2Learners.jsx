@@ -245,7 +245,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 
                 // 3. Attempt Server Sync for existing data
                 try {
-                    const res = await fetch(`/api/ph_schools/${storedId}`);
+                    const res = await fetch(`api/ph_schools/${storedId}`);
                     if (res.ok) {
                         const sData = await res.json();
                         if (sData.exists && sData.data) {
@@ -800,7 +800,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 2,
                     label: "Unit 2: Learner Profile",
-                    url: `/api/ph_schools/unit2/${storedId}`,
+                    url: `api/ph_schools/unit2/${storedId}`,
                     method: 'PUT',
                     payload: { 
                         iern,
@@ -827,7 +827,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 return;
             }
 
-            const res = await fetch(`/api/ph_schools/unit2/${storedId}`, {
+            const res = await fetch(`api/ph_schools/unit2/${storedId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
@@ -850,7 +850,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             });
 
             if (res.ok) {
-                fetch(`/api/user/progress`, {
+                fetch(`api/user/progress`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ unitId: 2, schoolId: storedId })
@@ -878,7 +878,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 2,
                     label: "Unit 2: Learner Profile",
-                    url: `/api/ph_schools/unit2/${storedId}`,
+                    url: `api/ph_schools/unit2/${storedId}`,
                     method: 'PUT',
                     payload: { iern, unit2_simplified_enrollment: payload, has_sned: hasSNED, sned_total_count: parseInt(snedSelfContainedCount) || 0, sned_program_type: snedProgramType, sned_organized_class_count: parseInt(snedOrganizedClassCount) || 0, multigrade_groupings_1: mg_1, multigrade_groupings_2: mg_2, multigrade_groupings_3: mg_3, multigrade_enrollment_1: mg_1_enrollment, multigrade_enrollment_2: mg_2_enrollment, multigrade_enrollment_3: mg_3_enrollment, gradeGenderMap },
                     schoolId: storedId

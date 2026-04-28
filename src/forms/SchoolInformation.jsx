@@ -172,13 +172,13 @@ const SchoolInformation = ({ embedded = false }) => {
 
                     // STEP 3: BACKGROUND FETCH
                     if (!restored) {
-                        let fetchUrl = `/api/school-head/${user.uid}`;
+                        let fetchUrl = `api/school-head/${user.uid}`;
                         const role = localStorage.getItem('userRole');
 
                         if (isAuditMode) {
-                            fetchUrl = `/api/monitoring/school-detail/${auditTargetId}`;
+                            fetchUrl = `api/monitoring/school-detail/${auditTargetId}`;
                         } else if ((viewOnly || role === 'Central Office' || isDummy) && schoolIdParam) {
-                            fetchUrl = `/api/monitoring/school-detail/${schoolIdParam}`;
+                            fetchUrl = `api/monitoring/school-detail/${schoolIdParam}`;
                         }
 
                         // Only show loading if we didn't load from cache
@@ -318,7 +318,7 @@ const SchoolInformation = ({ embedded = false }) => {
                 await addToOutbox({
                     type: 'SCHOOL_HEAD_INFO',
                     label: 'School Head Info',
-                    url: '/api/save-school-head',
+                    url: 'api/save-school-head',
                     payload: payload
                 });
                 setShowOfflineModal(true);
@@ -330,7 +330,7 @@ const SchoolInformation = ({ embedded = false }) => {
         }
 
         try {
-            const response = await fetch('/api/save-school-head', {
+            const response = await fetch('api/save-school-head', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -348,7 +348,7 @@ const SchoolInformation = ({ embedded = false }) => {
             await addToOutbox({
                 type: 'SCHOOL_HEAD_INFO',
                 label: 'School Head Info',
-                url: '/api/save-school-head',
+                url: 'api/save-school-head',
                 payload: payload
             });
             setShowOfflineModal(true);
