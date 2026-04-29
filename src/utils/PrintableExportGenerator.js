@@ -148,6 +148,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
     }
 
     .tag-orange { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+    .tag-red { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
     .tag-slate { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
     .tag-blue { background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe; }
     .tag-rose { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
@@ -966,8 +967,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
               <div class="info-box">
                 <div class="info-label">Accessibility & Security</div>
                 <div style="font-size: 11px; margin-top: 5px;">
-                  <div>Weather Isolation: ${unit8Terrain.weather_isolation ? 'YES' : 'NO'}</div>
-                  <div>Insurgency Threats: ${unit8Terrain.has_insurgency_threats ? 'YES' : 'NO'}</div>
+                  <div><strong>Insurgency Threats:</strong> ${unit8Terrain.has_insurgency_threats ? (unit8Terrain.insurgency_threats_6mo > 0 ? `YES (${unit8Terrain.insurgency_threats_6mo} incidences in past 6mo)` : 'YES') : 'NO'}</div>
                 </div>
               </div>
               <div class="info-box">
@@ -1035,11 +1035,20 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
 
               <div class="info-box" style="grid-column: span 1;">
                 <div class="info-label">Natural Calamities (Past 6 months)</div>
-                <div class="tag-container">
+                <div class="tag-container" style="margin-bottom: 10px;">
                   ${(() => {
                     const cals = typeof unit8Terrain.natural_calamities === 'string' ? JSON.parse(unit8Terrain.natural_calamities || '[]') : (unit8Terrain.natural_calamities || []);
                     if (cals.length === 0) return '<span style="color: var(--text-muted); font-style: italic;">No calamities reported.</span>';
                     return cals.map(c => `<span class="tag tag-orange">${c.type} (${c.incidences})</span>`).join('');
+                  })()}
+                </div>
+
+                <div class="info-label">Anthropogenic Threats (Social Conflicts)</div>
+                <div class="tag-container">
+                  ${(() => {
+                    const threats = typeof unit8Terrain.anthropogenic_threats === 'string' ? JSON.parse(unit8Terrain.anthropogenic_threats || '[]') : (unit8Terrain.anthropogenic_threats || []);
+                    if (threats.length === 0) return '<span style="color: var(--text-muted); font-style: italic;">No threats reported.</span>';
+                    return threats.map(t => `<span class="tag tag-red">${t.type} (${t.incidences})</span>`).join('');
                   })()}
                 </div>
                 

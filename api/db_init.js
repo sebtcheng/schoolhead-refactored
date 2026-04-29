@@ -156,6 +156,7 @@ const initUnit8Schema = async (client, dbLabel) => {
                     proximity_highway_km NUMERIC DEFAULT 0,
                     cellular_coverage TEXT,
                     weather_isolation BOOLEAN DEFAULT FALSE,
+                    weather_isolation_6mo INTEGER DEFAULT 0,
                     anthropogenic_threats JSONB DEFAULT '[]',
                     risk_index TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

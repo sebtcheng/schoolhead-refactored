@@ -1503,6 +1503,7 @@ const runAutoMigrations_OLD = async () => {
       ['proximity_highway_km',           'NUMERIC'],
       ['cellular_coverage',              'TEXT'],
       ['weather_isolation',              'BOOLEAN'],
+      ['weather_isolation_6mo',          'NUMERIC'],
       ['anthropogenic_threats',          'JSONB'],
       ['risk_index',                     'NUMERIC'],
     ];

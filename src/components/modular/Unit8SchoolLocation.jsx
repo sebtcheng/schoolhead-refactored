@@ -387,9 +387,16 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 </div>
                             </div>
                         )}
-                        {threats.length > 0 && (
+                        {(threats.length > 0 || data.has_insurgency_threats) && (
                             <div className="bg-slate-900 rounded-[2.5rem] p-6 border border-slate-800 shadow-xl">
-                                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4">Anthropogenic Threats</h4>
+                                <div className="flex justify-between items-start mb-4">
+                                    <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest">Anthropogenic Threats</h4>
+                                    {data.has_insurgency_threats && (
+                                        <span className="bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter">
+                                            {data.insurgency_threats_6mo || 0} Insurgency Incidences (6mo)
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="space-y-3">
                                     {threats.map(t => (
                                         <div key={t.type} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl">

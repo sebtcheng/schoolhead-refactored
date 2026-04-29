@@ -72,6 +72,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
             proximity_highway_km: 0,
             cellular_coverage: 'Strong',
             weather_isolation: false,
+            weather_isolation_6mo: 0,
             natural_calamities: [],
             anthropogenic_threats: [],
             road_passable_public_transpo_pct: 100
@@ -92,6 +93,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
     const watchPassability = watch('road_passable_public_transpo_pct');
     const watchRiverFoot = watch('river_crossing_on_foot');
     const watchThreats = watch('anthropogenic_threats') || [];
+    const watchWeatherIsolation = watch('weather_isolation');
     
     // Watch all 14 reference point fields for reactive validation
     const watchedRefPoints = watch([
