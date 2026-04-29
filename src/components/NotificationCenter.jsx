@@ -29,7 +29,7 @@ const NotificationCenter = () => {
     useEffect(() => {
         if (user) {
             fetchNotifications();
-            const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
+            const interval = setInterval(fetchNotifications, 60000); // Poll every 60s
             return () => clearInterval(interval);
         }
     }, [user]);

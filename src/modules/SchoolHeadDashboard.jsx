@@ -179,19 +179,17 @@ const SchoolHeadDashboard = () => {
         }
     };
 
-    // --- AUTO-VALIDATION ON LOAD ---
-    useEffect(() => {
-        if (schoolProfile?.school_id) {
-            // Check if we should auto-validate (e.g., if it hasn't been done this session)
-            // For now, per user request "When i click Home", we run it every time dashboard loads.
-            // We use a small timeout to let the UI settle
-            const timer = setTimeout(() => {
-                console.log("Health Check: Auto-triggering validation...");
-                handleValidateDataHealth(false); // Silent mode
-            }, 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [schoolProfile?.school_id, location.state?.refreshTrigger]); // Run on initial load and when Home tab is clicked
+    // --- AUTO-VALIDATION ON LOAD (Disabled to save resources) ---
+    // useEffect(() => {
+    //     if (schoolProfile?.school_id) {
+    //         // Check if we should auto-validate (e.g., if it hasn't been done this session)
+    //         const timer = setTimeout(() => {
+    //             console.log("Health Check: Auto-triggering validation...");
+    //             handleValidateDataHealth(false); // Silent mode
+    //         }, 1000);
+    //         return () => clearTimeout(timer);
+    //     }
+    // }, [schoolProfile?.school_id, location.state?.refreshTrigger]); 
 
     // --- SEARCH & QUICK ACTION ITEMS (Dynamic from Metadata) ---
     const SEARCHABLE_ITEMS = DASHBOARD_METADATA.forms;

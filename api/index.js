@@ -2281,13 +2281,10 @@ app.post('/api/auth/migrate-login', async (req, res) => {
   try {
     const isEmail = identifier.includes('@');
     const isSchoolId = !isEmail && (!!school_id || /^\d{6,}$/.test(identifier));
-    console.log(`[AUTH DEBUG] Migrate-Login: ${identifier} (isSchoolId: ${isSchoolId}, isEmail: ${isEmail})`);
 
     // 1. Fetch user from PostgreSQL
-    console.log(`[MIGRATE LOGIN] Running SQL query...`);
     const SELECT_COLS = `uid, email, role, region, division, office, account_category, passcode, password_hash, password_salt, hash_version, first_name, last_name, school_id, province, city`;
 
-    console.log(`[DEBUG LOGIN] Reached handler for: ${identifier}`);
     const query = isSchoolId
       ? `SELECT ${SELECT_COLS} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
       : `SELECT ${SELECT_COLS} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
@@ -2302,14 +2299,11 @@ app.post('/api/auth/migrate-login', async (req, res) => {
 
     let user;
     try {
-      console.log(`[DEBUG LOGIN] Query prepared. Waiting for pool...`);
       const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
-      console.log(`[DEBUG LOGIN] Query completed! Rows found: ${userRes.rowCount}`);
       user = processUserRes(userRes);
     } catch (err) {
       console.error(`💥 [MIGRATE LOGIN] DB Error for ${identifier}:`, err.message);
       if (err.message.includes('terminated unexpectedly')) {
-        console.warn(`♻️ [RECOVERY] Attempting immediate retry for terminated connection...`);
         try {
           const retryRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
           user = processUserRes(retryRes);

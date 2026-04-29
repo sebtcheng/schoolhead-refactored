@@ -188,7 +188,6 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
     if (!data) return '—';
     return `
       <div style="font-size: 13px;">
-        <div style="margin-bottom: 8px;"><strong>Source:</strong> ${data.water_source || '—'}</div>
         <table style="font-size: 11px; margin-top: 5px;">
           <thead>
             <tr><th style="padding:4px;">Category</th><th style="padding:4px;" class="text-center">Total</th><th style="padding:4px;" class="text-center">Func</th></tr>
@@ -210,29 +209,39 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
     if (!data || !data.grades) return '—';
     
     let wood = 0, plastic = 0, steel = 0, wood2 = 0, steel2 = 0;
+    let w_need = 0, p_need = 0, s_need = 0, w2_need = 0, s2_need = 0;
     data.grades.forEach(g => {
       wood += (parseInt(g.armchair_wood_func) || 0);
+      w_need += (parseInt(g.armchair_wood_needed) || 0);
+
       plastic += (parseInt(g.armchair_plastic_func) || 0);
+      p_need += (parseInt(g.armchair_plastic_needed) || 0);
+
       steel += (parseInt(g.armchair_plastic_steel_func) || 0);
+      s_need += (parseInt(g.armchair_plastic_steel_needed) || 0);
+
       wood2 += (parseInt(g.two_seater_wood_func) || 0);
+      w2_need += (parseInt(g.two_seater_wood_needed) || 0);
+
       steel2 += (parseInt(g.two_seater_wood_steel_func) || 0);
+      s2_need += (parseInt(g.two_seater_wood_steel_needed) || 0);
     });
 
     return `
       <div style="font-size: 13px;">
         <table style="font-size: 11px; margin-top: 0;">
           <thead>
-            <tr><th style="padding:4px;">Type</th><th style="padding:4px;" class="text-center">Qty (Func)</th></tr>
+            <tr><th style="padding:4px;">Type</th><th style="padding:4px;" class="text-center">Qty (Func)</th><th style="padding:4px;" class="text-center">Shortage</th></tr>
           </thead>
           <tbody>
-            ${wood > 0 ? `<tr><td>Armchair (Wood)</td><td class="text-center">${wood}</td></tr>` : ''}
-            ${plastic > 0 ? `<tr><td>Armchair (Plastic)</td><td class="text-center">${plastic}</td></tr>` : ''}
-            ${steel > 0 ? `<tr><td>Armchair (P-Steel)</td><td class="text-center">${steel}</td></tr>` : ''}
-            ${wood2 > 0 ? `<tr><td>2-Seater (Wood)</td><td class="text-center">${wood2}</td></tr>` : ''}
-            ${steel2 > 0 ? `<tr><td>2-Seater (Steel)</td><td class="text-center">${steel2}</td></tr>` : ''}
+            <tr><td>Armchair (Wood)</td><td class="text-center">${wood}</td><td class="text-center">${w_need}</td></tr>
+            <tr><td>Armchair (Plastic)</td><td class="text-center">${plastic}</td><td class="text-center">${p_need}</td></tr>
+            <tr><td>Armchair (P-Steel)</td><td class="text-center">${steel}</td><td class="text-center">${s_need}</td></tr>
+            <tr><td>2-Seater (Wood)</td><td class="text-center">${wood2}</td><td class="text-center">${w2_need}</td></tr>
+            <tr><td>2-Seater (Steel)</td><td class="text-center">${steel2}</td><td class="text-center">${s2_need}</td></tr>
           </tbody>
         </table>
-        <p style="font-size: 9px; color: var(--text-muted); margin-top: 5px;">*Showing functional counts for audited levels.</p>
+        <p style="font-size: 9px; color: var(--text-muted); margin-top: 5px;">*Showing functional counts and shortages for audited levels.</p>
       </div>
     `;
   };
@@ -249,17 +258,14 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
       { label: 'Printers', total: data.printers_total, func: data.printers_func },
     ];
     
-    const activeItems = items.filter(i => i.total && i.total != '0');
-    if (activeItems.length === 0) return 'No equipment reported.';
-
     return `
       <table style="font-size: 11px; margin-top: 0;">
         <thead>
           <tr><th style="padding:4px;">Device</th><th style="padding:4px;" class="text-center">Total</th><th style="padding:4px;" class="text-center">Func</th></tr>
         </thead>
         <tbody>
-          ${activeItems.map(i => `
-            <tr><td>${i.label}</td><td class="text-center">${i.total}</td><td class="text-center">${i.func || 0}</td></tr>
+          ${items.map(i => `
+            <tr><td>${i.label}</td><td class="text-center">${i.total || 0}</td><td class="text-center">${i.func || 0}</td></tr>
           `).join('')}
         </tbody>
       </table>
@@ -267,31 +273,37 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
   };
 
   const renderInfrastructureUnit = (s) => {
-    const general = safeParse(s.u9_general);
-    const wiring = safeParse(s.u9_wiring);
-    const cctv = safeParse(s.u9_cords_cctv);
-    const final = safeParse(s.u9_final);
-    
-    if (!general && !wiring && !final) return '<p style="font-size: 13px; color: var(--text-muted);">No infrastructure data found.</p>';
+    const general = safeParse(s.u9_general) || {};
+    const wiring = safeParse(s.u9_wiring) || {};
+    const final = safeParse(s.u9_final) || {};
     
     const getBadge = (val, labels = ['Yes', 'No', 'N/A'], colors = ['#059669', '#dc2626', '#64748b']) => {
-      if (val === 1 || val === true) return `<span style="color: ${colors[0]}; font-weight: bold;">${labels[0]}</span>`;
-      if (val === 0 || val === false) return `<span style="color: ${colors[1]}; font-weight: bold;">${labels[1]}</span>`;
+      if (val === 1 || val === true || val === 'true' || val === '1') return `<span style="color: ${colors[0]}; font-weight: bold;">${labels[0]}</span>`;
+      if (val === 0 || val === false || val === 'false' || val === '0') return `<span style="color: ${colors[1]}; font-weight: bold;">${labels[1]}</span>`;
       if (val === 2) return `<span style="color: ${colors[2]}; font-weight: bold;">${labels[2]}</span>`;
       return `<span style="color: ${colors[2]}; font-weight: bold;">—</span>`;
     };
 
-    // Helper to format inventory items
-    const renderInventoryTable = (items) => {
-      if (!items) return '';
+    // Helper to format inventory items with fallback to flat columns
+    const renderInventoryTable = () => {
       const rows = [
-        { label: 'CCTV Cameras', key: 'cctv_cameras' },
-        { label: 'Fire Extinguishers', key: 'fire_extinguishers' },
-        { label: 'First Aid Kits', key: 'first_aid_kits' },
-        { label: 'Bullhorns / Megaphones', key: 'portable_megaphones' },
-        { label: 'Portable Radios', key: 'battery_radios' },
-        { label: 'Flashlights', key: 'large_flashlights' },
+        { label: 'CCTV Cameras', key: 'cctv', itemsKey: 'cctv_cameras' },
+        { label: 'Fire Extinguishers', key: 'fire_ext', itemsKey: 'fire_extinguishers' },
+        { label: 'First Aid Kits', key: 'first_aid', itemsKey: 'first_aid_kits' },
+        { label: 'Bullhorns / Megaphones', key: 'bullhorns', itemsKey: 'portable_megaphones' },
+        { label: 'Portable Radios', key: 'radios', itemsKey: 'battery_radios' },
+        { label: 'Flashlights', key: 'flashlight', itemsKey: 'large_flashlights' },
       ];
+
+      const getVal = (prefix, type) => {
+        // Try JSONB first
+        if (final.items && final.items[prefix]) return final.items[prefix][type] || 0;
+        // Fallback to flat columns
+        const col = `u9_${prefix}_${type}`;
+        return s[col] || 0;
+      };
+
+      const whistles = final.items?.emergency_whistles?.total || s.u9_whistles_quantity || 0;
 
       return `
         <table style="font-size: 11px; margin-top: 5px;">
@@ -299,11 +311,15 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
             <tr><th style="padding:4px;">Safety Equipment</th><th style="padding:4px;" class="text-center">Working</th><th style="padding:4px;" class="text-center">Broken</th><th style="padding:4px;" class="text-center">Spares</th></tr>
           </thead>
           <tbody>
-            ${rows.map(r => {
-              const item = items[r.key] || {};
-              return `<tr><td>${r.label}</td><td class="text-center font-bold">${item.working || 0}</td><td class="text-center">${item.broken || 0}</td><td class="text-center">${item.spares || 0}</td></tr>`;
-            }).join('')}
-            <tr><td>Emergency Whistles</td><td colspan="3" class="text-center font-bold">${items.emergency_whistles?.total || 0} PCS</td></tr>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.label}</td>
+                <td class="text-center font-bold">${getVal(r.key, 'working')}</td>
+                <td class="text-center">${getVal(r.key, 'broken')}</td>
+                <td class="text-center">${getVal(r.key, 'spares')}</td>
+              </tr>
+            `).join('')}
+            <tr><td>Emergency Whistles</td><td colspan="3" class="text-center font-bold">${whistles} PCS</td></tr>
           </tbody>
         </table>
       `;
@@ -313,11 +329,13 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
       <div class="grid" style="margin-bottom: 10px;">
         <div class="info-box">
           <div class="info-label">Main Power Source</div>
-          <div class="info-value">${general?.main_power_source || '—'}</div>
+          <div class="info-value">
+            ${general.main_power_source || safeParse(s.unit7_utilities)?.utility_electricity || safeParse(s.unit7_wash)?.power_source || '—'}
+          </div>
         </div>
         <div class="info-box">
-          <div class="info-label">Wiring Age / Meters</div>
-          <div class="info-value">${general?.wiring_age || '—'} (${general?.active_meters || 0} Meters)</div>
+          <div class="info-label">Active Meters</div>
+          <div class="info-value">${general.active_meters || 0} Meters</div>
         </div>
       </div>
 
@@ -325,36 +343,36 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
         <div class="info-box">
           <div class="info-label">Panel & Safety Checks</div>
           <div style="font-size: 11px; margin-top: 5px;">
-            <div>Panel Access: ${getBadge(general?.panel_clear)}</div>
-            <div>Labeled Switches: ${getBadge(general?.panel_labeled)}</div>
-            <div>Locked Cabinet: ${getBadge(general?.panel_locked)}</div>
+            <div>Panel Access: ${getBadge(general.panel_clear)}</div>
+            <div>Labeled Switches: ${getBadge(general.panel_labeled)}</div>
+            <div>Locked Cabinet: ${getBadge(general.panel_locked)}</div>
           </div>
         </div>
         <div class="info-box">
-          <div class="info-label">Wiring & Lighting Status</div>
+          <div class="info-label">Utility & Protection Features</div>
           <div style="font-size: 11px; margin-top: 5px;">
-            <div>Hallway Lights: ${getBadge(wiring?.lights_working, ['Working', 'Not Working', 'N/A'])}</div>
-            <div>Bare Wires: ${getBadge(wiring?.bare_wires_visible, ['DETECTED (⚠)', 'None', 'N/A'], ['#dc2626', '#059669', '#64748b'])}</div>
-            <div>Outlet Covers: ${getBadge(wiring?.outlet_covers_unbroken, ['Intact', 'Damaged', 'N/A'])}</div>
+            <div>Fire Exit Available: ${getBadge(s.u9_fire_exit_exists)}</div>
+            <div>Backup Lighting: ${getBadge(s.u9_backup_light_exists)}</div>
+            <div>Surge Protection: ${getBadge(s.u9_has_surge_protection)}</div>
           </div>
         </div>
       </div>
 
       <h3 style="font-size: 13px; color: var(--primary); margin-bottom: 5px; text-transform: uppercase;">Security & Disaster Readiness Inventory</h3>
-      ${renderInventoryTable(final?.items)}
+      ${renderInventoryTable()}
 
       <div class="grid" style="margin-top: 15px;">
         <div class="info-box">
-          <div class="info-label">Capactity & Protection</div>
+          <div class="info-label">Capacity & Readiness</div>
           <div style="font-size: 11px; margin-top: 5px;">
-            <div>e-Classroom Load Ready: ${getBadge(final?.ecart_load_ready)}</div>
-            <div>Surge Protection: ${getBadge(final?.has_surge_protection)}</div>
+            <div>e-Classroom Load Ready: ${getBadge(s.u9_ecart_load_ready)}</div>
+            <div>Wiring/Outlets Unbroken: ${getBadge(wiring.outlet_covers_unbroken)}</div>
           </div>
         </div>
         <div class="info-box">
           <div class="info-label">Auditor Remarks</div>
           <div style="font-size: 11px; font-style: italic; color: var(--text-dark); margin-top: 5px;">
-            "${final?.remarks || 'No additional remarks.'}"
+            "${s.u9_remarks || final.remarks || 'No additional remarks.'}"
           </div>
         </div>
       </div>
@@ -369,9 +387,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
         <thead>
           <tr style="background: #f1f5f9;">
             <th style="padding: 4px 8px; color: #475569; font-size: 10px;">Room Name</th>
-            <th style="padding: 4px 8px; color: #475569; font-size: 10px;">Usage / Grade Level</th>
-            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Dimensions</th>
-            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Condition</th>
+            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Sections Occupying It</th>
             <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Seats</th>
           </tr>
         </thead>
@@ -379,9 +395,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
           ${rooms.map(r => `
             <tr>
               <td style="padding: 4px 8px;">${r.room_name}</td>
-              <td style="padding: 4px 8px;">${r.grade_level || '—'}</td>
-              <td style="padding: 4px 8px;" class="text-center">${r.room_length > 0 ? `${r.room_length}m x ${r.room_width}m` : '—'}</td>
-              <td style="padding: 4px 8px;" class="text-center">${r.condition || '—'}</td>
+              <td style="padding: 4px 8px;" class="text-center">${(r.grade_level || "").replace(/;/g, ', ') || '—'}</td>
               <td style="padding: 4px 8px;" class="text-center">${r.seats || '0'}</td>
             </tr>
           `).join('')}
@@ -448,6 +462,23 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
   });
   const asOfDate = latestTimestamp ? latestTimestamp.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
 
+  // Format School Head Name combinations
+  const getSchoolHead = () => {
+    const { head_last_name, head_first_name, head_middle_name, school_head_lname, school_head_fname, school_head_mname, school_head } = s;
+    
+    // Priority 1: head_* columns (common in ph_schools)
+    if (head_last_name || head_first_name) {
+      return `${head_last_name || ''}, ${head_first_name || ''} ${head_middle_name || ''}`.trim().replace(/^, /, '');
+    }
+    
+    // Priority 2: school_head_* columns
+    if (school_head_lname || school_head_fname) {
+      return `${school_head_lname || ''}, ${school_head_fname || ''} ${school_head_mname || ''}`.trim().replace(/^, /, '');
+    }
+    
+    return school_head || '—';
+  };
+
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -508,11 +539,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
             </div>
             <div class="info-box">
               <div class="info-label">School Head</div>
-              <div class="info-value">${formatText(s.school_head)}</div>
-            </div>
-            <div class="info-box">
-              <div class="info-label">Contact Number</div>
-              <div class="info-value">${formatText(s.contact_number)}</div>
+              <div class="info-value">${getSchoolHead()}</div>
             </div>
             <div class="info-box">
               <div class="info-label">Curricular Offering</div>
@@ -839,22 +866,30 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
         <!-- UNIT 6: RESOURCES -->
         <section>
           <h2>Unit 6: School Resources & Utilities</h2>
+          
+          <div class="grid" style="margin-bottom: 15px;">
+            <div class="info-box" style="grid-column: span 3; background: #eff6ff; border: 1px solid #dbeafe;">
+              <div class="info-label" style="color: var(--primary);">Combined Utility Sources</div>
+              <div class="grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 5px;">
+                <div><strong>Water Source:</strong> ${safeParse(s.unit7_wash)?.water_source || '—'}</div>
+                <div><strong>Main Power Source:</strong> ${safeParse(s.unit7_utilities)?.utility_electricity || safeParse(s.u9_general)?.main_power_source || '—'}</div>
+                <div><strong>Internet Type:</strong> ${(s.u7_utility_internet_type || safeParse(s.unit7_ict)?.internet_type || safeParse(s.unit7_utilities)?.utility_internet_type) || 'None'}</div>
+              </div>
+            </div>
+          </div>
+
           <div class="grid">
             <div class="info-box" style="grid-column: span 1;">
-              <div class="info-label">Utility: Water & Sanitation</div>
+              <div class="info-label">Sanitation & WASH Facilities</div>
               <div class="info-value">${renderWashInfo(s.unit7_wash)}</div>
             </div>
             <div class="info-box" style="grid-column: span 1;">
-              <div class="info-label">Furniture summary</div>
+              <div class="info-label">Furniture Summary</div>
               <div class="info-value">${renderFurnitureInfo(s.unit7_furniture)}</div>
             </div>
             <div class="info-box" style="grid-column: span 2;">
               <div class="info-label">ICT Resources & Equipment</div>
               <div class="info-value">${renderICTInfo(s.unit7_ict)}</div>
-            </div>
-            <div class="info-box" style="grid-column: span 2;">
-              <div class="info-label">Utility: Internet</div>
-              <div class="info-value">${formatText(s.u7_utility_internet_type)}</div>
             </div>
           </div>
         </section>
@@ -862,14 +897,22 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
         <!-- UNIT 7: PHYSICAL FACILITIES -->
         <section>
           <h2>Unit 7: Physical Facilities (Building Inventory)</h2>
-          <div class="grid" style="margin-bottom: 10px;">
+          <div class="grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 10px;">
+            <div class="info-box">
+              <div class="info-label">Total Bldgs Registered</div>
+              <div class="info-value">${unit7Master ? unit7Master.length : ((parseInt(s.bldg_count_good) || 0) + (parseInt(s.bldg_count_minor_repair) || 0) + (parseInt(s.bldg_count_major_repair) || 0))}</div>
+            </div>
             <div class="info-box">
               <div class="info-label">Bldgs: Good Condition</div>
               <div class="info-value">${formatNumber(s.bldg_count_good)}</div>
             </div>
             <div class="info-box">
-              <div class="info-label">Bldgs: Minor / Major Repair</div>
-              <div class="info-value">${formatNumber(s.bldg_count_minor_repair)} / ${formatNumber(s.bldg_count_major_repair)}</div>
+              <div class="info-label">Bldgs: Minor Repair Required</div>
+              <div class="info-value">${formatNumber(s.bldg_count_minor_repair)}</div>
+            </div>
+            <div class="info-box">
+              <div class="info-label">Bldgs: Major Repair Required</div>
+              <div class="info-value">${formatNumber(s.bldg_count_major_repair)}</div>
             </div>
           </div>
           
@@ -880,7 +923,6 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
                 <div style="margin-bottom: 25px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; page-break-inside: avoid;">
                   <div style="background: var(--bg-light); padding: 10px 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
                     <div style="font-weight: 700; color: var(--primary); font-size: 15px;">${b.building_name}</div>
-                    <div style="font-size: 12px; color: var(--text-muted);">${b.category || '—'}</div>
                   </div>
                   <div style="padding: 15px;">
                     <div class="grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 15px;">
@@ -891,10 +933,6 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
                       <div>
                         <div class="info-label">Total Rooms</div>
                         <div class="info-value" style="font-size: 13px;">${b.no_of_classrooms || b.classroom || (b.rooms ? b.rooms.length : 0)}</div>
-                      </div>
-                      <div>
-                        <div class="info-label">Condition</div>
-                        <div class="info-value" style="font-size: 13px;">${b.status || '—'}</div>
                       </div>
                       <div>
                         <div class="info-label">Remarks</div>
@@ -923,10 +961,14 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
               <div class="info-box">
                 <div class="info-label">Road Type (Mun. Hall route)</div>
                 <div class="info-value">${unit8Terrain.road_paved_pct || 0}% Paved / ${unit8Terrain.road_unpaved_pct || 0}% Unpaved</div>
+                <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Passable for Public Transpo: ${unit8Terrain.road_passable_public_transpo_pct || 0}%</div>
               </div>
               <div class="info-box">
-                <div class="info-label">Transport Access</div>
-                <div class="info-value">Public Availability: ${unit8Terrain.public_transpo_availability || 0}/5</div>
+                <div class="info-label">Accessibility & Security</div>
+                <div style="font-size: 11px; margin-top: 5px;">
+                  <div>Weather Isolation: ${unit8Terrain.weather_isolation ? 'YES' : 'NO'}</div>
+                  <div>Insurgency Threats: ${unit8Terrain.has_insurgency_threats ? 'YES' : 'NO'}</div>
+                </div>
               </div>
               <div class="info-box">
                 <div class="info-label">River Crossing (on foot)</div>
@@ -946,28 +988,28 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
               <tbody>
                 <tr>
                   <td><strong>Hospital / Medical Clinic</strong></td>
-                  <td class="text-center">${unit8Terrain.proximity_hospital_km || '—'} km</td>
-                  <td class="text-center">${unit8Terrain.emergency_response_mins || '—'} mins</td>
+                  <td class="text-center">${unit8Terrain.proximity_hospital_km || '0'} km</td>
+                  <td class="text-center">${unit8Terrain.emergency_response_mins || '0'} mins</td>
                 </tr>
                 <tr>
                   <td><strong>Barangay Hall</strong></td>
-                  <td class="text-center">${unit8Terrain.proximity_brgy_hall_km || '—'} km</td>
-                  <td class="text-center">${unit8Terrain.proximity_brgy_hall_mins || '—'} mins</td>
+                  <td class="text-center">${unit8Terrain.proximity_brgy_hall_km || '0'} km</td>
+                  <td class="text-center">${unit8Terrain.proximity_brgy_hall_mins || '0'} mins</td>
                 </tr>
                 <tr>
                   <td><strong>Municipal Hall</strong></td>
-                  <td class="text-center">${unit8Terrain.proximity_muni_hall_km || '—'} km</td>
-                  <td class="text-center">${unit8Terrain.proximity_muni_hall_mins || '—'} mins</td>
+                  <td class="text-center">${unit8Terrain.proximity_muni_hall_km || '0'} km</td>
+                  <td class="text-center">${unit8Terrain.proximity_muni_hall_mins || '0'} mins</td>
                 </tr>
                 <tr>
                   <td><strong>Schools Division Office (SDO)</strong></td>
-                  <td class="text-center">${unit8Terrain.proximity_sdo_km || '—'} km</td>
-                  <td class="text-center">${unit8Terrain.proximity_sdo_mins || '—'} mins</td>
+                  <td class="text-center">${unit8Terrain.proximity_sdo_km || '0'} km</td>
+                  <td class="text-center">${unit8Terrain.proximity_sdo_mins || '0'} mins</td>
                 </tr>
                 <tr>
                   <td><strong>Public Transport Terminal</strong></td>
-                  <td class="text-center">${unit8Terrain.proximity_terminal_km || '—'} km</td>
-                  <td class="text-center">${unit8Terrain.proximity_terminal_mins || '—'} mins</td>
+                  <td class="text-center">${unit8Terrain.proximity_terminal_km || '0'} km</td>
+                  <td class="text-center">${unit8Terrain.proximity_terminal_mins || '0'} mins</td>
                 </tr>
               </tbody>
             </table>
