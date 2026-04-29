@@ -24,6 +24,7 @@ dist-ssr
 .Rproj.user
 .env
 server/.env
+.npmrc
 public/Oct2025-GMIS-Filled_Minified.csv
 public/956_hor_withbuildable-withownership-accessible-READY_TO_BUILD.csv
 **/service-account.json
