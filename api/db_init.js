@@ -76,7 +76,7 @@ const initUnit7Schema = async (client, dbLabel) => {
             );
         `);
 
-        // 4. Building Inventory Table
+        // 4. Buildings Inventory Table (ph_buildings_inventory)
         await client.query(`
             CREATE TABLE IF NOT EXISTS ph_buildings_inventory (
                 id SERIAL PRIMARY KEY,
@@ -503,6 +503,23 @@ const runMigrations = async (client, dbLabel) => {
         // console.log(`✅ [${dbLabel}] User Device Tokens Table Initialized`);
     } catch (tokenErr) {
         console.error(`❌ [${dbLabel}] Failed to init user_device_tokens:`, tokenErr.message);
+    }
+
+    // --- 4.1. WEB PUSH SUBSCRIPTIONS (Standard Browser Push) ---
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS user_web_push_subscriptions (
+                id SERIAL PRIMARY KEY,
+                uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+                subscription_json JSONB NOT NULL,
+                device_info TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT unique_user_subscription UNIQUE(uid, subscription_json)
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_uid ON user_web_push_subscriptions(uid);
+        `);
+    } catch (pushErr) {
+        console.error(`❌ [${dbLabel}] Failed to init user_web_push_subscriptions:`, pushErr.message);
     }
 
     // --- 5. USERS TABLE EXTENSIONS ---
@@ -1229,6 +1246,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS u7_confirm_no_piped        BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS u7_confirm_zero_wash       BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS u7_confirm_no_wired        BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS u7_confirm_no_space        BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS u7_utility_internet_type   TEXT,
             ADD COLUMN IF NOT EXISTS unit7                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit7_completed            BOOLEAN DEFAULT FALSE,
@@ -1246,6 +1264,20 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS it_pc_total                INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS it_printer_total           INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS it_ecart_total             INTEGER DEFAULT 0,
+
+            -- Unit 7 Master Columns (Mapping for Physical Facilities)
+            ADD COLUMN IF NOT EXISTS unit7_data                 JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_rooms                JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_repair               JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_demolition           JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_spaces               JSONB,
+            ADD COLUMN IF NOT EXISTS has_no_building            BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS build_classrooms_total     INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_new       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_good      INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_repair    INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_demolition INTEGER DEFAULT 0,
+
             ADD COLUMN IF NOT EXISTS unit8                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit8_completed            BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit8_updated_at           TIMESTAMPTZ;

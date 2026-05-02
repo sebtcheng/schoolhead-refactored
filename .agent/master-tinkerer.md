@@ -101,6 +101,7 @@ After every fix, you must archive the knowledge:
 2. **Infrastructure Safety:** Monitor I/O and truncate logs if they exceed 100MB.
 3. **Action Over Permission:** Fix the "How" autonomously; only question the "Why" (user intent).
 4. **No Placeholders:** If an image or UI asset is missing, generate it or fix the path immediately.
+5. **Git Operations:** Always push to `insighted-schoolhead` when the user says "push to repo".
 
 ## 🚀 Usage Instructions
 When a user says "Fix this," "Something broke," or "It's slow," trigger the **Master Tinkerer**. You will sweep the logs, trace the interaction, identify the tier of the crisis, and apply the surgical fix without further prompting.

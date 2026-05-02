@@ -383,6 +383,7 @@ const SchoolHeadDashboard = () => {
     const { completedForms, totalForms } = stats;
     // Prefer DB percentage if available to ensure consistency
     const progress = schoolProfile?.completion_percentage ?? (totalForms > 0 ? Math.round((completedForms / totalForms) * 100) : 0);
+    const validationProgress = schoolProfile?.validation_percentage ?? 0;
 
     return (
         <>
@@ -603,33 +604,45 @@ const SchoolHeadDashboard = () => {
                             </div>
                         )}
 
-                        {/* 1. Quick Stats Row */}
-                        <div className="grid grid-cols-3 gap-3">
-                            {/* Progress Card */}
-                            <div className="col-span-1 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700 flex flex-col justify-center items-center text-center">
-                                <div className="relative w-12 h-12 flex items-center justify-center mb-2">
+                        {/* 1. Quick Stats Grid */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Overall Progress Card */}
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700 flex flex-col justify-center items-center text-center">
+                                <div className="relative w-14 h-14 flex items-center justify-center mb-2">
                                     <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                                         <path className="text-slate-100 dark:text-slate-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
                                         <path className={`${progress === 100 ? 'text-green-500' : 'text-[#004A99] dark:text-blue-400'} transition-all duration-1000 ease-out`} strokeDasharray={`${progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
                                     </svg>
-                                    <span className="absolute text-[10px] font-bold text-slate-700 dark:text-slate-200">{progress}%</span>
+                                    <span className="absolute text-xs font-black text-slate-700 dark:text-slate-200">{progress}%</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Overall</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">Reported</p>
+                            </div>
+
+                            {/* Validation Progress Card */}
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700 flex flex-col justify-center items-center text-center">
+                                <div className="relative w-14 h-14 flex items-center justify-center mb-2">
+                                    <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                        <path className="text-slate-100 dark:text-slate-700" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
+                                        <path className={`${validationProgress === 100 ? 'text-emerald-500' : 'text-emerald-600 dark:text-emerald-400'} transition-all duration-1000 ease-out`} strokeDasharray={`${validationProgress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="4" />
+                                    </svg>
+                                    <span className="absolute text-xs font-black text-slate-700 dark:text-slate-200">{validationProgress}%</span>
+                                </div>
+                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">Validated</p>
                             </div>
 
                             {/* Forms Count */}
-                            <div className="col-span-1 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700 flex flex-col justify-center items-center text-center">
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-700 flex flex-col justify-center items-center text-center">
                                 <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/30 text-[#004A99] dark:text-blue-400 flex items-center justify-center mb-2">
                                     <LuFileCheck size={20} />
                                 </div>
                                 <p className="text-xl font-bold text-slate-800 dark:text-white leading-none">{completedForms}<span className="text-slate-300 dark:text-slate-600 text-sm">/{totalForms}</span></p>
-                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide mt-1">Forms</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Forms Sent</p>
                             </div>
 
                             {/* Data Health Score Highlight */}
                             <div
                                 onClick={() => !isValidating && handleValidateDataHealth(true)}
-                                className={`col-span-1 p-4 rounded-2xl shadow-xl flex flex-col justify-center items-center text-center text-white relative overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all duration-300 ${isValidating
+                                className={`p-4 rounded-2xl shadow-xl flex flex-col justify-center items-center text-center text-white relative overflow-hidden cursor-pointer hover:shadow-2xl hover:-translate-y-1 active:scale-95 transition-all duration-300 ${isValidating
                                     ? 'bg-gradient-to-br from-[#004A99] to-[#003377] dark:from-blue-600 dark:to-blue-800 shadow-blue-900/20'
                                     : schoolProfile?.data_health_score === 100
                                         ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 dark:from-emerald-600 dark:to-emerald-800 shadow-emerald-900/20'
@@ -645,15 +658,15 @@ const SchoolHeadDashboard = () => {
                                 {isValidating ? (
                                     <>
                                         <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent mb-1"></div>
-                                        <p className="text-[10px] text-blue-200 font-bold uppercase tracking-wide mt-1">
-                                            Checking Data Health
-                                            {healthCheckCountdown > 0 ? ` (${healthCheckCountdown}s)` : ' (Finalizing...)'}
+                                        <p className="text-[8px] text-blue-200 font-bold uppercase tracking-tight mt-1">
+                                            Scanning...
+                                            {healthCheckCountdown > 0 ? ` (${healthCheckCountdown}s)` : ''}
                                         </p>
                                     </>
                                 ) : (
                                     <>
                                         <p className="text-2xl font-bold leading-none">{schoolProfile?.data_health_score ?? '--'}</p>
-                                        <p className="text-[10px] text-blue-200 font-bold uppercase tracking-wide mt-1 flex items-center gap-1">Health Score <span className="opacity-70 lowercase font-normal">(tap to refresh)</span></p>
+                                        <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mt-1">Health Score</p>
                                     </>
                                 )}
                             </div>

@@ -3,7 +3,7 @@
  * Generates a printer-optimized HTML report for School Data.
  */
 
-export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRole) => {
+export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRole, unit7Repairs = []) => {
   const { schoolInfo = {}, progress = {} } = data;
   const s = data.data || {}; // Main ph_schools row
 
@@ -340,6 +340,17 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
         </div>
       </div>
 
+      <div class="grid" style="margin-bottom: 10px;">
+        <div class="info-box">
+          <div class="info-label">Wiring Age</div>
+          <div class="info-value">${general.wiring_age || '—'}</div>
+        </div>
+        <div class="info-box">
+          <div class="info-label">Last Full Inspection</div>
+          <div class="info-value">${general.last_inspection_year || '—'}</div>
+        </div>
+      </div>
+
       <div class="grid" style="margin-bottom: 15px;">
         <div class="info-box">
           <div class="info-label">Panel & Safety Checks</div>
@@ -362,6 +373,42 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
       <h3 style="font-size: 13px; color: var(--primary); margin-bottom: 5px; text-transform: uppercase;">Security & Disaster Readiness Inventory</h3>
       ${renderInventoryTable()}
 
+      <h3 style="font-size: 13px; color: var(--primary); margin-top: 20px; margin-bottom: 5px; text-transform: uppercase;">Electrical Maintenance & Spares Inventory</h3>
+      ${(() => {
+        const spareRows = [
+          { label: 'Light Bulbs', key: 'light_bulbs', colPrefix: 'bulbs' },
+          { label: 'Outlet Covers', key: 'outlet_covers', colPrefix: 'covers' },
+          { label: 'Circuit Breakers', key: 'circuit_breakers', colPrefix: 'breakers' },
+          { label: 'Extension Cords', key: 'extension_cords', colPrefix: 'cords' },
+        ];
+
+        const getSpareVal = (r, type) => {
+          if (final.items && final.items[r.key]) return final.items[r.key][type] || 0;
+          return s[`u9_${r.colPrefix}_${type}`] || 0;
+        };
+
+        const tape = final.items?.electrical_tape?.total || s.u9_tape_quantity || 0;
+
+        return `
+          <table style="font-size: 11px; margin-top: 5px;">
+            <thead>
+              <tr><th style="padding:4px;">Electrical Spares</th><th style="padding:4px;" class="text-center">Working</th><th style="padding:4px;" class="text-center">Broken</th><th style="padding:4px;" class="text-center">Spares</th></tr>
+            </thead>
+            <tbody>
+              ${spareRows.map(r => `
+                <tr>
+                  <td>${r.label}</td>
+                  <td class="text-center font-bold">${getSpareVal(r, 'working')}</td>
+                  <td class="text-center">${getSpareVal(r, 'broken')}</td>
+                  <td class="text-center">${getSpareVal(r, 'spares')}</td>
+                </tr>
+              `).join('')}
+              <tr><td>Electrical Tape</td><td colspan="3" class="text-center font-bold">${tape} ROLLS</td></tr>
+            </tbody>
+          </table>
+        `;
+      })()}
+
       <div class="grid" style="margin-top: 15px;">
         <div class="info-box">
           <div class="info-label">Capacity & Readiness</div>
@@ -380,7 +427,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
     `;
   };
 
-  const renderRoomsTable = (rooms) => {
+  const renderRoomsTable = (rooms, buildingName, allRepairs = []) => {
     if (!rooms || rooms.length === 0) return '<p style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">No room details reported.</p>';
     
     return `
@@ -388,18 +435,34 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
         <thead>
           <tr style="background: #f1f5f9;">
             <th style="padding: 4px 8px; color: #475569; font-size: 10px;">Room Name</th>
-            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Sections Occupying It</th>
-            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Seats</th>
+            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Dimension</th>
+            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Condition</th>
+            <th style="padding: 4px 8px; color: #475569; font-size: 10px;" class="text-center">Occupants / Seats</th>
           </tr>
         </thead>
         <tbody>
-          ${rooms.map(r => `
-            <tr>
-              <td style="padding: 4px 8px;">${r.room_name}</td>
-              <td style="padding: 4px 8px;" class="text-center">${(r.grade_level || "").replace(/;/g, ', ') || '—'}</td>
-              <td style="padding: 4px 8px;" class="text-center">${r.seats || '0'}</td>
-            </tr>
-          `).join('')}
+          ${rooms.map(r => {
+            const roomRepairs = allRepairs.filter(rep => rep.building_name === buildingName && rep.room_name === r.room_name);
+            const repairParts = roomRepairs.map(rep => rep.item_name).join(', ');
+            const conditionColor = (r.condition || "").toLowerCase().includes('repair') ? '#dc2626' : '#059669';
+
+            return `
+              <tr>
+                <td style="padding: 4px 8px;">
+                  <div style="font-weight: 700;">${r.room_name}</div>
+                  ${repairParts ? `<div style="font-size: 9px; color: #dc2626; margin-top: 2px;">⚠️ Needs Repair: ${repairParts}</div>` : ''}
+                </td>
+                <td style="padding: 4px 8px;" class="text-center">${r.dimension || '—'}</td>
+                <td style="padding: 4px 8px;" class="text-center">
+                  <span style="color: ${conditionColor}; font-weight: 700;">${r.condition || 'Good'}</span>
+                </td>
+                <td style="padding: 4px 8px;" class="text-center">
+                  <div style="font-size: 10px;">${(r.grade_level || "").replace(/;/g, ', ') || '—'}</div>
+                  <div style="font-size: 9px; color: var(--text-muted);">${r.seats || '0'} Seats</div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;
@@ -936,13 +999,15 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
                         <div class="info-value" style="font-size: 13px;">${b.no_of_classrooms || b.classroom || (b.rooms ? b.rooms.length : 0)}</div>
                       </div>
                       <div>
-                        <div class="info-label">Remarks</div>
-                        <div class="info-value" style="font-size: 13px;">${b.remarks || '—'}</div>
+                        <div class="info-label">Building Condition</div>
+                        <div class="info-value" style="font-size: 13px; color: ${(b.status || "").toLowerCase().includes('repair') ? '#dc2626' : '#059669'};">
+                          ${b.status || 'Good Condition'}
+                        </div>
                       </div>
                     </div>
                     
                     <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px;">Room Inventory Details</div>
-                    ${renderRoomsTable(b.rooms)}
+                    ${renderRoomsTable(b.rooms, b.building_name, unit7Repairs)}
                   </div>
                 </div>
               `).join('')}
@@ -967,12 +1032,23 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
               <div class="info-box">
                 <div class="info-label">Accessibility & Security</div>
                 <div style="font-size: 11px; margin-top: 5px;">
-                  <div><strong>Insurgency Threats:</strong> ${unit8Terrain.has_insurgency_threats ? (unit8Terrain.insurgency_threats_6mo > 0 ? `YES (${unit8Terrain.insurgency_threats_6mo} incidences in past 6mo)` : 'YES') : 'NO'}</div>
+                  <div style="margin-bottom: 4px;"><strong>Insurgency Threats:</strong> ${unit8Terrain.has_insurgency_threats ? (unit8Terrain.insurgency_threats_6mo > 0 ? `YES (${unit8Terrain.insurgency_threats_6mo} incidences in past 6mo)` : 'YES') : 'NO'}</div>
+                  
+                  <div style="margin-top: 8px;">
+                    <div class="info-label" style="font-size: 9px; margin-bottom: 4px;">Anthropogenic Threats (Past 6 Months)</div>
+                    <div class="tag-container">
+                      ${(() => {
+                        const threats = typeof unit8Terrain.anthropogenic_threats === 'string' ? JSON.parse(unit8Terrain.anthropogenic_threats || '[]') : (unit8Terrain.anthropogenic_threats || []);
+                        if (threats.length === 0) return '<span style="color: var(--text-muted); font-style: italic; font-size: 10px;">None reported.</span>';
+                        return threats.map(t => `<span class="tag tag-red">${t.type} (${t.incidences})</span>`).join('');
+                      })()}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="info-box">
                 <div class="info-label">River Crossing (on foot)</div>
-                <div class="info-value">${unit8Terrain.river_crossing_on_foot ? `YES (${unit8Terrain.river_crossing_count} sites)` : 'NO'}</div>
+                <div class="info-value">${unit8Terrain.river_crossing_on_foot ? `YES (${unit8Terrain.river_crossing_count} river crossings)` : 'NO'}</div>
               </div>
             </div>
 
@@ -1043,16 +1119,7 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
                   })()}
                 </div>
 
-                <div class="info-label">Anthropogenic Threats (Social Conflicts)</div>
-                <div class="tag-container">
-                  ${(() => {
-                    const threats = typeof unit8Terrain.anthropogenic_threats === 'string' ? JSON.parse(unit8Terrain.anthropogenic_threats || '[]') : (unit8Terrain.anthropogenic_threats || []);
-                    if (threats.length === 0) return '<span style="color: var(--text-muted); font-style: italic;">No threats reported.</span>';
-                    return threats.map(t => `<span class="tag tag-red">${t.type} (${t.incidences})</span>`).join('');
-                  })()}
-                </div>
-                
-                <div class="info-label" style="margin-top: 15px;">Other Hazards Experienced</div>
+                <div class="info-label" style="margin-top: 5px;">Other Hazards Experienced</div>
                 <div class="tag-container">
                   ${(() => {
                     let haz = [];
@@ -1096,8 +1163,8 @@ export const generateSchoolReportHTML = (data, unit7Master, unit8Terrain, userRo
   return html;
 };
 
-export const downloadPrintableReport = (data, unit7Master, unit8Terrain, userRole) => {
-  const html = generateSchoolReportHTML(data, unit7Master, unit8Terrain, userRole);
+export const downloadPrintableReport = (data, unit7Master, unit8Terrain, userRole, unit7Repairs = []) => {
+  const html = generateSchoolReportHTML(data, unit7Master, unit8Terrain, userRole, unit7Repairs);
   const printWindow = window.open('', '_blank');
   printWindow.document.write(html);
   printWindow.document.close();

@@ -187,12 +187,71 @@ export const ServiceWorkerProvider = ({ children }) => {
         }
     };
 
+    /**
+     * PUSH NOTIFICATIONS: Request permission and register browser subscription.
+     * Integrates with the backend /api/save-subscription endpoint.
+     */
+    const subscribeToPushNotifications = async () => {
+        if (!registration) {
+            console.error('[Push] No service worker registration available');
+            return false;
+        }
+
+        try {
+            // 1. Fetch the Public Key from our server
+            const response = await fetch('api/vapid-public-key');
+            if (!response.ok) throw new Error("Failed to fetch VAPID key");
+            const { publicKey } = await response.json();
+            
+            if (!publicKey) {
+                console.error("[Push] VAPID Public Key missing from server response");
+                return false;
+            }
+
+            // 2. Request Browser Permission
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                console.warn('[Push] Notification permission denied by user');
+                return false;
+            }
+
+            // 3. Register the subscription with the browser's Push Service
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: publicKey
+            });
+
+            // 4. Send the subscription object to our PostgreSQL backend
+            const saveResponse = await fetch('api/save-subscription', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subscription,
+                    deviceInfo: navigator.userAgent
+                })
+            });
+
+            if (saveResponse.ok) {
+                console.log('✅ [Push] Subscription synced with InsightEd backend.');
+                return true;
+            } else {
+                const errData = await saveResponse.json();
+                console.error('❌ [Push] Failed to save subscription to server:', errData.error);
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ [Push] Subscription process failed:', error);
+            return false;
+        }
+    };
+
     const value = {
         isUpdateAvailable,
         updateApp,
         checkForUpdates,
         registration,
-        hardReset // Exposed
+        hardReset,
+        subscribeToPushNotifications
     };
 
     return (
