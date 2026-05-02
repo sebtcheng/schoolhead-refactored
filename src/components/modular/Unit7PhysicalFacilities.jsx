@@ -1065,9 +1065,14 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     above_7x9: roomsData.filter(r => r.building_local_id === b.id && (r.dimension || '').toLowerCase() === 'above 7x9').length
                 }));
 
+            const finalRooms = roomsData.map(r => ({
+                ...r,
+                seats: (r.grade_level || "").includes("Non-Instructional") ? null : r.seats
+            }));
+
             const payload = {
                 schoolId, school_id: schoolId, iern: schoolData?.iern,
-                inventoryEntries: inventoryPayload, rooms: roomsData, repairEntries: repairPayload,
+                inventoryEntries: inventoryPayload, rooms: finalRooms, repairEntries: repairPayload,
                 demolitionEntries: demolitionEntries, // Add this line
                 build_classrooms_total, build_classrooms_new, build_classrooms_good,
                 build_classrooms_repair, build_classrooms_demolition,
@@ -1142,9 +1147,14 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     remarks: a.remarks
                 }));
 
+                const finalRooms = roomsData.map(r => ({
+                    ...r,
+                    seats: (r.grade_level || "").includes("Non-Instructional") ? null : r.seats
+                }));
+
                 const outboxPayload = {
                     schoolId, school_id: schoolId, iern: schoolData?.iern,
-                    inventoryEntries: buildings, rooms: roomsData, repairEntries: repairPayload,
+                    inventoryEntries: buildings, rooms: finalRooms, repairEntries: repairPayload,
                     build_classrooms_total: roomsData.length,
                     spaces: spaces,
                     has_no_building: hasNoBuilding
@@ -2206,11 +2216,12 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                                                                 if (isSelected) {
                                                                                                                     newGrades = currentGrades.filter(x => x !== g.label);
                                                                                                                 } else {
-                                                                                                                    newGrades = [...new Set([...currentGrades, g.label])];
+                                                                                                                    // If selecting a standard grade, remove "Non-Instructional"
+                                                                                                                    newGrades = [...new Set([...currentGrades.filter(x => x !== "Non-Instructional"), g.label])];
                                                                                                                 }
                                                                                                                 const joined = newGrades.join(';');
                                                                                                                 logGradeState(room.id, joined);
-                                                                                                                setRoomsData(roomsData.map(r => r.id === room.id ? { ...r, grade_level: joined } : r));
+                                                                                                                setRoomsData(roomsData.map(r => r.id === room.id ? { ...r, grade_level: joined, seats: newGrades.includes("Non-Instructional") ? null : r.seats } : r));
                                                                                                             }}
                                                                                                             className={`text-[10px] font-black px-3 py-1.5 rounded-lg border-2 transition-all ${isSelected
                                                                                                                     ? "bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm"
@@ -2235,11 +2246,12 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                                                     if (isSelected) {
                                                                                                         newGrades = currentGrades.filter(x => x !== "Non-Instructional");
                                                                                                     } else {
-                                                                                                        newGrades = [...new Set([...currentGrades, "Non-Instructional"])];
+                                                                                                        // If selecting "Non-Instructional", clear all other grades
+                                                                                                        newGrades = ["Non-Instructional"];
                                                                                                     }
                                                                                                     const joined = newGrades.join(';');
                                                                                                     logGradeState(room.id, joined);
-                                                                                                    setRoomsData(roomsData.map(r => r.id === room.id ? { ...r, grade_level: joined } : r));
+                                                                                                    setRoomsData(roomsData.map(r => r.id === room.id ? { ...r, grade_level: joined, seats: newGrades.includes("Non-Instructional") ? null : r.seats } : r));
                                                                                                 }}
                                                                                                 className={`text-[10px] font-black px-3 py-1.5 rounded-lg border-2 transition-all ${parseGradeLevel(room.grade_level).includes("Non-Instructional")
                                                                                                         ? "bg-slate-100 border-slate-500 text-slate-700 shadow-sm"
@@ -2252,7 +2264,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                                     </div>
                                                                                 </div>
 
-                                                                                {!isBuildingCondemned && (
+                                                                                {!isBuildingCondemned && !parseGradeLevel(room.grade_level).includes("Non-Instructional") && (
                                                                                     <div>
                                                                                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Total Seats</label>
                                                                                         <input
@@ -2291,16 +2303,16 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                                                                     </button>
                                                                                 </div>
                                                                             </div>
-                                                                        </motion.div>
+                                                                                        </motion.div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
                                                                     );
-                                                                })}
-                                                </div>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </motion.div>
-                    )}
+                                                                })()}
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
 
                     {/* ────────────────────────────────────────────────────────
                     PHASE 5: Repair Assessment
@@ -2504,7 +2516,10 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                     const activeBuilding = buildings.find(b => b.id === activeBuildingId);
                                     const isBldgCondemned = activeBuilding?.status === "For Condemnation";
                                     if (!isBldgCondemned) {
-                                        const missingSeats = bRooms.find(r => !r.seats || r.seats === "" || r.seats === "0");
+                                        const missingSeats = bRooms.find(r => {
+                                            const isNonInstructional = (r.grade_level || "").includes("Non-Instructional");
+                                            return !isNonInstructional && (!r.seats || r.seats === "" || r.seats === "0");
+                                        });
                                         if (missingSeats) {
                                             setValidationModal({ roomName: missingSeats.room_name });
                                             return;
