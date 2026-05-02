@@ -9,7 +9,7 @@ import {
     FiLogOut,
     FiLock
 } from 'react-icons/fi';
-import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX } from "react-icons/tb";
+import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
@@ -70,7 +70,11 @@ const NodesDashboard = () => {
     }, [user]);
 
     const handleCardClick = (route, id) => {
+        if (route.startsWith('http')) {
+            window.location.href = route;
+        } else {
             navigate(route);
+        }
     };
 
     const calculateProgress = (unitIds) => {
@@ -136,7 +140,21 @@ const NodesDashboard = () => {
             description: 'CLOUD will look into getting to know more about a school.',
             isLocked: dynamicLocks['school-info'] || false,
         },
-        // ESF7 Hub removed
+        {
+            id: 'esf7',
+            title: 'eSF7 Hub',
+            subtitle: 'Inventory',
+            emoji: '☁️',
+            icon: <TbCloudSearch className="w-8 h-8" />,
+            color: 'from-blue-500 to-indigo-600',
+            textColor: 'text-blue-600',
+            bgLight: 'bg-blue-50',
+            progress: 0,
+            route: 'https://stride.deped.gov.ph/insighted/insighted-esf7/',
+            badge: 'COMING SOON',
+            description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
+            isLocked: true,
+        },
         {
             id: 'nspp',
             title: 'NSPP Path',
