@@ -42,7 +42,8 @@ const NodesDashboard = () => {
                             setQuestProgress({
                                 ...json.data.progress,
                                 schoolId: schoolId,
-                                school_name: json.data.schoolInfo?.school_name
+                                school_name: json.data.schoolInfo?.school_name,
+                                is_esf7_opened: json.data.schoolInfo?.is_esf7_opened
                             });
                         }
                     }
@@ -150,10 +151,10 @@ const NodesDashboard = () => {
             textColor: 'text-blue-600',
             bgLight: 'bg-blue-50',
             progress: 0,
-            route: 'https://stride.deped.gov.ph/insighted/insighted-esf7/',
-            badge: 'COMING SOON',
+            route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
+            badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
             description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
-            isLocked: true,
+            isLocked: !questProgress.is_esf7_opened,
         },
         {
             id: 'nspp',

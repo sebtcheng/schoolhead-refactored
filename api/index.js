@@ -297,7 +297,7 @@ const RegisterBetaSchema = z.object({
 });
 
 // --- DATABASE CONNECTION ---
-const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:<REDACTED_PGB_PASS>@20.24.58.49:6432/insightEd';
+const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd';
 const isLoopback = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
 const isVmProxy = dbUrl.includes('20.24.58.49') || dbUrl.includes('127.0.0.1');
 // [Hawkeye Protocol] Throttling is only for local dev machines (localhost/loopback) NOT in staging/production modes.
@@ -2250,8 +2250,8 @@ app.delete('/api/ph_schools/unit7/spaces/:spaceId', async (req, res) => {
   try {
     const { spaceId } = req.params;
     await client.query('BEGIN');
-    // Bypass deletion protection trigger
-    await client.query("SET LOCAL app.allow_deletion = 'true'");
+    // Bypass deletion protection trigger (Nuclear Lock)
+    await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
     await client.query('DELETE FROM ph_school_buildable_spaces WHERE id = $1', [spaceId]);
     await client.query('COMMIT');
     res.json({ success: true });
@@ -2285,7 +2285,7 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
     const { schoolId } = req.params;
 
     const schoolRes = await pool.query(
-      `SELECT ps.school_id, ps.school_name, ps.region, ps.division, ps.unit_completion,
+      `SELECT ps.school_id, ps.school_name, ps.region, ps.division, ps.unit_completion, ps.is_esf7_opened,
        ps.unit1, ps.unit2, ps.unit3, ps.unit4, ps.unit5, ps.unit6, ps.unit7, ps.unit8, ps.unit9,
        ps.unit1_completed, ps.unit2_completed, ps.unit3_completed, ps.unit4_completed,
        ps.unit5_completed, ps.unit6_completed, ps.unit7_completed, ps.unit8_completed, ps.unit9_completed,
@@ -2327,7 +2327,8 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
           school_id: school.school_id,
           school_name: school.school_name,
           region: school.region,
-          division: school.division
+          division: school.division,
+          is_esf7_opened: school.is_esf7_opened === true || String(school.is_esf7_opened) === 'true'
         },
         progress: {
           percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0,
@@ -2411,8 +2412,8 @@ app.post('/api/save-physical-facilities', async (req, res) => {
     console.log(`🏗️ [Unit 7 Master] Processing payload for school ${school_id}...`);
 
     await client.query('BEGIN');
-    // Bypass deletion protection trigger for Unit 7 normalization
-    await client.query("SET LOCAL app.allow_deletion = 'true'");
+    // Bypass deletion protection trigger for Unit 7 normalization (Nuclear Lock)
+    await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
 
     // 1. DUAL-WRITE: Update ph_schools summary counters and JSON blobs (for frontend reconstruction)

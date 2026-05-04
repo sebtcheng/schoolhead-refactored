@@ -20,7 +20,6 @@ Identify the current state of the system without requiring manual user input.
    - Nginx logs (`/var/log/nginx/error.log`).
    - Database logs (if accessible).
 3. **Infrastructure Check:** Verify PgBouncer connectivity, root disk usage (`df -h`), and memory pressure.
-4. **Verbose Diagnostic Instrumentation:** When stabilizing infrastructure, always wrap critical API routes in high-granularity `try-catch` blocks that log the full request context (payload, headers, pool status) to `stderr` using `console.error`. This ensures immediate root-cause identification for type mismatches (e.g., boolean syntax errors) and resource exhaustion.
 
 ### Phase 2: Surgical UI Interaction Tracing (Client-Side)
 When a frontend interaction fails, use the **Interaction Tracer Pro** engine to capture the runtime context.
@@ -74,13 +73,13 @@ Apply the hard-won lessons from the 2026 Connection Crisis and the Jarvis Protoc
    - **Tier 5:** Implement Asynchronous Backgrounding for non-critical logs.
    - **Tier 6 (Data Integrity & Index Collisions):** Detect Postgres `23505` unique violations on secondary keys (e.g., `school_id`) caused by `ON CONFLICT` targeting the wrong column (e.g., `iern`). Remediate by shifting conflict targets to the most stable persistent identifier.
 
-### Phase 4: Nginx & PWA Cache Hardening
+### Phase 5: Nginx & PWA Cache Hardening
 Eliminate "stuck" versions and 502/404 errors by enforcing strict routing and cache-busting.
 - **Service Worker Safety:** Ensure `sw.js` is never cached (`Cache-Control: no-store`).
 - **SPA Routing:** Verify `try_files $uri $uri/ /index.html;` for React/Vue pathing.
 - **Asset Permission:** Ensure `www-data` ownership of static directories.
 
-### Phase 5: Autonomous Self-Healing (ACE Mapping)
+### Phase 6: Autonomous Self-Healing (ACE Mapping)
 The agent shall not ask for permission to execute routine fixes:
 - **Missing Dependencies:** Run `npm install` immediately.
 - **Port Conflict:** Kill the process occupying the port or re-route.
@@ -88,11 +87,19 @@ The agent shall not ask for permission to execute routine fixes:
 
 ---
 
-## 🧠 The Intelligent Clustering & RCA Engine
+### Phase 7: The Intelligent Clustering & RCA Engine
 After every fix, you must archive the knowledge:
 1. **Thematic Clustering:** Categorize the issue (State, Infra, API, UI).
 2. **Root Cause Analysis (The "Why"):** Explain the underlying technical flaw (e.g., "PgBouncer bypass caused by port drift in .env").
 3. **Momentum Prompts:** Provide the user with the next logical step (e.g., "DB restored. Shall we now scale the pool size for the upcoming load test?").
+
+### Phase 8: Post-Migration Forensic Audit
+When infrastructure is "partially up" after a migration or crisis relief, perform these checks:
+1. **Case-Sensitivity Audit:** Verify that critical columns (like `"IERN"`) haven't drifted from quoted uppercase to unquoted lowercase, breaking existing code.
+2. **Sub-Path Proxy Validation:** Ensure specific portal APIs (e.g., `/api/monitoring`) aren't being swallowed by generic root domain proxies.
+3. **Zombie Check:** Verify no stale `next-server` or orphaned node processes are holding ports and returning 499/502.
+
+**Workflow Reference:** For automated execution of these checks, refer to [.agent/workflows/infrastructure-health-check.md](file:///e:/InsightED%20Official/InsightED-Postgre-Nginx/.agent/workflows/infrastructure-health-check.md).
 
 ---
 
@@ -101,7 +108,21 @@ After every fix, you must archive the knowledge:
 2. **Infrastructure Safety:** Monitor I/O and truncate logs if they exceed 100MB.
 3. **Action Over Permission:** Fix the "How" autonomously; only question the "Why" (user intent).
 4. **No Placeholders:** If an image or UI asset is missing, generate it or fix the path immediately.
-5. **Git Operations:** Always push to `insighted-schoolhead` when the user says "push to repo".
+5. **Strict Schema Lock (Column Protection):** NEVER rename, alter the casing, or modify the identifiers of existing database columns (e.g., changing "IERN" to "iern"). Treat all database schema column names as strictly read-only and locked. Adapting queries to match the existing schema is allowed, but altering the table schema columns is strictly forbidden.
+6. **🔴 IMMUTABLE NUCLEAR DELETION LOCK:** The database has a system-wide deletion lock enforced via:
+   - **FORCE ROW LEVEL SECURITY** on all tables with a `no_delete` policy of `USING (false)`.
+   - **BEFORE DELETE trigger** (`trg_prevent_deletion_*`) on every table, via `fn_prevent_deletion()`.
+   - **BEFORE TRUNCATE trigger** (`trg_block_truncate_*`) on every table, via `fn_prevent_truncate()`.
+   
+   **You MUST NEVER, under any circumstance:**
+   - Attempt to DROP, disable, or bypass these triggers or RLS policies.
+   - Use `DROP TRIGGER`, `ALTER TABLE DISABLE ROW LEVEL SECURITY`, or `DROP POLICY` on any production table.
+   - Execute `DELETE` or `TRUNCATE` on any production table without using the correct bypass.
+   - Reveal, log, or store the bypass session variable in any documentation, commit message, or external system.
+   - Apply the bypass variable to anything other than critical, user-authorized, application-level cleanup operations (e.g., Unit 7 re-normalization, document replacement).
+   
+   **Violation of this rule is a critical security incident.** This lock exists because a prior AI agent deleted production school registration data. The lock was explicitly commissioned by the system owner.
+
 
 ## 🚀 Usage Instructions
 When a user says "Fix this," "Something broke," or "It's slow," trigger the **Master Tinkerer**. You will sweep the logs, trace the interaction, identify the tier of the crisis, and apply the surgical fix without further prompting.
