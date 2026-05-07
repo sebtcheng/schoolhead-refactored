@@ -2567,14 +2567,14 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                             >
                                 Next Step <FiArrowRight className="w-6 h-6" />
                             </button>
-                        ) : (
+                        ) : currentPage !== 6 ? (
                             <button
                                 onClick={() => setCurrentPage(currentPage + 1)}
                                 className="flex-1 py-5 rounded-3xl bg-indigo-500 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-600 transition-all border-b-[6px] border-indigo-700 active:border-b-0 active:translate-y-[6px]"
                             >
                                 Next Step <FiArrowRight className="w-6 h-6" />
                             </button>
-                        )}
+                        ) : null}
                     </div>
                 </footer>
             )}

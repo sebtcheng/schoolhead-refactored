@@ -2320,6 +2320,21 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
     // Fetch gamification from ph_school_completion
     const completionRes = await pool.query('SELECT * FROM ph_school_completion WHERE school_id = $1', [schoolId]);
 
+    // 10. Fetch eSF7 Hub progress based on esf7_link status
+    const esf7Res = await pool.query(
+      'SELECT status FROM esf7_link WHERE school_id = $1 ORDER BY updated_at DESC LIMIT 1',
+      [schoolId]
+    );
+    let esf7Progress = 0;
+    if (esf7Res.rowCount > 0) {
+      const status = esf7Res.rows[0].status;
+      if (['SUBMITTED', 'PROCESSING', 'QUEUE'].includes(status)) {
+        esf7Progress = 50;
+      } else if (status === 'VERIFIED') {
+        esf7Progress = 100;
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -2333,6 +2348,7 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
         progress: {
           percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0,
           validation_percentage: school.validation_percentage ? parseFloat(school.validation_percentage) : 0,
+          esf7_progress: esf7Progress,
           completedUnits: completedUnits,
           flags: flags,
           validationFlags: validationFlags,
