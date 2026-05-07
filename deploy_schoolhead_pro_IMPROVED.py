@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import subprocess
 import os
 import sys
@@ -61,7 +62,7 @@ def main():
 
     # 4. Bundled Remote Execution (Self-Healing & Speed)
     print("[4/5] REMOTE extraction, production install, and PM2 reset...")
-    # TINKERER FIX: Using joined commands for Windows/SSH compatibility and adding Disk Check
+    remote_script = (
         f"cd {REMOTE_ROOT} && "
         f"tar -xzf {ARCHIVE_NAME} && "
         f"sudo chown -R {REMOTE_USER}:{REMOTE_USER} {REMOTE_ROOT} && "
@@ -73,7 +74,6 @@ def main():
         f"pm2 flush {PM2_NAME} && "
         f"pm2 delete {PM2_NAME} 2>/dev/null || true && "
         f"pm2 start {ECOSYSTEM_CONFIG} && "
-        "pm2 save && "
         f"rm {ARCHIVE_NAME}"
     )
     
