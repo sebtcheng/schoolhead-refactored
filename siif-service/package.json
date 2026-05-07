@@ -1,0 +1,23 @@
+{
+  "name": "insighted-siif-service",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Isolated SIIF (School Innovation & Improvement Fund) microservice for InsightEd",
+  "scripts": {
+    "dev:api": "node --watch api/index.js",
+    "dev:ui": "npm run dev --prefix ui",
+    "dev:full": "concurrently -n \"API,UI\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev:api\" \"npm run dev:ui\""
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
