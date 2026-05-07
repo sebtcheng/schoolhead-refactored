@@ -297,7 +297,7 @@ const RegisterBetaSchema = z.object({
 });
 
 // --- DATABASE CONNECTION ---
-const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd';
+const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd';
 const isLoopback = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
 const isVmProxy = dbUrl.includes('20.24.58.49') || dbUrl.includes('127.0.0.1');
 // [Hawkeye Protocol] Throttling is only for local dev machines (localhost/loopback) NOT in staging/production modes.
@@ -326,12 +326,17 @@ const { Pool } = pg;
 const pool = new Pool({
   connectionString: dbUrl,
   ssl: (isLoopback || isVmProxy) ? false : { rejectUnauthorized: false }, 
-  max: isLocal ? 10 : 15, // THROTTLED: Prevents 'Long Queue' by aligning with PgBouncer server pool
-  min: isLocal ? 1 : 4,
-  idleTimeoutMillis: 10000, 
-  connectionTimeoutMillis: 30000, // Faster failure to prevent worker backup
-  maxUses: 5000,
+  max: isLocal ? 10 : 12, // PgBouncer safe capacity (12 workers * 8 workers = 96)
+  min: isLocal ? 1 : 5,   // Balanced warm connections
+  idleTimeoutMillis: 60000, 
+  connectionTimeoutMillis: 10000, // Hardened timeout (v7)
+  maxUses: 7500, // Recycle connections to maintain stability (v7)
+  keepAlive: true, // CRITICAL: Prevents Azure from dropping connections
   application_name: isLocal ? 'InsightEd_Local_Dev' : 'InsightEd_API_Cluster'
+});
+
+pool.on('connect', (client) => {
+  // console.log('✅ [DB-POOL] New connection established');
 });
 
 pool.on('error', (err) => {
@@ -2173,7 +2178,12 @@ app.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
     const repairRes = await pool.query(`
       SELECT r.*, i.less_than_7x9, i."7x9", i.above_7x9 
       FROM ph_buildings_repairs r
-      LEFT JOIN ph_buildings_inventory i ON r.school_id = i.school_id 
+      LEFT JOIN (
+          SELECT DISTINCT ON (school_id, building_name, room_name) 
+                 school_id, building_name, room_name, less_than_7x9, "7x9", above_7x9
+          FROM ph_buildings_inventory
+          ORDER BY school_id, building_name, room_name, id DESC
+      ) i ON r.school_id = i.school_id 
         AND r.building_name = i.building_name 
         AND r.room_name = i.room_name
       WHERE r.school_id = $1
@@ -2438,11 +2448,12 @@ app.post('/api/save-physical-facilities', async (req, res) => {
     // 2. NORMALIZATION: Populate specialized tables
     
     // Clear old records for this school to ensure a clean audit state
-    console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id}...`);
-    await client.query('DELETE FROM ph_buildings_inventory WHERE school_id = $1', [school_id]);
-    await client.query('DELETE FROM ph_buildings_repairs WHERE school_id = $1', [school_id]);
-    await client.query('DELETE FROM ph_buildings_demolition WHERE school_id = $1', [school_id]);
-    await client.query('DELETE FROM ph_school_buildable_spaces WHERE school_id = $1', [school_id]);
+    console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id} (IERN: ${iern})...`);
+    const clearQuery = (table) => `DELETE FROM ${table} WHERE school_id = $1 OR iern = $2`;
+    await client.query(clearQuery('ph_buildings_inventory'), [school_id, iern]);
+    await client.query(clearQuery('ph_buildings_repairs'), [school_id, iern]);
+    await client.query(clearQuery('ph_buildings_demolition'), [school_id, iern]);
+    await client.query(clearQuery('ph_school_buildable_spaces'), [school_id, iern]);
 
     // A. Building Inventory (Mapping Rooms list to ph_buildings_inventory)
     if (Array.isArray(rooms) && rooms.length > 0) {
@@ -2546,7 +2557,8 @@ app.post('/api/save-physical-facilities', async (req, res) => {
           await client.query(
             `INSERT INTO ph_school_buildable_spaces (
               school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (iern, space_name) DO NOTHING`,
             [
               school_id, iern, s.space_name, 
               isNaN(lat) ? 0 : lat, isNaN(lng) ? 0 : lng, 
@@ -3061,15 +3073,18 @@ app.post('/api/auth/migrate-login', async (req, res) => {
       return resObj.rows[0];
     };
 
+    // ✅ [POOL FIX] Explicitly acquire + release connection BEFORE bcrypt to prevent
+    // pool starvation. bcrypt.compare() is CPU-bound (~200ms) and must NOT hold a slot.
     let user;
+    const loginClient = await pool.connect();
     try {
-      const userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      const userRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
       user = processUserRes(userRes);
     } catch (err) {
       console.error(`💥 [MIGRATE LOGIN] DB Error for ${identifier}:`, err.message);
       if (err.message.includes('terminated unexpectedly')) {
         try {
-          const retryRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+          const retryRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
           user = processUserRes(retryRes);
         } catch (retryErr) {
           console.error(`💥 [RECOVERY FAILED]:`, retryErr.message);
@@ -3078,6 +3093,8 @@ app.post('/api/auth/migrate-login', async (req, res) => {
       } else {
         throw err;
       }
+    } finally {
+      loginClient.release(); // ✅ FREE the slot before slow bcrypt work begins
     }
 
     if (!user) {
@@ -3108,16 +3125,16 @@ app.post('/api/auth/migrate-login', async (req, res) => {
 
       isValid = await scrypt.verify(password, user.password_salt, user.password_hash);
 
-      // --- THE LAZY UPGRADE ---
+      // --- THE LAZY UPGRADE --- (fire-and-forget; does NOT block login response)
       if (isValid) {
         console.log(`[LAZY MIGRATION] Upgrading hash for user: ${user.email}`);
         const saltRounds = 10;
-        const newBcryptHash = await bcrypt.hash(password, saltRounds);
-
-        await pool.query(
-          `UPDATE users SET password_hash = $1, password_salt = NULL, hash_version = 'bcrypt' WHERE uid = $2`,
-          [newBcryptHash, user.uid]
-        );
+        bcrypt.hash(password, saltRounds).then(newBcryptHash => {
+          pool.query(
+            `UPDATE users SET password_hash = $1, password_salt = NULL, hash_version = 'bcrypt' WHERE uid = $2`,
+            [newBcryptHash, user.uid]
+          ).catch(e => console.error('[LAZY MIGRATION] Update failed:', e.message));
+        }).catch(e => console.error('[LAZY MIGRATION] Hash failed:', e.message));
       }
     } else {
       // Catch-all for unknown hash versions
@@ -3140,10 +3157,11 @@ app.post('/api/auth/migrate-login', async (req, res) => {
         finalCategory = user.role;
       }
 
-      // Lazy update the DB if it changed or was null
+      // Lazy update the DB if it changed or was null (fire-and-forget)
       if (finalCategory !== user.account_category) {
         console.log(`[MIGRATE LOGIN] Normalizing category for ${identifier}: ${finalCategory}`);
-        await pool.query('UPDATE users SET account_category = $1 WHERE uid = $2', [finalCategory, user.uid]);
+        pool.query('UPDATE users SET account_category = $1 WHERE uid = $2', [finalCategory, user.uid])
+          .catch(e => console.error('[MIGRATE LOGIN] Category update failed:', e.message));
       }
     }
 
@@ -3502,24 +3520,19 @@ app.post('/api/auth/pin-login', async (req, res) => {
       ? `SELECT ${selectCols} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
       : `SELECT ${selectCols} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
-    let userRes;
+    let user;
+    const client = await pool.connect();
     try {
-      userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
-    } catch (err) {
-      if (err.message.includes('terminated unexpectedly')) {
-        console.warn(`♻️ [RECOVERY] Attempting immediate retry for Pin-Login for: ${identifier}`);
-        userRes = await pool.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
-      } else {
-        throw err;
-      }
+      const userRes = await client.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      if (userRes.rowCount > 0) user = userRes.rows[0];
+    } finally {
+      client.release(); // ✅ FREE the slot before slow bcrypt work begins
     }
 
-
-    if (userRes.rowCount === 0) {
+    if (!user) {
       return res.status(401).json({ success: false, error: "Username does not exist. Kindly register first." });
     }
 
-    const user = userRes.rows[0];
     if (!user.passcode) {
       return res.status(401).json({ success: false, error: "No PIN setup for this account." });
     }
@@ -3747,14 +3760,20 @@ const startServer = async () => {
         
         if (isPrimaryWorker) {
             console.log("🏗️ [Primary] Running boot-time migrations...");
-            const migClient = await pool.connect();
+            // ✅ [RESILIENCE FIX] Migrations are non-fatal. If the pool is under pressure
+            // at startup (e.g. during a rolling restart under traffic), log the error and
+            // continue. Migrations are idempotent — they will be applied on the next cycle.
             try {
-                await initOtpTable(migClient);
-                await runMigrations(migClient, 'Primary');
-                // initESF7Tables removed
-                console.log("✅ [Primary] Pre-flight migrations complete.");
-            } finally {
-                migClient.release();
+                const migClient = await pool.connect();
+                try {
+                    await initOtpTable(migClient);
+                    await runMigrations(migClient, 'Primary');
+                    console.log("✅ [Primary] Pre-flight migrations complete.");
+                } finally {
+                    migClient.release();
+                }
+            } catch (migErr) {
+                console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
             }
         } else {
             console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
