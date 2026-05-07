@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { FiSearch, FiChevronRight, FiMapPin, FiBarChart2, FiHardDrive, FiFileText, FiTrendingUp, FiCheckCircle, FiClock, FiBell, FiRefreshCw } from 'react-icons/fi';
+import { TbShieldCheck, TbShieldX } from 'react-icons/tb';
 import debounce from 'lodash/debounce'; // If lodash is available? Probably not efficiently. Let's write a simple hook or utility.
 
 // Simple debounce utility since we might not have lodash
@@ -107,8 +108,14 @@ const SchoolJurisdictionList = () => {
         }
     };
 
-    const StatusBadge = ({ active, label }) => (
-        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+    const StatusBadge = ({ active, validated, label }) => (
+        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full transition-all ${
+            validated 
+                ? 'bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-200' 
+                : active 
+                    ? 'bg-emerald-100 text-emerald-600' 
+                    : 'bg-slate-100 text-slate-400'
+        }`}>
             {label}
         </span>
     );
@@ -185,32 +192,47 @@ const SchoolJurisdictionList = () => {
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ID: {school.school_id}</p>
 
                                             {/* COMPLETION INDICATOR */}
-                                            {(() => {
-                                                const isComplete = school.u1_status && school.u2_status && school.u3_status &&
-                                                    school.u4_status && school.u5_status && school.u6_status &&
-                                                    school.u7_status && school.u8_status && school.u9_status;
-                                                return isComplete ? (
-                                                    <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                        <FiCheckCircle size={10} /> Completed
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {(() => {
+                                                    const isComplete = school.u1_status && school.u2_status && school.u3_status &&
+                                                        school.u4_status && school.u5_status && school.u6_status &&
+                                                        school.u7_status && school.u8_status && school.u9_status;
+                                                    return isComplete ? (
+                                                        <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                            <FiCheckCircle size={10} /> Reported
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1 text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                                            <FiClock size={10} /> {Math.round(school.completion_percentage)}%
+                                                        </span>
+                                                    );
+                                                })()}
+
+                                                {/* VALIDATION INDICATOR */}
+                                                {school.needs_validation ? (
+                                                    <span className="flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider ring-1 ring-amber-200">
+                                                        <TbShieldX size={10} /> Needs Validation
                                                     </span>
                                                 ) : (
-                                                    <span className="flex items-center gap-1 text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                                        <FiClock size={10} /> {Math.round(school.completion_percentage)}%
-                                                    </span>
-                                                );
-                                            })()}
+                                                    school.validation_percentage === 100 && (
+                                                        <span className="flex items-center gap-1 text-[10px] font-black text-white bg-emerald-500 px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+                                                            <TbShieldCheck size={10} /> Validated
+                                                        </span>
+                                                    )
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
-                                        <StatusBadge active={school.u1_status} label="Info" />
-                                        <StatusBadge active={school.u2_status} label="Enrol" />
-                                        <StatusBadge active={school.u3_status} label="Class" />
-                                        <StatusBadge active={school.u4_status} label="Stats" />
-                                        <StatusBadge active={school.u5_status} label="Mode" />
-                                        <StatusBadge active={school.u6_status} label="Staff" />
-                                        <StatusBadge active={school.u7_status} label="Bldg" />
-                                        <StatusBadge active={school.u8_status} label="Site" />
-                                        <StatusBadge active={school.u9_status} label="Safety" />
+                                        <StatusBadge active={school.u1_status} validated={school.unit1_validated} label="Info" />
+                                        <StatusBadge active={school.u2_status} validated={school.unit2_validated} label="Enrol" />
+                                        <StatusBadge active={school.u3_status} validated={school.unit3_validated} label="Class" />
+                                        <StatusBadge active={school.u4_status} validated={school.unit4_validated} label="Stats" />
+                                        <StatusBadge active={school.u5_status} validated={school.unit5_validated} label="Mode" />
+                                        <StatusBadge active={school.u6_status} validated={school.unit6_validated} label="Staff" />
+                                        <StatusBadge active={school.u7_status} validated={school.unit7_validated} label="Bldg" />
+                                        <StatusBadge active={school.u8_status} validated={school.unit8_validated} label="Site" />
+                                        <StatusBadge active={school.u9_status} validated={school.unit9_validated} label="Safety" />
                                     </div>
                                 </div>
 

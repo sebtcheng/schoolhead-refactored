@@ -72,6 +72,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
             proximity_highway_km: 0,
             cellular_coverage: 'Strong',
             weather_isolation: false,
+            weather_isolation_6mo: 0,
             natural_calamities: [],
             anthropogenic_threats: [],
             road_passable_public_transpo_pct: 100
@@ -92,6 +93,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
     const watchPassability = watch('road_passable_public_transpo_pct');
     const watchRiverFoot = watch('river_crossing_on_foot');
     const watchThreats = watch('anthropogenic_threats') || [];
+    const watchWeatherIsolation = watch('weather_isolation');
     
     // Watch all 14 reference point fields for reactive validation
     const watchedRefPoints = watch([
@@ -111,6 +113,11 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
             setValue('road_unpaved_pct', 100 - paved);
         }
     }, [watchPaved, setValue]);
+
+    // [UX] Auto-scroll to top when step changes
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [currentStep]);
 
     useEffect(() => {
         const fetchExisting = async () => {
@@ -149,10 +156,8 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
             'proximity_highway_mins', 'proximity_highway_km'
         ];
         
-        const sumRefPoints = refPointsFields.reduce((acc, field) => acc + (parseFloat(data[field]) || 0), 0);
-        
-        if (sumRefPoints <= 0) {
-            alert("Error: You must provide at least one non-zero point of reference (time or distance) before marking Unit 9 as accomplished.");
+        if (!isStep3Valid()) {
+            alert("Error: All points of reference (Time and Distance) must have non-zero values before submitting the Unit 8 profile.");
             setCurrentStep(3); // Services step contains points of reference
             return;
         }
@@ -308,7 +313,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
             // The old ALL-fields guard was too strict — schools adjacent to a service
             // legitimately have 0 km/0 min for that entry.
             if (!isStep3Valid()) {
-                alert("Please provide at least one non-zero point of reference (time or distance) before proceeding.");
+                alert("Please provide valid non-zero values for ALL points of reference (both Time and Distance) before proceeding.");
                 return;
             }
         }
@@ -353,12 +358,12 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
     };
 
     const isStep3Valid = () => {
-        // Valid if at least ONE reference-point field has a non-zero numeric value.
-        // Mirrors the server-side sumRefPoints > 0 check in onSubmit.
-        // The old ALL-fields-must-be-non-zero check incorrectly blocked users whose
-        // school is adjacent to a service (0 km/0 min) or who leave unused rows at 0.
-        const sum = watchedRefPoints.reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
-        return sum > 0;
+        // Strict Validation: Every reference-point field (14 in total) must have a non-zero numeric value.
+        // This ensures the auditor provides both time and distance for all 7 required points of reference.
+        return watchedRefPoints.every(val => {
+            const num = parseFloat(val);
+            return !isNaN(num) && num > 0;
+        });
     };
 
     const renderStepContent = () => {

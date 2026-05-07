@@ -9,7 +9,7 @@ import {
     FiLogOut,
     FiLock
 } from 'react-icons/fi';
-import { TbReportAnalytics, TbTarget } from "react-icons/tb";
+import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
@@ -18,7 +18,7 @@ import PageTransition from '../components/PageTransition';
 const NodesDashboard = () => {
     const navigate = useNavigate();
     const { user, logout, confirmLogout } = useAuth();
-    const [questProgress, setQuestProgress] = useState({ completedUnits: [], xp: 0 });
+    const [questProgress, setQuestProgress] = useState({ completedUnits: [], xp: 0, validation_percentage: 0 });
     const [loading, setLoading] = useState(true);
     const [isNavigating, setIsNavigating] = useState(false);
     const [showEdWelcome, setShowEdWelcome] = useState(false);
@@ -42,7 +42,8 @@ const NodesDashboard = () => {
                             setQuestProgress({
                                 ...json.data.progress,
                                 schoolId: schoolId,
-                                school_name: json.data.schoolInfo?.school_name
+                                school_name: json.data.schoolInfo?.school_name,
+                                is_esf7_opened: json.data.schoolInfo?.is_esf7_opened
                             });
                         }
                     }
@@ -70,7 +71,11 @@ const NodesDashboard = () => {
     }, [user]);
 
     const handleCardClick = (route, id) => {
+        if (route.startsWith('http')) {
+            window.location.href = route;
+        } else {
             navigate(route);
+        }
     };
 
     const calculateProgress = (unitIds) => {
@@ -103,13 +108,28 @@ const NodesDashboard = () => {
             id: 'school-info',
             title: 'CLOUD',
             subtitle: (
-                <span className="inline-flex items-baseline flex-wrap gap-x-0.5">
-                    <span className="text-[14px] text-slate-800 font-extrabold mr-[1px]">C</span>onsole for 
-                    <span className="text-[14px] text-slate-800 font-extrabold ml-1 mr-[1px]">L</span>earning and 
-                    <span className="text-[14px] text-slate-800 font-extrabold ml-1 mr-[1px]">O</span>peration in 
-                    <span className="text-[14px] text-slate-800 font-extrabold ml-1 mr-[1px]">U</span>nified 
-                    <span className="text-[14px] text-slate-800 font-extrabold ml-1 mr-[1px]">D</span>atabase
-                </span>
+                <div className="flex flex-col gap-1 mt-2">
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[15px] text-[#004A99] font-black w-4">C</span>
+                        <span className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">onsole for</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[15px] text-[#004A99] font-black w-4">L</span>
+                        <span className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">earning and</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[15px] text-[#004A99] font-black w-4">O</span>
+                        <span className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">peration in</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[15px] text-[#004A99] font-black w-4">U</span>
+                        <span className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">nified</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-[15px] text-[#004A99] font-black w-4">D</span>
+                        <span className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">atabase</span>
+                    </div>
+                </div>
             ),
             emoji: '🏛️',
             icon: <FiBookOpen className="w-8 h-8" />,
@@ -121,7 +141,21 @@ const NodesDashboard = () => {
             description: 'CLOUD will look into getting to know more about a school.',
             isLocked: dynamicLocks['school-info'] || false,
         },
-        // ESF7 Hub removed
+        {
+            id: 'esf7',
+            title: 'eSF7 Hub',
+            subtitle: 'Inventory',
+            emoji: '☁️',
+            icon: <TbCloudSearch className="w-8 h-8" />,
+            color: 'from-blue-500 to-indigo-600',
+            textColor: 'text-blue-600',
+            bgLight: 'bg-blue-50',
+            progress: 0,
+            route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
+            badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
+            description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
+            isLocked: !questProgress.is_esf7_opened,
+        },
         {
             id: 'nspp',
             title: 'NSPP Path',
@@ -209,9 +243,28 @@ const NodesDashboard = () => {
                                                 <motion.span 
                                                     initial={{ scale: 0.5, opacity: 0 }}
                                                     animate={{ scale: 1, opacity: 1 }}
-                                                    className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest ${isPrimary ? 'bg-emerald-400 text-white shadow-emerald-900/20' : 'bg-emerald-500 text-white shadow-emerald-500/30'} shadow-lg border border-emerald-400 flex items-center gap-1`}
+                                                    className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest flex items-center gap-1 shadow-lg border 
+                                                        ${(mod.id === 'school-info' && questProgress.validation_percentage === 100)
+                                                            ? 'bg-emerald-600 text-white shadow-emerald-500/40 border-emerald-400'
+                                                            : (mod.id === 'school-info' && questProgress.validation_percentage < 100)
+                                                            ? 'bg-red-500 text-white shadow-red-500/30 border-red-400 animate-pulse'
+                                                            : isPrimary ? 'bg-emerald-400 text-white shadow-emerald-900/20 border-emerald-400' 
+                                                            : 'bg-emerald-500 text-white shadow-emerald-500/30 border-emerald-400'}
+                                                    `}
                                                 >
-                                                    <FiAward size={10} /> COMPLETED
+                                                    {(mod.id === 'school-info' && questProgress.validation_percentage === 100) ? (
+                                                        <>
+                                                            <TbShieldCheck size={10} /> VALIDATED
+                                                        </>
+                                                    ) : (mod.id === 'school-info' && questProgress.validation_percentage < 100) ? (
+                                                        <>
+                                                            <TbShieldX size={10} /> NEEDS VALIDATION
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FiAward size={10} /> COMPLETED
+                                                        </>
+                                                    )}
                                                 </motion.span>
                                             )}
                                             <FiMoreVertical className={isPrimary ? 'text-blue-200/50' : 'text-slate-300'} />

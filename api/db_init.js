@@ -76,7 +76,7 @@ const initUnit7Schema = async (client, dbLabel) => {
             );
         `);
 
-        // 4. Building Inventory Table
+        // 4. Buildings Inventory Table (ph_buildings_inventory)
         await client.query(`
             CREATE TABLE IF NOT EXISTS ph_buildings_inventory (
                 id SERIAL PRIMARY KEY,
@@ -156,6 +156,7 @@ const initUnit8Schema = async (client, dbLabel) => {
                     proximity_highway_km NUMERIC DEFAULT 0,
                     cellular_coverage TEXT,
                     weather_isolation BOOLEAN DEFAULT FALSE,
+                    weather_isolation_6mo INTEGER DEFAULT 0,
                     anthropogenic_threats JSONB DEFAULT '[]',
                     risk_index TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -502,6 +503,23 @@ const runMigrations = async (client, dbLabel) => {
         // console.log(`✅ [${dbLabel}] User Device Tokens Table Initialized`);
     } catch (tokenErr) {
         console.error(`❌ [${dbLabel}] Failed to init user_device_tokens:`, tokenErr.message);
+    }
+
+    // --- 4.1. WEB PUSH SUBSCRIPTIONS (Standard Browser Push) ---
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS user_web_push_subscriptions (
+                id SERIAL PRIMARY KEY,
+                uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
+                subscription_json JSONB NOT NULL,
+                device_info TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT unique_user_subscription UNIQUE(uid, subscription_json)
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_uid ON user_web_push_subscriptions(uid);
+        `);
+    } catch (pushErr) {
+        console.error(`❌ [${dbLabel}] Failed to init user_web_push_subscriptions:`, pushErr.message);
     }
 
     // --- 5. USERS TABLE EXTENSIONS ---
@@ -995,6 +1013,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS head_date_of_birth         TEXT,
             ADD COLUMN IF NOT EXISTS head_date_hired            TEXT,
             ADD COLUMN IF NOT EXISTS ownership_na_reason        TEXT,
+            ADD COLUMN IF NOT EXISTS is_esf7_opened             BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit1                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit1_completed            BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS submitted_by               TEXT,
@@ -1228,6 +1247,7 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS u7_confirm_no_piped        BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS u7_confirm_zero_wash       BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS u7_confirm_no_wired        BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS u7_confirm_no_space        BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS u7_utility_internet_type   TEXT,
             ADD COLUMN IF NOT EXISTS unit7                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit7_completed            BOOLEAN DEFAULT FALSE,
@@ -1245,6 +1265,20 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS it_pc_total                INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS it_printer_total           INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS it_ecart_total             INTEGER DEFAULT 0,
+
+            -- Unit 7 Master Columns (Mapping for Physical Facilities)
+            ADD COLUMN IF NOT EXISTS unit7_data                 JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_rooms                JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_repair               JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_demolition           JSONB,
+            ADD COLUMN IF NOT EXISTS unit7_spaces               JSONB,
+            ADD COLUMN IF NOT EXISTS has_no_building            BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS build_classrooms_total     INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_new       INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_good      INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_repair    INTEGER DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS build_classrooms_demolition INTEGER DEFAULT 0,
+
             ADD COLUMN IF NOT EXISTS unit8                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit8_completed            BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit8_updated_at           TIMESTAMPTZ;
@@ -1506,6 +1540,73 @@ const runMigrations = async (client, dbLabel) => {
     // --- 26. UNIT 7: PHYSICAL FACILITIES ---
     await initUnit7Schema(client, dbLabel);
 
+
+    // --- 20. GLOBAL DELETION & TRUNCATION PROTECTION (Nuclear Lock) ---
+    // Applies RLS, FORCE RLS, a mathematical no_delete policy, TRUNCATE trigger,
+    // and a DELETE trigger to EVERY table in the public schema.
+    // Bypass: SET LOCAL internal.authorized_app_deletion = 'true' within a transaction.
+    try {
+        console.log(`🛡️ [${dbLabel}] Enforcing GLOBAL Deletion Protection (Nuclear Lock)...`);
+
+        // 1. Truncation Prevention Function
+        await client.query(`
+            CREATE OR REPLACE FUNCTION fn_prevent_truncate()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                RAISE EXCEPTION '❌ [MASTER TINKERER SENTINEL] TRUNCATE is prohibited on this production instance.';
+            END;
+            $$ LANGUAGE plpgsql;
+        `);
+
+        // 2. Deletion Prevention Function (with authorized bypass)
+        await client.query(`
+            CREATE OR REPLACE FUNCTION fn_prevent_deletion()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                -- Authorized bypass: SET LOCAL internal.authorized_app_deletion = 'true'
+                IF current_setting('internal.authorized_app_deletion', true) = 'true' THEN
+                    RETURN OLD;
+                END IF;
+                RAISE EXCEPTION '❌ [MASTER TINKERER SENTINEL] LOCKED_RESOURCE_DELETION_PROHIBITED: Deletion is prohibited for this table. (Table: %)', TG_TABLE_NAME;
+            END;
+            $$ LANGUAGE plpgsql;
+        `);
+
+        // 3. Apply to ALL tables dynamically (catches any new tables created at runtime)
+        const allTablesRes = await client.query(`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        `);
+
+        for (const row of allTablesRes.rows) {
+            const t = row.table_name;
+            try {
+                // Enable and force RLS
+                await client.query(`ALTER TABLE ${JSON.stringify(t)} ENABLE ROW LEVEL SECURITY`);
+                await client.query(`ALTER TABLE ${JSON.stringify(t)} FORCE ROW LEVEL SECURITY`);
+
+                // Mathematically impossible DELETE policy
+                await client.query(`DROP POLICY IF EXISTS no_delete ON ${JSON.stringify(t)}`);
+                await client.query(`CREATE POLICY no_delete ON ${JSON.stringify(t)} FOR DELETE USING (false)`);
+
+                // TRUNCATE trigger
+                const truncTrigger = 'trg_block_truncate_' + t;
+                await client.query(`DROP TRIGGER IF EXISTS ${JSON.stringify(truncTrigger)} ON ${JSON.stringify(t)}`);
+                await client.query(`CREATE TRIGGER ${JSON.stringify(truncTrigger)} BEFORE TRUNCATE ON ${JSON.stringify(t)} FOR EACH STATEMENT EXECUTE FUNCTION fn_prevent_truncate()`);
+
+                // DELETE trigger
+                const delTrigger = 'trg_prevent_deletion_' + t;
+                await client.query(`DROP TRIGGER IF EXISTS ${JSON.stringify(delTrigger)} ON ${JSON.stringify(t)}`);
+                await client.query(`CREATE TRIGGER ${JSON.stringify(delTrigger)} BEFORE DELETE ON ${JSON.stringify(t)} FOR EACH ROW EXECUTE FUNCTION fn_prevent_deletion()`);
+            } catch (tErr) {
+                // Non-fatal — log and continue to next table
+                console.warn(`⚠️ [${dbLabel}] Could not harden table "${t}": ${tErr.message}`);
+            }
+        }
+        console.log(`✅ [${dbLabel}] Global Deletion Protection (Nuclear Lock) enforced on ${allTablesRes.rows.length} tables.`);
+    } catch (protectErr) {
+        console.error(`❌ [${dbLabel}] Failed to enforce global deletion protection:`, protectErr.message);
+    }
 
     } catch (globalErr) {
         console.error(`❌ [${dbLabel}] Global migration error:`, globalErr.message);

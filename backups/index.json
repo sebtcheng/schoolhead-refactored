@@ -1,0 +1,24 @@
+[
+  {
+    "id": "20260428_145510",
+    "label": "Stable Build - Post Optimization & Decoupling",
+    "archive": "frozen_20260428_145510.tar.gz",
+    "timestamp": "2026-04-28T14:55:31.881119",
+    "git": {
+      "branch": "feature/ipc-migration-20260420",
+      "commit": "8482d6285137e8e66e31a7a53e5843391cef5a8f",
+      "message": "chore: remove obsolete googleapis, xlsx, and pg-boss dependencies"
+    }
+  },
+  {
+    "id": "20260428_150408",
+    "label": "Isolated1",
+    "archive": "frozen_20260428_150408.tar.gz",
+    "timestamp": "2026-04-28T15:04:26.948903",
+    "git": {
+      "branch": "feature/ipc-migration-20260420",
+      "commit": "8482d6285137e8e66e31a7a53e5843391cef5a8f",
+      "message": "chore: remove obsolete googleapis, xlsx, and pg-boss dependencies"
+    }
+  }
+]

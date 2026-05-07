@@ -53,6 +53,46 @@ const RepairEntryModal = ({
                     />
                 </div>
 
+                {/* Room Size Category */}
+                <div className="mb-5">
+                    <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Room Size Category (Qty)</label>
+                    <div className="grid grid-cols-3 gap-2">
+                        <div className="flex flex-col items-center p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1">{"<"} 7x9</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={roomModalData.less_than_7x9 || 0}
+                                onChange={(e) => setRoomModalData(prev => ({ ...prev, less_than_7x9: parseInt(e.target.value) || 0 }))}
+                                disabled={readOnly}
+                                className="w-full text-center bg-transparent font-bold text-slate-700 outline-none"
+                            />
+                        </div>
+                        <div className="flex flex-col items-center p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1">7x9</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={roomModalData["7x9"] || 0}
+                                onChange={(e) => setRoomModalData(prev => ({ ...prev, "7x9": parseInt(e.target.value) || 0 }))}
+                                disabled={readOnly}
+                                className="w-full text-center bg-transparent font-bold text-slate-700 outline-none"
+                            />
+                        </div>
+                        <div className="flex flex-col items-center p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1">{">"} 7x9</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={roomModalData.above_7x9 || 0}
+                                onChange={(e) => setRoomModalData(prev => ({ ...prev, above_7x9: parseInt(e.target.value) || 0 }))}
+                                disabled={readOnly}
+                                className="w-full text-center bg-transparent font-bold text-slate-700 outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 {/* Repair Checklist */}
                 {/* Repair Checklist (Detailed) */}
                 <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Detailed Item Assessment</label>

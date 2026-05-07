@@ -442,8 +442,30 @@ const Register = () => {
 
     // --- HANDLERS ---
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+        
+        // Cascading State Sync (for lookups)
+        if (name === 'region') {
+            setSelectedRegion(value);
+            setSelectedDivision('');
+            setSelectedDistrict('');
+            setSelectedMunicipality('');
+            setSelectedSchool(null);
+        }
+        if (name === 'division') {
+            setSelectedDivision(value);
+            setSelectedDistrict('');
+            setSelectedMunicipality('');
+            setSelectedSchool(null);
+        }
+        if (name === 'district') {
+            setSelectedDistrict(value);
+            setSelectedMunicipality('');
+            setSelectedSchool(null);
+        }
     };
+
 
     const handleRoleChange = (e) => {
         const newRole = e.target.value;
@@ -1568,11 +1590,18 @@ const Register = () => {
                                                             )}
                                                             
                                                             {formData.role === 'School Division Office' && (
-                                                                <select name="division" onChange={handleChange} value={formData.division} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={!formData.region} required>
-                                                                    <option value="">Select Division</option>
-                                                                    {divisions.map(d => <option key={d} value={d}>{d}</option>)}
-                                                                </select>
+                                                                <>
+                                                                    <select name="division" onChange={handleChange} value={formData.division} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={!formData.region} required>
+                                                                        <option value="">Select Division</option>
+                                                                        {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+                                                                    </select>
+                                                                    <select name="district" onChange={handleChange} value={formData.district || selectedDistrict || ''} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={!formData.division} required>
+                                                                        <option value="">Select District</option>
+                                                                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                                                                    </select>
+                                                                </>
                                                             )}
+
 
                                                             <select name="office" value={formData.office} onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" required>
                                                                 <option value="">Select Office/Bureau</option>
@@ -1592,11 +1621,18 @@ const Register = () => {
                                                                 {regions.map(r => <option key={r} value={r}>{r}</option>)}
                                                             </select>
                                                             {formData.role !== 'Regional Engineer' && (
-                                                                <select name="division" onChange={handleChange} value={formData.division} className="w-full bg-white border border-teal-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-teal-500" required>
-                                                                    <option value="">Select Division</option>
-                                                                    {divisions.map(d => <option key={d} value={d}>{d}</option>)}
-                                                                </select>
+                                                                <>
+                                                                    <select name="division" onChange={handleChange} value={formData.division} className="w-full bg-white border border-teal-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-teal-500" required>
+                                                                        <option value="">Select Division</option>
+                                                                        {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+                                                                    </select>
+                                                                    <select name="district" onChange={handleChange} value={formData.district || selectedDistrict || ''} className="w-full bg-white border border-teal-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50" disabled={!formData.division}>
+                                                                        <option value="">Select District</option>
+                                                                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                                                                    </select>
+                                                                </>
                                                             )}
+
                                                             <select name="position" value={formData.position} onChange={handleChange} className="w-full bg-white border border-teal-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-teal-500" required>
                                                                 <option value="">Select Position</option>
                                                                 <option value="Engineer II">Engineer II</option>

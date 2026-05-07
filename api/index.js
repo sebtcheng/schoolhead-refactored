@@ -25,6 +25,7 @@ const admin = {
   credential: { cert: () => ({}) }, 
   initializeApp: () => ({}) 
 };
+import webpush from 'web-push';
 import nodemailer from 'nodemailer'; // --- NODEMAILER ---
 
 import { initOtpTable, runMigrations } from './db_init.js';
@@ -59,6 +60,20 @@ import authMiddleware from './middleware/authMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+// --- WEB PUSH CONFIGURATION ---
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(
+    'mailto:helpdesk.stride@gmail.com',
+    vapidPublicKey,
+    vapidPrivateKey
+  );
+  console.log("✅ Web Push VAPID Details Set");
+} else {
+  console.warn("⚠️ VAPID keys missing in .env. Push notifications will be disabled.");
+}
 
 // --- [Hawkeye Protocol] Global Safety Handlers (v1.0) ---
 process.on('unhandledRejection', (reason, promise) => {
@@ -282,9 +297,9 @@ const RegisterBetaSchema = z.object({
 });
 
 // --- DATABASE CONNECTION ---
-const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:<REDACTED_PGB_PASS>@20.24.58.49:6432/insightEd';
+const dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd';
 const isLoopback = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
-const isVmProxy = dbUrl.includes('20.24.58.49');
+const isVmProxy = dbUrl.includes('20.24.58.49') || dbUrl.includes('127.0.0.1');
 // [Hawkeye Protocol] Throttling is only for local dev machines (localhost/loopback) NOT in staging/production modes.
 const isLocal = isLoopback && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';
 
@@ -305,18 +320,17 @@ const logActivity = (userUid, userName, role, actionType, targetEntity, details,
 
 
 const { Pool } = pg;
-// [Hawkeye Protocol v4.0 — Unified Cloud Scaling]
-// Azure DB supports 1718 connections. PgBouncer supports 2000 clients & 500 pool size.
-// Following the root cause fix (restoring 6432 proxy), we scale to 100 connections per worker.
-// 8 workers × 100 = 800 clients multiplexed by PgBouncer (500) into Azure (1718).
+// [Hawkeye Protocol v4.1 — Emergency Stabilization]
+// Azure DB supports 1718 connections. PgBouncer server pool is expanded to 100.
+// Throttling Node pool to 15 per worker (8 workers * 15 = 120) to prevent PgBouncer saturation.
 const pool = new Pool({
   connectionString: dbUrl,
-  ssl: (isLoopback || isVmProxy) ? false : { rejectUnauthorized: false }, // Maintain SSL: false for Proxy
-  max: isLocal ? 20 : 100, // Throttled ONLY on dev machines; full scale for VM Proxy
-  min: isLocal ? 2 : 10,
-  idleTimeoutMillis: isLocal ? 30000 : 15000, // More patient locally for network latency
-  connectionTimeoutMillis: 10000, 
-  maxUses: 7500,
+  ssl: (isLoopback || isVmProxy) ? false : { rejectUnauthorized: false }, 
+  max: isLocal ? 10 : 15, // THROTTLED: Prevents 'Long Queue' by aligning with PgBouncer server pool
+  min: isLocal ? 1 : 4,
+  idleTimeoutMillis: 10000, 
+  connectionTimeoutMillis: 30000, // Faster failure to prevent worker backup
+  maxUses: 5000,
   application_name: isLocal ? 'InsightEd_Local_Dev' : 'InsightEd_API_Cluster'
 });
 
@@ -643,6 +657,304 @@ app.use((req, res, next) => {
     });
   }
   next();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [QUEST] UNIT 1: SCHOOL IDENTITY
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/ph_schools/unit1', async (req, res) => {
+    const data = req.body;
+    const { school_id, iern } = data;
+    if (!school_id && !iern) return res.status(400).json({ error: "Missing school_id or iern" });
+
+    try {
+        const fields = [
+            'school_name', 'region', 'province', 'municipality', 'barangay', 'division', 'district', 'leg_district',
+            'curricular_offering', 'latitude', 'longitude', 'school_head', 'contact_number', 'ownership',
+            'ownership_document_type', 'google_drive_thumbnail_url', 'school_type', 'mother_school_id',
+            'extension_mother_school_name', 'established_month', 'established_year', 'head_first_name',
+            'head_middle_name', 'head_last_name', 'head_sex', 'head_position_title', 'head_date_hired',
+            'ownership_na_reason', 'unit1', 'unit1_completed', 'unit1_updated_at'
+        ];
+
+        const values = fields.map(f => {
+            if (f === 'unit1') return 100;
+            if (f === 'unit1_completed') return true;
+            if (f === 'unit1_updated_at') return new Date();
+            return data[f];
+        });
+
+        const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+        const query = `UPDATE ph_schools SET ${setClause} WHERE school_id = $${fields.length + 1} OR iern = $${fields.length + 1} RETURNING *`;
+        
+        const result = await pool.query(query, [...values, school_id || iern]);
+        if (result.rowCount === 0) return res.status(404).json({ error: "School not found" });
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error("Unit 1 Update Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [QUEST] UNIT 2: LEARNERS (ENROLLMENT)
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/ph_schools/unit2/:id', async (req, res) => {
+    const schoolId = req.params.id;
+    const data = req.body;
+
+    try {
+        const fields = [
+            'total_enrollment', 'male_enrollment', 'female_enrollment', 'total_male', 'total_female',
+            'kinder_male', 'kinder_female', 'g1_male', 'g1_female', 'g2_male', 'g2_female',
+            'g3_male', 'g3_female', 'g4_male', 'g4_female', 'g5_male', 'g5_female',
+            'g6_male', 'g6_female', 'g7_male', 'g7_female', 'g8_male', 'g8_female',
+            'g9_male', 'g9_female', 'g10_male', 'g10_female', 'g11_male', 'g11_female',
+            'g12_male', 'g12_female', 'sned_male', 'sned_female', 'sned_self_contained_count',
+            'unit2_simplified_enrollment', 'multigrade_groupings_1', 'multigrade_groupings_2',
+            'multigrade_groupings_3', 'multigrade_enrollment_1', 'multigrade_enrollment_2',
+            'multigrade_enrollment_3', 'unit2', 'unit2_completed', 'unit2_updated_at'
+        ];
+
+        const values = fields.map(f => {
+            if (f === 'unit2') return 100;
+            if (f === 'unit2_completed') return true;
+            if (f === 'unit2_updated_at') return new Date();
+            return data[f];
+        });
+
+        const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+        const query = `UPDATE ph_schools SET ${setClause} WHERE school_id = $${fields.length + 1} OR iern = $${fields.length + 1} RETURNING *`;
+
+        const result = await pool.query(query, [...values, schoolId]);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error("Unit 2 Update Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [QUEST] UNIT 3: ORGANIZED CLASSES
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/ph_schools/unit3/:id', async (req, res) => {
+    const schoolId = req.params.id;
+    const data = req.body;
+
+    try {
+        const fields = [
+            'has_multigrade', 'multigrade_sections_count', 'unit3_simplified_counts',
+            'grade_kinder_size', 'grade_1_size', 'grade_2_size', 'grade_3_size',
+            'grade_4_size', 'grade_5_size', 'grade_6_size', 'grade_7_size',
+            'grade_8_size', 'grade_9_size', 'grade_10_size', 'grade_11_size',
+            'grade_12_size', 'multigrade_size_1', 'multigrade_size_2', 'multigrade_size_3',
+            'unit3', 'unit3_completed', 'unit3_updated_at'
+        ];
+
+        const values = fields.map(f => {
+            if (f === 'unit3') return 100;
+            if (f === 'unit3_completed') return true;
+            if (f === 'unit3_updated_at') return new Date();
+            // Handle JSONB stringification for complex objects/arrays
+            if (f === 'unit3_simplified_counts' && data[f] && typeof data[f] === 'object') {
+                return JSON.stringify(data[f]);
+            }
+            return data[f];
+        });
+
+        const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+        const query = `UPDATE ph_schools SET ${setClause} WHERE school_id = $${fields.length + 1} OR iern = $${fields.length + 1} RETURNING *`;
+
+        const result = await pool.query(query, [...values, schoolId]);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error("❌ [API] Unit 3 Update Error:", {
+            message: err.message,
+            stack: err.stack,
+            schoolId: schoolId,
+            payloadSummary: Object.keys(data || {})
+        });
+        res.status(500).json({ error: err.message, detail: "Invalid JSON or database constraint violation in Unit 3" });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [QUEST] UNIT 4: LEARNER PROFILE
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/ph_schools/unit4/:id', async (req, res) => {
+    const schoolId = req.params.id;
+    const data = req.body;
+
+    try {
+        const fields = [
+            'selected_learner_groups', 'bmi_severely_wasted', 'bmi_wasted', 'bmi_overweight_obese', 'bmi_normal',
+            'als_kinder', 'als_g1', 'als_g2', 'als_g3', 'als_g4', 'als_g5', 'als_g6', 'als_g7', 'als_g8', 'als_g9', 'als_g10', 'als_g11', 'als_g12', 'als_total',
+            'muslim_kinder', 'muslim_g1', 'muslim_g2', 'muslim_g3', 'muslim_g4', 'muslim_g5', 'muslim_g6', 'muslim_g7', 'muslim_g8', 'muslim_g9', 'muslim_g10', 'muslim_g11', 'muslim_g12',
+            'ip_kinder', 'ip_g1', 'ip_g2', 'ip_g3', 'ip_g4', 'ip_g5', 'ip_g6', 'ip_g7', 'ip_g8', 'ip_g9', 'ip_g10', 'ip_g11', 'ip_g12',
+            'displaced_kinder', 'displaced_g1', 'displaced_g2', 'displaced_g3', 'displaced_g4', 'displaced_g5', 'displaced_g6', 'displaced_g7', 'displaced_g8', 'displaced_g9', 'displaced_g10', 'displaced_g11', 'displaced_g12',
+            'overage_kinder', 'overage_g1', 'overage_g2', 'overage_g3', 'overage_g4', 'overage_g5', 'overage_g6', 'overage_g7', 'overage_g8', 'overage_g9', 'overage_g10', 'overage_g11', 'overage_g12',
+            'dropout_kinder', 'dropout_g1', 'dropout_g2', 'dropout_g3', 'dropout_g4', 'dropout_g5', 'dropout_g6', 'dropout_g7', 'dropout_g8', 'dropout_g9', 'dropout_g10', 'dropout_g11', 'dropout_g12',
+            'repeater_kinder', 'repeater_g1', 'repeater_g2', 'repeater_g3', 'repeater_g4', 'repeater_g5', 'repeater_g6', 'repeater_g7', 'repeater_g8', 'repeater_g9', 'repeater_g10', 'repeater_g11', 'repeater_g12',
+            'lwd_kinder', 'lwd_g1', 'lwd_g2', 'lwd_g3', 'lwd_g4', 'lwd_g5', 'lwd_g6', 'lwd_g7', 'lwd_g8', 'lwd_g9', 'lwd_g10', 'lwd_g11', 'lwd_g12',
+            'sned_kinder', 'sned_g1', 'sned_g2', 'sned_g3', 'sned_g4', 'sned_g5', 'sned_g6', 'sned_g7', 'sned_g8', 'sned_g9', 'sned_g10', 'sned_g11', 'sned_g12',
+            'unit4', 'unit4_completed', 'unit4_updated_at'
+        ];
+
+        const values = fields.map(f => {
+            if (f === 'unit4') return 100;
+            if (f === 'unit4_completed') return true;
+            if (f === 'unit4_updated_at') return new Date();
+            // Handle JSONB stringification for selected_learner_groups
+            if (f === 'selected_learner_groups' && data[f] && typeof data[f] === 'object') {
+                return JSON.stringify(data[f]);
+            }
+            return data[f];
+        });
+
+        const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+        const query = `UPDATE ph_schools SET ${setClause} WHERE school_id = $${fields.length + 1} OR iern = $${fields.length + 1} RETURNING *`;
+
+        const result = await pool.query(query, [...values, schoolId]);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error("❌ [API] Unit 4 Update Error:", {
+            message: err.message,
+            stack: err.stack,
+            schoolId: schoolId,
+            payloadKeys: Object.keys(data || {})
+        });
+        res.status(500).json({ error: err.message, detail: "JSON syntax error or data mismatch in Unit 4 profile" });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [QUEST] UNIT 5: SHIFTING & MODALITY
+// ─────────────────────────────────────────────────────────────────────────────
+app.put('/api/ph_schools/unit5/:id', async (req, res) => {
+    const schoolId = req.params.id;
+    const data = req.body;
+
+    try {
+        const fields = [
+            'has_standard_shifting', 'adm_mdl', 'adm_odl', 'adm_tvi', 'adm_blended', 'shifting_modality',
+            'shift_kinder', 'shift_g1', 'shift_g2', 'shift_g3', 'shift_g4', 'shift_g5', 'shift_g6', 'shift_g7', 'shift_g8', 'shift_g9', 'shift_g10', 'shift_g11', 'shift_g12', 'shift_mg_1', 'shift_mg_2', 'shift_mg_3',
+            'mode_kinder', 'mode_g1', 'mode_g2', 'mode_g3', 'mode_g4', 'mode_g5', 'mode_g6', 'mode_g7', 'mode_g8', 'mode_g9', 'mode_g10', 'mode_g11', 'mode_g12', 'mode_mg_1', 'mode_mg_2', 'mode_mg_3',
+            'unit5', 'unit5_completed', 'unit5_updated_at'
+        ];
+
+        const values = fields.map(f => {
+            if (f === 'unit5') return 100;
+            if (f === 'unit5_completed') return true;
+            if (f === 'unit5_updated_at') return new Date();
+            return data[f];
+        });
+
+        const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+        const query = `UPDATE ph_schools SET ${setClause} WHERE school_id = $${fields.length + 1} OR iern = $${fields.length + 1} RETURNING *`;
+
+        const result = await pool.query(query, [...values, schoolId]);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [QUEST] WEB PUSH NOTIFICATIONS (Targeted Engagement)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the VAPID Public Key for the frontend to initialize push subscriptions.
+ */
+app.get('/api/vapid-public-key', (req, res) => {
+    if (!vapidPublicKey) return res.status(503).json({ error: "Push service not configured" });
+    res.json({ publicKey: vapidPublicKey });
+});
+
+/**
+ * Saves a browser's push subscription object for the logged-in user.
+ * Allows targeting specific users by UID and Role.
+ */
+app.post('/api/save-subscription', authMiddleware, async (req, res) => {
+    const { subscription, deviceInfo } = req.body;
+    const uid = req.user.uid;
+
+    if (!subscription) return res.status(400).json({ error: "Subscription object is required" });
+
+    try {
+        await pool.query(
+            `INSERT INTO user_web_push_subscriptions (uid, subscription_json, device_info)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (uid, subscription_json) DO UPDATE SET
+                device_info = EXCLUDED.device_info,
+                created_at = CURRENT_TIMESTAMP`,
+            [uid, JSON.stringify(subscription), deviceInfo]
+        );
+        res.json({ success: true, message: "Push subscription saved successfully" });
+    } catch (err) {
+        console.error("❌ [Push] Failed to save subscription:", err.message);
+        res.status(500).json({ error: "Database error saving subscription" });
+    }
+});
+
+/**
+ * Admin-only route to broadcast messages to a specific role (e.g., 'School Head').
+ * Logic: JOINS subscriptions with users table to filter by Role/Registrant Type.
+ */
+app.post('/api/broadcast-push', authMiddleware, async (req, res) => {
+    // Safety check: Only Admin/Super User can broadcast
+    if (req.user.role !== 'Admin' && req.user.role !== 'Super User' && req.user.role !== 'SuperUser') {
+        return res.status(403).json({ error: "Unauthorized: Admin access required for broadcasts" });
+    }
+
+    const { targetRole, title, message, url } = req.body;
+    if (!targetRole) return res.status(400).json({ error: "targetRole is required (e.g., 'School Head')" });
+
+    try {
+        // Query only users matching the role who have a valid subscription
+        const result = await pool.query(
+            `SELECT s.subscription_json, u.email, u.first_name
+             FROM user_web_push_subscriptions s
+             JOIN users u ON s.uid = u.uid
+             WHERE u.registrant_type = $1 OR u.role = $1 OR u.account_category = $1`,
+            [targetRole]
+        );
+
+        const subscriptions = result.rows;
+        if (subscriptions.length === 0) {
+            return res.json({ success: true, message: `No active subscriptions found for role: ${targetRole}`, count: 0 });
+        }
+
+        console.log(`📣 [Push] Broadcasting to ${subscriptions.length} devices for role: ${targetRole}`);
+
+        const payload = JSON.stringify({
+            title: title || "InsightEd Notification",
+            body: message || "You have a new update from Stride InsightEd.",
+            icon: "/insighted_app.png",
+            data: { url: url || "/" }
+        });
+
+        // Parallel execution with error handling for individual device failures
+        const pushPromises = subscriptions.map(sub => {
+            return webpush.sendNotification(sub.subscription_json, payload)
+                .catch(async (err) => {
+                    // 410 (Gone) or 404 means the user unsubscribed or the token expired
+                    if (err.statusCode === 410 || err.statusCode === 404) {
+                        console.log(`🧹 [Push] Cleaning up expired token for: ${sub.email}`);
+                        await pool.query('DELETE FROM user_web_push_subscriptions WHERE subscription_json = $1', [JSON.stringify(sub.subscription_json)]);
+                    } else {
+                        console.error(`⚠️ [Push] Delivery failed for ${sub.email}:`, err.message);
+                    }
+                });
+        });
+
+        await Promise.all(pushPromises);
+        res.json({ success: true, count: subscriptions.length, message: `Successfully broadcast to ${subscriptions.length} devices.` });
+    } catch (err) {
+        console.error("❌ [Push] Broadcast orchestrator failed:", err.message);
+        res.status(500).json({ error: "Broadcast failed during database or network operation" });
+    }
 });
 
 // --- SCHOOL DOCS STORAGE ---
@@ -1139,7 +1451,7 @@ if (process.env.NEW_DATABASE_URL) {
       console.log('… Connected to Secondary Database (ICTS) successfully!');
       client.release();
     })
-    .catch(err => console.error('âŒ Failed to connect to Secondary Database:', err.message));
+    .catch(err => console.error('â Œ Failed to connect to Secondary Database:', err.message));
 }
 
 // --- DATABASE INIT HELPERS ---
@@ -1503,6 +1815,7 @@ const runAutoMigrations_OLD = async () => {
       ['proximity_highway_km',           'NUMERIC'],
       ['cellular_coverage',              'TEXT'],
       ['weather_isolation',              'BOOLEAN'],
+      ['weather_isolation_6mo',          'NUMERIC'],
       ['anthropogenic_threats',          'JSONB'],
       ['risk_index',                     'NUMERIC'],
     ];
@@ -1584,8 +1897,6 @@ const initDB = async () => {
             file_data TEXT, 
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
-
-          );
         `);
 
 
@@ -1596,19 +1907,25 @@ const initDB = async () => {
     }
 
 
-    currentSegment = "Segment 12: buildable_spaces and facility tables";
+    currentSegment = "Segment 12: ph_school_buildable_spaces and facility tables";
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS buildable_spaces (
-        space_id SERIAL PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS ph_school_buildable_spaces (
+        id SERIAL PRIMARY KEY,
         school_id TEXT,
         iern TEXT,
-        space_number INTEGER,
-        latitude NUMERIC,
-        longitude NUMERIC,
-        length NUMERIC,
-        width NUMERIC,
-        total_area NUMERIC,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        space_name TEXT,
+        center_lat NUMERIC,
+        center_lng NUMERIC,
+        length_m NUMERIC,
+        width_m NUMERIC,
+        rotation_deg NUMERIC DEFAULT 0,
+        total_area_sqm NUMERIC,
+        less_than_7x9 INTEGER DEFAULT 0,
+        "7x9" INTEGER DEFAULT 0,
+        above_7x9 INTEGER DEFAULT 0,
+        dimension TEXT,
+        status TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
@@ -1635,6 +1952,7 @@ const initDB = async () => {
         building_name TEXT NOT NULL,
         category TEXT NOT NULL,
         status TEXT NOT NULL,
+        dimension TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -1706,7 +2024,16 @@ app.get('/api/school-by-user/:uid', async (req, res) => {
     if (userRes.rowCount === 0) return res.status(404).json({ exists: false, error: 'User not found' });
     const schoolId = userRes.rows[0].school_id;
     if (!schoolId) return res.status(404).json({ exists: false, error: 'User has no school assigned' });
-    const schoolRes = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [schoolId]);
+    const schoolRes = await pool.query(`
+      SELECT 
+        ps.*,
+        v.unit1_validated, v.unit2_validated, v.unit3_validated, v.unit4_validated, v.unit5_validated,
+        v.unit6_validated, v.unit7_validated, v.unit8_validated, v.unit9_validated,
+        v.validation_percentage, v.validated_units_count, v.needs_validation
+      FROM ph_schools ps
+      LEFT JOIN ph_schools_validate v ON ps.school_id = v.school_id
+      WHERE ps.school_id = $1
+    `, [schoolId]);
     res.json({ exists: schoolRes.rowCount > 0, data: schoolRes.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1818,6 +2145,9 @@ app.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
           category: room.category,
           storey: room.storey,
           classroom: room.classroom,
+          status: room.status,
+          remarks: room.remarks,
+          year_completed: room.year_completed,
           rooms: []
         };
       }
@@ -1829,7 +2159,10 @@ app.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
         room_length: room.room_length,
         room_width: room.room_width,
         seats: room.seats,
-        is_in_use: room.is_in_use
+        is_in_use: room.is_in_use,
+        dimension: room.dimension,
+        status: room.status,
+        condition: room.status // Backward compatibility for older frontend versions
       });
     });
     
@@ -1837,7 +2170,14 @@ app.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
 
     // 2. Fetch Repairs from ph_buildings_repairs
     // Note: ph_buildings_repairs uses school_id
-    const repairRes = await pool.query('SELECT * FROM ph_buildings_repairs WHERE school_id = $1', [id]);
+    const repairRes = await pool.query(`
+      SELECT r.*, i.less_than_7x9, i."7x9", i.above_7x9 
+      FROM ph_buildings_repairs r
+      LEFT JOIN ph_buildings_inventory i ON r.school_id = i.school_id 
+        AND r.building_name = i.building_name 
+        AND r.room_name = i.room_name
+      WHERE r.school_id = $1
+    `, [id]);
     
     // 3. Fetch Unit 7 flags from main table
     const schoolRes = await pool.query('SELECT unit7_completed, unit7_has_no_building FROM ph_schools WHERE school_id = $1', [id]);
@@ -1875,9 +2215,52 @@ app.get('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
     const { id } = req.params;
     // Map to the dedicated ph_school_buildable_spaces table
     const result = await pool.query('SELECT * FROM public.ph_school_buildable_spaces WHERE school_id = $1', [id]);
-    res.json({ success: true, spaces: result.rows });
+    res.json({ 
+      success: true, 
+      spaces: result.rows
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// 8.5.1. POST /api/ph_schools/unit7/:id/spaces
+app.post('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, iern, dimension, condition } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO ph_school_buildable_spaces (
+        school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [
+        id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
+      ]
+    );
+    res.json({ success: true, id: result.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8.5.2. DELETE /api/ph_schools/unit7/spaces/:spaceId
+app.delete('/api/ph_schools/unit7/spaces/:spaceId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { spaceId } = req.params;
+    await client.query('BEGIN');
+    // Bypass deletion protection trigger (Nuclear Lock)
+    await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
+    await client.query('DELETE FROM ph_school_buildable_spaces WHERE id = $1', [spaceId]);
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`❌ [DELETE Space] Error deleting space ${req.params.spaceId}:`, err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -1886,11 +2269,12 @@ app.get('/api/unit8/teachers/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      'SELECT first as first_name, last as last_name, id FROM teachers_list WHERE school_id = $1',
+      'SELECT first_name, last_name, id FROM ph_teachers_list WHERE school_id = $1',
       [id]
     );
     res.json({ success: true, teachers: result.rows });
   } catch (err) {
+    console.error(`❌ [Teacher Lookup] Error for school ${req.params.id}:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1901,13 +2285,18 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
     const { schoolId } = req.params;
 
     const schoolRes = await pool.query(
-      `SELECT school_id, school_name, region, division, unit_completion,
-       unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9,
-       unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-       unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed,
-       unit1_updated_at, unit2_updated_at, unit3_updated_at, unit4_updated_at,
-       unit5_updated_at, unit6_updated_at, unit7_updated_at, unit8_updated_at, unit9_updated_at
-       FROM ph_schools WHERE school_id = $1`, [schoolId]
+      `SELECT ps.school_id, ps.school_name, ps.region, ps.division, ps.unit_completion, ps.is_esf7_opened,
+       ps.unit1, ps.unit2, ps.unit3, ps.unit4, ps.unit5, ps.unit6, ps.unit7, ps.unit8, ps.unit9,
+       ps.unit1_completed, ps.unit2_completed, ps.unit3_completed, ps.unit4_completed,
+       ps.unit5_completed, ps.unit6_completed, ps.unit7_completed, ps.unit8_completed, ps.unit9_completed,
+       ps.unit1_updated_at, ps.unit2_updated_at, ps.unit3_updated_at, ps.unit4_updated_at,
+       ps.unit5_updated_at, ps.unit6_updated_at, ps.unit7_updated_at, ps.unit8_updated_at, ps.unit9_updated_at,
+       v.unit1_validated, v.unit2_validated, v.unit3_validated, v.unit4_validated, v.unit5_validated,
+       v.unit6_validated, v.unit7_validated, v.unit8_validated, v.unit9_validated,
+       v.validation_percentage
+       FROM ph_schools ps
+       LEFT JOIN ph_schools_validate v ON ps.school_id = v.school_id
+       WHERE ps.school_id = $1`, [schoolId]
     );
     
     if (schoolRes.rowCount === 0) return res.status(404).json({ error: 'School not found' });
@@ -1915,6 +2304,7 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
 
     const completedUnits = [];
     const flags = {};
+    const validationFlags = {};
     for (let i = 1; i <= 9; i++) {
       const isCompleted = school[`unit${i}_completed`] === true || String(school[`unit${i}_completed`]) === 'true';
       const isHundred = Math.round(Number(school[`unit${i}`]) || 0) === 100;
@@ -1923,6 +2313,8 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
         completedUnits.push(i);
         flags[`unit${i}`] = true;
       }
+      
+      validationFlags[`unit${i}`] = school[`unit${i}_validated`] === true;
     }
 
     // Fetch gamification from ph_school_completion
@@ -1935,12 +2327,26 @@ app.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
           school_id: school.school_id,
           school_name: school.school_name,
           region: school.region,
-          division: school.division
+          division: school.division,
+          is_esf7_opened: school.is_esf7_opened === true || String(school.is_esf7_opened) === 'true'
         },
         progress: {
           percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0,
+          validation_percentage: school.validation_percentage ? parseFloat(school.validation_percentage) : 0,
           completedUnits: completedUnits,
-          flags: flags
+          flags: flags,
+          validationFlags: validationFlags,
+          timestamps: {
+            unit1: school.unit1_updated_at,
+            unit2: school.unit2_updated_at,
+            unit3: school.unit3_updated_at,
+            unit4: school.unit4_updated_at,
+            unit5: school.unit5_updated_at,
+            unit6: school.unit6_updated_at,
+            unit7: school.unit7_updated_at,
+            unit8: school.unit8_updated_at,
+            unit9: school.unit9_updated_at
+          }
         },
         gamification: completionRes.rows[0] || {}
       }
@@ -1993,42 +2399,297 @@ app.put('/api/ph_schools/:id', async (req, res) => {
 
 // 17. POST /api/save-physical-facilities (UNIT 7 MASTER)
 app.post('/api/save-physical-facilities', async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { school_id, iern, inventoryEntries, rooms, repairEntries, demolitionEntries, build_classrooms_total, build_classrooms_new, build_classrooms_good, build_classrooms_repair, build_classrooms_demolition, spaces, has_no_building } = req.body;
-    // We store the complex mapping in ph_schools for simplicity in this node
-    await pool.query(
+    const { 
+      school_id: sid_snake, schoolId: sid_camel, iern, inventoryEntries, rooms, repairEntries, demolitionEntries, 
+      build_classrooms_total, build_classrooms_new, build_classrooms_good, 
+      build_classrooms_repair, build_classrooms_demolition, spaces, has_no_building,
+      u7_confirm_no_space
+    } = req.body;
+    const school_id = sid_snake || sid_camel;
+
+    console.log(`🏗️ [Unit 7 Master] Processing payload for school ${school_id}...`);
+
+    await client.query('BEGIN');
+    // Bypass deletion protection trigger for Unit 7 normalization (Nuclear Lock)
+    await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
+
+
+    // 1. DUAL-WRITE: Update ph_schools summary counters and JSON blobs (for frontend reconstruction)
+    await client.query(
       `UPDATE ph_schools SET
        unit7_data = $1, unit7_rooms = $2, unit7_repair = $3, unit7_demolition = $4,
        unit7_spaces = $5, has_no_building = $6,
        build_classrooms_total = $7, build_classrooms_new = $8, build_classrooms_good = $9,
        build_classrooms_repair = $10, build_classrooms_demolition = $11,
+       u7_confirm_no_space = $12,
        unit7 = 100, unit7_completed = TRUE, unit7_updated_at = CURRENT_TIMESTAMP
-       WHERE school_id = $12`,
-      [JSON.stringify(inventoryEntries), JSON.stringify(rooms), JSON.stringify(repairEntries), JSON.stringify(demolitionEntries), JSON.stringify(spaces), has_no_building, build_classrooms_total, build_classrooms_new, build_classrooms_good, build_classrooms_repair, build_classrooms_demolition, school_id]
+       WHERE school_id = $13`,
+      [
+        JSON.stringify(inventoryEntries), JSON.stringify(rooms), JSON.stringify(repairEntries), 
+        JSON.stringify(demolitionEntries), JSON.stringify(spaces), has_no_building, 
+        build_classrooms_total, build_classrooms_new, build_classrooms_good, 
+        build_classrooms_repair, build_classrooms_demolition, u7_confirm_no_space === true,
+        school_id
+      ]
     );
+
+    // 2. NORMALIZATION: Populate specialized tables
+    
+    // Clear old records for this school to ensure a clean audit state
+    console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id}...`);
+    await client.query('DELETE FROM ph_buildings_inventory WHERE school_id = $1', [school_id]);
+    await client.query('DELETE FROM ph_buildings_repairs WHERE school_id = $1', [school_id]);
+    await client.query('DELETE FROM ph_buildings_demolition WHERE school_id = $1', [school_id]);
+    await client.query('DELETE FROM ph_school_buildable_spaces WHERE school_id = $1', [school_id]);
+
+    // A. Building Inventory (Mapping Rooms list to ph_buildings_inventory)
+    if (Array.isArray(rooms) && rooms.length > 0) {
+      console.log(`🏢 [Unit 7 Master] Inserting ${rooms.length} rooms into ph_buildings_inventory...`);
+      for (const room of rooms) {
+        try {
+          const b = (inventoryEntries || []).find(inv => inv.id === room.building_local_id) || {};
+          const storeyVal = parseInt(b.storey);
+          const classroomVal = parseInt(b.classroom);
+
+          await client.query(
+            `INSERT INTO ph_buildings_inventory (
+              school_id, iern, building_name, room_name, category, storey, classroom, 
+              year_completed, remarks, status, is_in_use, seats, grade_level, advisory_teacher,
+              less_than_7x9, "7x9", above_7x9, dimension
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+            [
+              school_id, iern, room.building_name, room.room_name, b.category, 
+              isNaN(storeyVal) ? 1 : storeyVal, 
+              isNaN(classroomVal) ? 1 : classroomVal, 
+              b.year_completed, b.remarks, room.status, room.is_in_use !== false, 
+              ((room.grade_level || "").includes("Non-Instructional") ? null : room.seats), 
+              room.grade_level, room.teacher_id,
+              (room.less_than_7x9 === 1 || (room.dimension || '').toLowerCase() === 'less than 7x9' ? 1 : 0),
+              (room["7x9"] === 1 || (room.dimension || '').toLowerCase() === '7x9' ? 1 : 0),
+              (room.above_7x9 === 1 || (room.dimension || '').toLowerCase() === 'above 7x9' ? 1 : 0),
+              room.dimension
+            ]
+          );
+        } catch (roomErr) {
+          console.error(`❌ [Unit 7 Master] Failed to insert room: ${room.room_name}`, roomErr.message);
+          throw roomErr;
+        }
+      }
+    }
+
+    // B. Repairs
+    if (Array.isArray(repairEntries) && repairEntries.length > 0) {
+      console.log(`🛠️ [Unit 7 Master] Inserting ${repairEntries.length} repair entries...`);
+      for (const rep of repairEntries) {
+        try {
+          const damageVal = parseInt(rep.damage_ratio);
+          await client.query(
+            `INSERT INTO ph_buildings_repairs (
+              school_id, iern, building_name, room_name, item_name, oms, 
+              condition, damage_ratio, recommended_action, demo_justification, remarks
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              school_id, iern, rep.building_no, rep.room_no, rep.item_name, rep.oms, 
+              rep.condition, isNaN(damageVal) ? 0 : damageVal, rep.recommended_action, 
+              rep.demo_justification, rep.remarks
+            ]
+          );
+        } catch (repErr) {
+          console.error(`❌ [Unit 7 Master] Failed to insert repair entry for building: ${rep.building_no}`, repErr.message);
+          throw repErr;
+        }
+      }
+    }
+
+    // C. Demolition Justifications
+    if (Array.isArray(demolitionEntries) && demolitionEntries.length > 0) {
+      console.log(`🏚️ [Unit 7 Master] Inserting ${demolitionEntries.length} demolition entries...`);
+      for (const demo of demolitionEntries) {
+        try {
+          await client.query(
+            `INSERT INTO ph_buildings_demolition (
+              school_id, iern, building_name, room_name, age, safety, calamity, upgrade,
+              less_than_7x9, "7x9", above_7x9
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              school_id, iern, demo.building_name, demo.room_name, 
+              demo.age === true || demo.age === 'true', 
+              demo.safety === true || demo.safety === 'true', 
+              demo.calamity === true || demo.calamity === 'true', 
+              demo.upgrade === true || demo.upgrade === 'true', 
+              parseInt(demo.less_than_7x9) || 0, 
+              parseInt(demo["7x9"]) || 0, 
+              parseInt(demo.above_7x9) || 0
+            ]
+          );
+        } catch (demoErr) {
+          console.error(`❌ [Unit 7 Master] Failed to insert demolition entry: ${demo.building_name}`, demoErr.message);
+          throw demoErr;
+        }
+      }
+    }
+
+    // D. Buildable Spaces
+    if (Array.isArray(spaces) && spaces.length > 0) {
+      console.log(`📐 [Unit 7 Master] Inserting ${spaces.length} buildable spaces...`);
+      for (const s of spaces) {
+        try {
+          const lat = parseFloat(s.center_lat);
+          const lng = parseFloat(s.center_lng);
+          const len = parseFloat(s.length_m);
+          const wid = parseFloat(s.width_m);
+          const rot = parseFloat(s.rotation_deg);
+          const area = parseFloat(s.total_area_sqm);
+
+          await client.query(
+            `INSERT INTO ph_school_buildable_spaces (
+              school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+              school_id, iern, s.space_name, 
+              isNaN(lat) ? 0 : lat, isNaN(lng) ? 0 : lng, 
+              isNaN(len) ? 0 : len, isNaN(wid) ? 0 : wid, 
+              isNaN(rot) ? 0 : rot, isNaN(area) ? 0 : area
+            ]
+          );
+
+        } catch (spaceErr) {
+          console.error(`❌ [Unit 7 Master] Failed to insert space: ${s.space_name}`, spaceErr.message);
+          throw spaceErr;
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    console.log(`✅ [Unit 7 Master] School ${school_id} finalized and normalized successfully.`);
+    await updateSchoolTotalCompletion(iern).catch(() => {});
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`❌ [Unit 7 Master] Error for school ${req.body.school_id}:`, err.message);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
 // 18. POST /api/school-location (UNIT 8 TERRAIN)
 app.post('/api/school-location', async (req, res) => {
   try {
-    const { school_id, formData } = req.body;
-    await pool.query(
-      `INSERT INTO school_location_profiles (school_id, data)
-       VALUES ($1, $2)
-       ON CONFLICT (school_id) DO UPDATE SET data = $2`,
-      [school_id, JSON.stringify(formData)]
-    );
+    const data = req.body;
+    const { school_id, iern } = data;
+
+    if (!school_id) return res.status(400).json({ error: "Missing school_id" });
+
+    const query = `
+      INSERT INTO school_location_profiles (
+        school_id, iern, transportation_modes, road_paved_pct, road_unpaved_pct,
+        road_lighting_pct, public_transpo_availability, water_proximity, near_cliff_ravine,
+        road_cliff_pct, near_water, natural_calamities, hazards_experienced,
+        has_insurgency_threats, insurgency_threats_6mo, road_passable_public_transpo_pct,
+        river_crossing_on_foot, river_crossing_count, emergency_response_mins,
+        proximity_hospital_km, proximity_brgy_hall_mins, proximity_brgy_hall_km,
+        proximity_muni_hall_mins, proximity_muni_hall_km, proximity_sdo_mins,
+        proximity_sdo_km, proximity_clinic_mins, proximity_clinic_km,
+        proximity_terminal_mins, proximity_terminal_km, proximity_highway_mins,
+        proximity_highway_km, cellular_coverage, weather_isolation,
+        weather_isolation_6mo, anthropogenic_threats, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT (school_id) DO UPDATE SET
+        iern = EXCLUDED.iern,
+        transportation_modes = EXCLUDED.transportation_modes,
+        road_paved_pct = EXCLUDED.road_paved_pct,
+        road_unpaved_pct = EXCLUDED.road_unpaved_pct,
+        road_lighting_pct = EXCLUDED.road_lighting_pct,
+        public_transpo_availability = EXCLUDED.public_transpo_availability,
+        water_proximity = EXCLUDED.water_proximity,
+        near_cliff_ravine = EXCLUDED.near_cliff_ravine,
+        road_cliff_pct = EXCLUDED.road_cliff_pct,
+        near_water = EXCLUDED.near_water,
+        natural_calamities = EXCLUDED.natural_calamities,
+        hazards_experienced = EXCLUDED.hazards_experienced,
+        has_insurgency_threats = EXCLUDED.has_insurgency_threats,
+        insurgency_threats_6mo = EXCLUDED.insurgency_threats_6mo,
+        road_passable_public_transpo_pct = EXCLUDED.road_passable_public_transpo_pct,
+        river_crossing_on_foot = EXCLUDED.river_crossing_on_foot,
+        river_crossing_count = EXCLUDED.river_crossing_count,
+        emergency_response_mins = EXCLUDED.emergency_response_mins,
+        proximity_hospital_km = EXCLUDED.proximity_hospital_km,
+        proximity_brgy_hall_mins = EXCLUDED.proximity_brgy_hall_mins,
+        proximity_brgy_hall_km = EXCLUDED.proximity_brgy_hall_km,
+        proximity_muni_hall_mins = EXCLUDED.proximity_muni_hall_mins,
+        proximity_muni_hall_km = EXCLUDED.proximity_muni_hall_km,
+        proximity_sdo_mins = EXCLUDED.proximity_sdo_mins,
+        proximity_sdo_km = EXCLUDED.proximity_sdo_km,
+        proximity_clinic_mins = EXCLUDED.proximity_clinic_mins,
+        proximity_clinic_km = EXCLUDED.proximity_clinic_km,
+        proximity_terminal_mins = EXCLUDED.proximity_terminal_mins,
+        proximity_terminal_km = EXCLUDED.proximity_terminal_km,
+        proximity_highway_mins = EXCLUDED.proximity_highway_mins,
+        proximity_highway_km = EXCLUDED.proximity_highway_km,
+        cellular_coverage = EXCLUDED.cellular_coverage,
+        weather_isolation = EXCLUDED.weather_isolation,
+        weather_isolation_6mo = EXCLUDED.weather_isolation_6mo,
+        anthropogenic_threats = EXCLUDED.anthropogenic_threats,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+
+    const values = [
+      school_id, iern,
+      JSON.stringify(data.transportation_modes || []),
+      parseFloat(data.road_paved_pct) || 0,
+      parseFloat(data.road_unpaved_pct) || 0,
+      parseFloat(data.road_lighting_pct) || 0,
+      parseFloat(data.public_transpo_availability) || 0,
+      JSON.stringify(data.water_proximity || []),
+      data.near_cliff_ravine === true || data.near_cliff_ravine === 'true',
+      parseFloat(data.road_cliff_pct) || 0,
+      data.near_water === true || data.near_water === 'true',
+      JSON.stringify(data.natural_calamities || []),
+      JSON.stringify(data.hazards_experienced || []),
+      data.has_insurgency_threats === true || data.has_insurgency_threats === 'true',
+      parseFloat(data.insurgency_threats_6mo) || 0,
+      parseFloat(data.road_passable_public_transpo_pct) || 0,
+      data.river_crossing_on_foot === true || data.river_crossing_on_foot === 'true',
+      parseFloat(data.river_crossing_count) || 0,
+      parseFloat(data.emergency_response_mins) || 0,
+      parseFloat(data.proximity_hospital_km) || 0,
+      parseFloat(data.proximity_brgy_hall_mins) || 0,
+      parseFloat(data.proximity_brgy_hall_km) || 0,
+      parseFloat(data.proximity_muni_hall_mins) || 0,
+      parseFloat(data.proximity_muni_hall_km) || 0,
+      parseFloat(data.proximity_sdo_mins) || 0,
+      parseFloat(data.proximity_sdo_km) || 0,
+      parseFloat(data.proximity_clinic_mins) || 0,
+      parseFloat(data.proximity_clinic_km) || 0,
+      parseFloat(data.proximity_terminal_mins) || 0,
+      parseFloat(data.proximity_terminal_km) || 0,
+      parseFloat(data.proximity_highway_mins) || 0,
+      parseFloat(data.proximity_highway_km) || 0,
+      data.cellular_coverage,
+      data.weather_isolation === true || data.weather_isolation === 'true',
+      parseFloat(data.weather_isolation_6mo) || 0,
+      JSON.stringify(data.anthropogenic_threats || [])
+    ];
+
+    const result = await pool.query(query, values);
+    
     await pool.query(
       `UPDATE ph_schools SET
        unit8 = 100, unit8_completed = TRUE, unit8_updated_at = CURRENT_TIMESTAMP
        WHERE school_id = $1`, [school_id]
     );
-    res.json({ success: true });
+
+    await updateSchoolTotalCompletion(iern).catch(() => {});
+    res.json({ success: true, data: result.rows[0] });
   } catch (err) {
+    console.error("❌ [API] POST /api/school-location ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2096,6 +2757,11 @@ app.put('/api/ph_schools/unit9/:id', async (req, res) => {
         body.u9_ext_cords_spares, body.u9_tape_quantity, id
       ]
     );
+    // Sync completion status
+    const schoolRes = await pool.query('SELECT iern FROM ph_schools WHERE school_id = $1', [id]);
+    if (schoolRes.rowCount > 0) {
+        await updateSchoolTotalCompletion(schoolRes.rows[0].iern).catch(() => {});
+    }
     res.json({ success: true, message: 'Unit 9 data updated successfully' });
   } catch (err) {
     console.error(`❌ [API] PUT /api/ph_schools/unit9/${req.params.id} ERROR:`, {
@@ -2258,11 +2924,109 @@ app.get('/api/locations/legislative-districts', async (req, res) => {
 
 app.get('/api/locations/districts', async (req, res) => {
   try {
-    const { municipality } = req.query;
-    const result = await pool.query('SELECT DISTINCT district FROM schools WHERE municipality = $1 AND district IS NOT NULL ORDER BY district', [municipality]);
+    const { region, division, municipality } = req.query;
+    let query = 'SELECT DISTINCT district FROM schools WHERE district IS NOT NULL';
+    let params = [];
+    let pIdx = 1;
+
+    if (region) { query += ` AND region = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND division = $${pIdx++}`; params.push(division); }
+    if (municipality) { query += ` AND municipality = $${pIdx++}`; params.push(municipality); }
+
+    query += ' ORDER BY district';
+    const result = await pool.query(query, params);
     res.json(result.rows.map(r => r.district));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+app.get('/api/locations/municipalities', async (req, res) => {
+  try {
+    const { region, division, district } = req.query;
+    let query = 'SELECT DISTINCT municipality FROM schools WHERE municipality IS NOT NULL';
+    let params = [];
+    let pIdx = 1;
+
+    if (region) { query += ` AND region = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND division = $${pIdx++}`; params.push(division); }
+    if (district) { query += ` AND district = $${pIdx++}`; params.push(district); }
+
+    query += ' ORDER BY municipality';
+    const result = await pool.query(query, params);
+    res.json(result.rows.map(r => r.municipality));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/locations/schools', async (req, res) => {
+  try {
+    const { region, division, district, municipality } = req.query;
+    let query = 'SELECT school_id, school_name, region, division, district, municipality, province, barangay, latitude, longitude FROM schools WHERE school_id IS NOT NULL';
+    let params = [];
+    let pIdx = 1;
+
+    if (region) { query += ` AND region = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND division = $${pIdx++}`; params.push(division); }
+    if (district) { query += ` AND district = $${pIdx++}`; params.push(district); }
+    if (municipality) { query += ` AND municipality = $${pIdx++}`; params.push(municipality); }
+
+    query += ' ORDER BY school_name';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/monitoring/schools', async (req, res) => {
+  try {
+    const { region, division, page = 1, limit = 20, search = '' } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    let query = `
+      SELECT 
+        v.school_id, v.school_name, v.region, v.division,
+        v.unit1_completed as u1_status, v.unit2_completed as u2_status, v.unit3_completed as u3_status,
+        v.unit4_completed as u4_status, v.unit5_completed as u5_status, v.unit6_completed as u6_status,
+        v.unit7_completed as u7_status, v.unit8_completed as u8_status, v.unit9_completed as u9_status,
+        v.unit1_validated, v.unit2_validated, v.unit3_validated, v.unit4_validated, v.unit5_validated,
+        v.unit6_validated, v.unit7_validated, v.unit8_validated, v.unit9_validated,
+        v.needs_validation, v.validation_percentage,
+        ps.completion_percentage,
+        ps.data_health_score, ps.data_health_description, ps.data_quality_issues
+      FROM ph_schools_validate v
+      JOIN ph_schools ps ON v.school_id = ps.school_id
+      WHERE 1=1
+    `;
+    
+    let params = [];
+    let pIdx = 1;
+    
+    if (region) { query += ` AND v.region = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND v.division = $${pIdx++}`; params.push(division); }
+    if (search) { 
+      query += ` AND (v.school_name ILIKE $${pIdx} OR v.school_id ILIKE $${pIdx})`; 
+      params.push(`%${search}%`);
+      pIdx++;
+    }
+    
+    const countQuery = `SELECT COUNT(*) FROM (${query}) as count_query`;
+    const countRes = await pool.query(countQuery, params);
+    const total = parseInt(countRes.rows[0].count);
+    
+    query += ` ORDER BY v.school_name LIMIT $${pIdx++} OFFSET $${pIdx++}`;
+    params.push(parseInt(limit), offset);
+    
+    const result = await pool.query(query, params);
+    
+    res.json({
+      data: result.rows,
+      total,
+      totalPages: Math.ceil(total / parseInt(limit)),
+      page: parseInt(page)
+    });
+  } catch (err) {
+    console.error("Monitoring Schools API Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // --- NEW LAZY MIGRATION LOGIN ENDPOINT ---
 app.post('/api/auth/migrate-login', async (req, res) => {
@@ -2464,6 +3228,178 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- REGISTRATION & ACCOUNT MANAGEMENT ---
+
+// 1. Check if school already has an account
+app.post('/api/check-existing-school', async (req, res) => {
+  try {
+    const { schoolId } = req.body;
+    console.log(`🔍 [Check-School] Validating school_id: ${schoolId}`);
+    
+    if (!schoolId) {
+      return res.status(400).json({ error: "School ID is required." });
+    }
+
+    const result = await pool.query('SELECT uid FROM users WHERE school_id = $1 AND role = \'School Head\'', [schoolId.trim()]);
+    if (result.rowCount > 0) {
+      return res.json({ exists: true, message: "A School Head account already exists for this school. Please log in or contact support for password recovery." });
+    }
+    res.json({ exists: false });
+  } catch (err) {
+    console.error("❌ Check School Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// 2. One-shot Registration for School Heads
+app.post('/api/register-beta', async (req, res) => {
+  try {
+    console.log("🏗️ [Register-Beta] Processing registration for:", req.body?.email);
+    
+    const validatedData = RegisterBetaSchema.safeParse(req.body);
+    if (!validatedData.success) {
+      console.warn("⚠️ [Register-Beta] Validation failed:", validatedData.error.format());
+      return res.status(400).json({ error: "Validation failed", details: validatedData.error.format() });
+    }
+
+    const { email, password, contactNumber, firstName, lastName, schoolData, passcode } = validatedData.data;
+    const { school_id } = schoolData;
+
+    // 1. Fetch IERN (Canonical ID)
+    const iernRes = await pool.query('SELECT "IERN" FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
+    const iern = iernRes.rowCount > 0 ? iernRes.rows[0].IERN : school_id;
+
+    // 2. Check for duplicates
+    const dupRes = await pool.query('SELECT uid FROM users WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
+    if (dupRes.rowCount > 0) {
+      return res.status(400).json({ error: "Email or School ID is already registered." });
+    }
+
+    // 3. Hash Password & PIN
+    const passwordHash = await bcrypt.hash(password, 10);
+    const hashedPin = passcode ? await bcrypt.hash(passcode, 10) : null;
+    const uid = uuidv4();
+
+    // 4. Insert User (School Head)
+    const userQuery = `
+      INSERT INTO users (
+        uid, email, password_hash, hash_version, role, first_name, last_name,
+        school_id, iern, contact_number, region, division, province, city, barangay,
+        passcode, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+    `;
+    const userValues = [
+      uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
+      school_id, iern, contactNumber, 
+      schoolData.region, schoolData.division, schoolData.province, 
+      schoolData.municipality || schoolData.city, schoolData.barangay,
+      hashedPin
+    ];
+    await pool.query(userQuery, userValues);
+
+    // 5. Ensure school exists in ph_schools (monitoring)
+    const schoolQuery = `
+      INSERT INTO ph_schools (school_id, iern, school_name, region, division, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (school_id) DO UPDATE SET 
+        iern = EXCLUDED.iern,
+        latitude = EXCLUDED.latitude, 
+        longitude = EXCLUDED.longitude
+    `;
+    await pool.query(schoolQuery, [
+      school_id, iern, schoolData.school_name, 
+      schoolData.region, schoolData.division,
+      schoolData.latitude, schoolData.longitude
+    ]);
+
+    // 6. Generate Session Token
+    const token = jwt.sign(
+      { uid, email, role: 'School Head', school_id, iern },
+      process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
+      { expiresIn: '30d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        uid, email, role: 'School Head', firstName, lastName,
+        school_id, iern
+      }
+    });
+
+  } catch (err) {
+    console.error("❌ Register-Beta Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// 3. Standard User Registration (Engineers, SDO, etc.)
+app.post('/api/register-user', async (req, res) => {
+  try {
+    const validatedData = RegisterUserSchema.safeParse(req.body);
+    if (!validatedData.success) {
+      return res.status(400).json({ success: false, error: "Validation failed", details: validatedData.error.format() });
+    }
+
+    const { 
+      email, password, role, firstName, lastName, region, division, 
+      school_id, office, province, city, barangay, position, contactNumber, accountCategory, passcode 
+    } = validatedData.data;
+
+    const existingUser = await pool.query('SELECT uid FROM users WHERE LOWER(email) = $1', [email.toLowerCase()]);
+    if (existingUser.rowCount > 0) {
+      return res.status(400).json({ success: false, error: "Email already registered." });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const hashedPin = passcode ? await bcrypt.hash(passcode, 10) : null;
+    const uid = uuidv4();
+
+    // Fetch IERN if school_id is provided
+    let iern = null;
+    if (school_id) {
+        const iernRes = await pool.query('SELECT "IERN" FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
+        iern = iernRes.rowCount > 0 ? iernRes.rows[0].IERN : school_id;
+    }
+
+    const query = `
+      INSERT INTO users (
+        uid, email, password_hash, hash_version, role, first_name, last_name,
+        region, division, province, city, barangay, school_id, iern, office, position, 
+        contact_number, account_category, passcode, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP)
+    `;
+
+    const values = [
+      uid, email, passwordHash, 'bcrypt', role, firstName, lastName,
+      region, division, province, city, barangay, school_id, iern, office, position, 
+      contactNumber, accountCategory || role, hashedPin
+    ];
+
+    await pool.query(query, values);
+
+    const token = jwt.sign(
+      { uid, email, role, school_id, iern },
+      process.env.JWT_SECRET || 'STRIDE_INSIGHTED_SECRET_2026_KEY_PROD',
+      { expiresIn: '30d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        uid, email, role, firstName, lastName, region, division, 
+        account_category: accountCategory || role
+      }
+    });
+
+  } catch (err) {
+    console.error("❌ Register-User Error:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 });
 

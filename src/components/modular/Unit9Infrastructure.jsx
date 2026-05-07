@@ -107,6 +107,10 @@ const SummaryView = ({
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Wiring Age</p>
                     <p className="text-lg font-black text-slate-800">{generalData.wiring_age || "N/A"}</p>
                 </div>
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm col-span-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Last Full Electrical Inspection</p>
+                    <p className="text-lg font-black text-slate-800">{generalData.last_inspection_year || "Not Reported"}</p>
+                </div>
             </div>
             
             <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl">
@@ -448,6 +452,11 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
         init();
     }, [targetSchoolId, propReadOnly]);
 
+    // [UX] Auto-scroll to top when page changes
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [currentPage]);
+
     const restoreFromPayload = (p, autofillPower) => {
         if (!p) return;
 
@@ -598,6 +607,29 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
         });
     };
 
+    const isPage4Valid = () => {
+        // Strict Validation: Ensure no blank numeric fields in Security and Electrical Spares tables
+        const mainCategories = [
+            'cctv_cameras', 'fire_extinguishers', 'first_aid_kits', 
+            'portable_megaphones', 'battery_radios', 'large_flashlights',
+            'light_bulbs', 'outlet_covers', 'circuit_breakers', 'extension_cords'
+        ];
+
+        for (const cat of mainCategories) {
+            const item = inventoryData.items[cat];
+            // Check if any sub-field is a blank string
+            if (item.total === "" || item.working === "" || item.broken === "" || item.spares === "") {
+                return false;
+            }
+        }
+
+        // Check single-field items
+        if (inventoryData.items.emergency_whistles.total === "") return false;
+        if (inventoryData.items.electrical_tape.total === "") return false;
+
+        return true;
+    };
+
     const handleSaveDraft = async () => {
         const draft = { currentPage, generalData, fixedWiringData, applianceCctvData, inventoryData };
         await saveUnitDraft(9, schoolId, draft);
@@ -605,6 +637,11 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
     };
 
     const handleFinalSubmit = async () => {
+        if (!isPage4Valid()) {
+            alert("Error: All numeric fields in the Security and Electrical Maintenance tables must be filled. Do not leave any blanks (use 0 if none).");
+            return;
+        }
+
         if (!isCertified) {
             alert("Please certify that the data is correct.");
             return;
@@ -874,7 +911,13 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
 
                                     <button 
                                         type="button"
-                                        onClick={() => setCurrentPage(2)} 
+                                        onClick={() => {
+                                            if (generalData.active_meters === "") {
+                                                alert("Please enter the number of active meters before proceeding.");
+                                                return;
+                                            }
+                                            setCurrentPage(2);
+                                        }} 
                                         className="w-full py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
                                     >
                                         <span>Next Audit Phase</span>

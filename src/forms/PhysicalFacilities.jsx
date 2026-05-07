@@ -424,6 +424,9 @@ const PhysicalFacilities = ({ embedded }) => {
 
     const defaultRoomData = {
         room_no: '',
+        less_than_7x9: 0,
+        "7x9": 0,
+        above_7x9: 0,
         items: [] // Will contain objects: { item_name, oms, condition, damage_ratio, recommended_action, demo_justification, remarks }
     };
 
@@ -752,59 +755,54 @@ const PhysicalFacilities = ({ embedded }) => {
     // --- FETCH AND HYDRATE REPAIRS ---
     useEffect(() => {
         const fetchAndHydrateRepairs = async () => {
-            const iern = schoolIdParam || localStorage.getItem('schoolId');
-            if (!iern) return;
+            const id = schoolIdParam || localStorage.getItem('schoolId');
+            if (!id) return;
 
             setIsLoadingRepairs(true);
             try {
-                let data = [];
-                if (navigator.onLine) {
-                    try {
-                        const res = await fetch(`api/facility-repairs/${iern}`);
-                        if (res.ok) {
-                            data = await res.json();
-                        }
-                    } catch (err) {
-                        console.warn("API Fetch failed, will try IndexedDB:", err);
-                    }
-                }
+                // [InsightEd Master Protocol] Fetch from Unit 7 Master Endpoint
+                const res = await fetch(`api/ph_schools/unit7/${id}/master`);
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.success && json.data.repairs) {
+                        const repairs = json.data.repairs;
+                        // Group items by Building -> Room
+                        const groups = {};
+                        repairs.forEach((row, idx) => {
+                            const bKey = row.building_name || 'Unassigned';
+                            if (!groups[bKey]) {
+                                groups[bKey] = {
+                                    id: Date.now() + idx,
+                                    building_no: bKey,
+                                    rooms: []
+                                };
+                            }
 
-                // Hydrate logic: Convert flat items list to Building -> Room -> Items
-                if (data.length > 0) {
-                    const groups = {};
-                    data.forEach((row, idx) => {
-                        const bKey = row.building_no || 'Unassigned';
-                        if (!groups[bKey]) {
-                            groups[bKey] = {
-                                id: Date.now() + idx,
-                                building_no: bKey,
-                                rooms: []
-                            };
-                        }
+                            let room = groups[bKey].rooms.find(r => r.room_no === row.room_name);
+                            if (!room) {
+                                room = {
+                                    room_no: row.room_name,
+                                    saved: true,
+                                    less_than_7x9: row.less_than_7x9 || 0,
+                                    "7x9": row["7x9"] || 0,
+                                    above_7x9: row.above_7x9 || 0,
+                                    items: []
+                                };
+                                groups[bKey].rooms.push(room);
+                            }
 
-                        // Find or create room
-                        let room = groups[bKey].rooms.find(r => r.room_no === row.room_no);
-                        if (!room) {
-                            room = {
-                                room_no: row.room_no,
-                                saved: false,
-                                items: []
-                            };
-                            groups[bKey].rooms.push(room);
-                        }
-
-                        // Add item details
-                        room.items.push({
-                            item_name: row.item_name,
-                            oms: row.oms,
-                            condition: row.condition,
-                            damage_ratio: row.damage_ratio,
-                            recommended_action: row.recommended_action,
-                            demo_justification: row.demo_justification,
-                            remarks: row.remarks
+                            room.items.push({
+                                item_name: row.item_name,
+                                oms: row.oms,
+                                condition: row.condition,
+                                damage_ratio: row.damage_ratio,
+                                recommended_action: row.recommended_action,
+                                demo_justification: row.demo_justification,
+                                remarks: row.remarks
+                            });
                         });
-                    });
-                    setFacilityData(Object.values(groups));
+                        setFacilityData(Object.values(groups));
+                    }
                 }
             } catch (error) {
                 console.error("Hydration Error:", error);
@@ -1083,17 +1081,44 @@ const PhysicalFacilities = ({ embedded }) => {
             }
         }
 
+        const roomsPayload = [];
+        const allBuildings = [
+            ...newlyBuiltBuildings.map(b => ({ ...b, status: 'Newly Built' })),
+            ...goodConditionBuildings.map(b => ({ ...b, status: 'Good Condition' })),
+            ...facilityData.map(b => ({ 
+                ...b, 
+                building_name: b.building_no, // backend expects building_name
+                status: 'Needs Repair' 
+            }))
+        ];
+
+        for (const building of facilityData) {
+            for (const room of building.rooms) {
+                roomsPayload.push({
+                    building_local_id: building.id,
+                    building_name: building.building_no,
+                    room_name: room.room_no,
+                    condition: room.condition || 'Needs Repair',
+                    is_in_use: room.is_in_use,
+                    seats: room.seats,
+                    grade_level: room.grade_level,
+                    teacher_id: room.teacher_id,
+                    less_than_7x9: room.less_than_7x9,
+                    "7x9": room["7x9"],
+                    above_7x9: room.above_7x9
+                });
+            }
+        }
+
         const payload = {
             schoolId: schoolId || localStorage.getItem('schoolId'),
             iern: iern || schoolId || localStorage.getItem('schoolId'), // Use actual IERN
             uid: user.uid,
             ...formData,
             repairEntries,
+            rooms: roomsPayload, // Essential for ph_buildings_inventory
             demolitionEntries: demolitionData,
-            inventoryEntries: [
-                ...newlyBuiltBuildings.map(b => ({ ...b, status: 'Newly Built' })),
-                ...goodConditionBuildings.map(b => ({ ...b, status: 'Good Condition' }))
-            ]
+            inventoryEntries: allBuildings
         };
 
         try {

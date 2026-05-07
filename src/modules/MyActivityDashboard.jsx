@@ -16,18 +16,23 @@ import { getModularOutbox } from '../db';
 import { downloadPrintableReport } from '../utils/PrintableExportGenerator';
 
 // --- Circular Progress Ring ---
-const ProgressRing = ({ percentage = 0, size = 160, strokeWidth = 10 }) => {
+const ProgressRing = ({ percentage = 0, validationPercentage = 0, size = 160, strokeWidth = 10 }) => {
     const radius = (size - strokeWidth) / 2;
     const circumference = radius * 2 * Math.PI;
     const offset = circumference - (percentage / 100) * circumference;
     
+    // Nested validation ring
+    const innerRadius = radius - strokeWidth - 4;
+    const innerCircumference = innerRadius * 2 * Math.PI;
+    const innerOffset = innerCircumference - (validationPercentage / 100) * innerCircumference;
+
     return (
         <div className="relative" style={{ width: size, height: size }}>
             <svg width={size} height={size} className="transform -rotate-90">
-                {/* Background track */}
+                {/* Background track (Outer) */}
                 <circle cx={size/2} cy={size/2} r={radius} fill="none"
                     stroke="rgba(0,0,0,0.05)" strokeWidth={strokeWidth} />
-                {/* Animated progress */}
+                {/* Animated progress (Outer - Reported) */}
                 <motion.circle cx={size/2} cy={size/2} r={radius} fill="none"
                     stroke="url(#ringGradient)" strokeWidth={strokeWidth}
                     strokeLinecap="round"
@@ -35,7 +40,23 @@ const ProgressRing = ({ percentage = 0, size = 160, strokeWidth = 10 }) => {
                     initial={{ strokeDashoffset: circumference }}
                     animate={{ strokeDashoffset: offset }}
                     transition={{ duration: 1.5, ease: "easeOut" }}
+                    className="drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                 />
+                
+                {/* Background track (Inner) */}
+                <circle cx={size/2} cy={size/2} r={innerRadius} fill="none"
+                    stroke="rgba(0,0,0,0.03)" strokeWidth={strokeWidth - 2} />
+                {/* Animated progress (Inner - Validated) */}
+                <motion.circle cx={size/2} cy={size/2} r={innerRadius} fill="none"
+                    stroke="#10b981" strokeWidth={strokeWidth - 2}
+                    strokeLinecap="round"
+                    strokeDasharray={innerCircumference}
+                    initial={{ strokeDashoffset: innerCircumference }}
+                    animate={{ strokeDashoffset: innerOffset }}
+                    transition={{ duration: 1.8, ease: "easeOut", delay: 0.3 }}
+                    className="drop-shadow-[0_0_5px_rgba(16,185,129,0.2)]"
+                />
+
                 <defs>
                     <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#10b981" />
@@ -54,7 +75,10 @@ const ProgressRing = ({ percentage = 0, size = 160, strokeWidth = 10 }) => {
                 >
                     {Math.round(percentage)}%
                 </motion.span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Complete</span>
+                <div className="flex flex-col items-center -mt-1">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reported</span>
+                    <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-tighter mt-0.5">{Math.round(validationPercentage)}% Validated</span>
+                </div>
             </div>
         </div>
     );
@@ -207,7 +231,8 @@ const MyActivityDashboard = () => {
                     phJson, 
                     u7Json.data?.inventory || [], 
                     u8Json.data,
-                    user?.role
+                    user?.role,
+                    u7Json.data?.repairs || []
                 );
             } else {
                 alert("Failed to retrieve school data for export.");
@@ -230,10 +255,12 @@ const MyActivityDashboard = () => {
     const levelInfo = useMemo(() => getLevelFromXP(xp, maxXP), [xp, maxXP]);
 
     const displayPercentage = useMemo(() => {
-        const total = DASHBOARD_METADATA.units.length;
-        if (total === 0) return 0;
-        return Math.min(Math.round((filteredCompletedUnits.length / total) * 100), 100);
-    }, [filteredCompletedUnits]);
+        return data?.progress?.percentage || 0;
+    }, [data]);
+
+    const displayValidationPercentage = useMemo(() => {
+        return data?.progress?.validation_percentage || 0;
+    }, [data]);
 
     const nextUnit = useMemo(() => {
         if (!data?.progress?.flags) return unitMap[0];
@@ -415,6 +442,33 @@ const MyActivityDashboard = () => {
                             </div>
                         </motion.div>
                     )}
+
+                    {/* Data Integrity Alert CTA */}
+                    {data?.progress && Object.entries(data.progress.flags || {}).some(([k, v]) => v && !data.progress.validationFlags?.[k]) && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-red-200 shadow-lg shadow-red-100/50"
+                        >
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-red-500 flex items-center justify-center text-white shadow-md animate-pulse">
+                                    <FiShield size={24} />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="text-red-900 font-black text-sm uppercase tracking-tight">Audit Review Required</h4>
+                                    <p className="text-red-800/70 text-[10px] font-bold mt-0.5 leading-relaxed">
+                                        Some reported data units require your review to meet high-integrity standards.
+                                    </p>
+                                    <button 
+                                        onClick={() => navigate('/modular-dashboard')}
+                                        className="mt-3 w-full py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md shadow-red-600/20 active:scale-95 transition-all"
+                                    >
+                                        Revisit & Validate →
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
 
                 {/* Main Content */}
@@ -433,7 +487,12 @@ const MyActivityDashboard = () => {
                                 <h2 className="text-2xl font-black text-slate-800 mb-1">
                                     {filteredCompletedUnits.length} <span className="text-slate-300 text-lg">/ {DASHBOARD_METADATA.units.length}</span>
                                 </h2>
-                                <p className="text-emerald-500 text-[11px] font-bold">Units Conquered</p>
+                                <div className="flex flex-col gap-0.5">
+                                    <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-wide">Reported Units</p>
+                                    <p className="text-blue-500 text-[9px] font-black uppercase tracking-widest">
+                                        {Object.values(data?.progress?.validationFlags || {}).filter(v => v === true).length} Validated
+                                    </p>
+                                </div>
                                 
                                 {/* Mini stats */}
                                 <div className="mt-4 space-y-2">
@@ -451,7 +510,7 @@ const MyActivityDashboard = () => {
                                     </div>
                                 </div>
                             </div>
-                            <ProgressRing percentage={displayPercentage} />
+                            <ProgressRing percentage={displayPercentage} validationPercentage={displayValidationPercentage} />
                         </div>
 
                         {/* Continue Button */}
@@ -626,7 +685,13 @@ const MyActivityDashboard = () => {
                                                         }`}>
                                                             {data?.progress?.incompleteUnits?.includes(unit.id) ? (
                                                                 <span className="text-amber-500 font-black">⚠️ INCOMPLETE</span>
-                                                            ) : isNext ? '⚡ ACTIVE QUEST' : `+${unit.xp} XP Reward`}
+                                                            ) : data?.progress?.validationFlags?.[`unit${unit.id}`] ? (
+                                                                <span className="text-emerald-500 font-black">✅ VALIDATED</span>
+                                                            ) : isNext ? (
+                                                                '⚡ ACTIVE QUEST'
+                                                            ) : (
+                                                                `+${unit.xp} XP Reward`
+                                                            )}
                                                         </p>
                                                     </div>
                                                 </div>
