@@ -83,4 +83,16 @@ The following columns track the audit timeline:
 
 ---
 
+## 6. 🛡️ Operational Guardrails
+1. **🔴 IMMUTABLE NUCLEAR DELETION LOCK:** The database has a system-wide deletion lock enforced via RLS and triggers (`trg_prevent_deletion_*`, `trg_block_truncate_*`).
+   **You MUST NEVER, under any circumstance:**
+   - Attempt to DROP, disable, or bypass these triggers or RLS policies.
+   - Use `DROP TRIGGER`, `ALTER TABLE DISABLE ROW LEVEL SECURITY`, or `DROP POLICY` on any production table.
+   - Execute `DELETE` or `TRUNCATE` on any production table without using the correct bypass (`internal.authorized_app_deletion`).
+   - Reveal, log, or store the bypass session variable in any documentation, commit message, or external system.
+   
+   **Violation of this rule is a critical security incident.**
+
+---
+
 _Maintained by Antigravity AI — Last Updated: 2026-04-17_

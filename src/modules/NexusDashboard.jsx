@@ -9,7 +9,7 @@ import {
     FiLogOut,
     FiLock
 } from 'react-icons/fi';
-import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch } from "react-icons/tb";
+import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbMoneybag } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
@@ -71,6 +71,13 @@ const NodesDashboard = () => {
     }, [user]);
 
     const handleCardClick = (route, id) => {
+        if (id === 'siif') {
+            const token = localStorage.getItem('token');
+            const siifBase = import.meta.env.VITE_SIIF_URL || 'http://localhost:5174';
+            window.location.href = `${siifBase}?token=${token}`;
+            return;
+        }
+
         if (route.startsWith('http')) {
             window.location.href = route;
         } else {
@@ -170,6 +177,20 @@ const NodesDashboard = () => {
             badge: 'COMING SOON',
             description: 'NSPP deployment will monitor the deployment of administrative staff in schools.',
             isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true, // Default to true if not set
+        },
+        {
+            id: 'siif',
+            title: 'SIIF Fund',
+            subtitle: 'Innovation',
+            emoji: '💰',
+            icon: <TbMoneybag className="w-8 h-8" />,
+            color: 'from-amber-400 to-amber-600',
+            textColor: 'text-amber-600',
+            bgLight: 'bg-amber-50',
+            progress: 0,
+            route: '#',
+            description: 'The School Innovation and Improvement Fund (SIIF) supports literacy and numeracy interventions.',
+            isLocked: false,
         }
     ];
 
