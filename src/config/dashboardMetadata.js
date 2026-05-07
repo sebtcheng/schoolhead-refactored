@@ -1,5 +1,5 @@
 import { FiHome, FiUsers, FiGrid, FiBookOpen, FiClock, FiMapPin, FiUser, FiLayers, FiBox, FiZap } from "react-icons/fi";
-import { TbSchool, TbUsers, TbActivity, TbReportAnalytics, TbShieldCheck, TbMoneybag } from "react-icons/tb";
+import { TbSchool, TbUsers, TbActivity, TbReportAnalytics, TbShieldCheck } from "react-icons/tb";
 
 export const DASHBOARD_METADATA = {
     units: [
@@ -23,6 +23,5 @@ export const DASHBOARD_METADATA = {
         { id: 7, name: "School Resources", route: "/school-resources", icon: FiBox, color: "bg-emerald-100 text-emerald-600", flag: "f7_resources", unit: 6 },
         { id: 8, name: "Physical Facilities", route: "/physical-facilities", icon: FiLayers, color: "bg-amber-100 text-amber-600", flag: "f8_facilities", unit: 7 },
         { id: 9, name: "School Terrain", route: "/modular/unit-8", icon: FiMapPin, color: "bg-rose-100 text-rose-600", flag: "f11_location", unit: 8 },
-        { id: 10, name: "SIIF Fund", route: "/siif", icon: TbMoneybag, color: "bg-yellow-100 text-yellow-700", flag: "f12_siif", unit: 9 },
     ]
 };

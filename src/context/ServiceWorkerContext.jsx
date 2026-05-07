@@ -17,8 +17,7 @@ export const ServiceWorkerProvider = ({ children }) => {
             const swFileName = import.meta.env.DEV ? 'dev-sw.js?dev-sw' : 'sw.js';
             // Version is auto-injected from package.json by vite.config.js at build time
             const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
-            const joinChar = swFileName.includes('?') ? '&' : '?';
-            const swUrl = `${basePath}${swFileName}${joinChar}v=${APP_VERSION}`.replace('//', '/');
+            const swUrl = `${basePath}${swFileName}?v=${APP_VERSION}`.replace('//', '/');
 
             const registerSW = async () => {
                 try {

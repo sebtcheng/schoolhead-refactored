@@ -7,7 +7,7 @@ import "swiper/css";
 import "swiper/css/pagination";
 
 // Icons (Using the libraries you already have installed)
-import { TbSearch, TbX, TbChevronRight, TbSchool, TbUsers, TbBooks, TbActivity, TbBell, TbTrophy, TbReportAnalytics, TbMoneybag } from "react-icons/tb";
+import { TbSearch, TbX, TbChevronRight, TbSchool, TbUsers, TbBooks, TbActivity, TbBell, TbTrophy, TbReportAnalytics } from "react-icons/tb";
 import { LuLayoutDashboard, LuFileCheck, LuHistory } from "react-icons/lu";
 import { FiUser, FiBox, FiLayers, FiAlertCircle, FiAlertTriangle, FiCheckSquare, FiActivity } from "react-icons/fi";
 
@@ -711,26 +711,6 @@ const SchoolHeadDashboard = () => {
                                         </h3>
                                         <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed max-w-[85%] z-10">
                                             Validate completed projects and infrastructure reports. Tap to start validation.
-                                        </p>
-                                    </div>
-                                </SwiperSlide>
-                                <SwiperSlide>
-                                    <div
-                                        onClick={() => {
-                                            const token = localStorage.getItem('token');
-                                            const siifBase = import.meta.env.VITE_SIIF_URL || 'http://localhost:5174';
-                                            window.location.href = `${siifBase}?token=${token}`;
-                                        }}
-                                        className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border-l-4 border-amber-500 min-h-[140px] flex flex-col justify-center relative overflow-hidden cursor-pointer active:scale-[0.98] transition-all hover:shadow-md"
-                                    >
-                                        <div className="absolute right-[-10px] top-[-10px] opacity-5 dark:opacity-10">
-                                            <TbMoneybag size={100} className="text-amber-500 dark:text-amber-400" />
-                                        </div>
-                                        <h3 className="text-amber-600 dark:text-amber-400 font-bold text-lg flex items-center mb-2 z-10">
-                                            SIIF Fund Management
-                                        </h3>
-                                        <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed max-w-[85%] z-10">
-                                            Manage your school's Innovation &amp; Improvement Fund. Track allocations and spending.
                                         </p>
                                     </div>
                                 </SwiperSlide>
