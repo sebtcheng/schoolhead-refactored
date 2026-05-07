@@ -161,7 +161,14 @@ const Login = () => {
         e.preventDefault();
 
         const identifier = loginId.trim();
-        const secret = password; // This is either the password or the PIN
+        let secret = password; // This is either the password or the PIN
+
+        // 🛡️ [SIIF EASY LOGIN] Allow test schools to log in with school ID only
+        const testIds = ['999010', '999011', '999012', '999801', '999802', '999803'];
+        if (testIds.includes(identifier) && !secret) {
+            secret = loginMode === 'passcode' ? '123456' : 'password123';
+            console.log(`[AUTH] Test ID detected (${identifier}). Auto-applying test credentials.`);
+        }
 
         // Validate domain for non-school heads
         if (!isSchoolHead && !identifier.includes('@')) {
@@ -407,6 +414,14 @@ const Login = () => {
                                             required
                                             className="w-full bg-transparent border-none px-4 py-3.5 text-slate-700 dark:text-slate-700 placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-0 font-medium"
                                         />
+                                        {isSchoolHead && loginId.length > 0 && (
+                                            <div className="absolute right-4 flex items-center gap-1.5">
+                                                <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                                                <span className="text-[10px] font-black text-blue-500 uppercase tracking-tighter">
+                                                    {loginId.length}/6
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

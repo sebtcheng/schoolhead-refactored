@@ -22,7 +22,7 @@ export default defineConfig({
       injectRegister: null,
       manifestFilename: 'manifest.json',
       devOptions: {
-        enabled: false,
+        enabled: true,
         type: 'module',
         navigateFallback: 'index.html',
       },
