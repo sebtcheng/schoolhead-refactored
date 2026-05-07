@@ -150,7 +150,7 @@ const NodesDashboard = () => {
             color: 'from-blue-500 to-indigo-600',
             textColor: 'text-blue-600',
             bgLight: 'bg-blue-50',
-            progress: 0,
+            progress: questProgress.esf7_progress || 0,
             route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
             badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
             description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
@@ -296,6 +296,15 @@ const NodesDashboard = () => {
                                                 <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>{mod.progress}%</span>
                                             </div>
                                             <div className="flex items-center gap-2">
+                                                {mod.progress === 50 && mod.id === 'esf7' && (
+                                                    <motion.span 
+                                                        initial={{ scale: 0.5, opacity: 0 }}
+                                                        animate={{ scale: 1, opacity: 1 }}
+                                                        className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest bg-amber-500 text-white shadow-lg shadow-amber-500/30 border border-amber-400 flex items-center gap-1 animate-pulse`}
+                                                    >
+                                                        QUEUING
+                                                    </motion.span>
+                                                )}
                                                 {mod.progress === 100 && mod.id !== 'school-info' && (
                                                     <motion.span 
                                                         initial={{ scale: 0.5, opacity: 0 }}
