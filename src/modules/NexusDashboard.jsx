@@ -7,9 +7,11 @@ import {
     FiAward,
     FiMoreVertical,
     FiLogOut,
-    FiLock
+    FiLock,
+    FiGrid,
+    FiArrowLeft
 } from 'react-icons/fi';
-import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch } from "react-icons/tb";
+import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
@@ -23,6 +25,7 @@ const NodesDashboard = () => {
     const [isNavigating, setIsNavigating] = useState(false);
     const [showEdWelcome, setShowEdWelcome] = useState(false);
     const [dynamicLocks, setDynamicLocks] = useState({});
+    const [activeView, setActiveView] = useState('main'); // 'main' or 'services'
 
 
     useEffect(() => {
@@ -71,8 +74,17 @@ const NodesDashboard = () => {
     }, [user]);
 
     const handleCardClick = (route, id) => {
+        if (id === 'other-services') {
+            setActiveView('services');
+            return;
+        }
+
         if (route.startsWith('http')) {
-            window.location.href = route;
+            // Append token for microservices
+            const token = user?.token || localStorage.getItem('token');
+            const targetUrl = new URL(route);
+            targetUrl.searchParams.set('token', token);
+            window.location.href = targetUrl.toString();
         } else {
             navigate(route);
         }
@@ -169,7 +181,71 @@ const NodesDashboard = () => {
             route: '/draft/nspp',
             badge: 'COMING SOON',
             description: 'NSPP deployment will monitor the deployment of administrative staff in schools.',
-            isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true, // Default to true if not set
+            isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true,
+        },
+        {
+            id: 'other-services',
+            title: 'OTHER SERVICES',
+            subtitle: 'Supplemental',
+            emoji: '📦',
+            icon: <FiGrid className="w-8 h-8" />,
+            color: 'from-slate-600 to-slate-800',
+            textColor: 'text-slate-700',
+            bgLight: 'bg-slate-50',
+            progress: 0,
+            route: '#',
+            description: 'Access supplemental microservices and specialized school management tools.',
+            isLocked: false,
+            badge: 'EXPANDING'
+        }
+    ];
+
+    const SIIF_URL = import.meta.env.VITE_SIIF_URL || 'http://localhost:5174';
+
+    const otherServicesModules = [
+        {
+            id: 'siif',
+            title: 'SIIF HUB',
+            subtitle: 'Innovation Fund',
+            emoji: '💰',
+            icon: <FiAward className="w-8 h-8" />,
+            color: 'from-blue-600 to-blue-800',
+            textColor: 'text-blue-700',
+            bgLight: 'bg-blue-50',
+            progress: 0,
+            route: SIIF_URL, // Use configurable URL
+            description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
+            isLocked: false,
+        },
+        {
+            id: 'soss',
+            title: 'SOSS HUB',
+            subtitle: 'Social Services',
+            emoji: '🤝',
+            icon: <TbUsers className="w-8 h-8" />,
+            color: 'from-emerald-600 to-emerald-800',
+            textColor: 'text-emerald-700',
+            bgLight: 'bg-emerald-50',
+            progress: 0,
+            route: '#',
+            description: 'Integrated platform for tracking school-based social service programs.',
+            isLocked: true,
+            badge: 'PLACEHOLDER'
+        },
+        {
+            id: 'sgc',
+            title: 'SGC HUB',
+            subtitle: 'Governance',
+            emoji: '🏛️',
+            icon: <TbBriefcase className="w-8 h-8" />,
+            color: 'from-indigo-600 to-indigo-800',
+            textColor: 'text-indigo-700',
+            bgLight: 'bg-indigo-50',
+            progress: 0,
+            route: '#',
+            description: 'School Governance Council management and compliance tracking.',
+            isLocked: true,
+            badge: 'PLACEHOLDER'
         }
     ];
 
@@ -190,14 +266,25 @@ const NodesDashboard = () => {
                 {/* Decorative Background Glows */}
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[140px] -mr-80 -mt-80 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-100/20 rounded-full blur-[120px] -ml-64 -mb-64 pointer-events-none" />
-                
-                <div className="px-8 pt-12 pb-10 flex justify-between items-start">
+                       <div className="px-8 pt-12 pb-10 flex justify-between items-start">
                     <div className="flex flex-col">
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                            {questProgress.school_name || "Nexus Dashboard"}
-                        </h1>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
-                            School ID: {questProgress.schoolId || "------"}
+                        <div className="flex items-center gap-3 mb-1">
+                            {activeView === 'services' && (
+                                <motion.button
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    onClick={() => setActiveView('main')}
+                                    className="p-2 bg-white rounded-xl shadow-md border border-slate-100 text-slate-400 hover:text-blue-600 transition-colors"
+                                >
+                                    <FiArrowLeft size={20} />
+                                </motion.button>
+                            )}
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">
+                                {activeView === 'services' ? "Other Services" : (questProgress.school_name || "Nexus Dashboard")}
+                            </h1>
+                        </div>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                            {activeView === 'services' ? "Supplemental Microservices" : `School ID: ${questProgress.schoolId || "------"}`}
                         </p>
                     </div>
                     <button 
@@ -209,135 +296,36 @@ const NodesDashboard = () => {
                     </button>
                 </div>
 
-                {/* --- 2X2 GRID MATCHING REFERENCE --- */}
-                <div className="px-6 grid grid-cols-1 gap-6">
-                    {modules.map((mod, idx) => {
-                        const isPrimary = mod.id === 'esf7';
-                        return (
+                {/* --- DYNAMIC GRID VIEW --- */}
+                <div className="px-6 relative">
+                    <AnimatePresence mode="wait">
+                        {activeView === 'main' ? (
                             <motion.div
-                                key={mod.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.1 }}
-                                onClick={() => !mod.isLocked && handleCardClick(mod.route, mod.id)}
-                                className={`
-                                    flex flex-col p-8 rounded-[3rem] cursor-pointer relative transition-all duration-300 active:scale-95 active:translate-y-1
-                                    ${mod.isLocked ? 'grayscale opacity-60 pointer-events-none' : ''}
-                                    ${isPrimary 
-                                        ? 'bg-[#10346B] text-white shadow-2xl shadow-blue-900/40 border-b-8 border-blue-950' 
-                                        : 'bg-white border border-slate-100 text-slate-900 shadow-[0_15px_35px_rgba(0,0,0,0.1)] border-b-8 border-slate-200'}
-                                `}
+                                key="main-grid"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="grid grid-cols-1 gap-6"
                             >
-                                <div className="flex justify-between items-start mb-8">
-                                    <div className="flex flex-col">
-                                        <h4 className={`font-black leading-tight mb-1 ${isPrimary ? 'text-2xl' : 'text-xl'}`}>{mod.title}</h4>
-                                        <p className={`text-[12px] font-black uppercase tracking-[0.15em] leading-tight ${isPrimary ? 'text-blue-200' : 'text-slate-400'}`}>{mod.subtitle}</p>
-                                    </div>
-                                     {mod.isLocked ? (
-                                        <div className={`p-2 rounded-xl ${isPrimary ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                            <FiLock size={18} />
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-3">
-                                            {mod.progress === 100 && (
-                                                <motion.span 
-                                                    initial={{ scale: 0.5, opacity: 0 }}
-                                                    animate={{ scale: 1, opacity: 1 }}
-                                                    className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest flex items-center gap-1 shadow-lg border 
-                                                        ${(mod.id === 'school-info' && questProgress.validation_percentage === 100)
-                                                            ? 'bg-emerald-600 text-white shadow-emerald-500/40 border-emerald-400'
-                                                            : (mod.id === 'school-info' && questProgress.validation_percentage < 100)
-                                                            ? 'bg-red-500 text-white shadow-red-500/30 border-red-400 animate-pulse'
-                                                            : isPrimary ? 'bg-emerald-400 text-white shadow-emerald-900/20 border-emerald-400' 
-                                                            : 'bg-emerald-500 text-white shadow-emerald-500/30 border-emerald-400'}
-                                                    `}
-                                                >
-                                                    {(mod.id === 'school-info' && questProgress.validation_percentage === 100) ? (
-                                                        <>
-                                                            <TbShieldCheck size={10} /> VALIDATED
-                                                        </>
-                                                    ) : (mod.id === 'school-info' && questProgress.validation_percentage < 100) ? (
-                                                        <>
-                                                            <TbShieldX size={10} /> NEEDS VALIDATION
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FiAward size={10} /> COMPLETED
-                                                        </>
-                                                    )}
-                                                </motion.span>
-                                            )}
-                                            <FiMoreVertical className={isPrimary ? 'text-blue-200/50' : 'text-slate-300'} />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center gap-6 mb-8">
-                                    <motion.div 
-                                        animate={{ y: [0, -5, 0] }}
-                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                        className={`w-20 h-20 rounded-[2rem] flex items-center justify-center shrink-0 shadow-lg ${isPrimary ? 'bg-white/10 text-white' : 'bg-slate-50 border border-slate-100 text-slate-800'}`}
-                                    >
-                                        {React.cloneElement(mod.icon, { className: "w-10 h-10" })}
-                                    </motion.div>
-                                    
-                                    <div className="flex-1">
-                                        <p className={`text-sm font-bold leading-relaxed ${isPrimary ? 'text-blue-100' : 'text-slate-500'}`}>
-                                            {mod.description}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {mod.id !== 'school-info' && (
-                                    <div className="mt-auto">
-                                        <div className="flex justify-between items-end mb-3">
-                                            <div className="flex flex-col">
-                                                <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isPrimary ? 'text-blue-200/60' : 'text-slate-400'}`}>Completion Percentage</span>
-                                                <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>{mod.progress}%</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {mod.progress === 50 && mod.id === 'esf7' && (
-                                                    <motion.span 
-                                                        initial={{ scale: 0.5, opacity: 0 }}
-                                                        animate={{ scale: 1, opacity: 1 }}
-                                                        className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest bg-amber-500 text-white shadow-lg shadow-amber-500/30 border border-amber-400 flex items-center gap-1 animate-pulse`}
-                                                    >
-                                                        QUEUING
-                                                    </motion.span>
-                                                )}
-                                                {mod.progress === 100 && mod.id !== 'school-info' && (
-                                                    <motion.span 
-                                                        initial={{ scale: 0.5, opacity: 0 }}
-                                                        animate={{ scale: 1, opacity: 1 }}
-                                                        className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 border border-emerald-400 flex items-center gap-1`}
-                                                    >
-                                                        <FiAward size={10} /> COMPLETED
-                                                    </motion.span>
-                                                )}
-                                                {mod.badge && (
-                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : (isPrimary ? 'bg-white/20 text-white border border-white/10' : 'bg-[#10346B] text-white')}`}>
-                                                        {mod.isLocked ? 'LOCKED' : mod.badge}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className={`h-2.5 w-full rounded-full overflow-hidden ${isPrimary ? 'bg-white/10' : 'bg-slate-100'}`}>
-                                            <motion.div 
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${mod.progress}%` }}
-                                                transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 + (idx * 0.1) }}
-                                                className={`h-full rounded-full ${isPrimary ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-[#10346B]'}`}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+                                {modules.map((mod, idx) => (
+                                    <ModuleCard key={mod.id} mod={mod} idx={idx} onClick={handleCardClick} isPrimary={mod.id === 'esf7'} questProgress={questProgress} />
+                                ))}
                             </motion.div>
-                        );
-                    })}
+                        ) : (
+                            <motion.div
+                                key="services-grid"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                className="grid grid-cols-1 gap-6"
+                            >
+                                {otherServicesModules.map((mod, idx) => (
+                                    <ModuleCard key={mod.id} mod={mod} idx={idx} onClick={handleCardClick} questProgress={questProgress} />
+                                ))}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
-
-
-
             </div>
 
             {/* --- ED WELCOME OVERLAY --- */}
@@ -409,6 +397,106 @@ const NodesDashboard = () => {
 
             {/* Global Animated Scanline Effect */}
         </PageTransition>
+    );
+};
+
+// --- EXTRACTED COMPONENT FOR DESIGN CONSISTENCY ---
+const ModuleCard = ({ mod, idx, onClick, isPrimary, questProgress }) => {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            onClick={() => !mod.isLocked && onClick(mod.route, mod.id)}
+            className={`
+                flex flex-col p-8 rounded-[3rem] cursor-pointer relative transition-all duration-300 active:scale-95 active:translate-y-1
+                ${mod.isLocked ? 'grayscale opacity-60 pointer-events-none' : ''}
+                ${isPrimary 
+                    ? 'bg-[#10346B] text-white shadow-2xl shadow-blue-900/40 border-b-8 border-blue-950' 
+                    : 'bg-white border border-slate-100 text-slate-900 shadow-[0_15px_35px_rgba(0,0,0,0.1)] border-b-8 border-slate-200'}
+            `}
+        >
+            <div className="flex justify-between items-start mb-8">
+                <div className="flex flex-col">
+                    <h4 className={`font-black leading-tight mb-1 ${isPrimary ? 'text-2xl' : 'text-xl'}`}>{mod.title}</h4>
+                    <p className={`text-[12px] font-black uppercase tracking-[0.15em] leading-tight ${isPrimary ? 'text-blue-200' : 'text-slate-400'}`}>{mod.subtitle}</p>
+                </div>
+                 {mod.isLocked ? (
+                    <div className={`p-2 rounded-xl ${isPrimary ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        <FiLock size={18} />
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        {mod.id === 'school-info' && (
+                            <motion.span 
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className={`px-3 py-1 rounded-lg text-[9px] font-black tracking-widest flex items-center gap-1 shadow-lg border 
+                                    ${questProgress.validation_percentage === 100
+                                        ? 'bg-emerald-600 text-white shadow-emerald-500/40 border-emerald-400'
+                                        : 'bg-red-500 text-white shadow-red-500/30 border-red-400 animate-pulse'}
+                                `}
+                            >
+                                {questProgress.validation_percentage === 100 ? (
+                                    <>
+                                        <TbShieldCheck size={10} /> VALIDATED
+                                    </>
+                                ) : (
+                                    <>
+                                        <TbShieldX size={10} /> NEEDS VALIDATION
+                                    </>
+                                )}
+                            </motion.span>
+                        )}
+                        <FiMoreVertical className={isPrimary ? 'text-blue-200/50' : 'text-slate-300'} />
+                    </div>
+                )}
+            </div>
+
+            <div className="flex items-center gap-6 mb-8">
+                <motion.div 
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    className={`w-20 h-20 rounded-[2rem] flex items-center justify-center shrink-0 shadow-lg ${isPrimary ? 'bg-white/10 text-white' : 'bg-slate-50 border border-slate-100 text-slate-800'}`}
+                >
+                    {React.cloneElement(mod.icon, { className: "w-10 h-10" })}
+                </motion.div>
+                
+                <div className="flex-1">
+                    <p className={`text-sm font-bold leading-relaxed ${isPrimary ? 'text-blue-100' : 'text-slate-500'}`}>
+                        {mod.description}
+                    </p>
+                </div>
+            </div>
+
+            <div className="mt-auto">
+                <div className="flex justify-between items-end mb-3">
+                    <div className="flex flex-col">
+                        <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isPrimary ? 'text-blue-200/60' : 'text-slate-400'}`}>
+                            {mod.id === 'other-services' || mod.isLocked ? "Status" : "Completion Percentage"}
+                        </span>
+                        <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>
+                            {mod.isLocked ? "LOCKED" : (mod.progress ? `${mod.progress}%` : "READY")}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {mod.badge && (
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : (isPrimary ? 'bg-white/20 text-white border border-white/10' : 'bg-[#10346B] text-white')}`}>
+                                {mod.badge}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                <div className={`h-2.5 w-full rounded-full overflow-hidden ${isPrimary ? 'bg-white/10' : 'bg-slate-100'}`}>
+                    <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${mod.isLocked ? 0 : (mod.progress || 100)}%` }}
+                        transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 + (idx * 0.1) }}
+                        className={`h-full rounded-full ${isPrimary ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-[#10346B]'}`}
+                    />
+                </div>
+            </div>
+        </motion.div>
     );
 };
 
