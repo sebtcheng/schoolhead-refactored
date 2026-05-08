@@ -215,7 +215,7 @@ const NodesDashboard = () => {
             progress: 0,
             route: SIIF_URL, // Use configurable URL
             description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-            isLocked: false,
+            isLocked: !user?.is_testaccount,
         },
         {
             id: 'soss',
