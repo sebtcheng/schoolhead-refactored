@@ -36,7 +36,7 @@ const initUnit7Schema = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit7 BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit7_completed BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit7_updated_at TIMESTAMP;
-        `).catch(() => {});
+        `).catch(() => { });
 
         // 2. Repairs Table
         await client.query(`
@@ -110,7 +110,7 @@ const initUnit7Schema = async (client, dbLabel) => {
 const initUnit8Schema = async (client, dbLabel) => {
     try {
         console.log(`🏗️ [${dbLabel}] Hardening Unit 8 (School Terrain) Schema...`);
-        
+
         // 1. Unified Advisory Lock (Unit 8 ID: 8888)
         const lockRes = await client.query('SELECT pg_try_advisory_lock(8888)');
         if (!lockRes.rows[0].pg_try_advisory_lock) {
@@ -300,11 +300,11 @@ const runMigrations = async (client, dbLabel) => {
         await initUnitTimestampTrigger(client, dbLabel);
 
         // --- 1. AUDIT FEEDBACK TASKS TABLE ---
-    try {
-        // Drop legacy table as requested
-        await client.query('DROP TABLE IF EXISTS audit_remarks CASCADE');
-        
-        await client.query(`
+        try {
+            // Drop legacy table as requested
+            await client.query('DROP TABLE IF EXISTS audit_remarks CASCADE');
+
+            await client.query(`
             CREATE TABLE IF NOT EXISTS audit_feedback_tasks (
                 id SERIAL PRIMARY KEY,
                 school_id TEXT NOT NULL,
@@ -320,14 +320,14 @@ const runMigrations = async (client, dbLabel) => {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        // console.log(`✅ [${dbLabel}] Audit Feedback Tasks Table Initialized`);
-    } catch (tableErr) {
-        console.error(`❌ [${dbLabel}] Failed to init audit_feedback_tasks table:`, tableErr.message);
-    }
+            // console.log(`✅ [${dbLabel}] Audit Feedback Tasks Table Initialized`);
+        } catch (tableErr) {
+            console.error(`❌ [${dbLabel}] Failed to init audit_feedback_tasks table:`, tableErr.message);
+        }
 
-    // --- 3. NOTIFICATIONS TABLE ---
-    try {
-        await client.query(`
+        // --- 3. NOTIFICATIONS TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS notifications (
                 id SERIAL PRIMARY KEY,
                 recipient_uid TEXT NOT NULL,
@@ -340,13 +340,13 @@ const runMigrations = async (client, dbLabel) => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-    } catch (tableErr) {
-        console.error(`❌ [${dbLabel}] Failed to init notifications table:`, tableErr.message);
-    }
+        } catch (tableErr) {
+            console.error(`❌ [${dbLabel}] Failed to init notifications table:`, tableErr.message);
+        }
 
-    // --- 4. SETTINGS TABLE ---
-    try {
-        await client.query(`
+        // --- 4. SETTINGS TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT,
@@ -357,13 +357,13 @@ const runMigrations = async (client, dbLabel) => {
             VALUES ('nexus_module_locks', '{"school-info": false, "esf7": false, "nspp": true}')
             ON CONFLICT (key) DO NOTHING;
         `);
-    } catch (tableErr) {
-        console.error(`❌ [${dbLabel}] Failed to init settings table:`, tableErr.message);
-    }
+        } catch (tableErr) {
+            console.error(`❌ [${dbLabel}] Failed to init settings table:`, tableErr.message);
+        }
 
-    // --- 5. UNIT PROGRESS COLUMNS ---
-    try {
-        await client.query(`
+        // --- 5. UNIT PROGRESS COLUMNS ---
+        try {
+            await client.query(`
             ALTER TABLE ph_schools 
             ADD COLUMN IF NOT EXISTS unit1 SMALLINT DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit2 SMALLINT DEFAULT 0,
@@ -375,13 +375,13 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit8 SMALLINT DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit9 SMALLINT DEFAULT 0;
         `);
-    } catch (colErr) {
-        console.error(`❌ [${dbLabel}] Failed to add unit progress columns:`, colErr.message);
-    }
+        } catch (colErr) {
+            console.error(`❌ [${dbLabel}] Failed to add unit progress columns:`, colErr.message);
+        }
 
-    // --- 2.2. SCHOOL COMPLETION TABLE ---
-    try {
-        await client.query(`
+        // --- 2.2. SCHOOL COMPLETION TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS ph_school_completion (
                 iern VARCHAR(255) PRIMARY KEY,
                 school_id VARCHAR(255),
@@ -400,16 +400,16 @@ const runMigrations = async (client, dbLabel) => {
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        await client.query(`
+            await client.query(`
             ALTER TABLE ph_school_completion 
             ADD COLUMN IF NOT EXISTS school_id VARCHAR(255),
             ADD COLUMN IF NOT EXISTS registration_date TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             ADD COLUMN IF NOT EXISTS region TEXT,
             ADD COLUMN IF NOT EXISTS division TEXT;
-        `).catch(() => {});
+        `).catch(() => { });
 
-        // Data Backfill: Populate region/division from schools_IERN (HAWKEYE Protocol)
-        await client.query(`
+            // Data Backfill: Populate region/division from schools_IERN (HAWKEYE Protocol)
+            await client.query(`
             UPDATE ph_school_completion psc
             SET
                 region = si."Region",
@@ -418,11 +418,11 @@ const runMigrations = async (client, dbLabel) => {
             WHERE psc.school_id = si."SchoolID"
               AND (psc.region IS NULL OR psc.division IS NULL);
         `).catch(err => {
-            console.warn(`⚠️ [${dbLabel}] ph_school_completion backfill skipped:`, err.message);
-        });
+                console.warn(`⚠️ [${dbLabel}] ph_school_completion backfill skipped:`, err.message);
+            });
 
-        // Deduplicate school_id before adding unique constraint (keep row with highest total_completion)
-        await client.query(`
+            // Deduplicate school_id before adding unique constraint (keep row with highest total_completion)
+            await client.query(`
             DELETE FROM ph_school_completion
             WHERE iern NOT IN (
                 SELECT DISTINCT ON (school_id) iern
@@ -431,28 +431,28 @@ const runMigrations = async (client, dbLabel) => {
                 ORDER BY school_id, total_completion DESC, updated_at DESC NULLS LAST
             ) AND school_id IS NOT NULL;
         `).catch(err => {
-            console.warn(`⚠️ [${dbLabel}] ph_school_completion dedup skipped:`, err.message);
-        });
+                console.warn(`⚠️ [${dbLabel}] ph_school_completion dedup skipped:`, err.message);
+            });
 
-        // ON CONFLICT (school_id) requires a full (non-partial) unique index.
-        // A partial index (WHERE school_id IS NOT NULL) does NOT satisfy ON CONFLICT (school_id).
-        // Drop whatever exists (partial or non-unique), then recreate as a full unique index.
-        await client.query(`DROP INDEX IF EXISTS idx_ph_school_completion_school_id;`).catch(() => {});
-        await client.query(`
+            // ON CONFLICT (school_id) requires a full (non-partial) unique index.
+            // A partial index (WHERE school_id IS NOT NULL) does NOT satisfy ON CONFLICT (school_id).
+            // Drop whatever exists (partial or non-unique), then recreate as a full unique index.
+            await client.query(`DROP INDEX IF EXISTS idx_ph_school_completion_school_id;`).catch(() => { });
+            await client.query(`
             CREATE UNIQUE INDEX idx_ph_school_completion_school_id
             ON ph_school_completion(school_id);
         `).catch(err => {
-            console.warn(`⚠️ [${dbLabel}] ph_school_completion school_id unique index skipped:`, err.message);
-        });
+                console.warn(`⚠️ [${dbLabel}] ph_school_completion school_id unique index skipped:`, err.message);
+            });
 
-        // console.log(`✅ [${dbLabel}] School Completion Table Initialized`);
-    } catch (tableErr) {
-        console.error(`❌ [${dbLabel}] Failed to init ph_school_completion table:`, tableErr.message);
-    }
+            // console.log(`✅ [${dbLabel}] School Completion Table Initialized`);
+        } catch (tableErr) {
+            console.error(`❌ [${dbLabel}] Failed to init ph_school_completion table:`, tableErr.message);
+        }
 
-    // --- 2.5. ACTIVITY LOGS TABLE ---
-    try {
-        await client.query(`
+        // --- 2.5. ACTIVITY LOGS TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS activity_logs (
                 log_id SERIAL PRIMARY KEY,
                 user_uid TEXT,
@@ -464,15 +464,15 @@ const runMigrations = async (client, dbLabel) => {
                 timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        // console.log(`✅ [${dbLabel}] Activity Logs Table Initialized`);
-    } catch (tableErr) {
-        console.error(`❌ [${dbLabel}] Failed to init activity_logs table:`, tableErr.message);
-    }
+            // console.log(`✅ [${dbLabel}] Activity Logs Table Initialized`);
+        } catch (tableErr) {
+            console.error(`❌ [${dbLabel}] Failed to init activity_logs table:`, tableErr.message);
+        }
 
-    // --- 3. SCHOOL PROFILES EXTENSIONS ---
-    try {
-        // Add Basic Extensions, Resources, Site & Utils
-        await client.query(`
+        // --- 3. SCHOOL PROFILES EXTENSIONS ---
+        try {
+            // Add Basic Extensions, Resources, Site & Utils
+            await client.query(`
             ALTER TABLE school_profiles 
             ADD COLUMN IF NOT EXISTS email TEXT,
             ADD COLUMN IF NOT EXISTS submitted_by TEXT,
@@ -486,28 +486,28 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS res_water_source TEXT,
             ADD COLUMN IF NOT EXISTS res_internet_type TEXT;
         `);
-        // console.log(`✅ [${dbLabel}] School Profiles Schema Updated (Basic Extensions)`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate school_profiles basic:`, migErr.message);
-    }
+            // console.log(`✅ [${dbLabel}] School Profiles Schema Updated (Basic Extensions)`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate school_profiles basic:`, migErr.message);
+        }
 
-    // --- 4. USER DEVICE TOKENS ---
-    try {
-        await client.query(`
+        // --- 4. USER DEVICE TOKENS ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS user_device_tokens (
                 uid TEXT PRIMARY KEY,
                 fcm_token TEXT NOT NULL,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        // console.log(`✅ [${dbLabel}] User Device Tokens Table Initialized`);
-    } catch (tokenErr) {
-        console.error(`❌ [${dbLabel}] Failed to init user_device_tokens:`, tokenErr.message);
-    }
+            // console.log(`✅ [${dbLabel}] User Device Tokens Table Initialized`);
+        } catch (tokenErr) {
+            console.error(`❌ [${dbLabel}] Failed to init user_device_tokens:`, tokenErr.message);
+        }
 
-    // --- 4.1. WEB PUSH SUBSCRIPTIONS (Standard Browser Push) ---
-    try {
-        await client.query(`
+        // --- 4.1. WEB PUSH SUBSCRIPTIONS (Standard Browser Push) ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS user_web_push_subscriptions (
                 id SERIAL PRIMARY KEY,
                 uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,
@@ -518,13 +518,13 @@ const runMigrations = async (client, dbLabel) => {
             );
             CREATE INDEX IF NOT EXISTS idx_push_uid ON user_web_push_subscriptions(uid);
         `);
-    } catch (pushErr) {
-        console.error(`❌ [${dbLabel}] Failed to init user_web_push_subscriptions:`, pushErr.message);
-    }
+        } catch (pushErr) {
+            console.error(`❌ [${dbLabel}] Failed to init user_web_push_subscriptions:`, pushErr.message);
+        }
 
-    // --- 5. USERS TABLE EXTENSIONS ---
-    try {
-        await client.query(`
+        // --- 5. USERS TABLE EXTENSIONS ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS users (
                 uid TEXT PRIMARY KEY,
                 email TEXT,
@@ -543,8 +543,8 @@ const runMigrations = async (client, dbLabel) => {
             );
         `);
 
-        // Consolidate all extensions into a single idempotent block
-        await client.query(`
+            // Consolidate all extensions into a single idempotent block
+            await client.query(`
             ALTER TABLE users 
             ADD COLUMN IF NOT EXISTS first_name TEXT,
             ADD COLUMN IF NOT EXISTS last_name TEXT,
@@ -571,27 +571,27 @@ const runMigrations = async (client, dbLabel) => {
             ALTER COLUMN passcode TYPE TEXT;
         `);
 
-        // Create UNIQUE INDEX on school_id (only for non-null values)
-        await client.query(`
+            // Create UNIQUE INDEX on school_id (only for non-null values)
+            await client.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS idx_users_school_id 
             ON users(school_id) 
             WHERE school_id IS NOT NULL;
         `);
 
-        // Index for rapid login by email (case-insensitive)
-        await client.query(`
+            // Index for rapid login by email (case-insensitive)
+            await client.query(`
             CREATE INDEX IF NOT EXISTS idx_users_email_lower 
             ON users(LOWER(email));
         `);
 
-        // console.log(`✅ [${dbLabel}] Users Table Schema Updated & Indexed`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate users table:`, migErr.message);
-    }
+            // console.log(`✅ [${dbLabel}] Users Table Schema Updated & Indexed`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate users table:`, migErr.message);
+        }
 
-    // --- 6. COMPREHENSIVE SCHOOL PROFILE COLUMNS (Detailed) ---
-    try {
-        await client.query(`
+        // --- 6. COMPREHENSIVE SCHOOL PROFILE COLUMNS (Detailed) ---
+        try {
+            await client.query(`
         ALTER TABLE school_profiles 
         -- Toilets & Labs
         ADD COLUMN IF NOT EXISTS res_toilets_pwd INTEGER DEFAULT 0,
@@ -688,14 +688,14 @@ const runMigrations = async (client, dbLabel) => {
         ADD COLUMN IF NOT EXISTS res_handwash_func INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS res_handwash_nonfunc INTEGER DEFAULT 0;
       `);
-        console.log(`✅ [${dbLabel}] Detailed School Analysis & Inventory Columns Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate detailed columns:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] Detailed School Analysis & Inventory Columns Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate detailed columns:`, migErr.message);
+        }
 
-    // --- 7. TEACHER SPECIALIZATION ---
-    try {
-        await client.query(`
+        // --- 7. TEACHER SPECIALIZATION ---
+        try {
+            await client.query(`
         ALTER TABLE school_profiles 
         ADD COLUMN IF NOT EXISTS spec_english_major INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS spec_english_teaching INTEGER DEFAULT 0,
@@ -730,15 +730,15 @@ const runMigrations = async (client, dbLabel) => {
         ADD COLUMN IF NOT EXISTS spec_others_major INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS spec_others_teaching INTEGER DEFAULT 0;
       `);
-        console.log(`✅ [${dbLabel}] Teacher Specialization Columns Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate specialization columns:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] Teacher Specialization Columns Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate specialization columns:`, migErr.message);
+        }
 
 
-    // --- 9. ARAL & TEACHING EXPERIENCE ---
-    try {
-        await client.query(`
+        // --- 9. ARAL & TEACHING EXPERIENCE ---
+        try {
+            await client.query(`
         ALTER TABLE school_profiles 
         -- ARAL (Grades 1-6)
         ADD COLUMN IF NOT EXISTS aral_math_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS aral_read_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS aral_sci_g1 INTEGER DEFAULT 0,
@@ -761,14 +761,14 @@ const runMigrations = async (client, dbLabel) => {
         ADD COLUMN IF NOT EXISTS teach_exp_36_40 INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS teach_exp_40_45 INTEGER DEFAULT 0;
       `);
-        console.log(`✅ [${dbLabel}] ARAL & Teaching Experience Columns Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate ARAL/Exp columns:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] ARAL & Teaching Experience Columns Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate ARAL/Exp columns:`, migErr.message);
+        }
 
-    // --- 10. DETAILED ENROLLMENT ---
-    try {
-        await client.query(`
+        // --- 10. DETAILED ENROLLMENT ---
+        try {
+            await client.query(`
         ALTER TABLE school_profiles 
         -- Elementary
         ADD COLUMN IF NOT EXISTS grade_kinder INTEGER DEFAULT 0,
@@ -817,20 +817,20 @@ const runMigrations = async (client, dbLabel) => {
         ADD COLUMN IF NOT EXISTS grade_11 INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS grade_12 INTEGER DEFAULT 0;
       `);
-        console.log(`✅ [${dbLabel}] Detailed Enrollment Columns Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate enrollment columns:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] Detailed Enrollment Columns Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate enrollment columns:`, migErr.message);
+        }
 
-    // --- 11. BUILDABLE SPACE TYPE FIX ---
-    try {
-        await client.query(`ALTER TABLE school_profiles ALTER COLUMN res_buildable_space TYPE TEXT;`);
-        console.log(`✅ [${dbLabel}] Ensured buildable_space is TEXT`);
-    } catch (migErr) { }
+        // --- 11. BUILDABLE SPACE TYPE FIX ---
+        try {
+            await client.query(`ALTER TABLE school_profiles ALTER COLUMN res_buildable_space TYPE TEXT;`);
+            console.log(`✅ [${dbLabel}] Ensured buildable_space is TEXT`);
+        } catch (migErr) { }
 
-    // --- 12. SYSTEM SETTINGS ---
-    try {
-        await client.query(`
+        // --- 12. SYSTEM SETTINGS ---
+        try {
+            await client.query(`
           CREATE TABLE IF NOT EXISTS system_settings (
             setting_key TEXT PRIMARY KEY,
             setting_value TEXT,
@@ -838,14 +838,14 @@ const runMigrations = async (client, dbLabel) => {
             updated_by TEXT
           );
         `);
-        console.log(`✅ [${dbLabel}] System Settings Table Initialized`);
-    } catch (tableErr) {
-        console.error(`❌ [${dbLabel}] Failed to init system_settings table:`, tableErr.message);
-    }
+            console.log(`✅ [${dbLabel}] System Settings Table Initialized`);
+        } catch (tableErr) {
+            console.error(`❌ [${dbLabel}] Failed to init system_settings table:`, tableErr.message);
+        }
 
-    // --- 13. MONITORING SNAPSHOT COLUMNS ---
-    try {
-        await client.query(`
+        // --- 13. MONITORING SNAPSHOT COLUMNS ---
+        try {
+            await client.query(`
           ALTER TABLE school_profiles 
           ADD COLUMN IF NOT EXISTS forms_completed_count INTEGER DEFAULT 0,
           ADD COLUMN IF NOT EXISTS completion_percentage NUMERIC DEFAULT 0,
@@ -860,15 +860,15 @@ const runMigrations = async (client, dbLabel) => {
           ADD COLUMN IF NOT EXISTS f9_shifting INTEGER DEFAULT 0,
           ADD COLUMN IF NOT EXISTS f10_stats INTEGER DEFAULT 0;
         `);
-        console.log(`✅ [${dbLabel}] Monitoring Snapshot Columns Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to migrate snapshot columns:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] Monitoring Snapshot Columns Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to migrate snapshot columns:`, migErr.message);
+        }
 
 
-    // --- 16. FACILITY REPAIRS TABLE ---
-    try {
-        await client.query(`
+        // --- 16. FACILITY REPAIRS TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS facility_repairs (
                 repair_id SERIAL PRIMARY KEY,
                 school_id TEXT NOT NULL,
@@ -891,8 +891,8 @@ const runMigrations = async (client, dbLabel) => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        // --- MIGRATION: ADD MISSING COLUMNS IF TABLE EXISTS ---
-        await client.query(`
+            // --- MIGRATION: ADD MISSING COLUMNS IF TABLE EXISTS ---
+            await client.query(`
             ALTER TABLE facility_repairs 
             ADD COLUMN IF NOT EXISTS repair_roofing BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS repair_ceiling_ext BOOLEAN DEFAULT FALSE,
@@ -904,14 +904,14 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS repair_flooring BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS repair_structural BOOLEAN DEFAULT FALSE;
         `);
-        console.log(`✅ [${dbLabel}] Facility Repairs Table Initialized & Updated`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init facility_repairs table:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] Facility Repairs Table Initialized & Updated`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init facility_repairs table:`, migErr.message);
+        }
 
-    // --- 16. FACILITY INVENTORY TABLE ---
-    try {
-        await client.query(`
+        // --- 16. FACILITY INVENTORY TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS facility_inventory (
                 id SERIAL PRIMARY KEY,
                 school_id TEXT,
@@ -931,15 +931,15 @@ const runMigrations = async (client, dbLabel) => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_inventory_iern ON facility_inventory(iern);`);
-        console.log(`✅ [${dbLabel}] Facility Inventory Table Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init facility_inventory table:`, migErr.message);
-    }
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_inventory_iern ON facility_inventory(iern);`);
+            console.log(`✅ [${dbLabel}] Facility Inventory Table Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init facility_inventory table:`, migErr.message);
+        }
 
-    // --- 16b. FACILITY ROOMS TABLE ---
-    try {
-        await client.query(`
+        // --- 16b. FACILITY ROOMS TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS facility_rooms (
                 room_id SERIAL PRIMARY KEY,
                 building_id INTEGER REFERENCES facility_inventory(id) ON DELETE CASCADE,
@@ -952,22 +952,22 @@ const runMigrations = async (client, dbLabel) => {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
-        await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_rooms_school_id ON facility_rooms(school_id);`);
-        await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_rooms_building_id ON facility_rooms(building_id);`);
-        console.log(`✅ [${dbLabel}] Facility Rooms Table Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init facility_rooms table:`, migErr.message);
-    }
-    // =========================================================================
-    // --- 17. PH_SCHOOLS — CANONICAL COLUMN SCHEMA (Unit 1 → 9 Order) -------
-    // =========================================================================
-    // All ph_schools columns are ensured here in their logical unit order.
-    // Run `node api/reorder_ph_schools.js` once on any existing database to
-    // physically reorder columns to match this declaration.
-    // =========================================================================
-    try {
-        // ── CREATE TABLE (no-op if already exists) ───────────────────────────
-        await client.query(`
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_rooms_school_id ON facility_rooms(school_id);`);
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_facility_rooms_building_id ON facility_rooms(building_id);`);
+            console.log(`✅ [${dbLabel}] Facility Rooms Table Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init facility_rooms table:`, migErr.message);
+        }
+        // =========================================================================
+        // --- 17. PH_SCHOOLS — CANONICAL COLUMN SCHEMA (Unit 1 → 9 Order) -------
+        // =========================================================================
+        // All ph_schools columns are ensured here in their logical unit order.
+        // Run `node api/reorder_ph_schools.js` once on any existing database to
+        // physically reorder columns to match this declaration.
+        // =========================================================================
+        try {
+            // ── CREATE TABLE (no-op if already exists) ───────────────────────────
+            await client.query(`
             CREATE TABLE IF NOT EXISTS ph_schools (
                 iern        TEXT PRIMARY KEY,
                 school_id   TEXT UNIQUE,
@@ -976,8 +976,8 @@ const runMigrations = async (client, dbLabel) => {
             );
         `);
 
-        // ── UNIT 1: School Identity ──────────────────────────────────────────
-        await client.query(`
+            // ── UNIT 1: School Identity ──────────────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS verified_as_of             TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS school_name                TEXT,
@@ -1020,8 +1020,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit1_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 2: Learners (Enrollment) ────────────────────────────────────
-        await client.query(`
+            // ── UNIT 2: Learners (Enrollment) ────────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS enroll_kinder              INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS enroll_g1                  INTEGER DEFAULT 0,
@@ -1068,8 +1068,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit2_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 3: Organized Classes ────────────────────────────────────────
-        await client.query(`
+            // ── UNIT 3: Organized Classes ────────────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS has_multigrade             BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS multigrade_sections_count  INTEGER DEFAULT 0,
@@ -1095,8 +1095,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit3_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 4: Learner Profile ──────────────────────────────────────────
-        await client.query(`
+            // ── UNIT 4: Learner Profile ──────────────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS selected_learner_groups    JSONB,
             ADD COLUMN IF NOT EXISTS bmi_severely_wasted        INTEGER DEFAULT 0,
@@ -1181,8 +1181,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit4_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 5: Shifting & Modality ──────────────────────────────────────
-        await client.query(`
+            // ── UNIT 5: Shifting & Modality ──────────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS has_standard_shifting      BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS adm_mdl                    BOOLEAN DEFAULT FALSE,
@@ -1213,8 +1213,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit5_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 6: Teaching Personnel (snapshot — roster in teachers_list) ──
-        await client.query(`
+            // ── UNIT 6: Teaching Personnel (snapshot — roster in teachers_list) ──
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS total_teachers_registered  INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS total_teachers_kinder      INTEGER DEFAULT 0,
@@ -1226,8 +1226,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit6_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 7: School Resources ─────────────────────────────────────────
-        await client.query(`
+            // ── UNIT 7: School Resources ─────────────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS unit7_furniture            TEXT,
             ADD COLUMN IF NOT EXISTS unit7_ict                  TEXT,
@@ -1254,8 +1254,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit7_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 8: Physical Facilities (aggregate snapshots) ────────────────
-        await client.query(`
+            // ── UNIT 8: Physical Facilities (aggregate snapshots) ────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS bldg_count_good            INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS bldg_count_minor_repair    INTEGER DEFAULT 0,
@@ -1284,8 +1284,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit8_updated_at           TIMESTAMPTZ;
         `);
 
-        // ── UNIT 9: Infrastructure & Safety Audit ─────────────────────────────
-        await client.query(`
+            // ── UNIT 9: Infrastructure & Safety Audit ─────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS hazard_risk_score          INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS u9_general                 TEXT,
@@ -1340,95 +1340,95 @@ const runMigrations = async (client, dbLabel) => {
         `);
 
 
-        // ── MONITORING / COMPLETION SNAPSHOT ─────────────────────────────────
-        await client.query(`
+            // ── MONITORING / COMPLETION SNAPSHOT ─────────────────────────────────
+            await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS unit_completion            NUMERIC DEFAULT 0,
             ADD COLUMN IF NOT EXISTS forms_completed_count      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS completion_percentage      NUMERIC DEFAULT 0;
         `);
 
-        // ── INDEXES ───────────────────────────────────────────────────────────
-        await client.query(`DROP INDEX IF EXISTS idx_ph_schools_school_id;`);
-        await client.query(`
+            // ── INDEXES ───────────────────────────────────────────────────────────
+            await client.query(`DROP INDEX IF EXISTS idx_ph_schools_school_id;`);
+            await client.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS idx_ph_schools_school_id
             ON ph_schools(school_id);
         `);
-        await client.query(`CREATE INDEX IF NOT EXISTS idx_ph_schools_division  ON ph_schools(division);`);
-        await client.query(`CREATE INDEX IF NOT EXISTS idx_ph_schools_region    ON ph_schools(region);`);
-        
-        // Compound index for regional dashboard aggregations (HAWKEYE Protocol)
-        await client.query(`CREATE INDEX IF NOT EXISTS idx_ph_schools_regional_summary ON ph_schools(region, division);`);
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_ph_schools_division  ON ph_schools(division);`);
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_ph_schools_region    ON ph_schools(region);`);
 
-        console.log(`✅ [${dbLabel}] ph_schools canonical schema (Unit 1-9) ensured`);
-    } catch (migErr) {
-        if (!migErr.message?.includes('does not exist')) {
-            console.error(`❌ [${dbLabel}] Failed to ensure ph_schools schema:`, migErr.message);
+            // Compound index for regional dashboard aggregations (HAWKEYE Protocol)
+            await client.query(`CREATE INDEX IF NOT EXISTS idx_ph_schools_regional_summary ON ph_schools(region, division);`);
+
+            console.log(`✅ [${dbLabel}] ph_schools canonical schema (Unit 1-9) ensured`);
+        } catch (migErr) {
+            if (!migErr.message?.includes('does not exist')) {
+                console.error(`❌ [${dbLabel}] Failed to ensure ph_schools schema:`, migErr.message);
+            }
         }
-    }
 
-    // --- 18. CHATBOT KNOWLEDGE TABLE --- [DECOMMISSIONED]
-    /*
-    try {
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS chatbot_knowledge (
-                id SERIAL PRIMARY KEY,
-                content TEXT NOT NULL,
-                embedding JSONB,
-                metadata JSONB DEFAULT '{}',
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log(`✅ [${dbLabel}] Chatbot Knowledge Table Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init chatbot_knowledge table:`, migErr.message);
-    }
-    */
+        // --- 18. CHATBOT KNOWLEDGE TABLE --- [DECOMMISSIONED]
+        /*
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS chatbot_knowledge (
+                    id SERIAL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding JSONB,
+                    metadata JSONB DEFAULT '{}',
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            console.log(`✅ [${dbLabel}] Chatbot Knowledge Table Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init chatbot_knowledge table:`, migErr.message);
+        }
+        */
 
-    // --- 19. SYSTEM FEEDBACK TABLE --- [DECOMMISSIONED]
-    /*
-    try {
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS system_feedback (
-                id SERIAL PRIMARY KEY,
-                content VARCHAR(200) NOT NULL,
-                user_email TEXT,
-                user_uid TEXT,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log(`✅ [${dbLabel}] System Feedback Table Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init system_feedback table:`, migErr.message);
-    }
-    */
+        // --- 19. SYSTEM FEEDBACK TABLE --- [DECOMMISSIONED]
+        /*
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS system_feedback (
+                    id SERIAL PRIMARY KEY,
+                    content VARCHAR(200) NOT NULL,
+                    user_email TEXT,
+                    user_uid TEXT,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            console.log(`✅ [${dbLabel}] System Feedback Table Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init system_feedback table:`, migErr.message);
+        }
+        */
 
-    // --- 20. APP FEEDBACK TABLE (DETAILED) --- [DECOMMISSIONED]
-    /*
-    try {
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS app_feedback (
-                id SERIAL PRIMARY KEY,
-                user_id TEXT,
-                user_name TEXT,
-                role TEXT,
-                ease_of_use INTEGER,
-                aesthetics INTEGER,
-                functionality INTEGER,
-                comment TEXT,
-                app_version TEXT,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log(`✅ [${dbLabel}] App Feedback Table Initialized`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init app_feedback table:`, migErr.message);
-    }
-    */
+        // --- 20. APP FEEDBACK TABLE (DETAILED) --- [DECOMMISSIONED]
+        /*
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS app_feedback (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT,
+                    user_name TEXT,
+                    role TEXT,
+                    ease_of_use INTEGER,
+                    aesthetics INTEGER,
+                    functionality INTEGER,
+                    comment TEXT,
+                    app_version TEXT,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            console.log(`✅ [${dbLabel}] App Feedback Table Initialized`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init app_feedback table:`, migErr.message);
+        }
+        */
 
-    // --- 21. SCHOOL OWNERSHIP DOCUMENTS TABLE ---
-    try {
-        await client.query(`
+        // --- 21. SCHOOL OWNERSHIP DOCUMENTS TABLE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS school_ownership_docs (
                 id SERIAL PRIMARY KEY,
                 iern TEXT NOT NULL,
@@ -1442,20 +1442,20 @@ const runMigrations = async (client, dbLabel) => {
             );
         `);
 
-        // Idempotent column additions
-        await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS binary_id UUID;`).catch(() => {});
-        await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS file_size BIGINT;`).catch(() => {});
-        await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS original_size BIGINT;`).catch(() => {});
-        await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS hydra_manifest JSONB;`).catch(() => {});
-        await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS school_id TEXT;`).catch(() => {});
+            // Idempotent column additions
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS binary_id UUID;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS file_size BIGINT;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS original_size BIGINT;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS hydra_manifest JSONB;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS school_id TEXT;`).catch(() => { });
 
-        // Data Healing: Cleanup orphans to allow FK creation
-        // [LOCKED] Table is append-only (InsightEd-2026-DocLock). Orphan cleanup via DELETE is skipped.
-        // await client.query("DELETE FROM school_ownership_docs WHERE iern NOT IN (SELECT iern FROM ph_schools)");
+            // Data Healing: Cleanup orphans to allow FK creation
+            // [LOCKED] Table is append-only (InsightEd-2026-DocLock). Orphan cleanup via DELETE is skipped.
+            // await client.query("DELETE FROM school_ownership_docs WHERE iern NOT IN (SELECT iern FROM ph_schools)");
 
-        // Idempotent Unique Constraint Enforcement (HAWKEYE Protocol)
-        // Step 1: Deduplicate — keep only the latest row per IERN before applying constraint
-        await client.query(`
+            // Idempotent Unique Constraint Enforcement (HAWKEYE Protocol)
+            // Step 1: Deduplicate — keep only the latest row per IERN before applying constraint
+            await client.query(`
             DELETE FROM school_ownership_docs WHERE id NOT IN (
                 SELECT id FROM (
                     SELECT id, ROW_NUMBER() OVER (PARTITION BY iern ORDER BY created_at DESC) as rn
@@ -1464,8 +1464,8 @@ const runMigrations = async (client, dbLabel) => {
             )
         `).catch(e => console.warn(`⚠️ [${dbLabel}] school_ownership_docs dedup skipped:`, e.message));
 
-        // Step 2: Apply unique constraint idempotently
-        await client.query(`
+            // Step 2: Apply unique constraint idempotently
+            await client.query(`
             DO $$
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'school_ownership_docs_iern_unique') THEN
@@ -1474,8 +1474,8 @@ const runMigrations = async (client, dbLabel) => {
             END $$;
         `);
 
-        // Idempotent Foreign Key Enforcement
-        await client.query(`
+            // Idempotent Foreign Key Enforcement
+            await client.query(`
             DO $$
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_school_ownership_iern') THEN
@@ -1487,20 +1487,20 @@ const runMigrations = async (client, dbLabel) => {
             END $$;
         `);
 
-        console.log(`✅ [${dbLabel}] School Ownership Documents Table Initialized & Healed`);
-    } catch (migErr) {
-        console.error(`❌ [${dbLabel}] Failed to init school_ownership_docs table:`, migErr.message);
-    }
+            console.log(`✅ [${dbLabel}] School Ownership Documents Table Initialized & Healed`);
+        } catch (migErr) {
+            console.error(`❌ [${dbLabel}] Failed to init school_ownership_docs table:`, migErr.message);
+        }
 
-    // NOTE: Unit 7 condition & utility columns are now included in the
-    // canonical ph_schools schema block above (migration #17). Removed
-    // duplicate migrations #22 and #23.
+        // NOTE: Unit 7 condition & utility columns are now included in the
+        // canonical ph_schools schema block above (migration #17). Removed
+        // duplicate migrations #22 and #23.
 
 
 
-    // --- UNIFIED BINARY STORAGE ---
-    try {
-        await client.query(`
+        // --- UNIFIED BINARY STORAGE ---
+        try {
+            await client.query(`
             CREATE TABLE IF NOT EXISTS unified_binaries (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 hash TEXT NOT NULL,
@@ -1511,45 +1511,45 @@ const runMigrations = async (client, dbLabel) => {
             );
         `);
 
-        // TOAST hint: store BYTEA chunks externally to keep main table indices snappy
-        await client.query(`
+            // TOAST hint: store BYTEA chunks externally to keep main table indices snappy
+            await client.query(`
             ALTER TABLE unified_binaries ALTER COLUMN content SET STORAGE EXTERNAL;
         `);
 
-        // AUTOVACUUM Tuning (Postgres Master Protocol): 
-        // Reduce scale factor to 1% to prevent bloat in blob-heavy tables
-        await client.query(`
+            // AUTOVACUUM Tuning (Postgres Master Protocol): 
+            // Reduce scale factor to 1% to prevent bloat in blob-heavy tables
+            await client.query(`
             ALTER TABLE unified_binaries SET (
                 autovacuum_vacuum_scale_factor = 0.01,
                 autovacuum_vacuum_cost_limit = 1000
             );
         `);
 
-        // O(log n) deduplication lookups
-        await client.query(`
+            // O(log n) deduplication lookups
+            await client.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS idx_unified_binaries_hash ON unified_binaries(hash);
         `);
 
 
-        console.log(`✅ [${dbLabel}] Unified Binaries Table & Indices Initialized`);
-    } catch (binErr) {
-        console.error(`❌ [${dbLabel}] Unified Binaries Migration Failed:`, binErr.message);
-    }
+            console.log(`✅ [${dbLabel}] Unified Binaries Table & Indices Initialized`);
+        } catch (binErr) {
+            console.error(`❌ [${dbLabel}] Unified Binaries Migration Failed:`, binErr.message);
+        }
 
 
-    // --- 26. UNIT 7: PHYSICAL FACILITIES ---
-    await initUnit7Schema(client, dbLabel);
+        // --- 26. UNIT 7: PHYSICAL FACILITIES ---
+        await initUnit7Schema(client, dbLabel);
 
 
-    // --- 20. GLOBAL DELETION & TRUNCATION PROTECTION (Nuclear Lock) ---
-    // Applies RLS, FORCE RLS, a mathematical no_delete policy, TRUNCATE trigger,
-    // and a DELETE trigger to EVERY table in the public schema.
-    // Bypass: SET LOCAL internal.authorized_app_deletion = 'true' within a transaction.
-    try {
-        console.log(`🛡️ [${dbLabel}] Enforcing GLOBAL Deletion Protection (Nuclear Lock)...`);
+        // --- 20. GLOBAL DELETION & TRUNCATION PROTECTION (Nuclear Lock) ---
+        // Applies RLS, FORCE RLS, a mathematical no_delete policy, TRUNCATE trigger,
+        // and a DELETE trigger to EVERY table in the public schema.
+        // Bypass: SET LOCAL internal.authorized_app_deletion = 'true' within a transaction.
+        try {
+            console.log(`🛡️ [${dbLabel}] Enforcing GLOBAL Deletion Protection (Nuclear Lock)...`);
 
-        // 1. Truncation Prevention Function
-        await client.query(`
+            // 1. Truncation Prevention Function
+            await client.query(`
             CREATE OR REPLACE FUNCTION fn_prevent_truncate()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -1558,8 +1558,8 @@ const runMigrations = async (client, dbLabel) => {
             $$ LANGUAGE plpgsql;
         `);
 
-        // 2. Deletion Prevention Function (with authorized bypass)
-        await client.query(`
+            // 2. Deletion Prevention Function (with authorized bypass)
+            await client.query(`
             CREATE OR REPLACE FUNCTION fn_prevent_deletion()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -1572,46 +1572,60 @@ const runMigrations = async (client, dbLabel) => {
             $$ LANGUAGE plpgsql;
         `);
 
-        // 3. Apply to ALL tables dynamically (catches any new tables created at runtime)
-        const allTablesRes = await client.query(`
-            SELECT table_name FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            // 3. Apply to ALL tables dynamically using a single atomic DO block (v2.0 Optimization)
+            // This prevents connection pool exhaustion by running the loop entirely on the DB side.
+            console.log(`🛡️ [${dbLabel}] Executing Atomic Nuclear Lock...`);
+
+            await client.query(`
+            DO $$
+            DECLARE
+                t_name TEXT;
+                excluded_tables TEXT[] := ARRAY['ph_buildings_inventory', 'ph_buildings_repairs', 'ph_buildings_demolition', 'ph_school_buildable_spaces'];
+                t_count INT := 0;
+            BEGIN
+                FOR t_name IN 
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_type = 'BASE TABLE'
+                LOOP
+                    IF t_name = ANY(excluded_tables) THEN
+                        -- Idempotent Cleanup for Excluded Tables
+                        EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY', t_name);
+                        EXECUTE format('ALTER TABLE %I NO FORCE ROW LEVEL SECURITY', t_name);
+                        EXECUTE format('DROP POLICY IF EXISTS no_delete ON %I', t_name);
+                        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_block_truncate_' || t_name, t_name);
+                        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_prevent_deletion_' || t_name, t_name);
+                    ELSE
+                        -- Atomic Hardening
+                        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t_name);
+                        EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t_name);
+                        
+                        EXECUTE format('DROP POLICY IF EXISTS no_delete ON %I', t_name);
+                        EXECUTE format('CREATE POLICY no_delete ON %I FOR DELETE USING (false)', t_name);
+                        
+                        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_block_truncate_' || t_name, t_name);
+                        EXECUTE format('CREATE TRIGGER %I BEFORE TRUNCATE ON %I FOR EACH STATEMENT EXECUTE FUNCTION fn_prevent_truncate()', 'trg_block_truncate_' || t_name, t_name);
+                        
+                        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_prevent_deletion_' || t_name, t_name);
+                        EXECUTE format('CREATE TRIGGER %I BEFORE DELETE ON %I FOR EACH ROW EXECUTE FUNCTION fn_prevent_deletion()', 'trg_prevent_deletion_' || t_name, t_name);
+                    END IF;
+                    t_count := t_count + 1;
+                END LOOP;
+                RAISE NOTICE '✅ Atomic Nuclear Lock complete. Processed % tables.', t_count;
+            END $$;
         `);
 
-        for (const row of allTablesRes.rows) {
-            const t = row.table_name;
-            try {
-                // Enable and force RLS
-                await client.query(`ALTER TABLE ${JSON.stringify(t)} ENABLE ROW LEVEL SECURITY`);
-                await client.query(`ALTER TABLE ${JSON.stringify(t)} FORCE ROW LEVEL SECURITY`);
-
-                // Mathematically impossible DELETE policy
-                await client.query(`DROP POLICY IF EXISTS no_delete ON ${JSON.stringify(t)}`);
-                await client.query(`CREATE POLICY no_delete ON ${JSON.stringify(t)} FOR DELETE USING (false)`);
-
-                // TRUNCATE trigger
-                const truncTrigger = 'trg_block_truncate_' + t;
-                await client.query(`DROP TRIGGER IF EXISTS ${JSON.stringify(truncTrigger)} ON ${JSON.stringify(t)}`);
-                await client.query(`CREATE TRIGGER ${JSON.stringify(truncTrigger)} BEFORE TRUNCATE ON ${JSON.stringify(t)} FOR EACH STATEMENT EXECUTE FUNCTION fn_prevent_truncate()`);
-
-                // DELETE trigger
-                const delTrigger = 'trg_prevent_deletion_' + t;
-                await client.query(`DROP TRIGGER IF EXISTS ${JSON.stringify(delTrigger)} ON ${JSON.stringify(t)}`);
-                await client.query(`CREATE TRIGGER ${JSON.stringify(delTrigger)} BEFORE DELETE ON ${JSON.stringify(t)} FOR EACH ROW EXECUTE FUNCTION fn_prevent_deletion()`);
-            } catch (tErr) {
-                // Non-fatal — log and continue to next table
-                console.warn(`⚠️ [${dbLabel}] Could not harden table "${t}": ${tErr.message}`);
-            }
+            console.log(`✅ [${dbLabel}] Global Deletion Protection (Nuclear Lock) enforced via Atomic DO block.`);
+        } catch (protectErr) {
+            console.error(`❌ [${dbLabel}] Failed to enforce global deletion protection:`, protectErr.message);
         }
-        console.log(`✅ [${dbLabel}] Global Deletion Protection (Nuclear Lock) enforced on ${allTablesRes.rows.length} tables.`);
-    } catch (protectErr) {
-        console.error(`❌ [${dbLabel}] Failed to enforce global deletion protection:`, protectErr.message);
-    }
+
 
     } catch (globalErr) {
         console.error(`❌ [${dbLabel}] Global migration error:`, globalErr.message);
     } finally {
-        await client.query('SELECT pg_advisory_unlock(7777777)').catch(() => {});
+        await client.query('SELECT pg_advisory_unlock(7777777)').catch(() => { });
         console.log(`🔓 [${dbLabel}] Migration lock (7777777) released.`);
     }
 };

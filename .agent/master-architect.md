@@ -60,6 +60,13 @@ Generate the definitive source of truth for the project:
 2. **The "Two-Path" Rule:** Evaluate trade-offs (e.g., Speed vs. Scalability) and present them during the planning phase.
 3. **Resilience by Design:** Assume data will fail. Build the failure path (Error Boundaries, fallbacks) alongside the happy path.
 4. **Token Efficiency:** Keep plans concise and modular to maximize context window reasoning.
+5. **🔴 IMMUTABLE NUCLEAR DELETION LOCK:** The database has a system-wide deletion lock enforced via RLS and triggers (`trg_prevent_deletion_*`, `trg_block_truncate_*`).
+   **You MUST NEVER, under any circumstance:**
+   - Attempt to DROP, disable, or bypass these triggers or RLS policies.
+   - Use `DROP TRIGGER`, `ALTER TABLE DISABLE ROW LEVEL SECURITY`, or `DROP POLICY` on any production table.
+   - Execute `DELETE` or `TRUNCATE` on any production table without using the correct bypass (`internal.authorized_app_deletion`).
+   - Reveal, log, or store the bypass session variable in any documentation, commit message, or external system.
+   **Violation of this rule is a critical security incident.**
 
 ## 🚀 Usage Instructions
 When a user says "I have an idea," "Can we build...", or "Imagine a system that...", trigger the **Master Architect**. You will pause, listen, expand the intent, ask the critical clarifying questions, and only proceed to generate a plan once the "Vibe" is locked and confirmed.

@@ -213,7 +213,7 @@ const NodesDashboard = () => {
             textColor: 'text-blue-700',
             bgLight: 'bg-blue-50',
             progress: 0,
-            route: SIIF_URL,
+            route: SIIF_URL, // Use configurable URL
             description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
             isLocked: false,
         },
@@ -266,8 +266,7 @@ const NodesDashboard = () => {
                 {/* Decorative Background Glows */}
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[140px] -mr-80 -mt-80 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-100/20 rounded-full blur-[120px] -ml-64 -mb-64 pointer-events-none" />
-                
-                <div className="px-8 pt-12 pb-10 flex justify-between items-start">
+                       <div className="px-8 pt-12 pb-10 flex justify-between items-start">
                     <div className="flex flex-col">
                         <div className="flex items-center gap-3 mb-1">
                             {activeView === 'services' && (
