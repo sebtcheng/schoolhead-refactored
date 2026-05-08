@@ -4,8 +4,8 @@ import path from 'path';
 
 console.log("🚀 Starting InsightEd Turbo Dev...");
 
-// 1. Port Cleanup (3000, 5173, 5174, 3001)
-const ports = [3000, 5173, 5174, 3001];
+// 1. Port Cleanup (3000, 5173)
+const ports = [3000, 5173];
 console.log("🧹 Cleaning up ports " + ports.join(", ") + "...");
 
 for (const port of ports) {
