@@ -152,6 +152,7 @@ const NodesDashboard = () => {
             route: '/my-activity',
             description: 'CLOUD will look into getting to know more about a school.',
             isLocked: dynamicLocks['school-info'] || false,
+            hideProgress: true,
         },
         {
             id: 'esf7',
@@ -448,6 +449,16 @@ const ModuleCard = ({ mod, idx, onClick, isPrimary, questProgress }) => {
                                 )}
                             </motion.span>
                         )}
+
+                        {mod.id === 'esf7' && mod.progress === 100 && (
+                            <motion.span 
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className="px-3 py-1 rounded-lg text-[9px] font-black tracking-widest bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 border border-emerald-400 flex items-center gap-1"
+                            >
+                                <FiAward size={10} /> COMPLETED
+                            </motion.span>
+                        )}
                         <FiMoreVertical className={isPrimary ? 'text-blue-200/50' : 'text-slate-300'} />
                     </div>
                 )}
@@ -469,33 +480,35 @@ const ModuleCard = ({ mod, idx, onClick, isPrimary, questProgress }) => {
                 </div>
             </div>
 
-            <div className="mt-auto">
-                <div className="flex justify-between items-end mb-3">
-                    <div className="flex flex-col">
-                        <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isPrimary ? 'text-blue-200/60' : 'text-slate-400'}`}>
-                            {mod.id === 'other-services' || mod.isLocked ? "Status" : "Completion Percentage"}
-                        </span>
-                        <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>
-                            {mod.isLocked ? "LOCKED" : (mod.progress ? `${mod.progress}%` : "READY")}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {mod.badge && (
-                            <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : (isPrimary ? 'bg-white/20 text-white border border-white/10' : 'bg-[#10346B] text-white')}`}>
-                                {mod.badge}
+            {!mod.hideProgress && (
+                <div className="mt-auto">
+                    <div className="flex justify-between items-end mb-3">
+                        <div className="flex flex-col">
+                            <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isPrimary ? 'text-blue-200/60' : 'text-slate-400'}`}>
+                                {mod.id === 'other-services' || mod.isLocked ? "Status" : "Completion Percentage"}
                             </span>
-                        )}
+                            <span className={`text-2xl font-black ${isPrimary ? 'text-white' : 'text-slate-900'}`}>
+                                {mod.isLocked ? "LOCKED" : `${mod.progress || 0}%`}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {mod.badge && (
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : (isPrimary ? 'bg-white/20 text-white border border-white/10' : 'bg-[#10346B] text-white')}`}>
+                                    {mod.badge}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className={`h-2.5 w-full rounded-full overflow-hidden ${isPrimary ? 'bg-white/10' : 'bg-slate-100'}`}>
+                        <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${mod.isLocked ? 0 : (mod.progress || 0)}%` }}
+                            transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 + (idx * 0.1) }}
+                            className={`h-full rounded-full ${isPrimary ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-[#10346B]'}`}
+                        />
                     </div>
                 </div>
-                <div className={`h-2.5 w-full rounded-full overflow-hidden ${isPrimary ? 'bg-white/10' : 'bg-slate-100'}`}>
-                    <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${mod.isLocked ? 0 : (mod.progress || 100)}%` }}
-                        transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 + (idx * 0.1) }}
-                        className={`h-full rounded-full ${isPrimary ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'bg-[#10346B]'}`}
-                    />
-                </div>
-            </div>
+            )}
         </motion.div>
     );
 };

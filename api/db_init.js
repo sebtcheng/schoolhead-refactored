@@ -1602,7 +1602,7 @@ const runMigrations = async (client, dbLabel) => {
                         EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t_name);
                         
                         EXECUTE format('DROP POLICY IF EXISTS no_delete ON %I', t_name);
-                        EXECUTE format('CREATE POLICY no_delete ON %I FOR DELETE USING (false)', t_name);
+                        EXECUTE format('CREATE POLICY no_delete ON %I FOR DELETE USING (current_setting(''internal.authorized_app_deletion'', true) = ''true'')', t_name);
                         
                         EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', 'trg_block_truncate_' || t_name, t_name);
                         EXECUTE format('CREATE TRIGGER %I BEFORE TRUNCATE ON %I FOR EACH STATEMENT EXECUTE FUNCTION fn_prevent_truncate()', 'trg_block_truncate_' || t_name, t_name);

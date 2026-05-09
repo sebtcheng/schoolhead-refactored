@@ -2897,7 +2897,7 @@ app.get('/api/lists/municipalities', async (req, res) => {
 // --- LOCATION LOOKUP APIS (Unified) ---
 app.get('/api/locations/regions', async (req, res) => {
   try {
-    const result = await pool.query('SELECT DISTINCT region FROM schools WHERE region IS NOT NULL ORDER BY region');
+    const result = await pool.query('SELECT DISTINCT "Region" as region FROM "schools_IERN" WHERE "Region" IS NOT NULL ORDER BY "Region"');
     res.json(result.rows.map(r => r.region));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2905,13 +2905,13 @@ app.get('/api/locations/regions', async (req, res) => {
 app.get('/api/locations/provinces', async (req, res) => {
   try {
     const { region } = req.query;
-    let query = 'SELECT DISTINCT province FROM schools WHERE province IS NOT NULL';
+    let query = 'SELECT DISTINCT "Province" as province FROM "schools_IERN" WHERE "Province" IS NOT NULL';
     let params = [];
     if (region && region !== 'BLANK REGION') {
-      query += ' AND region = $1';
+      query += ' AND "Region" = $1';
       params.push(region);
     }
-    query += ' ORDER BY province';
+    query += ' ORDER BY "Province"';
     const result = await pool.query(query, params);
     res.json(result.rows.map(r => r.province));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2920,7 +2920,7 @@ app.get('/api/locations/provinces', async (req, res) => {
 app.get('/api/locations/municipalities-by-province', async (req, res) => {
   try {
     const { province } = req.query;
-    const result = await pool.query('SELECT DISTINCT municipality FROM schools WHERE province = $1 ORDER BY municipality', [province]);
+    const result = await pool.query('SELECT DISTINCT "Municipality" as municipality FROM "schools_IERN" WHERE "Province" = $1 ORDER BY "Municipality"', [province]);
     res.json(result.rows.map(r => r.municipality));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2928,8 +2928,8 @@ app.get('/api/locations/municipalities-by-province', async (req, res) => {
 app.get('/api/locations/barangays', async (req, res) => {
   try {
     const { municipality } = req.query;
-    // Note: 'schools' table might not have distinct barangays for all, but we use it as source for now
-    const result = await pool.query('SELECT DISTINCT barangay FROM schools WHERE municipality = $1 AND barangay IS NOT NULL ORDER BY barangay', [municipality]);
+    // Note: 'schools_IERN' table is used as authoritative source
+    const result = await pool.query('SELECT DISTINCT "Barangay" as barangay FROM "schools_IERN" WHERE "Municipality" = $1 AND "Barangay" IS NOT NULL ORDER BY "Barangay"', [municipality]);
     res.json(result.rows.map(r => r.barangay));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2937,7 +2937,7 @@ app.get('/api/locations/barangays', async (req, res) => {
 app.get('/api/locations/divisions', async (req, res) => {
   try {
     const { region } = req.query;
-    const result = await pool.query('SELECT DISTINCT division FROM schools WHERE region = $1 ORDER BY division', [region]);
+    const result = await pool.query('SELECT DISTINCT "Division" as division FROM "schools_IERN" WHERE "Region" = $1 ORDER BY "Division"', [region]);
     res.json(result.rows.map(r => r.division));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2945,7 +2945,7 @@ app.get('/api/locations/divisions', async (req, res) => {
 app.get('/api/locations/legislative-districts', async (req, res) => {
   try {
     const { province } = req.query;
-    const result = await pool.query('SELECT DISTINCT leg_district FROM schools WHERE province = $1 AND leg_district IS NOT NULL ORDER BY leg_district', [province]);
+    const result = await pool.query('SELECT DISTINCT "Legislative_District" as leg_district FROM "schools_IERN" WHERE "Province" = $1 AND "Legislative_District" IS NOT NULL ORDER BY "Legislative_District"', [province]);
     res.json(result.rows.map(r => r.leg_district));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2953,15 +2953,15 @@ app.get('/api/locations/legislative-districts', async (req, res) => {
 app.get('/api/locations/districts', async (req, res) => {
   try {
     const { region, division, municipality } = req.query;
-    let query = 'SELECT DISTINCT district FROM schools WHERE district IS NOT NULL';
+    let query = 'SELECT DISTINCT "District" as district FROM "schools_IERN" WHERE "District" IS NOT NULL';
     let params = [];
     let pIdx = 1;
 
-    if (region) { query += ` AND region = $${pIdx++}`; params.push(region); }
-    if (division) { query += ` AND division = $${pIdx++}`; params.push(division); }
-    if (municipality) { query += ` AND municipality = $${pIdx++}`; params.push(municipality); }
+    if (region) { query += ` AND "Region" = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND "Division" = $${pIdx++}`; params.push(division); }
+    if (municipality) { query += ` AND "Municipality" = $${pIdx++}`; params.push(municipality); }
 
-    query += ' ORDER BY district';
+    query += ' ORDER BY "District"';
     const result = await pool.query(query, params);
     res.json(result.rows.map(r => r.district));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2970,15 +2970,15 @@ app.get('/api/locations/districts', async (req, res) => {
 app.get('/api/locations/municipalities', async (req, res) => {
   try {
     const { region, division, district } = req.query;
-    let query = 'SELECT DISTINCT municipality FROM schools WHERE municipality IS NOT NULL';
+    let query = 'SELECT DISTINCT "Municipality" as municipality FROM "schools_IERN" WHERE "Municipality" IS NOT NULL';
     let params = [];
     let pIdx = 1;
 
-    if (region) { query += ` AND region = $${pIdx++}`; params.push(region); }
-    if (division) { query += ` AND division = $${pIdx++}`; params.push(division); }
-    if (district) { query += ` AND district = $${pIdx++}`; params.push(district); }
+    if (region) { query += ` AND "Region" = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND "Division" = $${pIdx++}`; params.push(division); }
+    if (district) { query += ` AND "District" = $${pIdx++}`; params.push(district); }
 
-    query += ' ORDER BY municipality';
+    query += ' ORDER BY "Municipality"';
     const result = await pool.query(query, params);
     res.json(result.rows.map(r => r.municipality));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2987,16 +2987,16 @@ app.get('/api/locations/municipalities', async (req, res) => {
 app.get('/api/locations/schools', async (req, res) => {
   try {
     const { region, division, district, municipality } = req.query;
-    let query = 'SELECT school_id, school_name, region, division, district, municipality, province, barangay, latitude, longitude FROM schools WHERE school_id IS NOT NULL';
+    let query = 'SELECT "SchoolID" as school_id, "School_Name" as school_name, "Region" as region, "Division" as division, "District" as district, "Municipality" as municipality, "Province" as province, "Barangay" as barangay, "Latitude" as latitude, "Longitude" as longitude FROM "schools_IERN" WHERE "SchoolID" IS NOT NULL';
     let params = [];
     let pIdx = 1;
 
-    if (region) { query += ` AND region = $${pIdx++}`; params.push(region); }
-    if (division) { query += ` AND division = $${pIdx++}`; params.push(division); }
-    if (district) { query += ` AND district = $${pIdx++}`; params.push(district); }
-    if (municipality) { query += ` AND municipality = $${pIdx++}`; params.push(municipality); }
+    if (region) { query += ` AND "Region" = $${pIdx++}`; params.push(region); }
+    if (division) { query += ` AND "Division" = $${pIdx++}`; params.push(division); }
+    if (district) { query += ` AND "District" = $${pIdx++}`; params.push(district); }
+    if (municipality) { query += ` AND "Municipality" = $${pIdx++}`; params.push(municipality); }
 
-    query += ' ORDER BY school_name';
+    query += ' ORDER BY "School_Name"';
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -3269,29 +3269,48 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 
 // 1. Check if school already has an account
 app.post('/api/check-existing-school', async (req, res) => {
-  try {
-    const { schoolId } = req.body;
-    console.log(`🔍 [Check-School] Validating school_id: ${schoolId}`);
-    
-    if (!schoolId) {
-      return res.status(400).json({ error: "School ID is required." });
-    }
+  const { schoolId } = req.body;
+  const tidiedId = (schoolId || '').trim();
+  
+  if (!tidiedId) {
+    return res.status(400).json({ error: "School ID is required." });
+  }
 
-    const result = await pool.query('SELECT uid FROM users WHERE school_id = $1 AND role = \'School Head\'', [schoolId.trim()]);
-    if (result.rowCount > 0) {
-      return res.json({ exists: true, message: "A School Head account already exists for this school. Please log in or contact support for password recovery." });
+  console.log(`🔍 [Check-School] Validating school_id: ${tidiedId}`);
+
+  let client;
+  try {
+    client = await pool.connect();
+    const query = 'SELECT uid FROM users WHERE school_id = $1 AND role = \'School Head\'';
+    let result;
+    
+    try {
+      result = await client.query(query, [tidiedId]);
+    } catch (err) {
+      if (err.message.includes('terminated unexpectedly')) {
+        console.warn(`♻️ [RECOVERY] Retrying Check-School for: ${tidiedId}`);
+        // Acquire a fresh connection for the retry to be safe
+        client.release();
+        client = await pool.connect();
+        result = await client.query(query, [tidiedId]);
+      } else {
+        throw err;
+      }
     }
-    res.json({ exists: false });
+    
+    res.json({ exists: result.rowCount > 0 });
   } catch (err) {
     console.error("❌ Check School Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    if (client) client.release();
   }
 });
 
 // 2. One-shot Registration for School Heads
 app.post('/api/register-beta', async (req, res) => {
   try {
-    console.log("🏗️ [Register-Beta] Processing registration for:", req.body?.email);
+    console.log("🏗️ [Register-Beta] Incoming Request Body:", JSON.stringify(req.body, null, 2));
     
     const validatedData = RegisterBetaSchema.safeParse(req.body);
     if (!validatedData.success) {
@@ -3302,9 +3321,13 @@ app.post('/api/register-beta', async (req, res) => {
     const { email, password, contactNumber, firstName, lastName, schoolData, passcode } = validatedData.data;
     const { school_id } = schoolData;
 
-    // 1. Fetch IERN (Canonical ID)
-    const iernRes = await pool.query('SELECT "IERN" FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
-    const iern = iernRes.rowCount > 0 ? iernRes.rows[0].IERN : school_id;
+    // 1. Fetch Full Metadata from Master Record (schools_IERN)
+    const masterRes = await pool.query('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
+    if (masterRes.rowCount === 0) {
+      return res.status(404).json({ error: "School ID not found in Master Record. Please contact support." });
+    }
+    const master = masterRes.rows[0];
+    const iern = master.IERN || school_id;
 
     // 2. Check for duplicates
     const dupRes = await pool.query('SELECT uid FROM users WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
@@ -3317,37 +3340,61 @@ app.post('/api/register-beta', async (req, res) => {
     const hashedPin = passcode ? await bcrypt.hash(passcode, 10) : null;
     const uid = uuidv4();
 
-    // 4. Insert User (School Head)
-    const userQuery = `
-      INSERT INTO users (
-        uid, email, password_hash, hash_version, role, first_name, last_name,
-        school_id, iern, contact_number, region, division, province, city, barangay,
-        passcode, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
-    `;
-    const userValues = [
-      uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
-      school_id, iern, contactNumber, 
-      schoolData.region, schoolData.division, schoolData.province, 
-      schoolData.municipality || schoolData.city, schoolData.barangay,
-      hashedPin
-    ];
-    await pool.query(userQuery, userValues);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // 5. Ensure school exists in ph_schools (monitoring)
-    const schoolQuery = `
-      INSERT INTO ph_schools (school_id, iern, school_name, region, division, latitude, longitude)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (school_id) DO UPDATE SET 
-        iern = EXCLUDED.iern,
-        latitude = EXCLUDED.latitude, 
-        longitude = EXCLUDED.longitude
-    `;
-    await pool.query(schoolQuery, [
-      school_id, iern, schoolData.school_name, 
-      schoolData.region, schoolData.division,
-      schoolData.latitude, schoolData.longitude
-    ]);
+      // 4. Create User Record
+      const userQuery = `
+        INSERT INTO users (
+          uid, email, password_hash, hash_version, role, first_name, last_name,
+          school_id, iern, contact_number, region, division, province, city, barangay,
+          passcode, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+      `;
+      const userValues = [
+        uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
+        school_id, iern, contactNumber,
+        master.Region, master.Division, master.Province, 
+        master.Municipality, master.Barangay,
+        hashedPin
+      ];
+      await client.query(userQuery, userValues);
+
+      // 5. Ensure school exists in ph_schools (on-demand hydration)
+      const schoolQuery = `
+        INSERT INTO ph_schools (
+          school_id, iern, school_name, region, division, province, municipality, barangay, district, leg_district, curricular_offering, latitude, longitude, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
+        ON CONFLICT (school_id) DO UPDATE SET 
+          iern = EXCLUDED.iern,
+          school_name = EXCLUDED.school_name,
+          region = EXCLUDED.region,
+          division = EXCLUDED.division,
+          province = EXCLUDED.province,
+          municipality = EXCLUDED.municipality,
+          barangay = EXCLUDED.barangay,
+          district = EXCLUDED.district,
+          leg_district = EXCLUDED.leg_district,
+          curricular_offering = EXCLUDED.curricular_offering,
+          latitude = EXCLUDED.latitude, 
+          longitude = EXCLUDED.longitude,
+          updated_at = EXCLUDED.updated_at
+      `;
+      await client.query(schoolQuery, [
+        school_id, iern, master.School_Name, 
+        master.Region, master.Division, master.Province, master.Municipality, master.Barangay, master.District, master.Legislative_District, master.Curricular_Offering,
+        master.Latitude, master.Longitude
+      ]);
+
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      throw dbErr;
+    } finally {
+      client.release();
+    }
 
     // 6. Generate Session Token
     const token = jwt.sign(
@@ -3366,8 +3413,9 @@ app.post('/api/register-beta', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Register-Beta Error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("❌ Register-Beta Fatal Error:", err);
+    if (err.stack) console.error(err.stack);
+    res.status(500).json({ error: "Internal Server Error", message: err.message });
   }
 });
 
@@ -3393,11 +3441,14 @@ app.post('/api/register-user', async (req, res) => {
     const hashedPin = passcode ? await bcrypt.hash(passcode, 10) : null;
     const uid = uuidv4();
 
-    // Fetch IERN if school_id is provided
+    // Fetch IERN from Master Record if school_id is provided
     let iern = null;
     if (school_id) {
         const iernRes = await pool.query('SELECT "IERN" FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
-        iern = iernRes.rowCount > 0 ? iernRes.rows[0].IERN : school_id;
+        if (iernRes.rowCount === 0) {
+            return res.status(400).json({ success: false, error: "Provided School ID not found in Master Record." });
+        }
+        iern = iernRes.rows[0].IERN;
     }
 
     const query = `
@@ -3438,49 +3489,36 @@ app.post('/api/register-user', async (req, res) => {
 });
 
 
-app.post('/api/auth/setup-pin', async (req, res) => {
-  const { uid, school_id, email, pin } = req.body;
-  const identifier = uid || school_id || email;
+// [Robust Login Fix v1.2] Secure Passcode Setup using Token UID
+app.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
+  const { passcode, pin } = req.body;
+  const finalPasscode = passcode || pin;
+  const uid = req.user?.uid;
 
-  if (!identifier || !pin || pin.length !== 6) {
-    return res.status(400).json({ success: false, error: "Valid 6-digit PIN and identifier are required." });
+  if (!uid || !finalPasscode || finalPasscode.length !== 6) {
+    return res.status(400).json({ success: false, error: "Valid 6-digit passcode is required." });
   }
 
   try {
-    // Determine which column to match on
-    let whereClause, param;
-    if (uid) {
-      whereClause = 'uid = $2';
-      param = uid;
-    } else if (school_id) {
-      whereClause = 'school_id = $2';
-      param = school_id.trim();
-    } else {
-      whereClause = 'LOWER(email) = $2';
-      param = email.trim().toLowerCase();
-    }
-
-    // Hash PIN before storing
+    // Hash passcode before storing
     const saltRounds = 10;
-    const hashedPin = await bcrypt.hash(pin, saltRounds);
+    const hashedPasscode = await bcrypt.hash(finalPasscode, saltRounds);
 
     const result = await pool.query(
-      `UPDATE users SET passcode = $1 WHERE ${whereClause} AND (registration_status = 'Valid' OR registration_status IS NULL) RETURNING uid`,
-      [hashedPin, param]
+      `UPDATE users SET passcode = $1 WHERE uid = $2 RETURNING uid`,
+      [hashedPasscode, uid]
     );
-
 
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, error: "User not found." });
     }
 
-    return res.json({ success: true, message: "PIN set successfully." });
+    return res.json({ success: true, message: "Passcode set successfully." });
   } catch (err) {
-    console.error("Setup PIN Error:", err);
+    console.error("Setup Passcode Error:", err);
     res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 });
-
 app.post('/api/auth/verify-passcode', authMiddleware, async (req, res) => {
   try {
     const { passcode } = req.body;

@@ -92,7 +92,7 @@ const PasscodeSetupPrompt = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('api/auth/setup-passcode', {
+            const res = await fetch('/api/auth/setup-passcode', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
