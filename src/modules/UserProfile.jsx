@@ -713,25 +713,29 @@ const UserProfile = () => {
     // 2. ABOUT VIEW
     const renderAbout = () => (
         <div className="p-5 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm text-center">
-                {/* Placeholder Logo / Brand */}
-                <div className="w-[60px] h-[60px] bg-[#004A99] rounded-2xl mx-auto mb-4 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl shadow-blue-900/5 dark:shadow-none border border-transparent dark:border-slate-700/50 text-center relative overflow-hidden">
+                {/* Branding Logo */}
+                <div className="w-[80px] h-[80px] bg-[#004A99] dark:bg-blue-600 rounded-[2rem] mx-auto mb-6 flex items-center justify-center text-white font-black text-3xl shadow-xl shadow-blue-500/30">
                     IE
                 </div>
-                <h2 className="text-[#004A99] dark:text-blue-300 mb-1.5 text-xl font-bold">InsightEd</h2>
-                <p className="text-gray-400 dark:text-gray-500 text-xs text-center">Version {import.meta.env.VITE_APP_VERSION || '1.0.0'} (Beta)</p>
+                
+                <h2 className="text-[#004A99] dark:text-blue-400 mb-1 text-2xl font-black tracking-tight">InsightED</h2>
+                <p className="text-gray-400 dark:text-gray-500 text-sm font-medium mb-8">Version {import.meta.env.VITE_APP_VERSION || '1.0.0'} (Beta)</p>
 
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed my-5 text-left">
-                    <strong>InsightEd</strong> is a comprehensive monitoring and management tool designed for the Department of Education.
-                    It bridges the gap between School Heads, Engineers, HR, and Admin by providing real-time data on school infrastructure, resources, and personnel.
-                </p>
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4 text-left">
-                    Our mission is to empower decision-makers with accurate, on-the-ground data to ensure safer and more conducive learning environments for students.
-                </p>
+                <div className="space-y-6 text-left">
+                    <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed font-medium">
+                        <strong className="text-slate-800 dark:text-white font-black">InsightED</strong> is a mobile-first data collection application for real-time field data collection, designed to transform raw school-level data into actionable organizational strategies. By serving as the digital conduit to the STRIDE Dashboard, the application enables the Department to perform proactive management towards strategic use of critical education resources.
+                    </p>
+                    
+                    <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed font-medium">
+                        With high-fidelity data captured directly from the source, the Department can execute informed, evidence-based actions with unprecedented speed. This modernization of education management ensures that the Department can identify and address the unique needs of every school, guaranteeing that resources and support are deployed precisely where they will most improve the quality of education for our learners.
+                    </p>
+                </div>
 
-                <div className="h-px bg-gray-100 dark:bg-slate-600 my-5"></div>
-                <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest">
-                    © 2024 InsightEd Development Team. <br />All rights reserved.
+                <div className="h-px bg-slate-100 dark:bg-slate-700/50 my-8"></div>
+                
+                <p className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                    © 2024 INSIGHTED DEVELOPMENT TEAM.<br />ALL RIGHTS RESERVED.
                 </p>
             </div>
         </div>
