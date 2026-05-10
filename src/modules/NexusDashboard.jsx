@@ -11,7 +11,7 @@ import {
     FiGrid,
     FiArrowLeft
 } from 'react-icons/fi';
-import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase } from "react-icons/tb";
+import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase, TbHeadset } from "react-icons/tb";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
@@ -288,13 +288,67 @@ const NodesDashboard = () => {
                             {activeView === 'services' ? "Supplemental Microservices" : `School ID: ${questProgress.schoolId || "------"}`}
                         </p>
                     </div>
-                    <button 
-                        onClick={confirmLogout}
-                        className="p-4 bg-slate-50 rounded-3xl border border-slate-100 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all active:scale-95 shadow-lg shadow-slate-200/50"
-                        title="Logout"
-                    >
-                        <FiLogOut size={24} />
-                    </button>
+                    <div className="flex items-start gap-4">
+                        {/* Support Button with NEW sticker */}
+                        <div className="flex flex-col items-center justify-center">
+                            <motion.div 
+                                className="relative group"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <button 
+                                    onClick={() => window.location.href = 'mailto:support.stride@deped.gov.ph'}
+                                    className="p-4 bg-white/40 backdrop-blur-md rounded-3xl border border-white/60 text-[#004A99] hover:text-blue-600 transition-all shadow-[0_8px_32px_rgba(0,0,0,0.08)] group-hover:shadow-blue-500/20 group-hover:border-blue-400/50"
+                                    title="Technical Support"
+                                >
+                                    <motion.div
+                                        animate={{ scale: [1, 1.1, 1] }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    >
+                                        <TbHeadset size={24} className="group-hover:rotate-12 transition-transform" />
+                                    </motion.div>
+                                </button>
+                                <motion.div 
+                                    initial={{ scale: 0, y: 10, rotate: 0 }}
+                                    animate={{ 
+                                        scale: 1, 
+                                        y: [0, -3, 0], 
+                                        rotate: -12 
+                                    }}
+                                    transition={{ 
+                                        scale: { type: 'spring', stiffness: 500, damping: 15, delay: 0.5 },
+                                        y: { duration: 3, repeat: Infinity, ease: "easeInOut" }
+                                    }}
+                                    className="absolute -top-2 -right-2 bg-gradient-to-br from-red-500 to-red-700 text-white text-[8px] font-black px-2 py-0.5 rounded-md shadow-[0_4px_12px_rgba(220,38,38,0.4)] border-2 border-white uppercase tracking-tighter"
+                                >
+                                    NEW!
+                                </motion.div>
+                            </motion.div>
+                            <p 
+                                className="text-[11px] font-black uppercase tracking-tighter mt-2 text-center leading-[0.8] cursor-default select-none"
+                                style={{ 
+                                    textShadow: `
+                                        -1.5px -1.5px 0 #000,  
+                                         1.5px -1.5px 0 #000,
+                                        -1.5px  1.5px 0 #000,
+                                         1.5px  1.5px 0 #000,
+                                         0px 2px 4px rgba(0,0,0,0.5)
+                                    `
+                                }}
+                            >
+                                <span className="text-yellow-400">InsightED</span> <br /> 
+                                <span className="text-blue-400">Support</span>
+                            </p>
+                        </div>
+
+                        <button 
+                            onClick={confirmLogout}
+                            className="p-4 bg-slate-50 rounded-3xl border border-slate-100 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all active:scale-95 shadow-lg shadow-slate-200/50"
+                            title="Logout"
+                        >
+                            <FiLogOut size={24} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* --- DYNAMIC GRID VIEW --- */}
