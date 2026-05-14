@@ -182,24 +182,47 @@ const UserProfile = () => {
                 });
                 setHomeRoute(getDashboardPath(mappedUser.role));
 
-                // School ID check (if missing, fetch it)
-                const currentSchoolId = mappedUser.school_id || mappedUser.schoolId;
-                if (currentSchoolId) {
-                    setSchoolId(currentSchoolId);
-                } else if (mappedUser.uid) {
+                // School ID and IERN check
+                const sid = mappedUser.school_id || mappedUser.schoolId;
+                if (sid) {
+                    setSchoolId(sid);
                     try {
-                        const response = await fetch(`api/school-by-user/${mappedUser.uid}`, {
+                        const res = await fetch(`/api/iern/${sid}`, {
                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                         });
-                        if (response.ok) {
-                            const result = await response.json();
-                            if (result.exists) {
-                                setSchoolId(result.data.school_id);
-                                setIern(result.data.iern);
+                        if (res.ok) {
+                            const data = await res.json();
+                            console.log('[IERN Debug] Direct lookup:', data);
+                            if (data.iern) {
+                                setIern(data.iern);
+                                setUserData(prev => ({ ...prev, iern: data.iern }));
                             }
                         }
-                    } catch (error) {
-                        // Silent error
+                    } catch (e) {
+                        console.error('[IERN Debug] Error:', e);
+                    }
+                }
+
+                // Fallback: Fetch full school details if SID was missing but UID exists
+                if (!sid) {
+                    const targetUid = mappedUser.uid || mappedUser.user_id || mappedUser.id;
+                    if (targetUid) {
+                        try {
+                            const response = await fetch(`/api/school-by-user/${targetUid}`, {
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                            });
+                            if (response.ok) {
+                                const result = await response.json();
+                                console.log('[IERN Debug] User-based lookup:', result);
+                                if (result.exists) {
+                                    setSchoolId(result.data.school_id);
+                                    setIern(result.data.iern);
+                                    setUserData(prev => ({ ...prev, iern: result.data.iern }));
+                                }
+                            }
+                        } catch (error) {
+                            console.error("[IERN Debug] Fallback error:", error);
+                        }
                     }
                 }
             } else if (!authLoading) {
@@ -263,7 +286,7 @@ const UserProfile = () => {
                 currentPasscode: securityData.passcode
             };
 
-            const response = await fetch('api/users/update', {
+            const response = await fetch('/api/users/update', {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -323,7 +346,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('api/auth/change-password', {
+            const response = await fetch('/api/auth/change-password', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -386,7 +409,7 @@ const UserProfile = () => {
         setLoading(true);
         try {
             // If user has a passcode, we should ideally verify it first or pass it to the setup endpoint
-            const response = await fetch('api/auth/setup-passcode', {
+            const response = await fetch('/api/auth/setup-passcode', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -432,7 +455,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('api/feedback', {
+            const response = await fetch('/api/feedback', {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -584,7 +607,7 @@ const UserProfile = () => {
                 </div>
                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col flex-1 min-w-[140px]">
                     <span className="text-[10px] uppercase font-bold text-slate-400 mb-1">IERN</span>
-                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{userData?.iern || "NOT-GEN-SYS"}</span>
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{iern || userData?.iern || "NOT-GEN-SYS"}</span>
                 </div>
             </div>
 
@@ -1299,7 +1322,7 @@ const UserProfile = () => {
                                         
                                         try {
                                             // 1. Remote Repair Protocol: Align Unit 8 JSONB
-                                            await fetch('api/system/align-unit8', {
+                                            await fetch('/api/system/align-unit8', {
                                                 method: 'POST',
                                                 headers: {
                                                     'Authorization': `Bearer ${localStorage.getItem('token')}`,

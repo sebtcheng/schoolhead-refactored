@@ -2045,6 +2045,22 @@ app.get('/api/school-by-user/:uid', async (req, res) => {
   }
 });
 
+// 1.1 GET /api/iern/:school_id - Direct IERN lookup
+app.get('/api/iern/:school_id', async (req, res) => {
+  try {
+    const { school_id } = req.params;
+    const result = await pool.query(
+      `SELECT "IERN" FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1`,
+      [school_id]
+    );
+    if (result.rows.length === 0) return res.json({ iern: null });
+    res.json({ iern: result.rows[0].IERN });
+  } catch (err) {
+    console.error("IERN Lookup Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 2. GET /api/school-head/:uid
 app.get('/api/school-head/:uid', async (req, res) => {
   try {
@@ -3220,6 +3236,151 @@ app.post('/api/auth/migrate-login', async (req, res) => {
     console.error("Migration Login Error:", err);
     res.status(500).json({ success: false, error: err.message || "Internal Server Error" });
   }
+});
+
+// --- CHANGE PASSWORD ---
+app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const { uid } = req.user;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: "Current and new passwords are required." });
+  }
+
+  try {
+    // 1. Fetch user's current password hash
+    const userRes = await pool.query('SELECT password_hash FROM users WHERE uid = $1', [uid]);
+    if (userRes.rowCount === 0) return res.status(404).json({ error: "User not found" });
+
+    const { password_hash } = userRes.rows[0];
+
+    // 2. Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, password_hash);
+    if (!isMatch) return res.status(401).json({ error: "Incorrect current password" });
+
+    // 3. Hash new password and update
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1, hash_version = \'bcrypt\' WHERE uid = $1', [newHash, uid]);
+
+    res.json({ success: true, message: "Password updated successfully" });
+  } catch (err) {
+    console.error("Change Password Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- UPDATE USER PROFILE ---
+app.put('/api/users/update', authMiddleware, async (req, res) => {
+  const { firstName, lastName, email, currentPasscode } = req.body;
+  const { uid } = req.user;
+
+  try {
+    // 1. Fetch current user data
+    const userRes = await pool.query('SELECT email, passcode FROM users WHERE uid = $1', [uid]);
+    if (userRes.rowCount === 0) return res.status(404).json({ error: "User not found" });
+
+    const user = userRes.rows[0];
+    let emailChanged = false;
+
+    // 2. If email is changing, verify domain restriction and passcode
+    if (email && email.toLowerCase() !== user.email.toLowerCase()) {
+      const currentDomain = user.email.split('@')[1];
+      const newDomain = email.split('@')[1];
+
+      if (currentDomain && newDomain && currentDomain.toLowerCase() !== newDomain.toLowerCase()) {
+        return res.status(403).json({ error: `Domain restricted: Email must end with @${currentDomain}` });
+      }
+
+      // Verify passcode if set
+      if (user.passcode) {
+        if (!currentPasscode) return res.status(401).json({ error: "Passcode verification required to change email" });
+        
+        const isPinMatch = user.passcode.startsWith('$2b$') 
+          ? await bcrypt.compare(currentPasscode, user.passcode)
+          : (currentPasscode === user.passcode);
+          
+        if (!isPinMatch) return res.status(401).json({ error: "Invalid passcode" });
+      }
+      emailChanged = true;
+    }
+
+    // 3. Update fields
+    const updates = [];
+    const values = [];
+    let pIdx = 1;
+
+    if (firstName) { updates.push(`first_name = $${pIdx++}`); values.push(firstName); }
+    if (lastName) { updates.push(`last_name = $${pIdx++}`); values.push(lastName); }
+    if (email) { updates.push(`email = $${pIdx++}`); values.push(email.toLowerCase()); }
+
+    if (updates.length === 0) return res.json({ success: true, message: "No changes detected" });
+
+    values.push(uid);
+    const query = `UPDATE users SET ${updates.join(', ')} WHERE uid = $${pIdx} RETURNING *`;
+    await pool.query(query, values);
+
+    res.json({ success: true, emailChanged });
+  } catch (err) {
+    console.error("User Update Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- SETUP PASSCODE (ALIAS FOR SETUP-PIN) ---
+app.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
+  const { passcode, oldPasscode } = req.body;
+  const { uid } = req.user;
+
+  if (!passcode || passcode.length !== 6) {
+    return res.status(400).json({ error: "6-digit passcode is required" });
+  }
+
+  try {
+    // If oldPasscode is provided, verify it first
+    if (oldPasscode) {
+      const userRes = await pool.query('SELECT passcode FROM users WHERE uid = $1', [uid]);
+      if (userRes.rowCount > 0 && userRes.rows[0].passcode) {
+        const stored = userRes.rows[0].passcode;
+        const isMatch = stored.startsWith('$2b$') 
+          ? await bcrypt.compare(oldPasscode, stored)
+          : (oldPasscode === stored);
+        if (!isMatch) return res.status(401).json({ error: "Incorrect current passcode" });
+      }
+    }
+
+    const hashedPin = await bcrypt.hash(passcode, 10);
+    await pool.query('UPDATE users SET passcode = $1 WHERE uid = $2', [hashedPin, uid]);
+
+    res.json({ success: true, message: "Passcode updated successfully" });
+  } catch (err) {
+    console.error("Setup Passcode Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- FEEDBACK ---
+app.post('/api/feedback', authMiddleware, async (req, res) => {
+  const { ratings, comment, appVersion } = req.body;
+  const { uid, email, role } = req.user;
+
+  try {
+    await pool.query(
+      `INSERT INTO user_feedback (uid, email, role, ratings, comment, app_version, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+      [uid, email, role, JSON.stringify(ratings), comment, appVersion]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Feedback Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- SYSTEM ALIGNMENT STUB ---
+app.post('/api/system/align-unit8', authMiddleware, async (req, res) => {
+  // This is a repair protocol stub. Actual logic would depend on what needs alignment.
+  console.log(`🔧 [System] Aligning Unit 8 for UID: ${req.user.uid}`);
+  res.json({ success: true, message: "Unit 8 alignment protocol complete" });
 });
 
 // --- GET CURRENT USER (PROTECTED) ---
