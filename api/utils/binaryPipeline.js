@@ -77,13 +77,13 @@ export async function compressPDF(inputBuffer) {
         if (success) {
             const optimizedBuffer = fs.readFileSync(tempOut);
             // Only use optimized if it's actually smaller
-            if (optimizedBuffer.length < inputBuffer.length) {
-                console.log(`[BinaryPipeline] PDF Optimized: ${(inputBuffer.length / 1024).toFixed(1)}KB -> ${(optimizedBuffer.length / 1024).toFixed(1)}KB`);
+            if (optimizedBuffer.length < inputBuffer.length * 0.98) {
+                console.log(`✅ [BinaryPipeline] PDF Optimized: ${(inputBuffer.length / 1024).toFixed(1)}KB -> ${(optimizedBuffer.length / 1024).toFixed(1)}KB`);
                 return optimizedBuffer;
             }
-            console.log(`[BinaryPipeline] PDF Optimization skipped (original smaller/equal)`);
+            console.log(`ℹ️ [BinaryPipeline] PDF Optimization skipped (insignificant reduction): ${optimizedBuffer.length}B vs ${inputBuffer.length}B`);
         } else {
-            console.warn('[BinaryPipeline] PDF Optimization failed all Python executors, skipping.');
+            console.warn('⚠️ [BinaryPipeline] PDF Optimization failed all Python executors or script errored.');
         }
 
         return inputBuffer;

@@ -10,6 +10,7 @@ import UnitRemarkAlert from "./UnitRemarkAlert";
 import { MapContainer, TileLayer, Marker, Popup, Rectangle, Polygon, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { api } from "../../lib/api";
 // Fix for default marker icon in react-leaflet using unpkg to bypass rollup bundle errors
 const DefaultIcon = L.icon({
     iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -271,7 +272,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", curricular_offering: "", latitude: 14.5995, longitude: 120.9842 };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}`));
                     if (res.ok) {
                         const profile = await res.json();
                         if (profile.exists && profile.data) baseline = { ...baseline, ...profile.data };
@@ -402,7 +403,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
     const fetchMasterData = async (id) => {
         try {
-            const res = await fetch(`api/ph_schools/unit7/${id}/master`);
+            const res = await fetch(api(`/ph_schools/unit7/${id}/master`));
             if (res.ok) {
                 const json = await res.json();
                 if (json.success && json.data) {
@@ -465,7 +466,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
     const fetchBuildingTypes = async () => {
         try {
-            const res = await fetch('api/reference/building-types');
+            const res = await fetch(api(`/reference/building-types`));
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data) && data.length > 0) {
@@ -480,7 +481,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
     const fetchTeachers = async (id) => {
         try {
-            const res = await fetch(`api/unit8/teachers/${id}`);
+            const res = await fetch(api(`/unit8/teachers/${id}`));
             if (res.ok) {
                 const json = await res.json();
                 if (json.success) {
@@ -494,7 +495,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
     const fetchSpaces = async (id) => {
         try {
-            const res = await fetch(`api/ph_schools/unit7/${id}/spaces`);
+            const res = await fetch(api(`/ph_schools/unit7/${id}/spaces`));
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
@@ -589,7 +590,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 iern: schoolData?.iern || null,
             };
 
-            const res = await fetch(`api/ph_schools/unit7/${schoolId}/spaces`, {
+            const res = await fetch(api(`/api/ph_schools/unit7/${schoolId}/spaces`), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -626,7 +627,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     const handleDelete = async (spaceId) => {
         if (!window.confirm("Delete this space?")) return;
         try {
-            const res = await fetch(`api/ph_schools/unit7/spaces/${spaceId}`, { method: "DELETE" });
+            const res = await fetch(api(`/api/ph_schools/unit7/spaces/${spaceId}`), { method: "DELETE" });
             if (res.ok) {
                 setSpaces(spaces.filter(s => s.id !== spaceId));
             }
@@ -977,7 +978,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             }));
             const build_classrooms_total = roomsData.length;
 
-            await fetch(`api/save-physical-facilities`, {
+            await fetch(api(`/api/save-physical-facilities`), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1095,7 +1096,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
                 await addModularToOutbox({
                     unitId: 7, label: "Unit 7: Physical Facilities (Inventory & Mapping)",
-                    url: `api/save-physical-facilities`, method: 'POST',
+                    url: api(`/save-physical-facilities`), method: 'POST',
                     payload, schoolId
                 });
                 await clearUnitDraft(7, schoolId);
@@ -1104,7 +1105,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 return;
             }
 
-            const masterRes = await fetch(`api/save-physical-facilities`, {
+            const masterRes = await fetch(api(`/api/save-physical-facilities`), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -1122,7 +1123,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             }
 
             // Optional background sync for metrics
-            fetch('api/user/progress', {
+            fetch(api(`/api/user/progress`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ unitId: 7, schoolId, duration_seconds: 0 })
@@ -1162,7 +1163,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
                 await addModularToOutbox({
                     unitId: 7, label: "Unit 7: Physical Facilities (Inventory & Mapping)",
-                    url: `api/save-physical-facilities`, method: 'POST',
+                    url: api(`/save-physical-facilities`), method: 'POST',
                     payload: outboxPayload, schoolId
                 });
                 await clearUnitDraft(7, schoolId);

@@ -19,6 +19,7 @@ import Unit6SchoolResources from '../components/modular/Unit6SchoolResources';
 import Unit7PhysicalFacilities from '../components/modular/Unit7PhysicalFacilities';
 import Unit8SchoolLocation from '../components/modular/Unit8SchoolLocation';
 import Unit9Infrastructure from '../components/modular/Unit9Infrastructure';
+import { api } from "../lib/api";
 
 const SchoolAuditView = () => {
     const { user } = useAuth();
@@ -35,7 +36,7 @@ const SchoolAuditView = () => {
 
     const fetchRemarks = async (schoolId) => {
         try {
-            const res = await fetch(`api/audit/remarks/${schoolId}`, {
+            const res = await fetch(api(`/api/audit/remarks/${schoolId}`), {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (res.ok) {
@@ -51,7 +52,7 @@ const SchoolAuditView = () => {
         if (!newRemark.trim() || !schoolData || !remarkUnitId) return;
         setIsSubmitting(true);
         try {
-            const res = await fetch('api/audit/remarks', {
+            const res = await fetch(api(`/api/audit/remarks`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -89,7 +90,7 @@ const SchoolAuditView = () => {
 
     const handleVerifyRemark = async (remarkId) => {
         try {
-            const res = await fetch(`api/audit/remarks/${remarkId}/resolve`, {
+            const res = await fetch(api(`/api/audit/remarks/${remarkId}/resolve`), {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',

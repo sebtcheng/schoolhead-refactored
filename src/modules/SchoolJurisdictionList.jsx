@@ -5,7 +5,8 @@ import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { FiSearch, FiChevronRight, FiMapPin, FiBarChart2, FiHardDrive, FiFileText, FiTrendingUp, FiCheckCircle, FiClock, FiBell, FiRefreshCw } from 'react-icons/fi';
 import { TbShieldCheck, TbShieldX } from 'react-icons/tb';
-import debounce from 'lodash/debounce'; // If lodash is available? Probably not efficiently. Let's write a simple hook or utility.
+import debounce from 'lodash/debounce';
+import { api } from "../lib/api"; // If lodash is available? Probably not efficiently. Let's write a simple hook or utility.
 
 // Simple debounce utility since we might not have lodash
 const useDebounce = (value, delay) => {
@@ -64,7 +65,7 @@ const SchoolJurisdictionList = () => {
 
             if (divisionToUse) params.append('division', divisionToUse);
 
-            const res = await fetch(`api/monitoring/schools?${params.toString()}`, {
+            const res = await fetch(api(`/api/monitoring/schools?${params.toString()}`), {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (res.ok) {

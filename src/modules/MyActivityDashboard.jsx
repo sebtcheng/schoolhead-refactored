@@ -14,6 +14,7 @@ import { DASHBOARD_METADATA } from '../config/dashboardMetadata';
 import { useAuth } from '../context/AuthContext';
 import { getModularOutbox } from '../db';
 import { downloadPrintableReport } from '../utils/PrintableExportGenerator';
+import { api } from "../lib/api";
 
 // --- Circular Progress Ring ---
 const ProgressRing = ({ percentage = 0, validationPercentage = 0, size = 160, strokeWidth = 10 }) => {
@@ -159,7 +160,7 @@ const MyActivityDashboard = () => {
                 
                 // --- SUPER USER IMPERSONATION ---
                 if (user?.role === 'Super User' && impersonatedUid) {
-                    const profileRes = await fetch(`api/school-by-user/${impersonatedUid}`);
+                    const profileRes = await fetch(api(`/school-by-user/${impersonatedUid}`));
                     const profileJson = await profileRes.json();
                     if (profileJson.exists && profileJson.data.school_id) {
                         schoolId = profileJson.data.school_id;
@@ -173,7 +174,7 @@ const MyActivityDashboard = () => {
                 
                 setTargetSchoolId(schoolId);
 
-                const response = await fetch(`api/ph_schools/progress/${schoolId}`);
+                const response = await fetch(api(`/ph_schools/progress/${schoolId}`));
                 if (response.ok) {
                     const json = await response.json();
                     if (json.data) {
@@ -215,15 +216,15 @@ const MyActivityDashboard = () => {
         setExporting(true);
         try {
             // 1. Fetch ph_schools full data
-            const phRes = await fetch(`api/ph_schools/${targetSchoolId}`);
+            const phRes = await fetch(api(`/ph_schools/${targetSchoolId}`));
             const phJson = await phRes.json();
             
             // 2. Fetch Unit 7 Child Tables (Master)
-            const u7Res = await fetch(`api/ph_schools/unit7/${targetSchoolId}/master`);
+            const u7Res = await fetch(api(`/ph_schools/unit7/${targetSchoolId}/master`));
             const u7Json = await u7Res.json();
             
             // 3. Fetch Unit 8 (Terrain) Data
-            const u8Res = await fetch(`api/school-location/${targetSchoolId}`);
+            const u8Res = await fetch(api(`/school-location/${targetSchoolId}`));
             const u8Json = await u8Res.json();
 
             if (phJson.exists && phJson.data) {

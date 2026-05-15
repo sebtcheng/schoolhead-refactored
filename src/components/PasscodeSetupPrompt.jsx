@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiShield, FiLock, FiCheckCircle, FiArrowLeft, FiX } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { api } from "../lib/api";
 
 const PasscodeSetupPrompt = () => {
     const { user, setUser, isPasscodeSetupOpen, setIsPasscodeSetupOpen } = useAuth();
@@ -92,7 +93,7 @@ const PasscodeSetupPrompt = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/auth/setup-passcode', {
+            const res = await fetch(api(`/api/auth/setup-passcode`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

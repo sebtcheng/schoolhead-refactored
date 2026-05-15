@@ -8,6 +8,7 @@ import Papa from 'papaparse'; //
 import OfflineSuccessModal from '../components/OfflineSuccessModal';
 import SuccessModal from '../components/SuccessModal';
 import { FiArrowLeft, FiUser, FiMapPin, FiBriefcase, FiHash, FiSearch, FiCheckCircle, FiSave, FiAlertCircle } from 'react-icons/fi';
+import { api } from "../lib/api";
 
 const SchoolInformation = ({ embedded = false }) => {
     const navigate = useNavigate();
@@ -318,7 +319,7 @@ const SchoolInformation = ({ embedded = false }) => {
                 await addToOutbox({
                     type: 'SCHOOL_HEAD_INFO',
                     label: 'School Head Info',
-                    url: 'api/save-school-head',
+                    url: api(`/save-school-head`),
                     payload: payload
                 });
                 setShowOfflineModal(true);
@@ -330,7 +331,7 @@ const SchoolInformation = ({ embedded = false }) => {
         }
 
         try {
-            const response = await fetch('api/save-school-head', {
+            const response = await fetch(api(`/api/save-school-head`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -348,7 +349,7 @@ const SchoolInformation = ({ embedded = false }) => {
             await addToOutbox({
                 type: 'SCHOOL_HEAD_INFO',
                 label: 'School Head Info',
-                url: 'api/save-school-head',
+                url: api(`/save-school-head`),
                 payload: payload
             });
             setShowOfflineModal(true);

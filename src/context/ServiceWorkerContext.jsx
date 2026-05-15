@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from "../lib/api";
 
 const ServiceWorkerContext = createContext(null);
 
@@ -199,7 +200,7 @@ export const ServiceWorkerProvider = ({ children }) => {
 
         try {
             // 1. Fetch the Public Key from our server
-            const response = await fetch('api/vapid-public-key');
+            const response = await fetch(api(`/vapid-public-key`));
             if (!response.ok) throw new Error("Failed to fetch VAPID key");
             const { publicKey } = await response.json();
             
@@ -222,7 +223,7 @@ export const ServiceWorkerProvider = ({ children }) => {
             });
 
             // 4. Send the subscription object to our PostgreSQL backend
-            const saveResponse = await fetch('api/save-subscription', {
+            const saveResponse = await fetch(api(`/api/save-subscription`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

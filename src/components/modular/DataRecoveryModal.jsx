@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertCircle, FiCheckCircle, FiRefreshCw, FiExternalLink, FiX, FiShield } from 'react-icons/fi';
 import { getUnitDraft } from '../../db';
+import { api } from "../../lib/api";
 
 const DataRecoveryModal = ({ schoolId, isOpen, onClose }) => {
     const [status, setStatus] = useState('idle'); // idle, scanning, found, harvesting, completed, healthy
@@ -29,7 +30,7 @@ const DataRecoveryModal = ({ schoolId, isOpen, onClose }) => {
             }));
 
             // Call the backend sanity check
-            const res = await fetch(`api/check-school-data-sanity/${schoolId}`, {
+            const res = await fetch(api(`/api/check-school-data-sanity/${schoolId}`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(masterPayload)
@@ -52,7 +53,7 @@ const DataRecoveryModal = ({ schoolId, isOpen, onClose }) => {
     const handleHarvest = async () => {
         setStatus('harvesting');
         try {
-            const res = await fetch(`api/harvest-master/${schoolId}`, {
+            const res = await fetch(api(`/api/harvest-master/${schoolId}`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ repairable: repairableFields })

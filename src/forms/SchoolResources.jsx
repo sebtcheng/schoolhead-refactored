@@ -16,6 +16,7 @@ import 'leaflet/dist/leaflet.css';
 // Fix Leaflet Icons
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import { api } from "../lib/api";
 let DefaultIcon = L.icon({
     iconUrl: icon,
     shadowUrl: iconShadow,
@@ -570,7 +571,7 @@ const SchoolResources = ({ embedded }) => {
                         const resolvedSchoolId = dbData.school_id || schoolIdParam || auditTargetId || localStorage.getItem('schoolId');
                         if (loaded.res_buildable_space === 'Yes' && resolvedSchoolId) {
                             try {
-                                const spacesRes = await fetch(`api/buildable-spaces/${resolvedSchoolId}`);
+                                const spacesRes = await fetch(api(`/buildable-spaces/${resolvedSchoolId}`));
                                 if (spacesRes.ok) {
                                     const spacesData = await spacesRes.json();
                                     const mappedSpaces = spacesData.map(s => ({
@@ -589,7 +590,7 @@ const SchoolResources = ({ embedded }) => {
 
                         if (resolvedSchoolId) {
                             try {
-                                const ecartRes = await fetch(`api/ecart-batches/${resolvedSchoolId}`);
+                                const ecartRes = await fetch(api(`/ecart-batches/${resolvedSchoolId}`));
                                 if (ecartRes.ok) {
                                     const ecartData = await ecartRes.json();
                                     if (ecartData.length > 0) {
@@ -742,7 +743,7 @@ const SchoolResources = ({ embedded }) => {
         }
 
         try {
-            const res = await fetch('api/save-school-resources', {
+            const res = await fetch(api(`/api/save-school-resources`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -771,7 +772,7 @@ const SchoolResources = ({ embedded }) => {
         await addToOutbox({
             type: 'SCHOOL_RESOURCES',
             label: 'School Resources',
-            url: 'api/save-school-resources',
+            url: api(`/save-school-resources`),
             payload: payload
         });
         if (user) clearSpaceDrafts(user.uid).catch(console.error);

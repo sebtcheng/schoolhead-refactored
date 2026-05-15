@@ -15,6 +15,7 @@ import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, T
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
+import { api } from "../lib/api";
 
 
 const NodesDashboard = () => {
@@ -38,7 +39,7 @@ const NodesDashboard = () => {
             const schoolId = localStorage.getItem('schoolId') || user?.school_id;
             if (schoolId) {
                 try {
-                    const res = await fetch(`api/ph_schools/progress/${schoolId}`);
+                    const res = await fetch(api(`/ph_schools/progress/${schoolId}`));
                     if (res.ok) {
                         const json = await res.json();
                         if (json.success && json.data) {
@@ -53,7 +54,7 @@ const NodesDashboard = () => {
  
                     // ESF7 Status check removed
 
-                    const locksRes = await fetch('api/settings/nexus_module_locks');
+                    const locksRes = await fetch(api(`/settings/nexus_module_locks`));
                     if (locksRes.ok) {
                         const locksData = await locksRes.json();
                         if (locksData && locksData.value) {

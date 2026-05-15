@@ -26,6 +26,7 @@ const convertFullFileToBase64 = (file) => {
 import { compressImage } from '../utils/imageCompression';
 import LocationPickerMap from '../components/LocationPickerMap'; // Import Map Component
 import { FiLock, FiUnlock } from 'react-icons/fi';
+import { api } from "../lib/api";
 
 // Helper component for Section Headers
 const SectionHeader = ({ title }) => (
@@ -272,7 +273,7 @@ const NewProjects = () => {
         setIsSearchingProjects(true);
         try {
             // Use existing /api/projects endpoint but we'll filter on frontend or add search param if backend supports it
-            const res = await fetch(`api/projects?search=${encodeURIComponent(query)}`, {
+            const res = await fetch(api(`/api/projects?search=${encodeURIComponent(query)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -477,7 +478,7 @@ const NewProjects = () => {
 
         // ========== ONLINE MODE: Use database API ==========
         try {
-            const res = await fetch(`api/school-profile/${schoolId}`, {
+            const res = await fetch(api(`/api/school-profile/${schoolId}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {

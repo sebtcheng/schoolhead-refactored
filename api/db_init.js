@@ -1438,6 +1438,12 @@ const runMigrations = async (client, dbLabel) => {
                 status TEXT DEFAULT 'pending', -- pending, optimized
                 binary_id UUID,
                 file_size BIGINT,
+                original_size BIGINT,
+                hydra_manifest JSONB,
+                school_id TEXT,
+                ownership_document_type TEXT,
+                compressed_binary_id UUID,
+                compressed_size BIGINT,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
@@ -1448,6 +1454,9 @@ const runMigrations = async (client, dbLabel) => {
             await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS original_size BIGINT;`).catch(() => { });
             await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS hydra_manifest JSONB;`).catch(() => { });
             await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS school_id TEXT;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS ownership_document_type TEXT;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS compressed_binary_id UUID;`).catch(() => { });
+            await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS compressed_size BIGINT;`).catch(() => { });
 
             // Data Healing: Cleanup orphans to allow FK creation
             // [LOCKED] Table is append-only (InsightEd-2026-DocLock). Orphan cleanup via DELETE is skipped.
@@ -1580,7 +1589,7 @@ const runMigrations = async (client, dbLabel) => {
             DO $$
             DECLARE
                 t_name TEXT;
-                excluded_tables TEXT[] := ARRAY['ph_buildings_inventory', 'ph_buildings_repairs', 'ph_buildings_demolition', 'ph_school_buildable_spaces'];
+                excluded_tables TEXT[] := ARRAY['ph_buildings_inventory', 'ph_buildings_repairs', 'ph_buildings_demolition', 'ph_school_buildable_spaces', 'school_ownership_docs', 'school_location_profiles', 'buildable_spaces'];
                 t_count INT := 0;
             BEGIN
                 FOR t_name IN 

@@ -6,6 +6,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const TOTAL_CHAPTERS = 4; // 1: Gatekeeper, 2: Grade Loop, 3: ADM, 4: Review
@@ -115,7 +116,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}?t=${Date.now()}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -393,7 +394,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 5,
                     label: "Unit 5: Shifting & Modality",
-                    url: `api/ph_schools/unit5/${schoolId}`,
+                    url: api(`/ph_schools/unit5/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -413,7 +414,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 return;
             }
 
-            const res = await fetch(`api/ph_schools/unit5/${schoolId}`, {
+            const res = await fetch(api(`/api/ph_schools/unit5/${schoolId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -435,7 +436,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
             // Sync progress to dashboard
             try {
-                await fetch('api/user/progress', {
+                await fetch(api(`/api/user/progress`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ unitId: 5, schoolId })
@@ -452,7 +453,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 5,
                     label: "Unit 5: Shifting & Modality",
-                    url: `api/ph_schools/unit5/${schoolId}`,
+                    url: api(`/ph_schools/unit5/${schoolId}`),
                     method: 'PUT',
                     payload: { iern, has_standard_shifting: hasStandardShifting, ...mapData, ...finalAdm, mapData, admData: finalAdm, has_adms: hasAdms },
                     schoolId: schoolId

@@ -118,7 +118,7 @@ const AnimatedRoutes = () => {
 
     const checkMaintenance = async () => {
       try {
-        const res = await fetch('api/settings/maintenance_mode', { signal: controller.signal });
+        const res = await fetch(api(`/api/settings/maintenance_mode`), { signal: controller.signal });
         const text = await res.text();
         const data = text ? JSON.parse(text) : {};
         setMaintenanceMode(data.value === 'true');
@@ -344,6 +344,7 @@ const AnimatedRoutes = () => {
 import GlobalErrorBoundary from './components/GlobalErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
 import ForceUpdateModal from './components/ForceUpdateModal';
+import { api } from "./lib/api";
 
 function App() {
   return (

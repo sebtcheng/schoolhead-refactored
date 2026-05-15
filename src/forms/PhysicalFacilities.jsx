@@ -6,7 +6,8 @@ import { FiChevronRight, FiEdit, FiTrash2, FiSave, FiCheckCircle, FiInfo, FiAler
 import RepairEntryModal from '../components/RepairEntryModal';
 import OfflineSuccessModal from '../components/OfflineSuccessModal';
 import SuccessModal from '../components/SuccessModal';
-import useReadOnly from '../hooks/useReadOnly'; // Import Hook
+import useReadOnly from '../hooks/useReadOnly';
+import { api } from "../lib/api"; // Import Hook
 
 // --- EXTRACTED COMPONENT ---
 const InputCard = ({ label, name, icon, color, value, onChange, disabled }) => (
@@ -298,7 +299,7 @@ const PhysicalFacilities = ({ embedded }) => {
     useEffect(() => {
         const fetchBuildingTypes = async () => {
             try {
-                const res = await fetch('api/reference/building-types');
+                const res = await fetch(api(`/reference/building-types`));
                 if (res.ok) {
                     const data = await res.json();
                     setBuildingTypes(data);
@@ -552,7 +553,7 @@ const PhysicalFacilities = ({ embedded }) => {
             try {
                 await addRepairToLocal(payload);
                 if (navigator.onLine) {
-                    const res = await fetch('api/save-facility-repair', {
+                    const res = await fetch(api(`/api/save-facility-repair`), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -629,7 +630,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
         for (const payload of payloadList) {
             try {
-                const res = await fetch('api/save-facility-demolition', {
+                const res = await fetch(api(`/api/save-facility-demolition`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -668,7 +669,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
             setIsLoadingDemolitions(true);
             try {
-                const res = await fetch(`api/facility-demolitions/${iern}`);
+                const res = await fetch(api(`/facility-demolitions/${iern}`));
                 if (res.ok) {
                     const data = await res.json();
                     if (data.length > 0) {
@@ -693,7 +694,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
             setIsLoadingInventory(true);
             try {
-                const res = await fetch(`api/facility-inventory/${iern}`);
+                const res = await fetch(api(`/facility-inventory/${iern}`));
                 if (res.ok) {
                     const data = await res.json();
                     console.log('📦 Inventory API response:', data.length, 'rows, statuses:', [...new Set(data.map(d => d.status))]);
@@ -761,7 +762,7 @@ const PhysicalFacilities = ({ embedded }) => {
             setIsLoadingRepairs(true);
             try {
                 // [InsightEd Master Protocol] Fetch from Unit 7 Master Endpoint
-                const res = await fetch(`api/ph_schools/unit7/${id}/master`);
+                const res = await fetch(api(`/ph_schools/unit7/${id}/master`));
                 if (res.ok) {
                     const json = await res.json();
                     if (json.success && json.data.repairs) {
@@ -1123,7 +1124,7 @@ const PhysicalFacilities = ({ embedded }) => {
 
         try {
             if (!navigator.onLine) throw new Error("Offline");
-            const res = await fetch('api/save-physical-facilities', {
+            const res = await fetch(api(`/api/save-physical-facilities`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

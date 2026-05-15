@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiSend, FiUsers, FiBell, FiLink, FiCheckCircle, FiAlertCircle, FiSmartphone } from 'react-icons/fi';
+import { api } from "../lib/api";
 
 const AdminPushBroadcast = () => {
     const [targetRole, setTargetRole] = useState('School Head');
@@ -17,7 +18,7 @@ const AdminPushBroadcast = () => {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('api/broadcast-push', {
+            const response = await fetch(api(`/api/broadcast-push`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

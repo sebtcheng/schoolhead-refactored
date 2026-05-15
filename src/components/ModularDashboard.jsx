@@ -8,6 +8,7 @@ import { getUnitDraft } from "../db";
 import BottomNav from "../modules/BottomNav";
 import { DASHBOARD_METADATA } from "../config/dashboardMetadata";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
 
 const CircularProgress = ({ progress = 0, size = 60, strokeWidth = 5, children, isLocked, isLoading, isValidated }) => {
     const radius = (size - strokeWidth) / 2;
@@ -109,7 +110,7 @@ const ModularDashboard = () => {
                 // --- SUPER USER IMPERSONATION ---
                 if (user?.role === 'Super User' && impersonatedUid) {
                     console.log(`[ModularDashboard] Impersonating UID: ${impersonatedUid}`);
-                    const profileRes = await fetch(`api/school-by-user/${impersonatedUid}`);
+                    const profileRes = await fetch(api(`/school-by-user/${impersonatedUid}`));
                     const profileJson = await profileRes.json();
                     if (profileJson.exists && profileJson.data.school_id) {
                         schoolId = profileJson.data.school_id;
@@ -118,7 +119,7 @@ const ModularDashboard = () => {
                 }
 
                 if (schoolId) {
-                    const res = await fetch(`api/ph_schools/progress/${schoolId}`);
+                    const res = await fetch(api(`/ph_schools/progress/${schoolId}`));
                     if (res.ok) {
                         const json = await res.json();
                         // [Fix] Backend now returns data nested under 'data' property

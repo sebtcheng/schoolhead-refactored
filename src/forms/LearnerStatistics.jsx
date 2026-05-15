@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { addToOutbox, getOutbox } from '../db';
 import OfflineSuccessModal from '../components/OfflineSuccessModal';
 import SuccessModal from '../components/SuccessModal';
+import { api } from "../lib/api";
 
 // --- HELPERS (Moved Outside) ---
 const getGrades = () => ['k', 'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12'];
@@ -483,7 +484,7 @@ const LearnerStatistics = ({ embedded }) => {
                 await addToOutbox({
                     type: 'LEARNER_STATISTICS',
                     label: 'Learner Statistics',
-                    url: 'api/save-learner-statistics',
+                    url: api(`/save-learner-statistics`),
                     payload: payload
                 });
                 setShowOfflineModal(true);
@@ -499,7 +500,7 @@ const LearnerStatistics = ({ embedded }) => {
 
         // 2. ONLINE SAVE
         try {
-            const res = await fetch('api/save-learner-statistics', {
+            const res = await fetch(api(`/api/save-learner-statistics`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -517,7 +518,7 @@ const LearnerStatistics = ({ embedded }) => {
                 await addToOutbox({
                     type: 'LEARNER_STATISTICS',
                     label: 'Learner Statistics',
-                    url: 'api/save-learner-statistics',
+                    url: api(`/save-learner-statistics`),
                     payload: payload
                 });
                 setShowOfflineModal(true);

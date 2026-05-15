@@ -7,6 +7,7 @@ import PageTransition from '../components/PageTransition';
 import { FiX, FiPlus, FiEdit2, FiTrash2, FiCheck, FiChevronRight, FiMapPin } from 'react-icons/fi';
 import { toProperCase } from '../utils/dataNormalization';
 import { normalizeRole } from '../config/roleGroups';
+import { api } from "../lib/api";
 
 const LocationManagement = () => {
     const { user, token } = useAuth();
@@ -87,7 +88,7 @@ const LocationManagement = () => {
 
     const prefillLocation = async (division) => {
         try {
-            const res = await fetch(`api/locations/division-info?division=${encodeURIComponent(division)}`, {
+            const res = await fetch(api(`/api/locations/division-info?division=${encodeURIComponent(division)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -100,7 +101,7 @@ const LocationManagement = () => {
 
     const fetchRegions = async () => {
         try {
-            const res = await fetch('api/locations/regions', {
+            const res = await fetch(api(`/api/locations/regions`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -116,7 +117,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`api/locations/provinces?region=${encodeURIComponent(region)}`, {
+            const res = await fetch(api(`/api/locations/provinces?region=${encodeURIComponent(region)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -152,7 +153,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+            const res = await fetch(api(`/api/locations/municipalities-by-province?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -169,7 +170,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`api/locations/barangays?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`, {
+            const res = await fetch(api(`/api/locations/barangays?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -209,7 +210,7 @@ const LocationManagement = () => {
             return;
         }
         try {
-            const res = await fetch(`api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+            const res = await fetch(api(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { normalizeRole } from '../config/roleGroups';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
+import { api } from "../lib/api";
 
 const SDONexusDashboard = () => {
     const navigate = useNavigate();
@@ -18,7 +19,7 @@ const SDONexusDashboard = () => {
     useEffect(() => {
         const loadNexusSettings = async () => {
             try {
-                const locksRes = await fetch('api/settings/nexus_module_locks');
+                const locksRes = await fetch(api(`/settings/nexus_module_locks`));
                 if (locksRes.ok) {
                     const locksData = await locksRes.json();
                     if (locksData && locksData.value) {

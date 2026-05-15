@@ -7,7 +7,7 @@ import { readFileSync } from 'fs'
 const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig({
-  base: process.env.VITE_BASE_PATH || './',
+  base: '/insighted-schoolhead/',
   define: {
     // Exposes version to the app as import.meta.env.VITE_APP_VERSION
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
@@ -63,12 +63,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3000',
+        target: 'http://127.0.0.1:5010',
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'http://127.0.0.1:3000',
+        target: 'http://127.0.0.1:5010',
         changeOrigin: true,
         secure: false,
       },

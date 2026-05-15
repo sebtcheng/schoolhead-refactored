@@ -10,6 +10,7 @@ import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getMod
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { isNetworkError, logSubmissionDiagnostic } from "../../utils/submissionHelper";
+import { api } from "../../lib/api";
 
 // --- Shared Styles ---
 const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm text-center";
@@ -379,7 +380,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                 const pendingUnit9 = outbox.find(e => e.unitId === 9 && (e.schoolId === storedId || e.payload?.schoolId === storedId));
                 const draft = await getUnitDraft(9, storedId);
 
-                const resU6 = await fetch(`api/ph_schools/${storedId}`, {
+                const resU6 = await fetch(api(`/api/ph_schools/${storedId}`), {
                     headers: { 'Authorization': `Bearer ${user.token}` }
                 });
                 let u6PowerSource = "";
@@ -423,7 +424,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     setShowWelcomeBack(true);
                     setTimeout(() => setShowWelcomeBack(false), 3000);
                 } else {
-                    const resMaster = await fetch(`api/ph_schools/unit9/${storedId}`);
+                    const resMaster = await fetch(api(`/ph_schools/unit9/${storedId}`));
                     if (resMaster.ok) {
                         const masterData = await resMaster.json();
                         if (masterData.success && masterData.data) {
@@ -711,7 +712,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
         };
 
         try {
-            const res = await fetch(`api/ph_schools/unit9/${schoolId}`, {
+            const res = await fetch(api(`/api/ph_schools/unit9/${schoolId}`), {
                 method: "PUT",
                 headers: { 
                     "Content-Type": "application/json",
@@ -735,7 +736,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                 await addModularToOutbox({
                     unitId: 9,
                     label: "Unit 9: Infrastructure & Safety Audit",
-                    url: `api/ph_schools/unit9/${schoolId}`,
+                    url: api(`/ph_schools/unit9/${schoolId}`),
                     method: 'PUT',
                     payload,
                     schoolId

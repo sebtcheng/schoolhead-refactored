@@ -1,23 +1,33 @@
-
 import pkg from 'pg';
-const { Client } = pkg;
+const { Pool } = pkg;
+
+const pool = new Pool({
+  connectionString: 'postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd'
+});
 
 async function checkSchema() {
-    const client = new Client({
-        connectionString: "postgres://Administrator1:pRZTbQ2T1JD7@20.24.58.49:6432/insightEd",
-        ssl: false
-    });
+  try {
+    const res = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'ph_schools'
+    `);
+    console.log('ph_schools columns:');
+    console.table(res.rows);
 
-    try {
-        await client.connect();
-        const res = await client.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'ph_schools'");
-        console.log("Columns in ph_schools:");
-        console.log(res.rows.map(r => r.column_name).join(", "));
-    } catch (err) {
-        console.error(err);
-    } finally {
-        await client.end();
-    }
+    const res2 = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'school_ownership_docs'
+    `);
+    console.log('school_ownership_docs columns:');
+    console.table(res2.rows);
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    await pool.end();
+  }
 }
 
 checkSchema();

@@ -9,7 +9,8 @@ import SuccessModal from '../components/SuccessModal';
 import OfflineSuccessModal from '../components/OfflineSuccessModal';
 
 import { normalizeOffering } from '../utils/dataNormalization';
-import useReadOnly from '../hooks/useReadOnly'; // Import Hook
+import useReadOnly from '../hooks/useReadOnly';
+import { api } from "../lib/api"; // Import Hook
 
 // --- SUB-COMPONENT: Generic Grid Section (Adapted from LearnerStatistics) ---
 const GridSection = ({ label, icon, color, children, totalLabel, totalValue }) => (
@@ -359,7 +360,7 @@ const Enrolment = ({ embedded = false }) => {
                 console.log("Offline detected");
                 throw new Error("Offline");
             }
-            const res = await fetch('api/save-enrolment', {
+            const res = await fetch(api(`/api/save-enrolment`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -380,7 +381,7 @@ const Enrolment = ({ embedded = false }) => {
             console.error("Save error caught:", e);
             try {
                 await addToOutbox({
-                    type: 'ENROLMENT', label: 'Enrolment Data', url: 'api/save-enrolment', payload
+                    type: 'ENROLMENT', label: 'Enrolment Data', url: api(`/save-enrolment`), payload
                 });
                 console.log("Added to outbox");
                 setShowOfflineModal(true);

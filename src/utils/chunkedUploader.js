@@ -43,7 +43,7 @@ export const uploadFileInChunks = async (file, onProgress) => {
 
         while (retries < maxRetries && !failed) {
             try {
-                const res = await fetch('api/upload/pdf-chunk', {
+                const res = await fetch(api(`/api/upload/pdf-chunk`), {
                     method: 'POST',
                     body: formData
                 });
@@ -96,7 +96,7 @@ export const uploadFileInChunks = async (file, onProgress) => {
         const finalizeUpload = async () => {
             if (onProgress) onProgress(95); // Finalizing
             try {
-                const res = await fetch('api/upload/multipart-finalize', {
+                const res = await fetch(api(`/api/upload/multipart-finalize`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

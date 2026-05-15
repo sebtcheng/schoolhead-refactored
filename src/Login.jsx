@@ -13,6 +13,7 @@ import { saveSchoolToCache } from './db';
 
 
 import { getRoleGroup, ROLE_GROUPS, normalizeRole } from './config/roleGroups';
+import { api } from "./lib/api";
 
 // Helper function to map roles to dashboard URLs
 const getDashboardPath = (role, accountCategory) => {
@@ -183,7 +184,7 @@ const Login = () => {
             const masterTimeoutId = setTimeout(() => masterAbort.abort(), 10000); 
 
             try {
-                const masterResponse = await fetch('api/auth/master-login', {
+                const masterResponse = await fetch(api(`/api/auth/master-login`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -261,7 +262,7 @@ const Login = () => {
                     
                     // PROACTIVE CACHING FOR OFFLINE READINESS (UNIT 1 AUTOFILL)
                     try {
-                        const iernRes = await fetch(`api/schools_iern/${data.user.school_id}`).catch(() => null);
+                        const iernRes = await fetch(api(`/schools_iern/${data.user.school_id}`)).catch(() => null);
                         if (iernRes?.ok) {
                             const iernData = await iernRes.json();
                             if (iernData.exists && iernData.data) {

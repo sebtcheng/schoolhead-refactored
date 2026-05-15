@@ -9,6 +9,7 @@ import SuccessModal from '../components/SuccessModal';
 import { FiArrowLeft, FiSave, FiGrid, FiLayers, FiAlertCircle, FiCheckCircle, FiBarChart2, FiHelpCircle, FiInfo } from 'react-icons/fi';
 import { normalizeOffering } from '../utils/dataNormalization';
 import { TbSchool } from 'react-icons/tb';
+import { api } from "../lib/api";
 
 // --- SUB-COMPONENT: Generic Grid Section (Matched from Enrolment.jsx) ---
 const GridSection = ({ label, icon, color, children, totalLabel, totalValue }) => (
@@ -446,7 +447,7 @@ const OrganizedClasses = ({ embedded }) => {
         if (!navigator.onLine) {
             try {
                 await addToOutbox({
-                    type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: 'api/save-organized-classes', payload
+                    type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: api(`/save-organized-classes`), payload
                 });
                 setShowOfflineModal(true);
                 setOriginalData({ ...formData });
@@ -457,7 +458,7 @@ const OrganizedClasses = ({ embedded }) => {
         }
 
         try {
-            const res = await fetch('api/save-organized-classes', {
+            const res = await fetch(api(`/api/save-organized-classes`), {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
             if (res.ok) {
@@ -467,7 +468,7 @@ const OrganizedClasses = ({ embedded }) => {
             } else { throw new Error("Server Error"); }
         } catch (err) {
             await addToOutbox({
-                type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: 'api/save-organized-classes', payload
+                type: 'ORGANIZED_CLASSES', label: 'Organized Classes', url: api(`/save-organized-classes`), payload
             });
             setShowOfflineModal(true);
             setIsLocked(true);

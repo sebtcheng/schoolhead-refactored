@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import PageTransition from '../components/PageTransition';
 import MyRankFooter from './MyRankFooter';
 import { generateLeaderboardReport, downloadCSV } from '../utils/ReportGenerator';
+import { api } from "../lib/api";
 
 const Leaderboard = () => {
     const { user, token } = useAuth();
@@ -31,7 +32,7 @@ const Leaderboard = () => {
 
             try {
                 // Fetch basic user context to know their region
-                const headRes = await fetch(`api/school-head/${user.uid}`);
+                const headRes = await fetch(api(`/school-head/${user.uid}`));
                 const headJson = await headRes.json();
 
                 let regionFilter = user.region || 'Region VIII'; // Use region from AuthContext if available

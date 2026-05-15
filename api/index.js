@@ -326,7 +326,7 @@ const { Pool } = pg;
 const pool = new Pool({
   connectionString: dbUrl,
   ssl: (isLoopback || isVmProxy) ? false : { rejectUnauthorized: false }, 
-  max: isLocal ? 10 : 12, // PgBouncer safe capacity (12 workers * 8 workers = 96)
+  max: isLocal ? 20 : 12, // PgBouncer safe capacity (increased for local dev stability)
   min: isLocal ? 1 : 5,   // Balanced warm connections
   idleTimeoutMillis: 60000, 
   connectionTimeoutMillis: 10000, // Hardened timeout (v7)
@@ -471,7 +471,7 @@ try {
 // Removed for School Head Portal (ESF7 Decoupling)
 
 // --- PDF OPTIMIZATION PIPELINE (Hydra Transformation Engine) ---
-const compressBufferTo96Dpi = async (buffer) => {
+const compressBufferTo90Dpi = async (buffer) => {
     if (!buffer || buffer.length === 0) return { buffer };
     const tempInput = path.join(UPLOAD_BASE_PATH, `comp_in_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.pdf`);
     const tempOutput = path.join(UPLOAD_BASE_PATH, `comp_out_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.pdf`);
@@ -493,8 +493,8 @@ const compressBufferTo96Dpi = async (buffer) => {
             console.error(`❌ [PDF-Config] Critical: compress_pdf.py not found at ${scriptPath}`);
         }
 
-        // PROJECT HYDRA: If file is > 1.5MB, attempt Hydra Transformation (PDF to Image Sequence)
-        if (buffer.length > 1.5 * 1024 * 1024) {
+        // PROJECT HYDRA: If file is > 25MB, attempt Hydra Transformation (PDF to Image Sequence)
+        if (buffer.length > 25 * 1024 * 1024) {
             console.log(`🐉 [Hydra] Triggering transformation for ${buffer.length}B document...`);
             const hydraCmd = (py) => `${py} "${scriptPath.replace(/\\/g, '/')}" "${tempInput.replace(/\\/g, '/')}" "${tempHydraDir.replace(/\\/g, '/')}" 120 --hydra`;
             
@@ -543,7 +543,7 @@ const compressBufferTo96Dpi = async (buffer) => {
             }
         }
 
-        const cmd = (py) => `${py} "${scriptPath.replace(/\\/g, '/')}" "${tempInput.replace(/\\/g, '/')}" "${tempOutput.replace(/\\/g, '/')}" 96`;
+        const cmd = (py) => `${py} "${scriptPath.replace(/\\/g, '/')}" "${tempInput.replace(/\\/g, '/')}" "${tempOutput.replace(/\\/g, '/')}" 90`;
         let compressSuccess = false;
         for (const executor of ['python', 'python3', 'py']) {
             try {
@@ -558,13 +558,23 @@ const compressBufferTo96Dpi = async (buffer) => {
             }
         }
         if (!compressSuccess) {
-            console.warn(`⚠️ [PDF-Compress] Compression unavailable — storing original.`);
+            throw new Error('PDF compression pipeline unavailable (Python/PyMuPDF not installed). Refusing to store original to enforce 90 DPI policy.');
         }
 
-        if (fs.existsSync(tempOutput)) {
-            result.buffer = fs.readFileSync(tempOutput);
-            fs.unlinkSync(tempOutput);
+        // Verify the output actually shrank — guard against zero-byte or expanded files.
+        if (!fs.existsSync(tempOutput)) {
+            throw new Error('PDF compression produced no output file.');
         }
+        const outSize = fs.statSync(tempOutput).size;
+        if (outSize === 0) {
+            throw new Error('PDF compression produced a zero-byte file.');
+        }
+        if (outSize >= buffer.length) {
+            console.warn(`⚠️ [PDF-Compress] Compressed output (${outSize}B) is not smaller than input (${buffer.length}B). Storing it anyway to enforce 90 DPI policy.`);
+        }
+
+        result.buffer = fs.readFileSync(tempOutput);
+        fs.unlinkSync(tempOutput);
     } catch (err) {
         console.warn("⚠️ PDF Optimization pipeline encountered an error:", err.message);
     } finally {
@@ -673,23 +683,41 @@ app.post('/api/ph_schools/unit1', async (req, res) => {
     if (!school_id && !iern) return res.status(400).json({ error: "Missing school_id or iern" });
 
     try {
-        const fields = [
+        // 1. Get existing columns to avoid "column does not exist" errors
+        const colRes = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'ph_schools'`);
+        const existingCols = new Set(colRes.rows.map(r => r.column_name));
+
+        // 2. Define intended fields
+        const allPotentialFields = [
             'school_name', 'region', 'province', 'municipality', 'barangay', 'division', 'district', 'leg_district',
             'curricular_offering', 'latitude', 'longitude', 'school_head', 'contact_number', 'ownership',
             'ownership_document_type', 'google_drive_thumbnail_url', 'school_type', 'mother_school_id',
             'extension_mother_school_name', 'established_month', 'established_year', 'head_first_name',
             'head_middle_name', 'head_last_name', 'head_sex', 'head_position_title', 'head_date_hired',
-            'ownership_na_reason', 'unit1', 'unit1_completed', 'unit1_updated_at'
+            'ownership_na_reason', 'google_drive_link', 'google_drive_file_id', 'google_drive_file_name',
+            'ownership_doc_id', 'ownership_document_path', 'local_file_path', 'local_file_name', 'local_file_size',
+            'ownership_multiple', 'ownership_document_multiple',
+            'unit1', 'unit1_completed', 'unit1_updated_at'
         ];
+
+        // 3. Filter to only what the DB actually has
+        const fields = allPotentialFields.filter(f => existingCols.has(f));
 
         const values = fields.map(f => {
             if (f === 'unit1') return 100;
             if (f === 'unit1_completed') return true;
             if (f === 'unit1_updated_at') return new Date();
-            return data[f];
+            
+            let val = data[f];
+            if ((f === 'ownership_multiple' || f === 'ownership_document_multiple') && Array.isArray(val)) {
+                return JSON.stringify(val);
+            }
+            return val;
         });
 
-        const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+        if (fields.length === 0) return res.status(400).json({ error: "No valid fields to update" });
+
+        const setClause = fields.map((f, i) => `"${f}" = $${i + 1}`).join(', ');
         const query = `UPDATE ph_schools SET ${setClause} WHERE school_id = $${fields.length + 1} OR iern = $${fields.length + 1} RETURNING *`;
         
         const result = await pool.query(query, [...values, school_id || iern]);
@@ -1086,7 +1114,7 @@ app.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), async
 
     try {
         // Enforce Optimization (Compression + Hydra)
-        const { buffer: compressedBuffer, hydraManifest } = await compressBufferTo96Dpi(req.file.buffer);
+        const { buffer: compressedBuffer, hydraManifest } = await compressBufferTo90Dpi(req.file.buffer);
         const { binary_id, stored_size, original_size: returnedOrigSize } = await upsertBinary(pool, compressedBuffer, 'application/pdf', req.file.size);
         
         finalBinaryId = binary_id;
@@ -1094,8 +1122,10 @@ app.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), async
         storedSize = stored_size; 
         finalHydraManifest = hydraManifest;
         originalSizeFound = returnedOrigSize || req.file.size;
-
-        console.log(`🗄️ [SchoolDocStore] Stored ownership doc: ${binary_id} | size=${storedSize}B | hydra=${!!hydraManifest} | (orig=${originalSizeFound}B)`);
+        
+        // Assert Compression Performance (Cause B Hardening)
+        const isCompressed = storedSize < originalSizeFound * 0.98; // At least 2% reduction
+        console.log(`🗄️ [SchoolDocStore] Stored ownership doc: ${binary_id} | size=${storedSize}B | hydra=${!!hydraManifest} | (orig=${originalSizeFound}B) | compressed=${isCompressed}`);
     } catch (binErr) {
         console.error('⚠️ [SchoolDocStore] Binary pipeline failure, falling back to disk:', binErr.message);
         // Fallback: Legacy disk storage logic
@@ -1119,7 +1149,10 @@ app.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), async
 
     // 3. Save to database using Hawkeye "Single Truth" Protocol (UPSERT on IERN)
     const dbRes = await pool.query(
-      `INSERT INTO school_ownership_docs (iern, school_id, file_path, file_name, doc_type, status, binary_id, file_size, original_size, hydra_manifest) 
+      `INSERT INTO school_ownership_docs (
+          iern, school_id, file_path, file_name, doc_type, status, binary_id, 
+          file_size, original_size, hydra_manifest
+       ) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (iern) DO UPDATE SET
           school_id = EXCLUDED.school_id,
@@ -1133,10 +1166,31 @@ app.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), async
           hydra_manifest = EXCLUDED.hydra_manifest,
           created_at = CURRENT_TIMESTAMP
        RETURNING id, file_size, original_size`,
-      [iern, resolvedSchoolId, finalDocValue, req.file.originalname, doc_type, 'optimized', finalBinaryId, storedSize, originalSizeFound, finalHydraManifest ? JSON.stringify(finalHydraManifest) : null]
+      [
+        iern, resolvedSchoolId, finalDocValue, req.file.originalname, doc_type, 'optimized', 
+        finalBinaryId, storedSize, originalSizeFound, 
+        finalHydraManifest ? JSON.stringify(finalHydraManifest) : null
+      ]
     );
 
     const savedRow = dbRes.rows[0];
+
+    // 4. Update ph_schools to ensure synchronization
+    await pool.query(
+      `UPDATE ph_schools 
+       SET ownership_doc_id = $1,
+           ownership_document_path = $2,
+           local_file_path = $2,
+           local_file_name = $4,
+           local_file_size = $5,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE iern = $6 OR school_id = $6`,
+      [
+        savedRow.id, finalDocValue, 
+        (storedSize < originalSizeFound) ? storedSize : null,
+        req.file.originalname, originalSizeFound, iern
+      ]
+    ).catch(err => console.error("⚠️ [SchoolDocStore] ph_schools sync error:", err.message));
     console.log(`✅ [SchoolDocStore] Record Saved ID=${savedRow.id} | Stored=${savedRow.file_size}B | Original=${savedRow.original_size}B`);
 
     res.status(200).json({ 
@@ -1147,22 +1201,63 @@ app.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), async
         filePath: finalDocValue, 
         fileName: req.file.originalname,
         binaryId: finalBinaryId,
-        file_size: savedRow.file_size,
-        original_size: savedRow.original_size
+        file_size: storedSize,
+        original_size: originalSizeFound,
+        ownership_document_path: finalDocValue
       }
     });
 
   } catch (err) {
-    console.error('❌ [SchoolDocStore] Database Error during upload:', {
-        message: err.message,
-        detail: err.detail,
-        table: err.table,
-        constraint: err.constraint,
-        code: err.code,
-        stack: err.stack
+    console.error('❌ [SchoolDocStore] DB Error during upload:', {
+      message: err.message, detail: err.detail, table: err.table,
+      column: err.column, constraint: err.constraint, code: err.code,
     });
-    res.status(500).json({ error: 'Failed to record document metadata' });
+    res.status(500).json({
+      error:      err.message || 'Failed to record document metadata',
+      code:       err.code,
+      column:     err.column,
+      constraint: err.constraint,
+      detail:     err.detail,
+    });
   }
+});
+
+// --- ASSET SERVING: UNIFIED BINARY REGISTRY ---
+app.get('/api/asset/:id', async (req, res) => {
+    const { id } = req.params;
+    const isDownload = req.query.download === '1';
+
+    try {
+        // [Hawkeye Protocol] Binary retrieval from Postgres (v2.0)
+        // Deduplicated storage ensures high cache-hit ratio for identical documents
+        const result = await pool.query(
+            'SELECT content, mime_type, size_bytes FROM unified_binaries WHERE id = $1',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            console.warn(`⚠️ [AssetStore] 404: Asset ${id} not found in binary registry.`);
+            return res.status(404).send('Document not found in registry.');
+        }
+
+        const asset = result.rows[0];
+        
+        // Set security and cache headers
+        res.setHeader('Content-Type', asset.mime_type || 'application/pdf');
+        res.setHeader('Content-Length', asset.size_bytes);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // Cache for 1 year since UUIDs are unique
+
+        if (isDownload) {
+            res.setHeader('Content-Disposition', `attachment; filename="document_${id.substring(0, 8)}.pdf"`);
+        }
+
+        console.log(`📑 [AssetStore] Serving binary: ${id} | type=${asset.mime_type} | size=${asset.size_bytes}B`);
+        res.send(asset.content);
+
+    } catch (err) {
+        console.error(`❌ [AssetStore] Critical retrieval error for ${id}:`, err.message);
+        res.status(500).json({ error: 'Failed to retrieve document from storage.' });
+    }
 });
 
 // --- DELETE ROUTE: SCHOOL OWNERSHIP DOCUMENTS ---
@@ -1212,24 +1307,40 @@ app.delete('/api/schools/:iern/ownership-docs/:id', async (req, res) => {
     }
 
     // 3. Delete from database (only after physical file attempt)
-    await pool.query('DELETE FROM school_ownership_docs WHERE id = $1', [id]);
+    // [Hawkeye Protocol] Use authorized bypass for document replacement/cleanup
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
+      await client.query('DELETE FROM school_ownership_docs WHERE id = $1', [id]);
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      throw dbErr;
+    } finally {
+      client.release();
+    }
 
     // 4. Sync with ph_schools (Single Truth Cleanup)
-    // We clear both the legacy ownership_document_path and the new local_file_* columns
     await pool.query(`
       UPDATE ph_schools 
       SET local_file_path = NULL, 
           local_file_name = NULL, 
           local_file_size = NULL, 
           ownership_document_path = NULL,
+          ownership_doc_id = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE iern = $1 OR school_id = $1
-    `, [iern]).catch(err => console.error("⚠️ ph_schools Sync Delete Error:", err.message));
+    `, [iern]).catch(err => console.error("⚠️ [SchoolDocStore] ph_schools Sync Delete Error:", err.message));
 
     res.json({ success: true, message: 'Document deleted successfully' });
   } catch (err) {
-    console.error('Delete Error:', err);
-    res.status(500).json({ error: 'Failed to delete document' });
+    console.error('❌ [SchoolDocStore] Delete Error:', err);
+    res.status(500).json({ 
+        error: 'Failed to delete document', 
+        message: err.message,
+        code: err.code 
+    });
   }
 });
 
@@ -1612,17 +1723,22 @@ const runAutoMigrations_OLD = async () => {
     if (poolNew) columnPromises.push(checkAndAddColumn('school_ownership_docs', 'ownership_document_type', 'TEXT', poolNew));
 
     // SDO: School Documents (Binary Storage Migration)
-    await checkAndAddColumn('school_documents', 'binary_id', 'UUID', pool);
-    await checkAndAddColumn('school_documents', 'file_path', 'TEXT', pool);
-    await checkAndAddColumn('school_documents', 'file_size', 'BIGINT', pool);
-    await checkAndAddColumn('school_documents', 'original_size', 'BIGINT', pool);
-    await checkAndAddColumn('school_documents', 'hydra_manifest', 'JSONB', pool);
-    if (poolNew) {
-      await checkAndAddColumn('school_documents', 'binary_id', 'UUID', poolNew);
-      await checkAndAddColumn('school_documents', 'file_path', 'TEXT', poolNew);
-      await checkAndAddColumn('school_documents', 'file_size', 'BIGINT', poolNew);
-      await checkAndAddColumn('school_documents', 'original_size', 'BIGINT', poolNew);
-      await checkAndAddColumn('school_documents', 'hydra_manifest', 'JSONB', poolNew);
+    const binaryStorageTables = ['school_documents', 'school_ownership_docs'];
+    const binaryCols = [
+      ['binary_id', 'UUID'],
+      ['file_path', 'TEXT'],
+      ['file_size', 'BIGINT'],
+      ['original_size', 'BIGINT'],
+      ['hydra_manifest', 'JSONB'],
+      ['compressed_binary_id', 'UUID'],
+      ['compressed_size', 'BIGINT']
+    ];
+
+    for (const table of binaryStorageTables) {
+      for (const [col, type] of binaryCols) {
+        await checkAndAddColumn(table, col, type, pool);
+        if (poolNew) await checkAndAddColumn(table, col, type, poolNew);
+      }
     }
 
     // --- IERN MIGRATION PHASE ---
@@ -2088,7 +2204,17 @@ app.get('/api/schools_iern/:id', async (req, res) => {
 app.get('/api/ph_schools/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [id]);
+    let result;
+    try {
+      result = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [id]);
+    } catch (err) {
+      if (err.message.includes('terminated unexpectedly')) {
+        console.warn(`♻️ [RECOVERY] Retrying ph_schools fetch for: ${id}`);
+        result = await pool.query('SELECT * FROM ph_schools WHERE school_id = $1', [id]);
+      } else {
+        throw err;
+      }
+    }
     res.json({ exists: result.rowCount > 0, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3108,20 +3234,18 @@ app.post('/api/auth/migrate-login', async (req, res) => {
     // ✅ [POOL FIX] Explicitly acquire + release connection BEFORE bcrypt to prevent
     // pool starvation. bcrypt.compare() is CPU-bound (~200ms) and must NOT hold a slot.
     let user;
-    const loginClient = await pool.connect();
+    let loginClient = await pool.connect();
     try {
       const userRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
       user = processUserRes(userRes);
     } catch (err) {
       console.error(`💥 [MIGRATE LOGIN] DB Error for ${identifier}:`, err.message);
       if (err.message.includes('terminated unexpectedly')) {
-        try {
-          const retryRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
-          user = processUserRes(retryRes);
-        } catch (retryErr) {
-          console.error(`💥 [RECOVERY FAILED]:`, retryErr.message);
-          throw err;
-        }
+        console.warn(`♻️ [RECOVERY] Retrying Migrate-Login for: ${identifier}`);
+        loginClient.release(); // Release the dead client
+        loginClient = await pool.connect(); // Get a fresh one
+        const retryRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+        user = processUserRes(retryRes);
       } else {
         throw err;
       }
@@ -3736,9 +3860,21 @@ app.post('/api/auth/pin-login', async (req, res) => {
       : `SELECT ${selectCols} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
 
     let user;
-    const client = await pool.connect();
+    let client = await pool.connect();
     try {
-      const userRes = await client.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      let userRes;
+      try {
+        userRes = await client.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      } catch (err) {
+        if (err.message.includes('terminated unexpectedly')) {
+          console.warn(`♻️ [RECOVERY] Retrying Pin-Login for: ${identifier}`);
+          client.release();
+          client = await pool.connect();
+          userRes = await client.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+        } else {
+          throw err;
+        }
+      }
       if (userRes.rowCount > 0) user = userRes.rows[0];
     } finally {
       client.release(); // ✅ FREE the slot before slow bcrypt work begins

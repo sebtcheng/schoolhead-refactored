@@ -100,6 +100,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, color }) => {
 };
 
 import ActionModal from '../components/ActionModal';
+import { api } from "../lib/api";
 
 const SchoolManagement = () => {
     const { user, token } = useAuth();
@@ -253,7 +254,7 @@ const SchoolManagement = () => {
 
     const fetchDivisions = async (region) => {
         try {
-            const res = await fetch(`api/locations/divisions?region=${encodeURIComponent(region)}`, {
+            const res = await fetch(api(`/api/locations/divisions?region=${encodeURIComponent(region)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -268,7 +269,7 @@ const SchoolManagement = () => {
     const fetchMasterSchools = async (division) => {
         if (!division) return;
         try {
-            const res = await fetch(`api/master-list/schools?division=${encodeURIComponent(division)}`, {
+            const res = await fetch(api(`/api/master-list/schools?division=${encodeURIComponent(division)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -288,7 +289,7 @@ const SchoolManagement = () => {
 
         setSearchLoading(true);
         try {
-            const res = await fetch(`api/master-list/school/${selectedMasterSchool}`, {
+            const res = await fetch(api(`/api/master-list/school/${selectedMasterSchool}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -372,7 +373,7 @@ const SchoolManagement = () => {
 
     const fetchLocationOptions = async (region, division) => {
         try {
-            const res = await fetch(`api/sdo/location-options?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`, {
+            const res = await fetch(api(`/api/sdo/location-options?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -391,7 +392,7 @@ const SchoolManagement = () => {
     const fetchLocationCoordinates = async (region, division) => {
         try {
             console.log(`fetching coords for ${region}, ${division}`);
-            const res = await fetch(`api/sdo/location-coordinates?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`, {
+            const res = await fetch(api(`/api/sdo/location-coordinates?region=${encodeURIComponent(region)}&division=${encodeURIComponent(division)}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -412,7 +413,7 @@ const SchoolManagement = () => {
         if (!user) return;
 
         try {
-            const res = await fetch(`api/sdo/pending-schools?sdo_uid=${user.uid}`, {
+            const res = await fetch(api(`/api/sdo/pending-schools?sdo_uid=${user.uid}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -470,7 +471,7 @@ const SchoolManagement = () => {
             try {
                 const region = userData?.region || '';
                 const province = formData.province;
-                const res = await fetch(`api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`, {
+                const res = await fetch(api(`/api/locations/legislative-districts?region=${encodeURIComponent(region)}&province=${encodeURIComponent(province)}`), {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
                 if (res.ok) {
@@ -525,7 +526,7 @@ const SchoolManagement = () => {
             formDataUpload.append('school_id', schoolId);
             formDataUpload.append('type', 'SPECIAL_ORDER');
 
-            const res = await fetch(`api/sdo/resubmit-document/${pendingId}`, {
+            const res = await fetch(api(`/api/sdo/resubmit-document/${pendingId}`), {
                 method: 'POST',
                 body: formDataUpload
             });
@@ -564,7 +565,7 @@ const SchoolManagement = () => {
             // Real-time duplicate check for schools_IERN
             if (value.length === 6) {
                 setCheckingId(true);
-                fetch(`api/sdo/check-id/${value}`, {
+                fetch(api(`/api/sdo/check-id/${value}`), {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 })
                     .then(res => res.json())
@@ -648,7 +649,7 @@ const SchoolManagement = () => {
                     barangay: updated.barangay || ''
                 });
 
-                fetch(`api/sdo/first-school-location?${params}`, {
+                fetch(api(`/api/sdo/first-school-location?${params}`), {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 })
                     .then(res => res.json())
@@ -706,7 +707,7 @@ const SchoolManagement = () => {
             const formDataUpload = new FormData();
             formDataUpload.append('file', documentPayload);
 
-            const res = await fetch('api/sdo/preview-compression', {
+            const res = await fetch(api(`/api/sdo/preview-compression`), {
                 method: 'POST',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: formDataUpload
@@ -808,7 +809,7 @@ const SchoolManagement = () => {
                         formDataUpload.append('school_id', formData.school_id);
                         formDataUpload.append('type', 'SPECIAL_ORDER');
 
-                        const docRes = await fetch('api/sdo/upload-document', {
+                        const docRes = await fetch(api(`/api/sdo/upload-document`), {
                             method: 'POST',
                             headers: token ? { Authorization: `Bearer ${token}` } : {},
                             body: formDataUpload
@@ -876,7 +877,7 @@ const SchoolManagement = () => {
 
         setIsSearchingUser(true);
         try {
-            const res = await fetch(`api/sdo/user-details/${userSearchId}?region=${encodeURIComponent(user.region)}&division=${encodeURIComponent(user.division)}`);
+            const res = await fetch(api(`/sdo/user-details/${userSearchId}?region=${encodeURIComponent(user.region)}&division=${encodeURIComponent(user.division)}`));
             if (res.ok) {
                 const data = await res.json();
                 setFoundUser(data);
@@ -902,7 +903,7 @@ const SchoolManagement = () => {
 
         setIsSavingPasscode(true);
         try {
-            const res = await fetch('api/sdo/set-passcode', {
+            const res = await fetch(api(`/api/sdo/set-passcode`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -951,7 +952,7 @@ const SchoolManagement = () => {
 
         setSearchingStatusSchool(true);
         try {
-            const res = await fetch(`api/master-list/school/${updateStatusData.school_id}`, {
+            const res = await fetch(api(`/api/master-list/school/${updateStatusData.school_id}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -1005,7 +1006,7 @@ const SchoolManagement = () => {
 
         setUpdatingStatus(true);
         try {
-            const res = await fetch('api/master-list/update-status', {
+            const res = await fetch(api(`/api/master-list/update-status`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

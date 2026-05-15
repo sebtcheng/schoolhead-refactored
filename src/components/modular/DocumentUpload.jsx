@@ -3,8 +3,20 @@ import { FiUploadCloud, FiFile, FiCheckCircle, FiLoader, FiAlertCircle, FiX, FiE
 import { motion, AnimatePresence } from "framer-motion";
 import { resolveDocUrl } from "../../utils/assetHelper";
 import { saveOfflineFile, getOfflineFile, deleteOfflineFile } from "../../db";
+import { api } from "../../lib/api";
 
-const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, initialDocId = null, initialFileSize = null }) => {
+const DocumentUpload = ({ 
+    iern, 
+    docType, 
+    onUploadSuccess, 
+    initialFile = null, 
+    initialDocId = null, 
+    initialFileSize = null,
+    onCompressStart,
+    onUploadStart,
+    onComplete,
+    onError
+}) => {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [status, setStatus] = useState(initialFile ? "success" : "idle"); // idle, uploading, optimizing, success, error
@@ -70,6 +82,7 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
 
         setUploading(true);
         setStatus("uploading");
+        if (onUploadStart) onUploadStart();
         setErrorMessage("");
 
         const formData = new FormData();
@@ -77,7 +90,7 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
         formData.append("doc_type", docType);
 
         try {
-            const response = await fetch(`api/schools/${iern}/ownership-docs`, {
+            const response = await fetch(api(`/api/schools/${iern}/ownership-docs`), {
                 method: "POST",
                 body: formData,
             });
@@ -92,7 +105,10 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
             }
 
             if (!response.ok) {
-                throw new Error(result.error || "Upload failed");
+                const code   = result.code   ? ` [${result.code}]`   : '';
+                const col    = result.column ? ` (column: ${result.column})` : '';
+                const constr = result.constraint ? ` (constraint: ${result.constraint})` : '';
+                throw new Error(`${result.error || 'Upload failed'}${code}${col}${constr}`);
             }
 
             setUploadedPath(result.data.filePath);
@@ -100,11 +116,19 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
             if (result.data.file_size) setUploadedFileSize(result.data.file_size);
             setDocumentId(result.data.id);
             setStatus("optimizing");
-            onUploadSuccess(result.data.filePath, result.data.id, result.data.fileName, result.data.file_size);
+            if (onCompressStart) onCompressStart();
+            onUploadSuccess(result.data.filePath, result.data.id, result.data.fileName, result.data.file_size, result.data.ownership_document_path);
 
             setTimeout(() => {
                 setStatus("success");
-            }, 3000);
+                if (onComplete) onComplete({
+                    local_file_path: result.data.filePath,
+                    ownership_doc_id: result.data.id,
+                    local_file_name: result.data.fileName,
+                    local_file_size: result.data.file_size,
+                    ownership_document_path: result.data.ownership_document_path || result.data.filePath
+                });
+            }, 1000);
 
         } catch (err) {
             console.error("Upload error:", err);
@@ -112,6 +136,7 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
             // OFFLINE FALLBACK
             if (err.message.includes("fetch") || !window.navigator.onLine) {
                 setStatus("optimizing");
+                if (onCompressStart) onCompressStart();
                 try {
                     const localId = await saveOfflineFile(iern, file, docType);
                     const localUrl = URL.createObjectURL(file);
@@ -124,16 +149,24 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
                     
                     setTimeout(() => {
                         setStatus("success");
+                        if (onComplete) onComplete({
+                            local_file_path: `local:${file.name}`,
+                            ownership_doc_id: localId,
+                            local_file_name: file.name,
+                            local_file_size: file.size
+                        });
                     }, 1500);
                     setUploading(false);
                     return; // Early return for success!
                 } catch (dbErr) {
                     console.error("Local Save Error:", dbErr);
                     setStatus("error");
+                    if (onError) onError(dbErr.message);
                     setErrorMessage("Offline storage failed: " + dbErr.message);
                 }
             } else {
                 setStatus("error");
+                if (onError) onError(err.message);
                 setErrorMessage(err.message);
             }
         } finally {
@@ -170,11 +203,18 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
         setUploading(true);
         setStatus("uploading"); // Reusing for consistency
         try {
-            const response = await fetch(`api/schools/${iern}/ownership-docs/${documentId}`, {
+            const response = await fetch(api(`/api/schools/${iern}/ownership-docs/${documentId}`), {
                 method: "DELETE",
             });
 
-            if (!response.ok) throw new Error("Deletion failed");
+            if (!response.ok) {
+                let detail = "";
+                try {
+                    const body = await response.json();
+                    detail = body.message || body.error || body.code || "";
+                } catch (e) {}
+                throw new Error(detail || "Deletion failed");
+            }
 
             clearFile();
         } catch (err) {
@@ -272,7 +312,11 @@ const DocumentUpload = ({ iern, docType, onUploadSuccess, initialFile = null, in
                                     {status === "optimizing" ? "Securing PDF..." : "Document Secured"}
                                 </p>
                                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest leading-none mt-1">
-                                    {status === "optimizing" ? "Deduplicating & Indexing" : "Postgres Binary Registry Active"}
+                                    {status === "optimizing" ? "Deduplicating & Indexing" : (
+                                        uploadedFileSize && uploadedFileSize < initialFileSize 
+                                            ? `Optimized (${((1 - uploadedFileSize / initialFileSize) * 100).toFixed(0)}% Smaller)` 
+                                            : "Postgres Binary Registry Active"
+                                    )}
                                 </p>
                             </div>
                             {status === "success" && (

@@ -11,6 +11,7 @@ import { useServiceWorker } from '../context/ServiceWorkerContext'; // Import SW
 // Icons
 import { FiUser, FiInfo, FiMoon, FiLogOut, FiChevronRight, FiChevronLeft, FiSave, FiEdit3, FiHelpCircle, FiChevronDown, FiChevronUp, FiStar, FiMessageSquare, FiCheckCircle, FiRefreshCw, FiDownloadCloud, FiTool, FiShield, FiLock } from "react-icons/fi"; // Added FiShield and FiLock
 import { TbAlertTriangle } from "react-icons/tb";
+import { api } from "../lib/api";
 
 const FAQ_DATA = [
     {
@@ -187,7 +188,7 @@ const UserProfile = () => {
                 if (sid) {
                     setSchoolId(sid);
                     try {
-                        const res = await fetch(`/api/iern/${sid}`, {
+                        const res = await fetch(api(`/api/iern/${sid}`), {
                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                         });
                         if (res.ok) {
@@ -208,7 +209,7 @@ const UserProfile = () => {
                     const targetUid = mappedUser.uid || mappedUser.user_id || mappedUser.id;
                     if (targetUid) {
                         try {
-                            const response = await fetch(`/api/school-by-user/${targetUid}`, {
+                            const response = await fetch(api(`/api/school-by-user/${targetUid}`), {
                                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                             });
                             if (response.ok) {
@@ -286,7 +287,7 @@ const UserProfile = () => {
                 currentPasscode: securityData.passcode
             };
 
-            const response = await fetch('/api/users/update', {
+            const response = await fetch(api(`/api/users/update`), {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -346,7 +347,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/auth/change-password', {
+            const response = await fetch(api(`/api/auth/change-password`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -409,7 +410,7 @@ const UserProfile = () => {
         setLoading(true);
         try {
             // If user has a passcode, we should ideally verify it first or pass it to the setup endpoint
-            const response = await fetch('/api/auth/setup-passcode', {
+            const response = await fetch(api(`/api/auth/setup-passcode`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -455,7 +456,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('/api/feedback', {
+            const response = await fetch(api(`/api/feedback`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -1322,7 +1323,7 @@ const UserProfile = () => {
                                         
                                         try {
                                             // 1. Remote Repair Protocol: Align Unit 8 JSONB
-                                            await fetch('/api/system/align-unit8', {
+                                            await fetch(api(`/api/system/align-unit8`), {
                                                 method: 'POST',
                                                 headers: {
                                                     'Authorization': `Bearer ${localStorage.getItem('token')}`,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageTransition from '../components/PageTransition';
+import { api } from "../lib/api";
 
 const SuperAdminDashboard = () => {
     const navigate = useNavigate();
@@ -13,7 +14,7 @@ const SuperAdminDashboard = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const res = await fetch('api/admin/users', {
+                const res = await fetch(api(`/api/admin/users`), {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {

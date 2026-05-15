@@ -6,6 +6,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm text-center";
@@ -195,7 +196,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}?t=${Date.now()}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -781,7 +782,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 6,
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
-                    url: `api/ph_schools/${storedId}`,
+                    url: api(`/ph_schools/${storedId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: storedId
@@ -801,7 +802,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 return;
             }
 
-            const res = await fetch(`api/ph_schools/${storedId}`, {
+            const res = await fetch(api(`/api/ph_schools/${storedId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -810,7 +811,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             if (res.ok) {
                 // Perform secondary syncs in parallel
                 try {
-                    await fetch(`api/ph_schools/unit9/${storedId}/ecarts`, {
+                    await fetch(api(`/api/ph_schools/unit9/${storedId}/ecarts`), {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ ecarts: eCarts })
@@ -828,7 +829,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
                 // Sync progress to dashboard
                 try {
-                    await fetch('api/user/progress', {
+                    await fetch(api(`/api/user/progress`), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ unitId: 6, schoolId: storedId })
@@ -846,7 +847,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 6,
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
-                    url: `api/ph_schools/${storedId}`,
+                    url: api(`/ph_schools/${storedId}`),
                     method: 'PUT',
                     payload: { ...payload, unit6_completed: true },
                     schoolId: storedId

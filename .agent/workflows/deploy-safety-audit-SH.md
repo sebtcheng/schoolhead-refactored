@@ -61,6 +61,16 @@ Prevent the "Master Payload Error" caused by intensive schema migrations during 
 6. **Scan for DB Initialization**
    - **Protocol 4**: Verify the script does NOT manually execute `node api/db_init.js` or SQL initialization scripts.
    - Check if the backend startup logic in `api/index.js` handles migrations safely (e.g., `Instance 0` only, non-fatal try/catch).
+   - **DEPRECATION CHECK**: Verify the script does NOT attempt to rebuild or migrate the `ph_schools_audit` table (legacy, no longer used).
+   - **CRITICAL**: Ensure no table locks are held on high-traffic tables, specifically:
+     - `ph_schools` (Master Registry - EVERY route depends on this)
+     - `users` (Authentication & Identity)
+     - `verification_codes` (OTP Logins)
+     - `ph_school_completion` (Progress tracking)
+     - `activity_logs` (Telemetry - high write frequency)
+     - `school_ownership_docs` (Unit 1 submissions)
+     - `ph_buildable_space`
+     - `ph_buildings_inventory`
 
 ## Phase 5: PM2 & Process Isolation
 Ensure zero-downtime for unrelated services on the same VM.
@@ -80,7 +90,7 @@ Summarize the findings for the user before any execution is permitted.
 | **1. Isolated Folder** | [✅/❌] | Description of target path safety. |
 | **2. Safe Nginx** | [✅/❌] | Check for authoritative .conf files. |
 | **3. Forensic Clean** | [✅/❌] | Check for destructive patch files. |
-| **4. No DB Locks** | [✅/❌] | Check for boot-time migration triggers. |
+| **4. No DB Locks** | [✅/❌] | Check for migration triggers, locks on `ph_schools`/`users`, or legacy `ph_schools_audit` rebuilds. |
 | **5. PM2 Isolation** | [✅/❌] | Check for global restart commands. |
 | **6. Route Alignment** | [✅/❌] | Alignment with Master Routing Table. |
 

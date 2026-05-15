@@ -19,6 +19,7 @@ import PageTransition from '../components/PageTransition';
 import NotificationCenter from '../components/NotificationCenter';
 import { useServiceWorker } from '../context/ServiceWorkerContext'; // Import Context
 import { DASHBOARD_METADATA } from '../config/dashboardMetadata';
+import { api } from "../lib/api";
 
 const SchoolHeadDashboard = () => {
     const navigate = useNavigate();
@@ -88,7 +89,7 @@ const SchoolHeadDashboard = () => {
         if (!user || !schoolProfile) return;
 
         try {
-            const response = await fetch('api/school/validate-data', {
+            const response = await fetch(api(`/api/school/validate-data`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -136,7 +137,7 @@ const SchoolHeadDashboard = () => {
 
         try {
             setIsValidating(true); // Always show loading state
-            const response = await fetch('api/validate-school-health', {
+            const response = await fetch(api(`/api/validate-school-health`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -151,7 +152,7 @@ const SchoolHeadDashboard = () => {
                 // Refresh Profile Data
                 const targetUid = impersonatedUid || (user ? user.uid : null);
                 if (targetUid) {
-                    const profileRes = await fetch(`api/school-by-user/${targetUid}`, {
+                    const profileRes = await fetch(api(`/api/school-by-user/${targetUid}`), {
                         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                     });
                     const profileJson = await profileRes.json();
@@ -243,7 +244,7 @@ const SchoolHeadDashboard = () => {
 
     useEffect(() => {
         // Fetch Deadline
-        fetch('api/settings/enrolment_deadline', {
+        fetch(api(`/api/settings/enrolment_deadline`), {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         })
             .then(res => res.json())
@@ -330,7 +331,7 @@ const SchoolHeadDashboard = () => {
                         setUserName(`Super User (Viewing: ${targetUid.slice(0, 5)}...)`);
                     }
 
-                    const profileRes = await fetch(`api/school-by-user/${targetUid}`, {
+                    const profileRes = await fetch(api(`/api/school-by-user/${targetUid}`), {
                         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                     });
                     const profileJson = await profileRes.json();
@@ -338,7 +339,7 @@ const SchoolHeadDashboard = () => {
                         setSchoolProfile(profileJson.data);
                     }
 
-                    const headRes = await fetch(`api/school-head/${targetUid}`, {
+                    const headRes = await fetch(api(`/api/school-head/${targetUid}`), {
                         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                     });
                     const headJson = await headRes.json();
@@ -347,7 +348,7 @@ const SchoolHeadDashboard = () => {
                     // Fetch Audit Remarks for this school
                     if (profileJson.exists && profileJson.data.school_id) {
                         try {
-                            const remarkRes = await fetch(`api/audit/remarks/${profileJson.data.school_id}`, {
+                            const remarkRes = await fetch(api(`/api/audit/remarks/${profileJson.data.school_id}`), {
                                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                             });
                             if (remarkRes.ok) {

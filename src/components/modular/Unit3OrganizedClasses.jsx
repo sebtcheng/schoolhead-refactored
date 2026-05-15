@@ -6,6 +6,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-slate-200 rounded-2xl text-xl font-black text-slate-700 text-center focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 hover:border-slate-300 transition-colors shadow-sm disabled:opacity-50 disabled:bg-slate-100";
@@ -300,7 +301,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 // 2. Reconstruct school baseline
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -524,7 +525,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 3,
                     label: "Unit 3: Section Organization",
-                    url: `api/ph_schools/unit3/${schoolId}`,
+                    url: api(`/ph_schools/unit3/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -544,7 +545,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 return;
             }
 
-            const res = await fetch(`api/ph_schools/unit3/${schoolId}`, {
+            const res = await fetch(api(`/api/ph_schools/unit3/${schoolId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -554,7 +555,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
             // Sync progress to cloud (fire-and-forget)
             try {
-                await fetch('api/user/progress', {
+                await fetch(api(`/api/user/progress`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ unitId: 3, schoolId })
@@ -578,7 +579,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 3,
                     label: "Unit 3: Section Organization",
-                    url: `api/ph_schools/unit3/${schoolId}`,
+                    url: api(`/ph_schools/unit3/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId

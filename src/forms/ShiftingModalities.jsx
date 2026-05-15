@@ -8,6 +8,7 @@ import SuccessModal from '../components/SuccessModal';
 
 import { FiArrowLeft, FiCalendar, FiClock, FiWifi, FiCheckCircle, FiSave, FiAlertCircle, FiBookOpen, FiHelpCircle, FiInfo } from 'react-icons/fi';
 import { TbSchool } from 'react-icons/tb';
+import { api } from "../lib/api";
 
 // --- SUB-COMPONENT (Moved Outside) ---
 const GradeRow = ({ label, lvl, shifts, modes, onShiftChange, onModeChange, isLocked, viewOnly }) => (
@@ -396,7 +397,7 @@ const ShiftingModalities = ({ embedded }) => {
                 await addToOutbox({
                     type: 'SHIFTING_MODALITIES',
                     label: 'Shifting & Modalities',
-                    url: 'api/save-learning-modalities',
+                    url: api(`/save-learning-modalities`),
                     payload: payload
                 });
                 setShowOfflineModal(true);
@@ -412,7 +413,7 @@ const ShiftingModalities = ({ embedded }) => {
         }
 
         try {
-            const res = await fetch('api/save-learning-modalities', {
+            const res = await fetch(api(`/api/save-learning-modalities`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

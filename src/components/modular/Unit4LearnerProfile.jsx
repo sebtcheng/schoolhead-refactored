@@ -6,6 +6,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const TOTAL_CHAPTERS = 5; // 1: Gatekeeper, 2: Demo Loop, 3: Move Loop, 4: Health Check, 5: Review & Submit
@@ -123,7 +124,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}?t=${Date.now()}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -459,7 +460,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 4,
                     label: "Unit 4: Learner Profile Stats",
-                    url: `api/ph_schools/unit4/${schoolId}`,
+                    url: api(`/ph_schools/unit4/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -481,7 +482,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             let res;
             try {
-                res = await fetch(`api/ph_schools/unit4/${schoolId}`, {
+                res = await fetch(api(`/api/ph_schools/unit4/${schoolId}`), {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
@@ -507,7 +508,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             // Sync progress to dashboard
             try {
-                await fetch('api/user/progress', {
+                await fetch(api(`/api/user/progress`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ unitId: 4, schoolId })
@@ -522,7 +523,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 4,
                     label: "Unit 4: Learner Profile Stats",
-                    url: `api/ph_schools/unit4/${schoolId}`,
+                    url: api(`/ph_schools/unit4/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId

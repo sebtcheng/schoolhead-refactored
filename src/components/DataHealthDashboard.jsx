@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiCheckCircle, FiXCircle, FiActivity, FiAlertTriangle } from 'react-icons/fi';
+import { api } from "../lib/api";
 
 const DataHealthDashboard = ({ schoolId }) => {
     const [healthData, setHealthData] = useState(null);
@@ -14,7 +15,7 @@ const DataHealthDashboard = ({ schoolId }) => {
                 // Step 1: Trigger Python fraud detection recalculation (same as School Head dashboard)
                 // This ensures the score is always fresh and matches what the School Head sees
                 try {
-                    await fetch('api/validate-school-health', {
+                    await fetch(api(`/api/validate-school-health`), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ school_id: schoolId })
@@ -24,7 +25,7 @@ const DataHealthDashboard = ({ schoolId }) => {
                 }
 
                 // Step 2: Fetch the freshly-updated health score
-                const response = await fetch(`api/schools/${schoolId}/health-score`);
+                const response = await fetch(api(`/schools/${schoolId}/health-score`));
                 if (!response.ok) {
                     throw new Error('Failed to fetch data health score');
                 }

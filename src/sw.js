@@ -1,6 +1,7 @@
 import { cleanupOutdatedCaches, precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { clientsClaim } from 'workbox-core';
+import { api } from "./lib/api";
 
 // 1. Standard PWA Caching (Replaces your old INSTALL/FETCH listeners)
 // This automatically loads the correct file list from Vite (index-XH23.js, etc.)
@@ -124,7 +125,7 @@ async function syncFacilityRepairs() {
                 delete payload.timestamp;
                 delete payload.status;
 
-                const response = await fetch('api/save-facility-repair', {
+                const response = await fetch(api(`/api/save-facility-repair`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),

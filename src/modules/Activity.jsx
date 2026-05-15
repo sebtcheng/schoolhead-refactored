@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BottomNav from './BottomNav';
-import PageTransition from '../components/PageTransition'; 
+import PageTransition from '../components/PageTransition';
+import { api } from "../lib/api"; 
 
 const Activity = () => {
     const [activities, setActivities] = useState([]); 
@@ -11,7 +12,7 @@ const Activity = () => {
         const fetchActivities = async () => {
             try {
                 // Ensure this matches your backend endpoint
-                const response = await fetch('api/activities', {
+                const response = await fetch(api(`/api/activities`), {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (response.ok) {

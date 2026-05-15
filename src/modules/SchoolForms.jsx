@@ -12,6 +12,7 @@ import {
 } from "react-icons/fi";
 import { TbSchool, TbReportAnalytics, TbActivity } from "react-icons/tb";
 import { FiChevronDown } from "react-icons/fi";
+import { api } from "../lib/api";
 
 const SchoolForms = () => {
     const { user, token } = useAuth();
@@ -132,7 +133,7 @@ const SchoolForms = () => {
                 }
 
                 // Fetch Deadline (Parallel with other fetches)
-                fetch('api/settings/enrolment_deadline', {
+                fetch(api(`/api/settings/enrolment_deadline`), {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 })
                     .then(res => res.json())
@@ -149,10 +150,10 @@ const SchoolForms = () => {
                     // If loadedFromCache is true, we leave loading=false.
 
                     const [profileRes, headRes] = await Promise.all([
-                        fetch(`api/school-by-user/${user.uid}`, {
+                        fetch(api(`/api/school-by-user/${user.uid}`), {
                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                         }),
-                        fetch(`api/school-head/${user.uid}`, {
+                        fetch(api(`/api/school-head/${user.uid}`), {
                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                         })
                     ]);

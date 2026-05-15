@@ -62,6 +62,7 @@ const convertFullFileToBase64 = (file) => {
 };
 
 import { uploadFileInChunks } from '../utils/chunkedUploader';
+import { api } from "../lib/api";
 
 const EditProjectModal = ({
     project,
@@ -228,7 +229,7 @@ const EditProjectModal = ({
                 setIsFetchingCandidates(true);
                 try {
                     setCandidatesError(null);
-                    const res = await fetch(`api/projects/realignment-candidates/${project.id}`);
+                    const res = await fetch(api(`/projects/realignment-candidates/${project.id}`));
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.message || "Failed to fetch candidates");
                     setRealignmentCandidates(data);
@@ -1617,7 +1618,7 @@ const EditProjectModal = ({
                                     // Trigger realignment API
                                     setIsSubmittingRealignment(true);
                                     try {
-                                        const res = await fetch('api/projects/realign', {
+                                        const res = await fetch(api(`/api/projects/realign`), {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({

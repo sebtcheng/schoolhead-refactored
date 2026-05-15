@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiSave, FiX, FiSearch, FiUpload, FiFileText } from 'react-icons/fi';
+import { api } from "../lib/api";
 
 const LguEditModal = ({ isOpen, onClose, project, onUpdateSuccess }) => {
     const [formData, setFormData] = useState({});
@@ -57,7 +58,7 @@ const LguEditModal = ({ isOpen, onClose, project, onUpdateSuccess }) => {
 
         setIsLookingUp(true);
         try {
-            const res = await fetch(`api/school-profile/${formData.school_id}`);
+            const res = await fetch(api(`/school-profile/${formData.school_id}`));
             if (res.ok) {
                 const school = await res.json();
                 setFormData(prev => ({
@@ -98,7 +99,7 @@ const LguEditModal = ({ isOpen, onClose, project, onUpdateSuccess }) => {
                 root_project_id: formData.root_project_id || formData.lgu_project_id || formData.project_id
             };
 
-            const res = await fetch('api/lgu/project/update', {
+            const res = await fetch(api(`/api/lgu/project/update`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

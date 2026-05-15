@@ -13,6 +13,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import { api } from "./lib/api";
 
 let DefaultIcon = L.icon({
     iconUrl: icon,
@@ -249,13 +250,13 @@ const Register = () => {
 
         // Load Regions from API
 
-        fetch('api/locations/regions')
+        fetch(api(`/locations/regions`))
             .then(res => res.json())
             .then(data => setRegions(data || []))
             .catch(err => console.error("Failed to load regions:", err));
 
         // Load Functional Divisions from API
-        fetch('api/reference/functional-divisions')
+        fetch(api(`/reference/functional-divisions`))
             .then(res => res.json())
             .then(data => {
                 if (data && data.length > 0) {
@@ -278,7 +279,7 @@ const Register = () => {
         setDivisions([]);
         // Note: Downstream selections (division, district...) should be cleared by the change handler
         if (selectedRegion) {
-            fetch(`api/locations/divisions?region=${encodeURIComponent(selectedRegion)}`)
+            fetch(api(`/locations/divisions?region=${encodeURIComponent(selectedRegion)}`))
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -293,7 +294,7 @@ const Register = () => {
     useEffect(() => {
         setDistricts([]);
         if (selectedRegion && selectedDivision) {
-            fetch(`api/locations/districts?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}`)
+            fetch(api(`/locations/districts?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}`))
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -308,7 +309,7 @@ const Register = () => {
     useEffect(() => {
         setMunicipalities([]);
         if (selectedRegion && selectedDivision && selectedDistrict) {
-            fetch(`api/locations/municipalities?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}&district=${encodeURIComponent(selectedDistrict)}`)
+            fetch(api(`/locations/municipalities?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}&district=${encodeURIComponent(selectedDistrict)}`))
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -323,7 +324,7 @@ const Register = () => {
     useEffect(() => {
         setAvailableSchools([]);
         if (selectedRegion && selectedDivision && selectedDistrict && selectedMunicipality) {
-            fetch(`api/locations/schools?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}&district=${encodeURIComponent(selectedDistrict)}&municipality=${encodeURIComponent(selectedMunicipality)}`)
+            fetch(api(`/locations/schools?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}&district=${encodeURIComponent(selectedDistrict)}&municipality=${encodeURIComponent(selectedMunicipality)}`))
                 .then(res => res.json())
                 .then(data => {
                     const options = data || [];
@@ -530,7 +531,7 @@ const Register = () => {
         setOtpLoading(true);
         setOtpError('');
         try {
-            const res = await fetch('api/auth/send-otp', {
+            const res = await fetch(api(`/api/auth/send-otp`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
@@ -558,7 +559,7 @@ const Register = () => {
         setOtpLoading(true);
         setOtpError('');
         try {
-            const res = await fetch('api/auth/verify-otp', {
+            const res = await fetch(api(`/api/auth/verify-otp`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: formData.email, code: otpCode })
@@ -592,7 +593,7 @@ const Register = () => {
 
         // Cascading API load for Province/City/Barangay
         if (region) {
-            fetch(`api/locations/provinces?region=${encodeURIComponent(region)}`)
+            fetch(api(`/locations/provinces?region=${encodeURIComponent(region)}`))
                 .then(r => r.json())
                 .then(data => {
                     const options = data || [];
@@ -616,7 +617,7 @@ const Register = () => {
         });
 
         if (province && formData.region) {
-            fetch(`api/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(province)}`)
+            fetch(api(`/locations/municipalities-by-province?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(province)}`))
                 .then(r => r.json())
                 .then(data => {
                     const options = data || [];
@@ -639,7 +640,7 @@ const Register = () => {
         });
 
         if (city && formData.province && formData.region) {
-            fetch(`api/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(city)}`)
+            fetch(api(`/locations/barangays?region=${encodeURIComponent(formData.region)}&province=${encodeURIComponent(formData.province)}&municipality=${encodeURIComponent(city)}`))
                 .then(r => r.json())
                 .then(data => {
                     const options = (data || []).map(item => (typeof item === 'object' && item !== null) ? item.barangay : item);
@@ -947,7 +948,7 @@ const Register = () => {
 
                 // Backend Check
                 console.log("Step A: Checking existing school...");
-                const checkRes = await fetch('api/check-existing-school', {
+                const checkRes = await fetch(api(`/api/check-existing-school`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ schoolId: selectedSchool.school_id })
@@ -1027,7 +1028,7 @@ const Register = () => {
                     // AUTO-SEED UNIT 1 FOR OFFLINE READINESS
                     try {
                         // 1. Fetch FULL metadata from schools_IERN to get all location details (Barangay, Province, etc.)
-                        const iernFetch = await fetch(`api/schools_iern/${selectedSchool.school_id}`).catch(() => null);
+                        const iernFetch = await fetch(api(`/schools_iern/${selectedSchool.school_id}`)).catch(() => null);
                         let iernData = null;
                         if (iernFetch?.ok) {
                             const iernRes = await iernFetch.json();
@@ -1076,7 +1077,7 @@ const Register = () => {
             } else {
                 // GENERIC REGISTRATION (Engineer, etc.)
                 console.log("Syncing to Native Backend...");
-                const regRes = await fetch('api/register-user', {
+                const regRes = await fetch(api(`/api/register-user`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

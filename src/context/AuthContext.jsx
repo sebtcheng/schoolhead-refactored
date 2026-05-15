@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { clearProjectsCache, saveUnitDraft, getUnitDraft, saveSchoolToCache } from '../db';
 import { normalizeRole } from '../config/roleGroups';
+import { api } from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -26,8 +27,8 @@ export const AuthProvider = ({ children }) => {
             // Fetch both in parallel: registry for authoritative profile fields,
             // ph_schools for user-updated data (especially coordinates)
             const [iernFetch, phFetch] = await Promise.all([
-                fetch(`api/schools_iern/${schoolId}`).catch(() => null),
-                fetch(`api/ph_schools/${schoolId}`).catch(() => null)
+                fetch(api(`/schools_iern/${schoolId}`)).catch(() => null),
+                fetch(api(`/ph_schools/${schoolId}`)).catch(() => null)
             ]);
             let registryData = null;
             if (iernFetch?.ok) {
@@ -84,7 +85,7 @@ export const AuthProvider = ({ children }) => {
                 const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout
 
                 try {
-                    const res = await fetch('api/auth/me', {
+                    const res = await fetch(api(`/api/auth/me`), {
                         headers: {
                             'Authorization': `Bearer ${token}`
                         },
@@ -240,7 +241,7 @@ export const AuthProvider = ({ children }) => {
                 return;
             }
 
-            const res = await fetch('api/auth/verify-passcode', {
+            const res = await fetch(api(`/api/auth/verify-passcode`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
