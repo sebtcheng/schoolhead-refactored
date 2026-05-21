@@ -214,7 +214,7 @@ const Login = () => {
         const loginTimeoutId = setTimeout(() => loginAbort.abort(), 30000); // 30s timeout
 
         try {
-            const endpoint = loginMode === 'passcode' ? 'api/auth/pin-login' : 'api/auth/migrate-login';
+            const endpoint = loginMode === 'passcode' ? api('/api/auth/pin-login') : api('/api/auth/migrate-login');
             
             // Robust identifier logic: If it's 6+ digits or toggled as SH, use school_id field
             // FIX: If the identifier contains an '@', it's definitely an email, so we must NOT use the school_id field.

@@ -3453,7 +3453,7 @@ app.put('/api/users/update', authMiddleware, async (req, res) => {
 // --- SETUP PASSCODE (ALIAS FOR SETUP-PIN) ---
 app.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
   const { passcode, oldPasscode } = req.body;
-  const { uid } = req.user;
+  const { uid, role } = req.user;
 
   if (!passcode || passcode.length !== 6) {
     return res.status(400).json({ error: "6-digit passcode is required" });
@@ -3472,8 +3472,8 @@ app.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
       }
     }
 
-    const hashedPin = await bcrypt.hash(passcode, 10);
-    await pool.query('UPDATE users SET passcode = $1 WHERE uid = $2', [hashedPin, uid]);
+    const dbPasscode = (role === 'School Head') ? passcode : await bcrypt.hash(passcode, 10);
+    await pool.query('UPDATE users SET passcode = $1 WHERE uid = $2', [dbPasscode, uid]);
 
     res.json({ success: true, message: "Passcode updated successfully" });
   } catch (err) {
@@ -3622,7 +3622,7 @@ app.post('/api/register-beta', async (req, res) => {
 
     // 3. Hash Password & PIN
     const passwordHash = await bcrypt.hash(password, 10);
-    const hashedPin = passcode ? await bcrypt.hash(passcode, 10) : null;
+    const dbPasscode = passcode || null; // School Head passcode is plain text, not hashed
     const uid = uuidv4();
 
     const client = await pool.connect();
@@ -3634,15 +3634,16 @@ app.post('/api/register-beta', async (req, res) => {
         INSERT INTO users (
           uid, email, password_hash, hash_version, role, first_name, last_name,
           school_id, iern, contact_number, region, division, province, city, barangay,
-          passcode, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+          passcode, registration_status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
       `;
       const userValues = [
         uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
         school_id, iern, contactNumber,
         master.Region, master.Division, master.Province, 
         master.Municipality, master.Barangay,
-        hashedPin
+        dbPasscode,
+        'Valid'
       ];
       await client.query(userQuery, userValues);
 
@@ -3723,7 +3724,9 @@ app.post('/api/register-user', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const hashedPin = passcode ? await bcrypt.hash(passcode, 10) : null;
+    const dbPasscode = passcode 
+      ? (role === 'School Head' ? passcode : await bcrypt.hash(passcode, 10))
+      : null;
     const uid = uuidv4();
 
     // Fetch IERN from Master Record if school_id is provided
@@ -3740,14 +3743,14 @@ app.post('/api/register-user', async (req, res) => {
       INSERT INTO users (
         uid, email, password_hash, hash_version, role, first_name, last_name,
         region, division, province, city, barangay, school_id, iern, office, position, 
-        contact_number, account_category, passcode, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP)
+        contact_number, account_category, passcode, registration_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, CURRENT_TIMESTAMP)
     `;
 
     const values = [
       uid, email, passwordHash, 'bcrypt', role, firstName, lastName,
       region, division, province, city, barangay, school_id, iern, office, position, 
-      contactNumber, accountCategory || role, hashedPin
+      contactNumber, accountCategory || role, dbPasscode, 'Valid'
     ];
 
     await pool.query(query, values);
@@ -3779,19 +3782,19 @@ app.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
   const { passcode, pin } = req.body;
   const finalPasscode = passcode || pin;
   const uid = req.user?.uid;
+  const role = req.user?.role;
 
   if (!uid || !finalPasscode || finalPasscode.length !== 6) {
     return res.status(400).json({ success: false, error: "Valid 6-digit passcode is required." });
   }
 
   try {
-    // Hash passcode before storing
-    const saltRounds = 10;
-    const hashedPasscode = await bcrypt.hash(finalPasscode, saltRounds);
+    // Hash passcode before storing unless user is School Head
+    const dbPasscode = (role === 'School Head') ? finalPasscode : await bcrypt.hash(finalPasscode, 10);
 
     const result = await pool.query(
       `UPDATE users SET passcode = $1 WHERE uid = $2 RETURNING uid`,
-      [hashedPasscode, uid]
+      [dbPasscode, uid]
     );
 
     if (result.rowCount === 0) {

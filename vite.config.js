@@ -62,13 +62,27 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      // Proxies for dev when BASE_URL = /insighted-schoolhead/ (matches what api() generates)
+      '/insighted-schoolhead/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/insighted-schoolhead/, ''),
+      },
+      '/insighted-schoolhead/uploads': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/insighted-schoolhead/, ''),
+      },
+      // Bare /api fallback (for any direct calls without base prefix)
       '/api': {
-        target: 'http://127.0.0.1:5010',
+        target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'http://127.0.0.1:5010',
+        target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         secure: false,
       },
