@@ -164,8 +164,8 @@ const AnimatedRoutes = () => {
     <Routes>
       {/* Authentication */}
       <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={<Login mode="login" />} />
+      <Route path="/register" element={<Login mode="register" />} />
       <Route path="/guide/school-head" element={<LegacyGuideWrapper />} />
 
 

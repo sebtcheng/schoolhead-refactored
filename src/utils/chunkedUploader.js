@@ -1,9 +1,4 @@
-/**
- * chunkedUploader.js
- * High-performance, low-memory file slicing and uploading utility.
- * Distributes large PDFs into 5MB chunks and streams them to the backend,
- * bypassing total-file base64 conversion and browser memory locks.
- */
+import { api } from '../lib/api';
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const MAX_CONCURRENT = 3;

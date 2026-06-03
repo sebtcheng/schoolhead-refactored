@@ -423,6 +423,19 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         }
     }, [schoolOffering, loading, user?.school_id]);
 
+    // ── Safety Guard: Redirect out of invalid steps for the current grade profile ────
+    // Prevents Step 1 (Kinder) from showing for JHS/SHS-only schools.
+    useEffect(() => {
+        if (loading || !schoolOffering) return;
+        if (currentStep === 1 && !hasKinder) {
+            if (hasElementary) {
+                setCurrentStep(2);
+            } else {
+                setCurrentStep(4);
+            }
+        }
+    }, [currentStep, hasKinder, hasElementary, loading, schoolOffering]);
+
     // ── Safety Guard: Ensure currentGradeIndex stays in bounds ──────────────────
     useEffect(() => {
         if (!loading && currentStep === 4) {
@@ -1325,7 +1338,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         <AnimatePresence mode="wait">
                     
                     {/* STEP 1: Kindergarten (Mandatory Standalone) */}
-                    {currentStep === 1 && (
+                    {(currentStep === 1 && hasKinder) && (
                         <motion.div key="kinder" variants={pageVariants} initial="initial" animate="in" exit="out" transition={{ duration: 0.3 }}>
                             <div className="text-center mb-10">
                                 <span className="inline-block px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-black uppercase tracking-[0.2em] mb-4 shadow-sm">
@@ -2420,7 +2433,14 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                             onClick={() => { 
                                 setIsReadOnly(false); 
                                 setHasSubmitted(false); 
-                                setCurrentStep(1); // Reset to start of review if needed or just unlock
+                                // Route to the correct starting step for this school's grade profile
+                                if (hasKinder) {
+                                    setCurrentStep(1);           // Kinder schools → Step 1
+                                } else if (hasElementary) {
+                                    setCurrentStep(2);           // Elementary (no Kinder) → Org Gatekeeper
+                                } else {
+                                    setCurrentStep(4);           // JHS/SHS only → Grade-by-Grade ACG
+                                }
                             }}
                             className="flex-1 py-5 rounded-[2rem] bg-indigo-600 text-white font-black text-xl shadow-xl shadow-indigo-100/50 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3"
                         >
