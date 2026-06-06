@@ -72,9 +72,7 @@ import SDONexusDashboard from './modules/SDONexusDashboard';
 import NSPPDraft from './forms/NSPPDraft';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
-
-
-
+import SIIFModule from './modules/siif/SIIFModule';
 
 // --- WRAPPER COMPONENT TO HANDLE LOCATION ---
 const AnimatedRoutes = () => {
@@ -319,6 +317,9 @@ const AnimatedRoutes = () => {
       <Route path="/activities" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
       <Route path="/outbox" element={<ProtectedRoute><Outbox /></ProtectedRoute>} />
       <Route path="/sync-center" element={<ProtectedRoute allowedRoles={['School Head']}><SyncCenter /></ProtectedRoute>} />
+      
+      {/* SIIF Module */}
+      <Route path="/siif/*" element={<ProtectedRoute allowedRoles={['School Head']}><SIIFModule /></ProtectedRoute>} />
 
       {/* School Head Forms */}
       <Route path="/school-profile" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolProfile /></ProtectedRoute>} />
