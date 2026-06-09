@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/api/school-location/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await safeQuery('SELECT * FROM school_location_profiles WHERE school_id = $1', [id]);
+    const result = await safeQuery('SELECT * FROM unit8_location WHERE school_id = $1', [id]);
     res.json({ success: true, exists: result.rowCount > 0, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -27,7 +27,7 @@ router.post('/api/school-location', async (req, res) => {
     if (!school_id) return res.status(400).json({ error: "Missing school_id" });
 
     const query = `
-      INSERT INTO school_location_profiles (
+      INSERT INTO unit8_location (
         school_id, iern, transportation_modes, road_paved_pct, road_unpaved_pct,
         road_lighting_pct, public_transpo_availability, water_proximity, near_cliff_ravine,
         road_cliff_pct, near_water, natural_calamities, hazards_experienced,
@@ -38,10 +38,12 @@ router.post('/api/school-location', async (req, res) => {
         proximity_sdo_km, proximity_clinic_mins, proximity_clinic_km,
         proximity_terminal_mins, proximity_terminal_km, proximity_highway_mins,
         proximity_highway_km, cellular_coverage, weather_isolation,
-        weather_isolation_6mo, anthropogenic_threats, updated_at
+        weather_isolation_6mo, anthropogenic_threats, 
+        unit8, unit8_completed, unit8_updated_at, updated_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, CURRENT_TIMESTAMP
+        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, 
+        100, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       ON CONFLICT (school_id) DO UPDATE SET
         iern = EXCLUDED.iern,
@@ -79,6 +81,9 @@ router.post('/api/school-location', async (req, res) => {
         weather_isolation = EXCLUDED.weather_isolation,
         weather_isolation_6mo = EXCLUDED.weather_isolation_6mo,
         anthropogenic_threats = EXCLUDED.anthropogenic_threats,
+        unit8 = EXCLUDED.unit8,
+        unit8_completed = EXCLUDED.unit8_completed,
+        unit8_updated_at = EXCLUDED.unit8_updated_at,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;

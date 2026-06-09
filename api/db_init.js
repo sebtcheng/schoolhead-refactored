@@ -101,6 +101,46 @@ const initUnit7Schema = async (client, dbLabel) => {
             );
         `);
 
+        // 5. Buildable Spaces Table (ph_school_buildable_spaces)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS ph_school_buildable_spaces (
+                id SERIAL PRIMARY KEY,
+                school_id VARCHAR(255),
+                iern VARCHAR(255),
+                space_name TEXT,
+                center_lat NUMERIC,
+                center_lng NUMERIC,
+                length_m NUMERIC,
+                width_m NUMERIC,
+                rotation_deg NUMERIC,
+                total_area_sqm NUMERIC,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await client.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_ph_school_buildable_spaces_iern_name 
+            ON ph_school_buildable_spaces(iern, space_name);
+        `).catch(() => { });
+
+        // 6. [NEW] Unit 7 Facilities Summary Table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS unit7_facilities (
+                iern VARCHAR(255) PRIMARY KEY,
+                school_id VARCHAR(255) UNIQUE,
+                unit7 INTEGER DEFAULT 0,
+                unit7_completed BOOLEAN DEFAULT FALSE,
+                unit7_updated_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                unit7_no_buildings INTEGER DEFAULT 0,
+                unit7_no_rooms INTEGER DEFAULT 0,
+                unit7_has_buildable_space BOOLEAN DEFAULT TRUE,
+                unit7_no_buildable_space INTEGER DEFAULT 0,
+                unit7_no_repair_rooms INTEGER DEFAULT 0,
+                unit7_no_demolition INTEGER DEFAULT 0
+            );
+        `);
+
         // console.log(`✅ [${dbLabel}] Unit 7 Physical Facilities Schema Hardened`);
     } catch (err) {
         console.error(`❌ [${dbLabel}] Unit 7 Schema Migration Failed:`, err.message);
@@ -161,6 +201,62 @@ const initUnit8Schema = async (client, dbLabel) => {
                     risk_index TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+            `);
+
+            // [NEW] Unit 8 Location Profile (New Table)
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS unit8_location (
+                    school_id TEXT PRIMARY KEY,
+                    iern TEXT,
+                    transportation_modes JSONB DEFAULT '[]',
+                    road_paved_pct NUMERIC,
+                    road_unpaved_pct NUMERIC,
+                    road_lighting_pct NUMERIC,
+                    public_transpo_availability INTEGER,
+                    water_proximity JSONB DEFAULT '[]',
+                    near_cliff_ravine BOOLEAN DEFAULT FALSE,
+                    road_cliff_pct NUMERIC,
+                    near_water BOOLEAN DEFAULT FALSE,
+                    natural_calamities JSONB DEFAULT '[]',
+                    hazards_experienced JSONB DEFAULT '[]',
+                    has_insurgency_threats BOOLEAN DEFAULT FALSE,
+                    insurgency_threats_6mo INTEGER DEFAULT 0,
+                    road_passable_public_transpo_pct NUMERIC,
+                    river_crossing_on_foot BOOLEAN DEFAULT FALSE,
+                    river_crossing_count INTEGER DEFAULT 0,
+                    emergency_response_mins NUMERIC DEFAULT 0,
+                    proximity_hospital_km NUMERIC DEFAULT 0,
+                    proximity_brgy_hall_mins NUMERIC DEFAULT 0,
+                    proximity_brgy_hall_km NUMERIC DEFAULT 0,
+                    proximity_muni_hall_mins NUMERIC DEFAULT 0,
+                    proximity_muni_hall_km NUMERIC DEFAULT 0,
+                    proximity_sdo_mins NUMERIC DEFAULT 0,
+                    proximity_sdo_km NUMERIC DEFAULT 0,
+                    proximity_clinic_mins NUMERIC DEFAULT 0,
+                    proximity_clinic_km NUMERIC DEFAULT 0,
+                    proximity_terminal_mins NUMERIC DEFAULT 0,
+                    proximity_terminal_km NUMERIC DEFAULT 0,
+                    proximity_highway_mins NUMERIC DEFAULT 0,
+                    proximity_highway_km NUMERIC DEFAULT 0,
+                    cellular_coverage TEXT,
+                    weather_isolation BOOLEAN DEFAULT FALSE,
+                    weather_isolation_6mo INTEGER DEFAULT 0,
+                    anthropogenic_threats JSONB DEFAULT '[]',
+                    risk_index TEXT,
+                    unit8 INTEGER DEFAULT 0,
+                    unit8_completed BOOLEAN DEFAULT FALSE,
+                    unit8_updated_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            // Ensure columns exist on already created tables
+            await client.query(`
+                ALTER TABLE unit8_location ADD COLUMN IF NOT EXISTS unit8 INTEGER DEFAULT 0;
+                ALTER TABLE unit8_location ADD COLUMN IF NOT EXISTS unit8_completed BOOLEAN DEFAULT FALSE;
+                ALTER TABLE unit8_location ADD COLUMN IF NOT EXISTS unit8_updated_at TIMESTAMPTZ;
+                ALTER TABLE unit8_location ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
             `);
 
             // 3. JSONB Alignment (Zero-Downtime Conversion)
@@ -227,11 +323,6 @@ const initUnitTimestampTrigger = async (client, dbLabel) => {
                    AND (NEW.unit3_updated_at IS NULL OR NEW.unit3_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
                 THEN NEW.unit3_updated_at := CURRENT_TIMESTAMP; END IF;
 
-                -- Unit 4
-                IF (NEW.unit4 = 1 OR NEW.unit4 = 100 OR NEW.unit4_completed = TRUE) 
-                   AND (OLD.unit4 IS DISTINCT FROM NEW.unit4 OR OLD.unit4_completed IS DISTINCT FROM NEW.unit4_completed) 
-                   AND (NEW.unit4_updated_at IS NULL OR NEW.unit4_updated_at < (CURRENT_TIMESTAMP - INTERVAL '1 minute')) 
-                THEN NEW.unit4_updated_at := CURRENT_TIMESTAMP; END IF;
 
                 -- Unit 5
                 IF (NEW.unit5 = 1 OR NEW.unit5 = 100 OR NEW.unit5_completed = TRUE) 
@@ -703,39 +794,6 @@ const runMigrations = async (client, dbLabel) => {
             await client.query(`
             ALTER TABLE ph_schools
             ADD COLUMN IF NOT EXISTS verified_as_of             TIMESTAMPTZ,
-            ADD COLUMN IF NOT EXISTS school_name                TEXT,
-            ADD COLUMN IF NOT EXISTS region                     TEXT,
-            ADD COLUMN IF NOT EXISTS province                   TEXT,
-            ADD COLUMN IF NOT EXISTS municipality               TEXT,
-            ADD COLUMN IF NOT EXISTS barangay                   TEXT,
-            ADD COLUMN IF NOT EXISTS division                   TEXT,
-            ADD COLUMN IF NOT EXISTS district                   TEXT,
-            ADD COLUMN IF NOT EXISTS leg_district               TEXT,
-            ADD COLUMN IF NOT EXISTS curricular_offering        TEXT,
-            ADD COLUMN IF NOT EXISTS latitude                   TEXT,
-            ADD COLUMN IF NOT EXISTS longitude                  TEXT,
-            ADD COLUMN IF NOT EXISTS school_head                TEXT,
-            ADD COLUMN IF NOT EXISTS contact_number             TEXT,
-            ADD COLUMN IF NOT EXISTS ownership                  TEXT,
-            ADD COLUMN IF NOT EXISTS ownership_document_path   TEXT,
-            ADD COLUMN IF NOT EXISTS ownership_document_type   TEXT,
-            ADD COLUMN IF NOT EXISTS google_drive_link          TEXT,
-            ADD COLUMN IF NOT EXISTS google_drive_file_id       TEXT,
-            ADD COLUMN IF NOT EXISTS google_drive_file_name     TEXT,
-            ADD COLUMN IF NOT EXISTS google_drive_thumbnail_url TEXT,
-            ADD COLUMN IF NOT EXISTS school_type                TEXT,
-            ADD COLUMN IF NOT EXISTS mother_school_id           TEXT,
-            ADD COLUMN IF NOT EXISTS extension_mother_school_name TEXT,
-            ADD COLUMN IF NOT EXISTS established_month          TEXT,
-            ADD COLUMN IF NOT EXISTS established_year           TEXT,
-            ADD COLUMN IF NOT EXISTS head_first_name            TEXT,
-            ADD COLUMN IF NOT EXISTS head_middle_name           TEXT,
-            ADD COLUMN IF NOT EXISTS head_last_name             TEXT,
-            ADD COLUMN IF NOT EXISTS head_sex                   TEXT,
-            ADD COLUMN IF NOT EXISTS head_position_title        TEXT,
-            ADD COLUMN IF NOT EXISTS head_date_of_birth         TEXT,
-            ADD COLUMN IF NOT EXISTS head_date_hired            TEXT,
-            ADD COLUMN IF NOT EXISTS ownership_na_reason        TEXT,
             ADD COLUMN IF NOT EXISTS is_esf7_opened             BOOLEAN DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS unit1                      INTEGER DEFAULT 0,
             ADD COLUMN IF NOT EXISTS unit1_completed            BOOLEAN DEFAULT FALSE,
@@ -791,118 +849,185 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS unit2_updated_at           TIMESTAMPTZ;
         `);
 
-            // ── UNIT 3: Organized Classes ────────────────────────────────────────
+            // ── UNIT 3: Organized Classes Table Initialization & Migration ────────
             await client.query(`
-            ALTER TABLE ph_schools
-            ADD COLUMN IF NOT EXISTS has_multigrade             BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS multigrade_sections_count  INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit3_simplified_counts    JSONB,
-            ADD COLUMN IF NOT EXISTS grade_kinder_size          TEXT,
-            ADD COLUMN IF NOT EXISTS grade_1_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_2_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_3_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_4_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_5_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_6_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_7_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_8_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_9_size               TEXT,
-            ADD COLUMN IF NOT EXISTS grade_10_size              TEXT,
-            ADD COLUMN IF NOT EXISTS grade_11_size              TEXT,
-            ADD COLUMN IF NOT EXISTS grade_12_size              TEXT,
-            ADD COLUMN IF NOT EXISTS multigrade_size_1          TEXT,
-            ADD COLUMN IF NOT EXISTS multigrade_size_2          TEXT,
-            ADD COLUMN IF NOT EXISTS multigrade_size_3          TEXT,
-            ADD COLUMN IF NOT EXISTS unit3                      INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit3_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit3_updated_at           TIMESTAMPTZ;
-        `);
+            CREATE TABLE IF NOT EXISTS unit3_organized_classes (
+                iern TEXT PRIMARY KEY REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                school_id TEXT UNIQUE REFERENCES ph_schools(school_id) ON DELETE CASCADE,
+                grade_kinder_size TEXT,
+                grade_1_size TEXT,
+                grade_2_size TEXT,
+                grade_3_size TEXT,
+                grade_4_size TEXT,
+                grade_5_size TEXT,
+                grade_6_size TEXT,
+                grade_7_size TEXT,
+                grade_8_size TEXT,
+                grade_9_size TEXT,
+                grade_10_size TEXT,
+                grade_11_size TEXT,
+                grade_12_size TEXT,
+                multigrade_size_1 TEXT,
+                multigrade_size_2 TEXT,
+                multigrade_size_3 TEXT,
+                unit3 BOOLEAN DEFAULT FALSE,
+                unit3_completed NUMERIC(5,2) DEFAULT 0.00,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+
+            // Migrate data if old columns exist on ph_schools
+            const columnCheck = await client.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'ph_schools' AND column_name = 'grade_kinder_size'
+            `);
+
+            if (columnCheck.rowCount > 0) {
+                console.log("🚚 Migrating Unit 3 data from ph_schools to unit3_organized_classes...");
+                
+                // Drop columns from ph_schools
+                console.log("🧹 Dropping deprecated Unit 3 columns from ph_schools...");
+                await client.query(`
+                    ALTER TABLE ph_schools
+                    DROP COLUMN IF EXISTS has_multigrade CASCADE,
+                    DROP COLUMN IF EXISTS multigrade_sections_count CASCADE,
+                    DROP COLUMN IF EXISTS unit3_simplified_counts CASCADE,
+                    DROP COLUMN IF EXISTS grade_kinder_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_1_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_2_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_3_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_4_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_5_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_6_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_7_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_8_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_9_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_10_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_11_size CASCADE,
+                    DROP COLUMN IF EXISTS grade_12_size CASCADE,
+                    DROP COLUMN IF EXISTS multigrade_size_1 CASCADE,
+                    DROP COLUMN IF EXISTS multigrade_size_2 CASCADE,
+                    DROP COLUMN IF EXISTS multigrade_size_3 CASCADE;
+                `);
+            }
 
             // ── UNIT 4: Learner Profile ──────────────────────────────────────────
+            // ── UNIT 4: Learner Profile Table Initialization & Migration ────────
             await client.query(`
-            ALTER TABLE ph_schools
-            ADD COLUMN IF NOT EXISTS selected_learner_groups    JSONB,
-            ADD COLUMN IF NOT EXISTS bmi_severely_wasted        INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS bmi_wasted                 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS bmi_overweight_obese       INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS bmi_normal                 INTEGER DEFAULT 0,
-            -- ALS
-            ADD COLUMN IF NOT EXISTS als_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS als_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS als_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS als_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS als_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS als_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS als_g12 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS als_total INTEGER DEFAULT 0,
-            -- Muslim
-            ADD COLUMN IF NOT EXISTS muslim_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS muslim_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS muslim_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS muslim_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS muslim_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS muslim_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS muslim_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS muslim_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS muslim_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS muslim_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS muslim_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS muslim_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS muslim_g12 INTEGER DEFAULT 0,
-            -- IP
-            ADD COLUMN IF NOT EXISTS ip_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS ip_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS ip_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS ip_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS ip_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS ip_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS ip_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS ip_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS ip_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS ip_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS ip_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS ip_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS ip_g12 INTEGER DEFAULT 0,
-            -- Displaced
-            ADD COLUMN IF NOT EXISTS displaced_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS displaced_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS displaced_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS displaced_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS displaced_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS displaced_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS displaced_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS displaced_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS displaced_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS displaced_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS displaced_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS displaced_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS displaced_g12 INTEGER DEFAULT 0,
-            -- Overage
-            ADD COLUMN IF NOT EXISTS overage_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS overage_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS overage_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS overage_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS overage_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS overage_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS overage_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS overage_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS overage_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS overage_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS overage_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS overage_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS overage_g12 INTEGER DEFAULT 0,
-            -- Dropout
-            ADD COLUMN IF NOT EXISTS dropout_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS dropout_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS dropout_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS dropout_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS dropout_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS dropout_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS dropout_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS dropout_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS dropout_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS dropout_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS dropout_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS dropout_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS dropout_g12 INTEGER DEFAULT 0,
-            -- Repeater
-            ADD COLUMN IF NOT EXISTS repeater_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS repeater_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS repeater_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS repeater_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS repeater_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS repeater_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS repeater_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS repeater_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS repeater_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS repeater_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS repeater_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS repeater_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS repeater_g12 INTEGER DEFAULT 0,
-            -- LWD
-            ADD COLUMN IF NOT EXISTS lwd_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS lwd_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS lwd_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS lwd_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS lwd_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS lwd_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS lwd_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS lwd_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS lwd_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS lwd_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS lwd_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS lwd_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS lwd_g12 INTEGER DEFAULT 0,
-            -- SNED per grade
-            ADD COLUMN IF NOT EXISTS sned_kinder INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sned_g1 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g2 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sned_g3 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g4 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sned_g5 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g6 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sned_g7 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g8 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sned_g9 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g10 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS sned_g11 INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS sned_g12 INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit4                      INTEGER DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS unit4_completed            BOOLEAN DEFAULT FALSE,
-            ADD COLUMN IF NOT EXISTS unit4_updated_at           TIMESTAMPTZ;
-        `);
+            CREATE TABLE IF NOT EXISTS unit4_learner_profile (
+                iern TEXT PRIMARY KEY REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                school_id TEXT UNIQUE REFERENCES ph_schools(school_id) ON DELETE CASCADE,
+                selected_learner_groups JSONB,
+                bmi_severely_wasted INTEGER DEFAULT 0,
+                bmi_wasted INTEGER DEFAULT 0,
+                bmi_overweight_obese INTEGER DEFAULT 0,
+                bmi_normal INTEGER DEFAULT 0,
+                -- ALS
+                als_kinder INTEGER DEFAULT 0, als_g1 INTEGER DEFAULT 0, als_g2 INTEGER DEFAULT 0, als_g3 INTEGER DEFAULT 0,
+                als_g4 INTEGER DEFAULT 0, als_g5 INTEGER DEFAULT 0, als_g6 INTEGER DEFAULT 0, als_g7 INTEGER DEFAULT 0,
+                als_g8 INTEGER DEFAULT 0, als_g9 INTEGER DEFAULT 0, als_g10 INTEGER DEFAULT 0, als_g11 INTEGER DEFAULT 0,
+                als_g12 INTEGER DEFAULT 0, als_total INTEGER DEFAULT 0,
+                -- 4Ps
+                fourps_kinder INTEGER DEFAULT 0, fourps_g1 INTEGER DEFAULT 0, fourps_g2 INTEGER DEFAULT 0, fourps_g3 INTEGER DEFAULT 0,
+                fourps_g4 INTEGER DEFAULT 0, fourps_g5 INTEGER DEFAULT 0, fourps_g6 INTEGER DEFAULT 0, fourps_g7 INTEGER DEFAULT 0,
+                fourps_g8 INTEGER DEFAULT 0, fourps_g9 INTEGER DEFAULT 0, fourps_g10 INTEGER DEFAULT 0, fourps_g11 INTEGER DEFAULT 0,
+                fourps_g12 INTEGER DEFAULT 0,
+                -- Muslim
+                muslim_kinder INTEGER DEFAULT 0, muslim_g1 INTEGER DEFAULT 0, muslim_g2 INTEGER DEFAULT 0, muslim_g3 INTEGER DEFAULT 0,
+                muslim_g4 INTEGER DEFAULT 0, muslim_g5 INTEGER DEFAULT 0, muslim_g6 INTEGER DEFAULT 0, muslim_g7 INTEGER DEFAULT 0,
+                muslim_g8 INTEGER DEFAULT 0, muslim_g9 INTEGER DEFAULT 0, muslim_g10 INTEGER DEFAULT 0, muslim_g11 INTEGER DEFAULT 0,
+                muslim_g12 INTEGER DEFAULT 0,
+                -- IP
+                ip_kinder INTEGER DEFAULT 0, ip_g1 INTEGER DEFAULT 0, ip_g2 INTEGER DEFAULT 0, ip_g3 INTEGER DEFAULT 0,
+                ip_g4 INTEGER DEFAULT 0, ip_g5 INTEGER DEFAULT 0, ip_g6 INTEGER DEFAULT 0, ip_g7 INTEGER DEFAULT 0,
+                ip_g8 INTEGER DEFAULT 0, ip_g9 INTEGER DEFAULT 0, ip_g10 INTEGER DEFAULT 0, ip_g11 INTEGER DEFAULT 0,
+                ip_g12 INTEGER DEFAULT 0,
+                -- Displaced
+                displaced_kinder INTEGER DEFAULT 0, displaced_g1 INTEGER DEFAULT 0, displaced_g2 INTEGER DEFAULT 0, displaced_g3 INTEGER DEFAULT 0,
+                displaced_g4 INTEGER DEFAULT 0, displaced_g5 INTEGER DEFAULT 0, displaced_g6 INTEGER DEFAULT 0, displaced_g7 INTEGER DEFAULT 0,
+                displaced_g8 INTEGER DEFAULT 0, displaced_g9 INTEGER DEFAULT 0, displaced_g10 INTEGER DEFAULT 0, displaced_g11 INTEGER DEFAULT 0,
+                displaced_g12 INTEGER DEFAULT 0,
+                -- Overage
+                overage_kinder INTEGER DEFAULT 0, overage_g1 INTEGER DEFAULT 0, overage_g2 INTEGER DEFAULT 0, overage_g3 INTEGER DEFAULT 0,
+                overage_g4 INTEGER DEFAULT 0, overage_g5 INTEGER DEFAULT 0, overage_g6 INTEGER DEFAULT 0, overage_g7 INTEGER DEFAULT 0,
+                overage_g8 INTEGER DEFAULT 0, overage_g9 INTEGER DEFAULT 0, overage_g10 INTEGER DEFAULT 0, overage_g11 INTEGER DEFAULT 0,
+                overage_g12 INTEGER DEFAULT 0,
+                -- Dropout
+                dropout_kinder INTEGER DEFAULT 0, dropout_g1 INTEGER DEFAULT 0, dropout_g2 INTEGER DEFAULT 0, dropout_g3 INTEGER DEFAULT 0,
+                dropout_g4 INTEGER DEFAULT 0, dropout_g5 INTEGER DEFAULT 0, dropout_g6 INTEGER DEFAULT 0, dropout_g7 INTEGER DEFAULT 0,
+                dropout_g8 INTEGER DEFAULT 0, dropout_g9 INTEGER DEFAULT 0, dropout_g10 INTEGER DEFAULT 0, dropout_g11 INTEGER DEFAULT 0,
+                dropout_g12 INTEGER DEFAULT 0,
+                -- Repeater
+                repeater_kinder INTEGER DEFAULT 0, repeater_g1 INTEGER DEFAULT 0, repeater_g2 INTEGER DEFAULT 0, repeater_g3 INTEGER DEFAULT 0,
+                repeater_g4 INTEGER DEFAULT 0, repeater_g5 INTEGER DEFAULT 0, repeater_g6 INTEGER DEFAULT 0, repeater_g7 INTEGER DEFAULT 0,
+                repeater_g8 INTEGER DEFAULT 0, repeater_g9 INTEGER DEFAULT 0, repeater_g10 INTEGER DEFAULT 0, repeater_g11 INTEGER DEFAULT 0,
+                repeater_g12 INTEGER DEFAULT 0,
+                -- LWD
+                lwd_kinder INTEGER DEFAULT 0, lwd_g1 INTEGER DEFAULT 0, lwd_g2 INTEGER DEFAULT 0, lwd_g3 INTEGER DEFAULT 0,
+                lwd_g4 INTEGER DEFAULT 0, lwd_g5 INTEGER DEFAULT 0, lwd_g6 INTEGER DEFAULT 0, lwd_g7 INTEGER DEFAULT 0,
+                lwd_g8 INTEGER DEFAULT 0, lwd_g9 INTEGER DEFAULT 0, lwd_g10 INTEGER DEFAULT 0, lwd_g11 INTEGER DEFAULT 0,
+                lwd_g12 INTEGER DEFAULT 0,
+                -- SNED per grade
+                sned_kinder INTEGER DEFAULT 0, sned_g1 INTEGER DEFAULT 0, sned_g2 INTEGER DEFAULT 0, sned_g3 INTEGER DEFAULT 0,
+                sned_g4 INTEGER DEFAULT 0, sned_g5 INTEGER DEFAULT 0, sned_g6 INTEGER DEFAULT 0, sned_g7 INTEGER DEFAULT 0,
+                sned_g8 INTEGER DEFAULT 0, sned_g9 INTEGER DEFAULT 0, sned_g10 INTEGER DEFAULT 0, sned_g11 INTEGER DEFAULT 0,
+                sned_g12 INTEGER DEFAULT 0,
+                unit4 BOOLEAN DEFAULT FALSE,
+                unit4_completed NUMERIC(5,2) DEFAULT 0.00,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+
+            await client.query(`
+                ALTER TABLE unit4_learner_profile
+                ADD COLUMN IF NOT EXISTS fourps_kinder INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g1 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g2 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g3 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g4 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g5 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g6 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g7 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g8 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g9 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g10 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g11 INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS fourps_g12 INTEGER DEFAULT 0;
+            `).catch(() => {});
+
+            // Migrate data if old columns exist on ph_schools
+            const columnCheckUnit4 = await client.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'ph_schools' AND column_name = 'bmi_severely_wasted'
+            `);
+
+            if (columnCheckUnit4.rowCount > 0) {
+                console.log("🧹 Dropping deprecated Unit 4 columns from ph_schools...");
+                await client.query(`
+                    ALTER TABLE ph_schools
+                    DROP COLUMN IF EXISTS selected_learner_groups CASCADE,
+                    DROP COLUMN IF EXISTS bmi_severely_wasted CASCADE,
+                    DROP COLUMN IF EXISTS bmi_wasted CASCADE,
+                    DROP COLUMN IF EXISTS bmi_overweight_obese CASCADE,
+                    DROP COLUMN IF EXISTS bmi_normal CASCADE,
+                    DROP COLUMN IF EXISTS als_kinder CASCADE, DROP COLUMN IF EXISTS als_g1 CASCADE, DROP COLUMN IF EXISTS als_g2 CASCADE, DROP COLUMN IF EXISTS als_g3 CASCADE, DROP COLUMN IF EXISTS als_g4 CASCADE, DROP COLUMN IF EXISTS als_g5 CASCADE, DROP COLUMN IF EXISTS als_g6 CASCADE, DROP COLUMN IF EXISTS als_g7 CASCADE, DROP COLUMN IF EXISTS als_g8 CASCADE, DROP COLUMN IF EXISTS als_g9 CASCADE, DROP COLUMN IF EXISTS als_g10 CASCADE, DROP COLUMN IF EXISTS als_g11 CASCADE, DROP COLUMN IF EXISTS als_g12 CASCADE, DROP COLUMN IF EXISTS als_total CASCADE,
+                    DROP COLUMN IF EXISTS muslim_kinder CASCADE, DROP COLUMN IF EXISTS muslim_g1 CASCADE, DROP COLUMN IF EXISTS muslim_g2 CASCADE, DROP COLUMN IF EXISTS muslim_g3 CASCADE, DROP COLUMN IF EXISTS muslim_g4 CASCADE, DROP COLUMN IF EXISTS muslim_g5 CASCADE, DROP COLUMN IF EXISTS muslim_g6 CASCADE, DROP COLUMN IF EXISTS muslim_g7 CASCADE, DROP COLUMN IF EXISTS muslim_g8 CASCADE, DROP COLUMN IF EXISTS muslim_g9 CASCADE, DROP COLUMN IF EXISTS muslim_g10 CASCADE, DROP COLUMN IF EXISTS muslim_g11 CASCADE, DROP COLUMN IF EXISTS muslim_g12 CASCADE,
+                    DROP COLUMN IF EXISTS ip_kinder CASCADE, DROP COLUMN IF EXISTS ip_g1 CASCADE, DROP COLUMN IF EXISTS ip_g2 CASCADE, DROP COLUMN IF EXISTS ip_g3 CASCADE, DROP COLUMN IF EXISTS ip_g4 CASCADE, DROP COLUMN IF EXISTS ip_g5 CASCADE, DROP COLUMN IF EXISTS ip_g6 CASCADE, DROP COLUMN IF EXISTS ip_g7 CASCADE, DROP COLUMN IF EXISTS ip_g8 CASCADE, DROP COLUMN IF EXISTS ip_g9 CASCADE, DROP COLUMN IF EXISTS ip_g10 CASCADE, DROP COLUMN IF EXISTS ip_g11 CASCADE, DROP COLUMN IF EXISTS ip_g12 CASCADE,
+                    DROP COLUMN IF EXISTS displaced_kinder CASCADE, DROP COLUMN IF EXISTS displaced_g1 CASCADE, DROP COLUMN IF EXISTS displaced_g2 CASCADE, DROP COLUMN IF EXISTS displaced_g3 CASCADE, DROP COLUMN IF EXISTS displaced_g4 CASCADE, DROP COLUMN IF EXISTS displaced_g5 CASCADE, DROP COLUMN IF EXISTS displaced_g6 CASCADE, DROP COLUMN IF EXISTS displaced_g7 CASCADE, DROP COLUMN IF EXISTS displaced_g8 CASCADE, DROP COLUMN IF EXISTS displaced_g9 CASCADE, DROP COLUMN IF EXISTS displaced_g10 CASCADE, DROP COLUMN IF EXISTS displaced_g11 CASCADE, DROP COLUMN IF EXISTS displaced_g12 CASCADE,
+                    DROP COLUMN IF EXISTS overage_kinder CASCADE, DROP COLUMN IF EXISTS overage_g1 CASCADE, DROP COLUMN IF EXISTS overage_g2 CASCADE, DROP COLUMN IF EXISTS overage_g3 CASCADE, DROP COLUMN IF EXISTS overage_g4 CASCADE, DROP COLUMN IF EXISTS overage_g5 CASCADE, DROP COLUMN IF EXISTS overage_g6 CASCADE, DROP COLUMN IF EXISTS overage_g7 CASCADE, DROP COLUMN IF EXISTS overage_g8 CASCADE, DROP COLUMN IF EXISTS overage_g9 CASCADE, DROP COLUMN IF EXISTS overage_g10 CASCADE, DROP COLUMN IF EXISTS overage_g11 CASCADE, DROP COLUMN IF EXISTS overage_g12 CASCADE,
+                    DROP COLUMN IF EXISTS dropout_kinder CASCADE, DROP COLUMN IF EXISTS dropout_g1 CASCADE, DROP COLUMN IF EXISTS dropout_g2 CASCADE, DROP COLUMN IF EXISTS dropout_g3 CASCADE, DROP COLUMN IF EXISTS dropout_g4 CASCADE, DROP COLUMN IF EXISTS dropout_g5 CASCADE, DROP COLUMN IF EXISTS dropout_g6 CASCADE, DROP COLUMN IF EXISTS dropout_g7 CASCADE, DROP COLUMN IF EXISTS dropout_g8 CASCADE, DROP COLUMN IF EXISTS dropout_g9 CASCADE, DROP COLUMN IF EXISTS dropout_g10 CASCADE, DROP COLUMN IF EXISTS dropout_g11 CASCADE, DROP COLUMN IF EXISTS dropout_g12 CASCADE,
+                    DROP COLUMN IF EXISTS repeater_kinder CASCADE, DROP COLUMN IF EXISTS repeater_g1 CASCADE, DROP COLUMN IF EXISTS repeater_g2 CASCADE, DROP COLUMN IF EXISTS repeater_g3 CASCADE, DROP COLUMN IF EXISTS repeater_g4 CASCADE, DROP COLUMN IF EXISTS repeater_g5 CASCADE, DROP COLUMN IF EXISTS repeater_g6 CASCADE, DROP COLUMN IF EXISTS repeater_g7 CASCADE, DROP COLUMN IF EXISTS repeater_g8 CASCADE, DROP COLUMN IF EXISTS repeater_g9 CASCADE, DROP COLUMN IF EXISTS repeater_g10 CASCADE, DROP COLUMN IF EXISTS repeater_g11 CASCADE, DROP COLUMN IF EXISTS repeater_g12 CASCADE,
+                    DROP COLUMN IF EXISTS lwd_kinder CASCADE, DROP COLUMN IF EXISTS lwd_g1 CASCADE, DROP COLUMN IF EXISTS lwd_g2 CASCADE, DROP COLUMN IF EXISTS lwd_g3 CASCADE, DROP COLUMN IF EXISTS lwd_g4 CASCADE, DROP COLUMN IF EXISTS lwd_g5 CASCADE, DROP COLUMN IF EXISTS lwd_g6 CASCADE, DROP COLUMN IF EXISTS lwd_g7 CASCADE, DROP COLUMN IF EXISTS lwd_g8 CASCADE, DROP COLUMN IF EXISTS lwd_g9 CASCADE, DROP COLUMN IF EXISTS lwd_g10 CASCADE, DROP COLUMN IF EXISTS lwd_g11 CASCADE, DROP COLUMN IF EXISTS lwd_g12 CASCADE,
+                    DROP COLUMN IF EXISTS sned_kinder CASCADE, DROP COLUMN IF EXISTS sned_g1 CASCADE, DROP COLUMN IF EXISTS sned_g2 CASCADE, DROP COLUMN IF EXISTS sned_g3 CASCADE, DROP COLUMN IF EXISTS sned_g4 CASCADE, DROP COLUMN IF EXISTS sned_g5 CASCADE, DROP COLUMN IF EXISTS sned_g6 CASCADE, DROP COLUMN IF EXISTS sned_g7 CASCADE, DROP COLUMN IF EXISTS sned_g8 CASCADE, DROP COLUMN IF EXISTS sned_g9 CASCADE, DROP COLUMN IF EXISTS sned_g10 CASCADE, DROP COLUMN IF EXISTS sned_g11 CASCADE, DROP COLUMN IF EXISTS sned_g12 CASCADE,
+                    DROP COLUMN IF EXISTS unit4 CASCADE,
+                    DROP COLUMN IF EXISTS unit4_completed CASCADE,
+                    DROP COLUMN IF EXISTS unit4_updated_at CASCADE;
+                `);
+            }
 
             // ── UNIT 5: Shifting & Modality ──────────────────────────────────────
             await client.query(`
@@ -1072,7 +1197,7 @@ const runMigrations = async (client, dbLabel) => {
         `);
 
             // ── INDEXES ───────────────────────────────────────────────────────────
-            await client.query(`DROP INDEX IF EXISTS idx_ph_schools_school_id;`);
+            await client.query(`DROP INDEX IF EXISTS idx_ph_schools_school_id;`).catch(() => {});
             await client.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS idx_ph_schools_school_id
             ON ph_schools(school_id);
@@ -1181,6 +1306,14 @@ const runMigrations = async (client, dbLabel) => {
             await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS compressed_binary_id UUID;`).catch(() => { });
             await client.query(`ALTER TABLE school_ownership_docs ADD COLUMN IF NOT EXISTS compressed_size BIGINT;`).catch(() => { });
 
+            // Ensure id has sequence default if it was created without SERIAL sequence
+            await client.query(`
+                CREATE SEQUENCE IF NOT EXISTS school_ownership_docs_id_seq;
+                SELECT setval('school_ownership_docs_id_seq', COALESCE((SELECT MAX(id) FROM school_ownership_docs), 0) + 1, false);
+                ALTER TABLE school_ownership_docs ALTER COLUMN id SET DEFAULT nextval('school_ownership_docs_id_seq');
+                ALTER SEQUENCE school_ownership_docs_id_seq OWNED BY school_ownership_docs.id;
+            `).catch(() => { });
+
             // Data Healing: Cleanup orphans to allow FK creation
             // [LOCKED] Table is append-only (InsightEd-2026-DocLock). Orphan cleanup via DELETE is skipped.
             // await client.query("DELETE FROM school_ownership_docs WHERE iern NOT IN (SELECT iern FROM ph_schools)");
@@ -1223,6 +1356,332 @@ const runMigrations = async (client, dbLabel) => {
         } catch (migErr) {
             console.error(`❌ [${dbLabel}] Failed to init school_ownership_docs table:`, migErr.message);
         }
+
+        // --- 21b. SCHOOL OWNERSHIP RECORDS TABLE ---
+        try {
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS school_ownership_records (
+                id SERIAL PRIMARY KEY,
+                iern TEXT NOT NULL REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                ownership_type TEXT NOT NULL,
+                document_type TEXT,
+                ownership_doc_id INT REFERENCES school_ownership_docs(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            console.log(`✅ [${dbLabel}] School Ownership Records Table Initialized`);
+        } catch (recErr) {
+            console.error(`❌ [${dbLabel}] Failed to init school_ownership_records table:`, recErr.message);
+        }
+
+        // --- 21c. UNIT 1 SCHOOL IDENTITY TABLE ---
+        try {
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS unit1_school_identity (
+                iern TEXT PRIMARY KEY REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                school_id TEXT UNIQUE,
+                school_name TEXT,
+                region TEXT,
+                province TEXT,
+                municipality TEXT,
+                barangay TEXT,
+                division TEXT,
+                district TEXT,
+                leg_district TEXT,
+                curricular_offering TEXT,
+                latitude TEXT,
+                longitude TEXT,
+                school_type TEXT,
+                mother_school_id TEXT,
+                extension_mother_school_name TEXT,
+                established_month TEXT,
+                established_year TEXT,
+                head_first_name TEXT,
+                head_middle_name TEXT,
+                head_last_name TEXT,
+                head_sex TEXT,
+                head_position_title TEXT,
+                head_date_hired TEXT,
+                ownership_na_reason TEXT,
+                ownership_doc_id INTEGER REFERENCES school_ownership_docs(id) ON DELETE SET NULL,
+                ownership_type TEXT,
+                document_type TEXT,
+                multiple_ownership JSONB,
+                multiple_document_type JSONB,
+                document_path TEXT,
+                annexes JSONB,
+                unit1 INTEGER DEFAULT 0,
+                unit1_completed BOOLEAN DEFAULT FALSE,
+                unit1_updated_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            console.log(`✅ [${dbLabel}] Unit 1 School Identity Table Initialized`);
+        } catch (u1Err) {
+            console.error(`❌ [${dbLabel}] Failed to init unit1_school_identity table:`, u1Err.message);
+        }
+
+        // --- 21d. UNIT 2 SCHOOL LEARNERS TABLE ---
+        try {
+
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS unit2_school_learners (
+                iern TEXT PRIMARY KEY REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                school_id TEXT UNIQUE REFERENCES ph_schools(school_id) ON DELETE CASCADE,
+                enroll_kinder INTEGER DEFAULT 0,
+                enroll_g1 INTEGER DEFAULT 0,
+                enroll_g2 INTEGER DEFAULT 0,
+                enroll_g3 INTEGER DEFAULT 0,
+                enroll_g4 INTEGER DEFAULT 0,
+                enroll_g5 INTEGER DEFAULT 0,
+                enroll_g6 INTEGER DEFAULT 0,
+                enroll_g7 INTEGER DEFAULT 0,
+                enroll_g8 INTEGER DEFAULT 0,
+                enroll_g9 INTEGER DEFAULT 0,
+                enroll_g10 INTEGER DEFAULT 0,
+                enroll_g11 INTEGER DEFAULT 0,
+                enroll_g12 INTEGER DEFAULT 0,
+                total_enrollment INTEGER DEFAULT 0,
+                male_enrollment INTEGER DEFAULT 0,
+                female_enrollment INTEGER DEFAULT 0,
+                total_male INTEGER DEFAULT 0,
+                total_female INTEGER DEFAULT 0,
+                kinder_male INTEGER DEFAULT 0, kinder_female INTEGER DEFAULT 0,
+                g1_male INTEGER DEFAULT 0, g1_female INTEGER DEFAULT 0,
+                g2_male INTEGER DEFAULT 0, g2_female INTEGER DEFAULT 0,
+                g3_male INTEGER DEFAULT 0, g3_female INTEGER DEFAULT 0,
+                g4_male INTEGER DEFAULT 0, g4_female INTEGER DEFAULT 0,
+                g5_male INTEGER DEFAULT 0, g5_female INTEGER DEFAULT 0,
+                g6_male INTEGER DEFAULT 0, g6_female INTEGER DEFAULT 0,
+                g7_male INTEGER DEFAULT 0, g7_female INTEGER DEFAULT 0,
+                g8_male INTEGER DEFAULT 0, g8_female INTEGER DEFAULT 0,
+                g9_male INTEGER DEFAULT 0, g9_female INTEGER DEFAULT 0,
+                g10_male INTEGER DEFAULT 0, g10_female INTEGER DEFAULT 0,
+                g11_male INTEGER DEFAULT 0, g11_female INTEGER DEFAULT 0,
+                g12_male INTEGER DEFAULT 0, g12_female INTEGER DEFAULT 0,
+                
+                -- SNED Demographic columns
+                main_sned INTEGER DEFAULT 0,
+                main_sned_male INTEGER DEFAULT 0,
+                main_sned_female INTEGER DEFAULT 0,
+                self_sned INTEGER DEFAULT 0,
+                self_sned_male INTEGER DEFAULT 0,
+                self_sned_female INTEGER DEFAULT 0,
+                self_sned_org_class INTEGER DEFAULT 0,
+                
+                -- ARAL Program columns (flattened)
+                has_aral_math BOOLEAN DEFAULT FALSE,
+                aral_math_learners_g1 INTEGER DEFAULT 0,
+                aral_math_learners_g2 INTEGER DEFAULT 0,
+                aral_math_learners_g3 INTEGER DEFAULT 0,
+                aral_math_learners_g4 INTEGER DEFAULT 0,
+                aral_math_learners_g5 INTEGER DEFAULT 0,
+                aral_math_learners_g6 INTEGER DEFAULT 0,
+                
+                has_aral_reading BOOLEAN DEFAULT FALSE,
+                aral_reading_learners_g1 INTEGER DEFAULT 0,
+                aral_reading_learners_g2 INTEGER DEFAULT 0,
+                aral_reading_learners_g3 INTEGER DEFAULT 0,
+                aral_reading_learners_g4 INTEGER DEFAULT 0,
+                aral_reading_learners_g5 INTEGER DEFAULT 0,
+                aral_reading_learners_g6 INTEGER DEFAULT 0,
+                
+                has_aral_science BOOLEAN DEFAULT FALSE,
+                aral_science_learners_g1 INTEGER DEFAULT 0,
+                aral_science_learners_g2 INTEGER DEFAULT 0,
+                aral_science_learners_g3 INTEGER DEFAULT 0,
+                aral_science_learners_g4 INTEGER DEFAULT 0,
+                aral_science_learners_g5 INTEGER DEFAULT 0,
+                aral_science_learners_g6 INTEGER DEFAULT 0,
+
+                multigrade_groupings_1 TEXT,
+                multigrade_groupings_2 TEXT,
+                multigrade_groupings_3 TEXT,
+                multigrade_enrollment_1 INTEGER DEFAULT 0,
+                multigrade_enrollment_2 INTEGER DEFAULT 0,
+                multigrade_enrollment_3 INTEGER DEFAULT 0,
+                multigrade_groupings_1_male INTEGER DEFAULT 0,
+                multigrade_groupings_1_female INTEGER DEFAULT 0,
+                multigrade_groupings_2_male INTEGER DEFAULT 0,
+                multigrade_groupings_2_female INTEGER DEFAULT 0,
+                multigrade_groupings_3_male INTEGER DEFAULT 0,
+                multigrade_groupings_3_female INTEGER DEFAULT 0,
+                unit2 BOOLEAN DEFAULT FALSE,
+                unit2_completed NUMERIC(5,2) DEFAULT 0.00,
+                unit_2_updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            console.log(`✅ [${dbLabel}] Unit 2 School Learners Table Initialized`);
+
+            // Migration insert disabled to allow clean input from scratch
+            console.log(`✅ [${dbLabel}] Unit 2 School Learners Table Initialized`);
+        } catch (u2Err) {
+            console.error(`❌ [${dbLabel}] Failed to init or migrate unit2_school_learners table:`, u2Err.message);
+        }
+
+        // --- 21f. UNIT 5 SHIFTING & MODALITY TABLE ---
+        try {
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS unit5_shifting_modality (
+                iern TEXT PRIMARY KEY REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                school_id TEXT UNIQUE REFERENCES ph_schools(school_id) ON DELETE CASCADE,
+                has_standard_shifting BOOLEAN DEFAULT FALSE,
+                has_adms BOOLEAN DEFAULT FALSE,
+                shifting_modality TEXT,
+                adm_mdl BOOLEAN DEFAULT FALSE,
+                adm_odl BOOLEAN DEFAULT FALSE,
+                adm_tvi BOOLEAN DEFAULT FALSE,
+                adm_blended BOOLEAN DEFAULT FALSE,
+                shift_kinder TEXT, shift_g1 TEXT, shift_g2 TEXT, shift_g3 TEXT, shift_g4 TEXT, shift_g5 TEXT, shift_g6 TEXT,
+                shift_g7 TEXT, shift_g8 TEXT, shift_g9 TEXT, shift_g10 TEXT, shift_g11 TEXT, shift_g12 TEXT,
+                shift_mg_1 TEXT, shift_mg_2 TEXT, shift_mg_3 TEXT,
+                mode_kinder TEXT, mode_g1 TEXT, mode_g2 TEXT, mode_g3 TEXT, mode_g4 TEXT, mode_g5 TEXT, mode_g6 TEXT,
+                mode_g7 TEXT, mode_g8 TEXT, mode_g9 TEXT, mode_g10 TEXT, mode_g11 TEXT, mode_g12 TEXT,
+                mode_mg_1 TEXT, mode_mg_2 TEXT, mode_mg_3 TEXT,
+                unit5 INTEGER DEFAULT 0,
+                unit5_completed BOOLEAN DEFAULT FALSE,
+                unit5_updated_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            console.log(`✅ [${dbLabel}] Unit 5 Shifting & Modality Table Initialized`);
+        } catch (u5Err) {
+            console.error(`❌ [${dbLabel}] Failed to init unit5_shifting_modality table:`, u5Err.message);
+        }
+
+        // --- 21g. UNIT 6 SCHOOL RESOURCES TABLES ---
+        try {
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS unit6_school_resources (
+                iern TEXT PRIMARY KEY REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                school_id TEXT UNIQUE REFERENCES ph_schools(school_id) ON DELETE CASCADE,
+                iern_val TEXT,
+                unit6_completed BOOLEAN DEFAULT FALSE,
+                unit6_updated_at TIMESTAMPTZ,
+                -- Seating / Furniture (General stats)
+                has_general_rooms BOOLEAN DEFAULT FALSE,
+                general_rooms_count INTEGER DEFAULT 0,
+                armchair_wood_func INTEGER DEFAULT 0, armchair_wood_broken INTEGER DEFAULT 0,
+                armchair_plastic_func INTEGER DEFAULT 0, armchair_plastic_broken INTEGER DEFAULT 0,
+                armchair_plastic_steel_func INTEGER DEFAULT 0, armchair_plastic_steel_broken INTEGER DEFAULT 0,
+                individual_table_chair_func INTEGER DEFAULT 0, individual_table_chair_broken INTEGER DEFAULT 0,
+                two_seater_wood_func INTEGER DEFAULT 0, two_seater_wood_broken INTEGER DEFAULT 0,
+                two_seater_wood_steel_func INTEGER DEFAULT 0, two_seater_wood_steel_broken INTEGER DEFAULT 0,
+                wooden_chair_only_func INTEGER DEFAULT 0, wooden_chair_only_broken INTEGER DEFAULT 0,
+                plastic_chair_only_func INTEGER DEFAULT 0, plastic_chair_only_broken INTEGER DEFAULT 0,
+                has_teacher_desk BOOLEAN DEFAULT FALSE,
+                -- ICT (Main stats)
+                laptops_total INTEGER DEFAULT 0, laptops_func INTEGER DEFAULT 0, laptops_teaching INTEGER DEFAULT 0, laptops_working INTEGER DEFAULT 0,
+                tablets_total INTEGER DEFAULT 0, tablets_func INTEGER DEFAULT 0, tablets_teaching INTEGER DEFAULT 0, tablets_working INTEGER DEFAULT 0,
+                desktops_total INTEGER DEFAULT 0, desktops_func INTEGER DEFAULT 0, desktops_teaching INTEGER DEFAULT 0, desktops_working INTEGER DEFAULT 0,
+                smart_tvs_total INTEGER DEFAULT 0, smart_tvs_func INTEGER DEFAULT 0, smart_tvs_cond TEXT,
+                projectors_total INTEGER DEFAULT 0, projectors_func INTEGER DEFAULT 0, projectors_cond TEXT,
+                printers_total INTEGER DEFAULT 0, printers_func INTEGER DEFAULT 0, printers_cond TEXT,
+                unit7_has_ecart BOOLEAN DEFAULT FALSE,
+                -- WASH (Toilet & sanitation stats)
+                male_seats_total INTEGER DEFAULT 0, male_seats_func INTEGER DEFAULT 0, male_seats_cond TEXT,
+                male_urinals_total INTEGER DEFAULT 0, male_urinals_func INTEGER DEFAULT 0,
+                female_seats_total INTEGER DEFAULT 0, female_seats_func INTEGER DEFAULT 0, female_seats_cond TEXT,
+                common_seats_total INTEGER DEFAULT 0, common_seats_func INTEGER DEFAULT 0, common_seats_cond TEXT,
+                pwd_seats_total INTEGER DEFAULT 0, pwd_seats_func INTEGER DEFAULT 0, pwd_seats_cond TEXT,
+                faucets_total INTEGER DEFAULT 0, faucets_func INTEGER DEFAULT 0, faucets_cond TEXT,
+                water_source TEXT,
+                confirm_no_piped BOOLEAN DEFAULT FALSE,
+                confirm_no_piped_text TEXT,
+                confirm_zero_wash_text TEXT,
+                attached_cr_classrooms INTEGER DEFAULT 0,
+                attached_cr_seats INTEGER DEFAULT 0,
+                attached_cr_included_in_main BOOLEAN DEFAULT FALSE,
+                -- Utilities
+                utility_electricity TEXT,
+                confirm_no_grid BOOLEAN DEFAULT FALSE,
+                confirm_no_grid_text TEXT,
+                has_solar_or_gen BOOLEAN DEFAULT FALSE,
+                utility_internet_yesno TEXT,
+                utility_internet_type TEXT,
+                confirm_no_wired BOOLEAN DEFAULT FALSE,
+                confirm_no_wired_text TEXT,
+                utility_internet_funder TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS unit6_furniture_grades (
+                id SERIAL PRIMARY KEY,
+                iern TEXT REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                grade_level TEXT NOT NULL,
+                armchair_wood_func INTEGER DEFAULT 0, armchair_wood_broken INTEGER DEFAULT 0,
+                armchair_plastic_func INTEGER DEFAULT 0, armchair_plastic_broken INTEGER DEFAULT 0,
+                armchair_plastic_steel_func INTEGER DEFAULT 0, armchair_plastic_steel_broken INTEGER DEFAULT 0,
+                individual_table_chair_func INTEGER DEFAULT 0, individual_table_chair_broken INTEGER DEFAULT 0,
+                two_seater_wood_func INTEGER DEFAULT 0, two_seater_wood_broken INTEGER DEFAULT 0,
+                two_seater_wood_steel_func INTEGER DEFAULT 0, two_seater_wood_steel_broken INTEGER DEFAULT 0,
+                wooden_chair_only_func INTEGER DEFAULT 0, wooden_chair_only_broken INTEGER DEFAULT 0,
+                plastic_chair_only_func INTEGER DEFAULT 0, plastic_chair_only_broken INTEGER DEFAULT 0,
+                is_sharing BOOLEAN DEFAULT FALSE,
+                shared_with TEXT,
+                is_kinder_double_shift BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS unit6_ecart_batches (
+                id SERIAL PRIMARY KEY,
+                iern TEXT REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                batches_name TEXT,
+                year_received INTEGER DEFAULT 0,
+                sources_fund TEXT,
+                ecart_laptops INTEGER DEFAULT 0,
+                ecart_tablets INTEGER DEFAULT 0,
+                ecart_tv INTEGER DEFAULT 0,
+                charging_condition TEXT,
+                remarks TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            `);
+            console.log(`✅ [${dbLabel}] Unit 6 Relational Tables Initialized`);
+        } catch (u6Err) {
+            console.error(`❌ [${dbLabel}] Failed to init unit6 tables:`, u6Err.message);
+        }
+
+        // --- 21e. PH SCHOOLS VALIDATE TABLE ---
+        try {
+            await client.query(`
+            CREATE TABLE IF NOT EXISTS ph_schools_validate (
+                school_id VARCHAR(255) PRIMARY KEY REFERENCES ph_schools(school_id) ON DELETE CASCADE,
+                unit1_completed BOOLEAN DEFAULT FALSE,
+                unit2_completed BOOLEAN DEFAULT FALSE,
+                unit3_completed BOOLEAN DEFAULT FALSE,
+                unit4_completed BOOLEAN DEFAULT FALSE,
+                unit5_completed BOOLEAN DEFAULT FALSE,
+                unit6_completed BOOLEAN DEFAULT FALSE,
+                unit7_completed BOOLEAN DEFAULT FALSE,
+                unit8_completed BOOLEAN DEFAULT FALSE,
+                unit9_completed BOOLEAN DEFAULT FALSE,
+                unit1_validated BOOLEAN DEFAULT FALSE,
+                unit2_validated BOOLEAN DEFAULT FALSE,
+                unit3_validated BOOLEAN DEFAULT FALSE,
+                unit4_validated BOOLEAN DEFAULT FALSE,
+                unit5_validated BOOLEAN DEFAULT FALSE,
+                unit6_validated BOOLEAN DEFAULT FALSE,
+                unit7_validated BOOLEAN DEFAULT FALSE,
+                unit8_validated BOOLEAN DEFAULT FALSE,
+                unit9_validated BOOLEAN DEFAULT FALSE,
+                needs_validation BOOLEAN DEFAULT FALSE,
+                validation_percentage NUMERIC(5,2) DEFAULT 0.00,
+                validated_units_count INTEGER DEFAULT 0
+            );
+            `);
+            console.log(`✅ [${dbLabel}] ph_schools_validate Table Initialized`);
+        } catch (valErr) {
+            console.error(`❌ [${dbLabel}] Failed to init ph_schools_validate table:`, valErr.message);
+        }
+
 
         // NOTE: Unit 7 condition & utility columns are now included in the
         // canonical ph_schools schema block above (migration #17). Removed
@@ -1268,6 +1727,51 @@ const runMigrations = async (client, dbLabel) => {
             console.error(`❌ [${dbLabel}] Unified Binaries Migration Failed:`, binErr.message);
         }
 
+        // --- 25b. SCHOOL LOCATION VIEW ---
+        try {
+            await client.query(`
+            DROP VIEW IF EXISTS ph_public_schools_location CASCADE;
+            
+            CREATE OR REPLACE VIEW ph_public_schools_location AS
+            SELECT 
+                si."IERN" AS iern,
+                si."SchoolID" AS school_id,
+                COALESCE(u1.school_name, si."School_Name") AS school_name,
+                COALESCE(u1.region, si."Region") AS region,
+                COALESCE(u1.province, si."Province") AS province,
+                COALESCE(u1.municipality, si."Municipality") AS municipality,
+                COALESCE(u1.barangay, si."Barangay") AS barangay,
+                COALESCE(u1.division, si."Division") AS division,
+                COALESCE(u1.district, si."District") AS district,
+                COALESCE(u1.leg_district, si."Legislative_District") AS leg_district,
+                COALESCE(u1.curricular_offering, si."Curricular_Offering") AS curricular_offering,
+                COALESCE(u1.latitude, si."Latitude"::text) AS latitude,
+                COALESCE(u1.longitude, si."Longitude"::text) AS longitude,
+                EXISTS (
+                    SELECT 1 
+                    FROM ph_school_buildable_spaces bs 
+                    WHERE bs.iern = si."IERN" OR bs.school_id = si."SchoolID"
+                )::boolean AS has_buildable_space,
+                EXISTS (
+                    SELECT 1 
+                    FROM ph_buildings_demolition bd 
+                    WHERE bd.iern = si."IERN" OR bd.school_id = si."SchoolID"
+                )::boolean AS has_building_demolition
+            FROM "schools_IERN" si
+            LEFT JOIN unit1_school_identity u1 ON si."IERN" = u1.iern
+            WHERE si."SchoolID" NOT LIKE '999%'
+              AND si."IERN" NOT LIKE '999%'
+              AND si."Region" IS NOT NULL
+              AND TRIM(si."Region") != ''
+              AND UPPER(si."Region") != 'BLANK REGION';
+            `);
+            console.log(`✅ [${dbLabel}] ph_public_schools_location View Initialized`);
+        } catch (viewErr) {
+            console.error(`❌ [${dbLabel}] Failed to init ph_public_schools_location view:`, viewErr.message);
+        }
+
+
+
 
         // --- 26. UNIT 7: PHYSICAL FACILITIES ---
         await initUnit7Schema(client, dbLabel);
@@ -1312,7 +1816,7 @@ const runMigrations = async (client, dbLabel) => {
             DO $$
             DECLARE
                 t_name TEXT;
-                excluded_tables TEXT[] := ARRAY['ph_buildings_inventory', 'ph_buildings_repairs', 'ph_buildings_demolition', 'ph_school_buildable_spaces', 'school_ownership_docs', 'school_location_profiles', 'buildable_spaces'];
+                excluded_tables TEXT[] := ARRAY['ph_buildings_inventory', 'ph_buildings_repairs', 'ph_buildings_demolition', 'ph_school_buildable_spaces', 'school_ownership_docs', 'school_location_profiles', 'unit8_location', 'buildable_spaces', 'unit6_furniture_grades', 'unit6_ecart_batches'];
                 t_count INT := 0;
             BEGIN
                 FOR t_name IN 
