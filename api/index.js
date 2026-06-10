@@ -30,6 +30,7 @@ import docsRouter from './units/docs/index.js';
 import dashboardRouter from './units/dashboard/index.js';
 import locationRouter from './units/location/index.js';
 import settingsRouter from './units/settings/index.js';
+import siifRouter from './modules/siif/index.js';
 
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js (Modular) <<< 📌");
 
@@ -178,6 +179,7 @@ app.use(docsRouter);
 app.use(dashboardRouter);
 app.use(locationRouter);
 app.use(settingsRouter);
+app.use('/api/siif', siifRouter);
 
 // --- COMPREHENSIVE SERVER STARTUP ---
 const startServer = async () => {
