@@ -9,7 +9,8 @@ import {
     TbLock, 
     TbCheck,
     TbLayoutDashboard,
-    TbClock
+    TbClock,
+    TbTool
 } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { useSIIFUtilization } from '../hooks/useSIIFUtilization';
@@ -35,6 +36,35 @@ const SIIFUtilization = ({ user, token }) => {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
                 <div className="w-10 h-10 border-4 border-deped-blue/20 border-t-deped-blue rounded-full animate-spin"></div>
+            </div>
+        );
+    }
+
+    // PHASE 2 PILOT TEST LOCK
+    const IS_UNDER_DEVELOPMENT = true;
+    if (IS_UNDER_DEVELOPMENT) {
+        return (
+            <div className="min-h-screen bg-slate-50 p-6 pb-24">
+                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
+                    <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <TbTool size={40} className="text-indigo-600" />
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Under Development</h1>
+                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+                        This feature is currently under development and will be released during <span className="font-bold text-indigo-600">Phase 2</span> of the pilot test.
+                        <br/><br/>
+                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                            Stay Tuned
+                        </span>
+                    </p>
+                    <button
+                        onClick={() => navigate('/siif')}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20"
+                    >
+                        Return to Dashboard
+                        <TbChevronRight size={18} />
+                    </button>
+                </div>
             </div>
         );
     }

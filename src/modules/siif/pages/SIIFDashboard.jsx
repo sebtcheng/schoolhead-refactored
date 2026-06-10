@@ -313,91 +313,103 @@ const SIIFDashboard = ({ user, token }) => {
                         })}
                     </div>
 
-                    {/* Web-Only Card Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 print:hidden">
-                        {(submission.interventions || []).map((intId, idx) => {
-                            const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
-                            const intData = submission.interventionData?.[intId] || {};
-                            const learners = Object.values(intData.beneficiaryCounts || {}).reduce((s, v) => s + (parseInt(v) || 0), 0);
-                            const budget = submission.budgetEstimates?.[intId] || 0;
-
+                    {/* Master Card Container (Replacing Web-Only Card Grid & Grand Total Bar) */}
+                    <div className="print:hidden">
+                        {(() => {
+                            const total_allocation = parseFloat(allocation.allocation_amount) || 0;
+                            const alloc_pct = total_allocation > 0 ? (totalBudgetEstimate / total_allocation) * 100 : 0;
+                            const isOverBudget = alloc_pct > 100;
+                            
                             return (
                                 <motion.div
-                                    key={intId}
                                     initial={{ opacity: 0, y: 15 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.05 }}
-                                    onClick={() => setSelectedModalIntervention(intId)}
-                                    className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md cursor-pointer active:scale-[0.97] transition-all flex flex-col justify-between"
+                                    className="bg-white rounded-[2.5rem] p-6 md:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden flex flex-col md:flex-row gap-8"
                                 >
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-full blur-2xl -mr-12 -mt-12 opacity-50 group-hover:bg-siif-blue/5 transition-colors" />
-
-                                    <div className="flex items-center gap-3 mb-4 relative z-10">
-                                        <div className="w-10 h-10 rounded-xl bg-slate-50 text-siif-blue flex items-center justify-center shrink-0 border border-slate-100 shadow-inner group-hover:bg-siif-blue group-hover:text-white transition-all">
-                                            {INTERVENTION_ICONS[intId] || <TbChecklist size={20} />}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <h5 className="text-[10px] font-black text-slate-800 uppercase tracking-tight truncate leading-none mb-1">{label}</h5>
-                                            <span className="text-[8px] font-black bg-blue-50 text-siif-blue px-1.5 py-0.5 rounded uppercase tracking-wider">Plan #{idx + 1}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1.5 border-t border-slate-50 pt-3 relative z-10">
-                                        <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase">
-                                            <span>Learners:</span>
-                                            <span className="font-black text-slate-700">{learners.toLocaleString()}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase">
-                                            <span>Budget:</span>
-                                            <span className="font-black text-emerald-600">₱{(parseFloat(budget) || 0).toLocaleString()}</span>
+                                    {/* Percentage Badge */}
+                                    <div className="absolute top-6 right-6 md:top-8 md:right-8 z-20 text-right">
+                                        <div className={`inline-flex flex-col items-end`}>
+                                            <span className={`text-2xl md:text-3xl font-black leading-none ${isOverBudget ? 'text-rose-500' : 'text-siif-blue'}`}>
+                                                {alloc_pct.toFixed(1)}%
+                                            </span>
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                                of Total Allocation
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div className="mt-3.5 text-center relative z-10 pt-1 print:hidden">
-                                        <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest group-hover:underline">View Details →</span>
+                                    {/* Left Sub-card: Summary Metrics */}
+                                    <div className="flex-1 border-b md:border-b-0 md:border-r border-slate-100 pb-6 md:pb-0 md:pr-8 flex flex-col justify-center relative z-10 pt-16 md:pt-0">
+                                        <div className="mb-6">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-siif-blue flex items-center justify-center shrink-0 border border-blue-100/50">
+                                                    <TbUsers size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Total Learners</p>
+                                                    <h3 className="text-2xl font-black text-slate-900 leading-none">{totalBeneficiaries.toLocaleString()}</h3>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50">
+                                                    <TbWallet size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Combined Budget</p>
+                                                    <h3 className="text-2xl font-black text-emerald-600 leading-none">{formatCurrency(totalBudgetEstimate)}</h3>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-8 flex gap-3">
+                                            <button
+                                                onClick={() => navigate('/siif/forms')}
+                                                className="flex-1 py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-slate-900/20 transition-all active:scale-[0.98]"
+                                            >
+                                                Modify Hub
+                                            </button>
+                                            <button
+                                                onClick={() => window.print()}
+                                                className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center"
+                                                title="Print Details"
+                                            >
+                                                <TbPrinter size={18} />
+                                            </button>
+                                        </div>
                                     </div>
 
+                                    {/* Right Sub-card: Intervention Types List */}
+                                    <div className="flex-1 relative z-10 flex flex-col justify-center">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Planned Interventions</p>
+                                        <div className="flex flex-wrap gap-2.5">
+                                            {(submission.interventions || []).length === 0 && (
+                                                <p className="text-xs font-bold text-slate-400 italic">No interventions planned.</p>
+                                            )}
+                                            {(submission.interventions || []).map((intId, idx) => {
+                                                const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
+                                                return (
+                                                    <button
+                                                        key={intId}
+                                                        onClick={() => setSelectedModalIntervention(intId)}
+                                                        className="px-4 py-3 bg-slate-50 hover:bg-siif-blue hover:text-white border border-slate-200 hover:border-siif-blue text-slate-700 rounded-2xl text-xs font-black transition-all active:scale-[0.97] flex items-center gap-2 group shadow-sm hover:shadow-md"
+                                                    >
+                                                        <span className="w-2 h-2 rounded-full bg-slate-300 group-hover:bg-white transition-colors" />
+                                                        {label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Background Decor */}
+                                    <div className="absolute bottom-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -mr-20 -mb-20 pointer-events-none" />
                                 </motion.div>
                             );
-                        })}
+                        })()}
                     </div>
-
-                    {/* Grand Total Bar */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="mt-6 bg-slate-900 rounded-[2.5rem] p-6 flex flex-col gap-4 shadow-xl relative overflow-hidden print:bg-white print:border-t-4 print:border-slate-800 print:shadow-none print:rounded-none print:p-2 print:mt-10"
-                    >
-                        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,rgba(14,131,189,0.1),transparent)] pointer-events-none print:hidden" />
-
-                        <div className="flex justify-between items-center relative z-10 border-b border-white/10 pb-4 print:border-0">
-                            <div>
-                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Grand Total Learners</p>
-                                <p className="text-xl font-black text-white leading-none print:text-slate-900">{totalBeneficiaries.toLocaleString()} <span className="text-[10px] text-blue-300 font-bold uppercase tracking-wider italic print:text-slate-600">Learners</span></p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Cumulative Budget</p>
-                                <p className="text-xl font-black text-siif-yellow leading-none print:text-slate-900">{formatCurrency(totalBudgetEstimate)}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 relative z-10 print:hidden">
-                            <button
-                                onClick={() => navigate('/siif/forms')}
-                                className="flex-1 py-4 bg-white hover:bg-slate-50 text-slate-900 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
-                            >
-                                Modify Planning Hub
-                            </button>
-                            <button
-                                onClick={() => window.print()}
-                                className="px-5 py-4 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                                title="Print Intervention Details"
-                            >
-                                <TbPrinter size={18} />
-                                <span className="hidden sm:inline">Print Details</span>
-                            </button>
-                        </div>
-                    </motion.div>
                 </div>
             )}
 
@@ -422,7 +434,7 @@ const SIIFDashboard = ({ user, token }) => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-5"
+                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-5 pb-28"
                         >
                             <motion.div
                                 initial={{ scale: 0.95, y: 20 }}

@@ -1,10 +1,13 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { TbUser, TbBell, TbLock, TbLogout, TbHelp, TbLayoutDashboard } from 'react-icons/tb';
 
 const DEPED_BLUE = '#0038A8';
 
 const SIIFSettings = ({ user }) => {
+    const navigate = useNavigate();
+
     return (
         <div className="min-h-screen bg-slate-50 pb-32">
             <div className="bg-[#0038A8] pt-12 pb-20 px-8 rounded-b-[3rem] shadow-xl relative overflow-hidden">
@@ -45,11 +48,11 @@ const SIIFSettings = ({ user }) => {
 
                 <button 
                     onClick={() => {
-                        window.location.href = '/insighted-other-services/dashboard';
+                        navigate('/nodes-dashboard');
                     }}
                     className="w-full p-5 bg-blue-50 text-deped-blue rounded-3xl font-bold flex items-center justify-center gap-2 border border-blue-100"
                 >
-                    <TbLayoutDashboard size={18} /> Back to Portal Hub
+                    <TbLayoutDashboard size={18} /> Back to Nexus
                 </button>
             </div>
         </div>
