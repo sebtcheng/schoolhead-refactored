@@ -15,6 +15,8 @@ import BottomNav from './components/BottomNav';
 import { ThemeProvider } from './context/ThemeContext';
 import { ServiceWorkerProvider } from './context/ServiceWorkerContext';
 
+import './styles/siif.css';
+
 const SIIFModuleContent = () => {
     const { user, token } = useAuth();
 
@@ -24,15 +26,19 @@ const SIIFModuleContent = () => {
     }
 
     return (
-        <div className="siif-module-root min-h-screen pb-20">
-            <Routes>
-                <Route path="/" element={<SIIFDashboard user={user} token={token} />} />
-                <Route path="/forms"       element={<SIIFFormsHub user={user} token={token} />} />
-                <Route path="/utilization" element={<SIIFUtilization user={user} token={token} />} />
-                <Route path="/settings"    element={<SIIFSettings user={user} token={token} />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <BottomNav />
+        <div className="siif-module-root">
+            <div className="siif-app-layout">
+                <BottomNav />
+                <div className="siif-main-area">
+                    <Routes>
+                        <Route path="/" element={<SIIFDashboard user={user} token={token} />} />
+                        <Route path="/forms"       element={<SIIFFormsHub user={user} token={token} />} />
+                        <Route path="/utilization" element={<SIIFUtilization user={user} token={token} />} />
+                        <Route path="/settings"    element={<SIIFSettings user={user} token={token} />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                </div>
+            </div>
         </div>
     );
 };

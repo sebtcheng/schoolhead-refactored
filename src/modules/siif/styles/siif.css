@@ -1,0 +1,313 @@
+@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=Quicksand:wght@300..700&display=swap');
+
+.siif-module-root {
+  --navy: #08315F;
+  --blue: #075985;
+  --blue-600: #0284C7;
+  --blue-400: #7DD3FC;
+  --blue-100: #E0F2FE;
+  --blue-50: #F0F9FF;
+  --gold: #FBBF24;
+  --amber: #D97706;
+  --red: #B91C1C;
+  --bg: #F0F9FF;
+  --card: #FFFFFF;
+  --text: #0F172A;
+  --muted: #64748B;
+  --line: #BAE6FD;
+  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius: 22px;
+
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--font-body);
+  background-color: var(--blue-50);
+  background-attachment: fixed;
+  background-image:
+    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.30) 0 34%, transparent 78%),
+    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.42) 0 36%, transparent 80%),
+    radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.30) 0 34%, transparent 78%),
+    radial-gradient(45% 52.5% at 8% 92%, rgba(217, 119, 6, 0.26) 0 28%, rgba(251, 191, 36, 0.18) 42%, transparent 80%);
+}
+
+.siif-app-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.siif-sidebar {
+  position: relative;
+  color: white;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--blue) 72%, var(--navy) 28%));
+  border-right: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow: 18px 0 42px rgba(11, 31, 77, 0.16);
+  overflow: hidden;
+}
+
+.siif-brand {
+  background: rgba(255, 255, 255, 0.90);
+  border-radius: 18px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.siif-brand-text {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.siif-brand-insight {
+  color: var(--blue);
+}
+
+.siif-brand-ed {
+  color: var(--red);
+}
+
+.siif-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.siif-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.siif-nav a:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.siif-nav a.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 -3px 0 var(--gold),
+    0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
+}
+
+.siif-topbar {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  min-height: 130px;
+  padding: 28px 44px;
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  background: linear-gradient(135deg, var(--blue-50), white);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
+  overflow: hidden;
+  margin-bottom: 24px;
+  border-radius: 0 0 22px 22px; /* Smooth top corners if inside layout */
+}
+
+/* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
+.siif-main-area {
+  padding: 0 24px 24px 24px;
+  overflow-y: auto;
+}
+
+.siif-topbar-flush {
+  margin: 0 -24px 24px -24px;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.siif-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 76%;
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%),
+    linear-gradient(135deg, var(--navy), var(--blue));
+  clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
+  z-index: 0;
+}
+
+.siif-topbar::after {
+  content: "";
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--gold) 8%, transparent),
+    0 0 28px color-mix(in srgb, var(--gold) 24%, transparent);
+  z-index: 0;
+}
+
+.siif-topbar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.siif-topbar h1 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  line-height: 1.12;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: var(--blue);
+  -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
+  paint-order: stroke fill;
+  text-shadow:
+    -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+    1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+    -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+    1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+    0 4px 10px rgba(11, 31, 77, 0.34),
+    0 12px 28px rgba(15, 23, 42, 0.26);
+}
+
+.siif-topbar .eyebrow {
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.siif-card {
+  background: var(--card);
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  border-radius: var(--radius);
+  box-shadow: none;
+  font-family: var(--font-body);
+}
+
+@media (max-width: 1000px) {
+  .siif-module-root {
+    padding-bottom: 82px;
+    background-attachment: scroll;
+  }
+
+  .siif-app-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .siif-main-area {
+    padding: 0 10px 10px;
+  }
+
+  .siif-topbar-flush {
+    margin: 0 -10px 10px -10px;
+  }
+
+  .siif-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 40;
+    display: block;
+    padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.46);
+    background:
+      radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 48%),
+      radial-gradient(ellipse at 84% 0%, color-mix(in srgb, var(--red) 10%, transparent), transparent 46%),
+      linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
+    box-shadow:
+      0 -18px 44px rgba(11, 31, 77, 0.26),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+
+  .siif-brand {
+    display: none;
+  }
+
+  .siif-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    flex-direction: row;
+  }
+
+  .siif-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 48px;
+    padding: 6px 2px;
+    border-radius: 16px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 9px;
+    line-height: 1;
+    text-align: center;
+    border: 1px solid transparent;
+    background: transparent;
+    text-decoration: none;
+  }
+
+  .siif-nav a.active {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
+    color: white;
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow:
+      inset 0 -3px 0 var(--gold),
+      0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
+  }
+
+  .siif-topbar {
+    min-height: 98px;
+    padding: 15px 23px;
+  }
+  
+  .siif-topbar h1 {
+    font-size: clamp(23px, 8.75vw, 29px);
+  }
+
+  .siif-card {
+    border-width: 2px;
+    border-radius: 14px;
+  }
+}
+
+.siif-mobile-fab { display: none !important; }
+@media (max-width: 1000px) { .siif-mobile-fab { display: flex !important; } }
