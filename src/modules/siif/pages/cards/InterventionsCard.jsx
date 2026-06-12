@@ -71,21 +71,21 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                         <button
                             onClick={() => toggle(opt.id)}
                             disabled={readOnly}
-                            className={`w-full p-4 sm:p-5 rounded-3xl border-2 text-left flex flex-col sm:flex-row gap-3 sm:gap-4 transition-all duration-300 ${!readOnly ? 'active:scale-[0.98]' : ''} ${
+                            className={`siif-card w-full p-4 sm:p-5 rounded-3xl border-2 text-left flex flex-col sm:flex-row gap-3 sm:gap-4 transition-all duration-300 ${!readOnly ? 'active:scale-[0.98]' : ''} ${
                                 active
-                                    ? 'border-deped-blue bg-blue-50/60 shadow-md shadow-blue-100'
-                                    : 'border-slate-100 bg-white hover:border-slate-200'
+                                    ? 'border-siif-blue bg-blue-50/40 shadow-lg shadow-blue-100/50'
+                                    : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
                             } ${readOnly ? 'cursor-default' : ''}`}
                         >
                             <div className="flex items-center gap-3 sm:gap-4 w-full">
-                                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all ${active ? 'bg-deped-blue text-white' : 'bg-slate-50 text-slate-400'}`}>
+                                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all ${active ? 'bg-siif-blue text-white shadow-inner' : 'bg-slate-50 text-slate-400'}`}>
                                     {INTERVENTION_ICONS[opt.id]}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className={`font-black text-sm sm:text-[15px] uppercase tracking-tight leading-snug truncate ${active ? 'text-deped-blue' : 'text-slate-700'}`}>{opt.label}</p>
+                                    <p className={`font-black text-sm sm:text-[15px] uppercase tracking-tight leading-snug truncate ${active ? 'text-siif-blue' : 'text-slate-700'}`}>{opt.label}</p>
                                     <p className="text-[11px] sm:text-[12px] text-black font-semibold leading-relaxed mt-0.5 sm:mt-1 hidden sm:block">{opt.desc}</p>
                                 </div>
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${active ? 'border-deped-blue bg-deped-blue' : 'border-slate-200 bg-white'}`}>
+                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${active ? 'border-siif-blue bg-siif-blue shadow-md' : 'border-slate-200 bg-white'}`}>
                                     {active && <TbCheck size={13} className="text-white" />}
                                 </div>
                             </div>
@@ -143,7 +143,7 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         onClick={goToSummary}
-                        className="w-full py-5 bg-deped-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-transform flex items-center justify-center gap-3"
+                        className="w-full py-5 bg-siif-blue hover:bg-[var(--blue)] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
                     >
                         {readOnly ? 'View Summary' : 'Review Summary'} <TbChevronRight size={18} />
                     </motion.button>
@@ -243,35 +243,34 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
     return (
         <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
             {/* Header */}
-            <div className="bg-deped-blue text-white pt-14 pb-8 px-6 rounded-b-[3rem] shadow-xl relative overflow-hidden shrink-0">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
-                <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+            <div className="siif-topbar !m-0 !border-x-0 !border-t-0 !rounded-b-[2rem] flex-col items-stretch !items-start !justify-start shrink-0 z-20 print:hidden relative">
+                <div className="flex items-center justify-between w-full mb-4">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={screen === 'summary' ? () => setScreen('form') : onClose}
-                            className="p-2.5 bg-white/10 rounded-2xl border border-white/20 text-white"
+                            className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600"
                         >
                             {screen === 'summary' ? <TbArrowLeft size={20} /> : <TbChevronLeft size={20} />}
                         </button>
                         <div>
-                            <p className="text-[9px] font-black text-blue-200 uppercase tracking-[0.3em]">
+                            <p className="eyebrow">
                                 Step 1 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Select'}
                             </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight">Interventions</h1>
+                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">Interventions</h1>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2.5 bg-white/10 hover:bg-white/20 rounded-2xl transition-all border border-white/20 text-white shrink-0"
+                        className="p-3 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 shrink-0"
                         title="Close"
                     >
                         <TbX size={20} />
                     </button>
                 </div>
                 {/* Step tabs */}
-                <div className="relative z-10 flex gap-2 mt-4">
-                    {['form', 'summary'].map((s, i) => (
-                        <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${screen === s || (s === 'form') ? 'bg-white' : 'bg-white/30'} ${screen === 'summary' && s === 'summary' ? 'bg-white' : screen === 'form' && s === 'summary' ? 'bg-white/30' : ''}`} />
+                <div className="flex gap-2 w-full mt-2">
+                    {['form', 'summary'].map((s) => (
+                        <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${screen === s || s === 'form' ? 'bg-siif-blue' : 'bg-slate-200'} ${screen === 'summary' && s === 'summary' ? 'bg-siif-blue' : screen === 'form' && s === 'summary' ? 'bg-slate-200' : ''}`} />
                     ))}
                 </div>
             </div>
