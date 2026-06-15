@@ -2,7 +2,6 @@
   "name": "insighted",
   "private": true,
   "version": "1.0.26",
-  "version": "1.0.26",
   "type": "module",
   "scripts": {
     "dev": "vite",
