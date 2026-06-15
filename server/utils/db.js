@@ -39,14 +39,14 @@ console.log(`🔌 Database Connection: ${isVmProxy ? 'Remote VM (Azure Proxy)' :
 // Main pool configuration
 export const pool = new Pool({
   connectionString: dbUrl,
-  ssl: (isLoopback || isVmProxy) ? false : { rejectUnauthorized: false }, 
-  max: isLocal ? 20 : 12, 
-  min: isLocal ? 1 : 5,   
-  idleTimeoutMillis: 60000, 
-  connectionTimeoutMillis: 10000, 
-  maxUses: 1500, 
-  keepAlive: true, 
-  allowExitOnIdle: true, 
+  ssl: (isLoopback || isVmProxy) ? false : { rejectUnauthorized: false },
+  max: isLocal ? 20 : 12,
+  min: isLocal ? 1 : 5,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
   application_name: isLocal ? 'InsightEd_Local_Dev' : 'InsightEd_API_Cluster'
 });
 
@@ -65,7 +65,7 @@ if (process.env.NEW_DATABASE_URL) {
   poolNew = new Pool({
     connectionString: process.env.NEW_DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 2, 
+    max: 2,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     application_name: 'InsightEd_API_Secondary'
@@ -113,7 +113,7 @@ setInterval(() => {
 // --- [Hawkeye Protocol] IN-MEMORY TTL CACHE ---
 const _cache = new Map();
 const _inflight = new Map();
-const CACHE_TTL_MS = 90_000; 
+const CACHE_TTL_MS = 90_000;
 
 function cacheGet(key) {
   const entry = _cache.get(key);
@@ -175,14 +175,14 @@ export async function updateSchoolTotalCompletion(iern) {
     for (const idx of dbCols) {
       const val = parseFloat(row[`unit${idx}`]) || 0;
       const isDone = row[`unit${idx}_completed`] === true || val >= 1;
-      
+
       let unitProgress = 0;
       if (isDone) {
         unitProgress = 1;
       } else if (val > 0) {
-        unitProgress = val; 
+        unitProgress = val;
       }
-      
+
       completedCount += unitProgress;
       boolValues.push(isDone);
     }
