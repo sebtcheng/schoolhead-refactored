@@ -74,6 +74,9 @@ router.get('/api/locations/provinces', async (req, res) => {
 router.get('/api/locations/municipalities-by-province', async (req, res) => {
   try {
     const { province } = req.query;
+    if (!province || province === 'BLANK PROVINCE' || province === 'undefined') {
+      return res.json([]);
+    }
     const result = await safeQuery('SELECT DISTINCT "Municipality" as municipality FROM "schools_IERN" WHERE "Province" = $1 ORDER BY "Municipality"', [province]);
     res.json(result.rows.map(r => r.municipality));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -82,6 +85,9 @@ router.get('/api/locations/municipalities-by-province', async (req, res) => {
 router.get('/api/locations/barangays', async (req, res) => {
   try {
     const { municipality } = req.query;
+    if (!municipality || municipality === 'BLANK MUNICIPALITY' || municipality === 'undefined') {
+      return res.json([]);
+    }
     const result = await safeQuery('SELECT DISTINCT "Barangay" as barangay FROM "schools_IERN" WHERE "Municipality" = $1 AND "Barangay" IS NOT NULL ORDER BY "Barangay"', [municipality]);
     res.json(result.rows.map(r => r.barangay));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -90,14 +96,21 @@ router.get('/api/locations/barangays', async (req, res) => {
 router.get('/api/locations/divisions', async (req, res) => {
   try {
     const { region } = req.query;
+    if (!region || region === 'BLANK REGION' || region === 'undefined') {
+      return res.json([]);
+    }
     const result = await safeQuery('SELECT DISTINCT "Division" as division FROM "schools_IERN" WHERE "Region" = $1 ORDER BY "Division"', [region]);
     res.json(result.rows.map(r => r.division));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
 router.get('/api/locations/legislative-districts', async (req, res) => {
   try {
     const { province } = req.query;
+    if (!province || province === 'BLANK PROVINCE' || province === 'undefined') {
+      return res.json([]);
+    }
     const result = await safeQuery('SELECT DISTINCT "Legislative_District" as leg_district FROM "schools_IERN" WHERE "Province" = $1 AND "Legislative_District" IS NOT NULL ORDER BY "Legislative_District"', [province]);
     res.json(result.rows.map(r => r.leg_district));
   } catch (err) { res.status(500).json({ error: err.message }); }
