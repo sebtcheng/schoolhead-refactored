@@ -31,7 +31,7 @@ if (isLocalMachine) {
 }
 
 const isLoopback = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
-const isVmProxy = dbUrl.includes('20.24.58.49') || dbUrl.includes('127.0.0.1');
+const isVmProxy = dbUrl.includes('20.24.58.49') || dbUrl.includes('stride.deped.gov.ph') || dbUrl.includes(':6432') || dbUrl.includes('127.0.0.1');
 const isLocal = isLoopback && process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';
 
 console.log(`🔌 Database Connection: ${isVmProxy ? 'Remote VM (Azure Proxy)' : (isLoopback ? 'Local Loopback' : 'Remote')} (${dbUrl.replace(/:[^:@]*@/, ':****@')}) [ENV: ${process.env.NODE_ENV || 'dev'}]`);
