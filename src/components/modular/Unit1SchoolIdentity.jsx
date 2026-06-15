@@ -15,8 +15,8 @@ import { api } from "../../lib/api";
 
 const TOTAL_STEPS = 7;
 
-const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-gray-100 rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all shadow-sm placeholder:text-gray-300";
-const chunkySelect = "w-full p-4 mt-2 bg-white border-2 border-gray-100 rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition-all shadow-sm appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%236B7280%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:24px] bg-[right_1rem_center] bg-no-repeat disabled:opacity-50 disabled:bg-gray-50";
+const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm placeholder:text-gray-300 font-body";
+const chunkySelect = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%23075985%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:24px] bg-[right_1rem_center] bg-no-repeat disabled:opacity-50 disabled:bg-gray-50 font-body";
 
 // ── Skeleton Loaders ─────────────────────────────────────────────────────────
 const Pulse = ({ className }) => <div className={`animate-pulse bg-slate-200 rounded-3xl ${className}`} />;
@@ -287,7 +287,11 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         merged.ownership_document_multiple = Array.isArray(d.ownership_document_multiple) ? d.ownership_document_multiple : JSON.parse(d.ownership_document_multiple);
                     } catch { merged.ownership_document_multiple = []; }
                 }
-                if (d.annex_details) merged.annex_details = d.annex_details;
+                if (d.annex_details) {
+                    try {
+                        merged.annex_details = Array.isArray(d.annex_details) ? d.annex_details : JSON.parse(d.annex_details);
+                    } catch { merged.annex_details = []; }
+                }
 
                 if (d.head_date_hired) {
                     const hiredVal = d.head_date_hired.split('T')[0];
@@ -370,6 +374,17 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             if (!merged.head_last_name && sessionLastName) {
                 console.log("Auto-filling School Head Last Name:", sessionLastName);
                 merged.head_last_name = sessionLastName;
+            }
+
+            if (merged.annex_details && typeof merged.annex_details === 'string') {
+                try {
+                    merged.annex_details = JSON.parse(merged.annex_details);
+                } catch {
+                    merged.annex_details = [];
+                }
+            }
+            if (!Array.isArray(merged.annex_details)) {
+                merged.annex_details = [];
             }
 
             setFormData(merged);
@@ -1190,7 +1205,65 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     if (isModeLoading) return <SkeletonWizard />;
 
     return (
-        <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900 overflow-hidden">
+        <div className="min-h-screen unit1-page flex flex-col font-sans text-gray-900 overflow-hidden">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\] {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+                `
+            }} />
             
             <header className="px-6 py-5 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -2390,27 +2463,20 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
 
                                         {/* Certification Checkbox */}
-                                        <motion.div 
-                                            initial={{ opacity: 0, y: 20 }} 
-                                            animate={{ opacity: 1, y: 0 }}
+                                        <div 
                                             onClick={() => setIsCertified(!isCertified)}
-                                            className={`p-6 rounded-[3rem] border-2 mt-8 transition-all cursor-pointer flex items-start gap-4 ${
-                                                isCertified 
-                                                    ? 'bg-emerald-50 border-emerald-200' 
-                                                    : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'
-                                            }`}
+                                            className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                                         >
-                                            <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${
-                                                isCertified 
-                                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                                    : 'border-slate-300 bg-white'
-                                            }`}>
-                                                {isCertified && <FiCheck className="w-4 h-4" />}
+                                            <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                                {isCertified && <FiCheck className="w-5 h-5" />}
                                             </div>
-                                            <p className={`text-[11px] font-bold leading-relaxed tracking-tight ${isCertified ? 'text-emerald-900' : 'text-slate-500 uppercase tracking-widest'}`}>
-                                                I hereby certify that all data and information provided in this module/unit is true and correct
-                                            </p>
-                                        </motion.div>
+                                            <div>
+                                                <p className={`text-sm font-black leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                                    I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
+                                            </div>
+                                        </div>
 
 
                                     </div>
@@ -2426,30 +2492,39 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 <div className="fixed bottom-0 left-0 w-full p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50">
                     <div className="max-w-md mx-auto flex gap-3">
                         {currentStep === 0 ? (
-                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-500 hover:text-gray-900 active:scale-95 transition-all">
+                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none">
                                 <FiSave className="w-6 h-6" />
                                 <span className="text-sm font-bold">Save Draft</span>
                             </button>
                         ) : (
                             <>
-                                <button onClick={handleBack} className="w-16 h-16 rounded-3xl bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-900 active:scale-95 transition-all">
+                                <button onClick={handleBack} className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0">
                                     <FiArrowLeft className="w-6 h-6" />
                                 </button>
-                                <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all">
+                                <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0">
                                     <FiSave className="w-6 h-6" />
                                     <span className="text-sm font-bold">Save Draft</span>
                                 </button>
                             </>
                         )}
-                        <button onClick={handleNext} disabled={loading || (!hookIsSuperUser && !isCurrentStepValid()) || (currentStep === TOTAL_STEPS - 1 && !isCertified)}
-                            className={`flex-1 h-16 rounded-[2rem] text-white font-black text-lg transition-all shadow-xl active:scale-98 disabled:opacity-30 disabled:scale-100
-                                ${(currentStep === TOTAL_STEPS - 1 && !isReadOnly) ? "bg-emerald-500 shadow-emerald-200" : "bg-blue-600 shadow-blue-200"}`}>
+                        <button 
+                            onClick={handleNext} 
+                            disabled={loading || (!hookIsSuperUser && !isCurrentStepValid()) || (currentStep === TOTAL_STEPS - 1 && !isCertified)}
+                            className={`flex-1 h-16 rounded-3xl text-white font-black text-lg active:scale-95 transition-all disabled:opacity-40 border-b-[6px] active:border-b-0 active:translate-y-[6px] shadow-lg flex justify-center items-center gap-2
+                                ${(currentStep === TOTAL_STEPS - 1 && !isReadOnly) ? "bg-emerald-600 border-emerald-800 shadow-emerald-100" : "bg-indigo-600 border-indigo-800 shadow-indigo-100"}`}
+                        >
                             {loading ? (
                                 <div className="flex items-center justify-center gap-2">
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     <span>Syncing...</span>
                                 </div>
-                            ) : (currentStep === TOTAL_STEPS - 1 && !isReadOnly) ? "💾 Save Profile" : "Continue"}
+                            ) : (currentStep === TOTAL_STEPS - 1 && !isReadOnly) ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                </span>
+                            ) : (
+                                <span>Next Step &gt;</span>
+                            )}
                         </button>
                     </div>
                 </div>

@@ -13,44 +13,20 @@ import Register from './Register';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Dashboards
-import SchoolHeadDashboard from './modules/SchoolHeadDashboard';
 import AdminDashboard from './modules/AdminDashboard';
-import SchoolManagement from './modules/SchoolManagement';
 import UserManagement from './modules/UserManagement';
 import LocationManagement from './modules/LocationManagement';
-import DummyDashboard from './modules/DummyDashboard';
-import SchoolJurisdictionList from './modules/SchoolJurisdictionList';
-import SchoolAuditView from './modules/SchoolAuditView';
 import UserProfile from './modules/UserProfile';
 import Activity from './modules/Activity';
 import MyActivityDashboard from './modules/MyActivityDashboard';
 import Outbox from './modules/Outbox';
-import SuperAdminDashboard from './modules/SuperAdminDashboard';
-import SuperUserSelector from './modules/SuperUserSelector';
 import SyncCenter from './modules/SyncCenter';
 import ProtectedRoute from './components/ProtectedRoute';
 import PasscodeSetupPrompt from './components/PasscodeSetupPrompt';
 // import ChatModule from './modules/ChatModule'; // Chatbot Module Removed
 import { ROLE_GROUPS, NEXUS_AUTHORIZED_EMAILS } from './config/roleGroups';
-import { EFDFilterProvider } from './context/EFDFilterContext';
-
-
 
 // Forms
-import SchoolForms from './modules/SchoolForms';
-
-// Form Imports (School Head)
-import SchoolProfile from './forms/SchoolProfile';
-import SchoolInformation from './forms/SchoolInformation';
-import Enrolement from './forms/Enrolment';
-import OrganizedClasses from './forms/OrganizedClasses';
-import ShiftingModalities from './forms/ShiftingModalities';
-import SchoolResources from './forms/SchoolResources';
-import PhysicalFacilities from './forms/PhysicalFacilities';
-import LearnerStatistics from './forms/LearnerStatistics';
-import NewProjects from './modules/NewProjects';
-import DetailedProjInfo from './modules/DetailedProjInfo';
-import ProjectValidation from './modules/ProjectValidation';
 import Leaderboard from './modules/Leaderboard';
 
 // School Head Modular Flow
@@ -67,9 +43,6 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 
 // Nexus & Drafts
 import NodesDashboard from './modules/NexusDashboard';
-import SDONexusDashboard from './modules/SDONexusDashboard';
-// ESF7 removed
-import NSPPDraft from './forms/NSPPDraft';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
 import SIIFModule from './modules/siif/SIIFModule';
@@ -116,7 +89,7 @@ const AnimatedRoutes = () => {
 
     const checkMaintenance = async () => {
       try {
-        const res = await fetch(api(`/api/settings/maintenance_mode`), { signal: controller.signal });
+        const res = await fetch('api/settings/maintenance_mode', { signal: controller.signal });
         const text = await res.text();
         const data = text ? JSON.parse(text) : {};
         setMaintenanceMode(data.value === 'true');
@@ -179,27 +152,9 @@ const AnimatedRoutes = () => {
         }
       />
 
-      {/* Super User Selector (Protected) */}
-      <Route
-        path="/super-user-selector"
-        element={
-          <ProtectedRoute allowedRoles={['Super User']}>
-            <SuperUserSelector />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route path="/schoolhead-dashboard" element={<SchoolHeadDashboard />} />
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
-      <Route path="/school-management" element={<SchoolManagement />} />
       <Route path="/user-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><UserManagement /></ProtectedRoute>} />
       <Route path="/location-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><LocationManagement /></ProtectedRoute>} />
-      <Route path="/jurisdiction-schools" element={<SchoolJurisdictionList />} />
-      <Route path="/school-audit" element={<SchoolAuditView />} />
-      {/* ESF7 Review removed */}
-      <Route path="/division-nexus" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User', 'Super Admin']}><SDONexusDashboard /></ProtectedRoute>} />
-
-      <Route path="/dummy-forms" element={<DummyDashboard />} />
 
       {/* School Head Modular Flow */}
       <Route
@@ -227,14 +182,6 @@ const AnimatedRoutes = () => {
         }
       />
       {/* ESF7 Draft removed */}
-      <Route
-        path="/draft/nspp"
-        element={
-          <ProtectedRoute allowedRoles={['School Head']}>
-            <NSPPDraft />
-          </ProtectedRoute>
-        }
-      />
       <Route
         path="/modular/unit-1"
         element={
@@ -309,32 +256,25 @@ const AnimatedRoutes = () => {
       />
       {/* <Route path="/chat" element={<ChatModule />} /> */}
 
-      {/* Menus */}
-      <Route path="/school-forms" element={<SchoolForms />} />
-
       {/* Utilities */}
       <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
       <Route path="/activities" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
       <Route path="/outbox" element={<ProtectedRoute><Outbox /></ProtectedRoute>} />
       <Route path="/sync-center" element={<ProtectedRoute allowedRoles={['School Head']}><SyncCenter /></ProtectedRoute>} />
-      
+
       {/* SIIF Module */}
       <Route path="/siif/*" element={<ProtectedRoute allowedRoles={['School Head']}><SIIFModule /></ProtectedRoute>} />
 
-      {/* School Head Forms */}
-      <Route path="/school-profile" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolProfile /></ProtectedRoute>} />
-      <Route path="/school-information" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolInformation /></ProtectedRoute>} />
-      <Route path="/enrolment" element={<ProtectedRoute allowedRoles={['School Head']}><Enrolement /></ProtectedRoute>} />
-      <Route path="/organized-classes" element={<ProtectedRoute allowedRoles={['School Head']}><OrganizedClasses /></ProtectedRoute>} />
-      <Route path="/shifting-modalities" element={<ProtectedRoute allowedRoles={['School Head']}><ShiftingModalities /></ProtectedRoute>} />
-      <Route path="/school-resources" element={<ProtectedRoute allowedRoles={['School Head']}><SchoolResources /></ProtectedRoute>} />
-      <Route path="/physical-facilities" element={<ProtectedRoute allowedRoles={['School Head']}><PhysicalFacilities /></ProtectedRoute>} />
-      <Route path="/learner-statistics" element={<ProtectedRoute allowedRoles={['School Head']}><LearnerStatistics /></ProtectedRoute>} />
-      <Route path="/project-validation" element={<ProtectedRoute allowedRoles={['School Head']}><ProjectValidation /></ProtectedRoute>} />
+      {/* School Head Forms (Redirected to Modular Units) */}
+      <Route path="/school-profile" element={<Navigate to="/modular/unit-1" replace />} />
+      <Route path="/school-information" element={<Navigate to="/modular/unit-1" replace />} />
+      <Route path="/enrolment" element={<Navigate to="/modular/unit-2" replace />} />
+      <Route path="/organized-classes" element={<Navigate to="/modular/unit-3" replace />} />
+      <Route path="/learner-statistics" element={<Navigate to="/modular/unit-4" replace />} />
+      <Route path="/shifting-modalities" element={<Navigate to="/modular/unit-5" replace />} />
+      <Route path="/school-resources" element={<Navigate to="/modular/unit-6" replace />} />
+      <Route path="/physical-facilities" element={<Navigate to="/modular/unit-7" replace />} />
       <Route path="/leaderboard" element={<ProtectedRoute allowedRoles={['School Head']}><Leaderboard /></ProtectedRoute>} />
-
-      {/* DepEd Engineer Forms */}
-      <Route path="/project-details/:id" element={<ProtectedRoute><DetailedProjInfo /></ProtectedRoute>} />
 
       {/* Hidden Admin Login Route */}
       <Route path="/adminlogin" element={<Login />} />
@@ -350,11 +290,9 @@ import { api } from "./lib/api";
 function App() {
   return (
     <GlobalErrorBoundary>
-      <EFDFilterProvider>
-        <Router>
-          <AppContent />
-        </Router>
-      </EFDFilterProvider>
+      <Router>
+        <AppContent />
+      </Router>
     </GlobalErrorBoundary>
   );
 }

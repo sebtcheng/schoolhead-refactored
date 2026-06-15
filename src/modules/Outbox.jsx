@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOutbox, deleteFromOutbox } from '../db';
-import BottomNav from './BottomNav'; // ✅ UPDATED IMPORT
 
 const Outbox = () => {
     const navigate = useNavigate();
@@ -206,9 +205,6 @@ const Outbox = () => {
                     ))}
                 </div>
             </div>
-
-            {/* ✅ UPDATED NAVIGATION CALL */}
-            <BottomNav userRole="School Head" />
         </div>
     );
 };

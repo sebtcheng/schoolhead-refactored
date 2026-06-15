@@ -34,6 +34,7 @@ def main():
     print("\n[1/5] BUILDING frontend (base: /insighted-schoolhead/)...")
     env = os.environ.copy()
     env["VITE_BASE_PATH"] = "/insighted-schoolhead/"
+    env["NODE_OPTIONS"] = "--max-old-space-size=4096"
     try:
         subprocess.run("npm run build", shell=True, check=True, env=env)
     except subprocess.CalledProcessError:
@@ -49,7 +50,7 @@ def main():
                 tar.add(f)
                 print(f"       + {f}")
             else:
-                print(f"       ⚠  skipping (not found): {f}")
+                print(f"       [SKIP] not found: {f}")
 
     print(f"[3/5] UPLOADING archive to {REMOTE_HOST} inside {REMOTE_ROOT}...")
     try:

@@ -140,7 +140,7 @@ router.get('/api/locations/municipalities', async (req, res) => {
 router.get('/api/locations/schools', async (req, res) => {
   try {
     const { region, division, district, municipality } = req.query;
-    let query = 'SELECT "SchoolID" as school_id, "School_Name" as school_name, "Region" as region, "Division" as division, "District" as district, "Municipality" as municipality, "Province" as province, "Barangay" as barangay, "Latitude" as latitude, "Longitude" as longitude FROM "schools_IERN" WHERE "SchoolID" IS NOT NULL';
+    let query = 'SELECT "SchoolID" as school_id, "School_Name" as school_name, "Region" as region, "Division" as division, "District" as district, "Municipality" as municipality, "Province" as province, "Barangay" as barangay, "Latitude" as latitude, "Longitude" as longitude FROM "schools_IERN" WHERE "SchoolID" IS NOT NULL AND "status" = \'Active\'';
     let params = [];
     let pIdx = 1;
 

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { FiX, FiPlus, FiEdit2, FiTrash2, FiCheck, FiChevronRight, FiMapPin } from 'react-icons/fi';
 import { toProperCase } from '../utils/dataNormalization';
@@ -824,7 +823,6 @@ const LocationManagement = () => {
                     document.body
                 )}
             </div>
-            <BottomNav />
         </PageTransition>
     );
 };

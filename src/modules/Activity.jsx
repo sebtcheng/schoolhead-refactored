@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { api } from "../lib/api"; 
 
@@ -86,10 +85,6 @@ const Activity = () => {
                         )}
                     </div>
                 )}
-
-                {/* --- BOTTOM NAV BAR --- */}
-                {/* Hardcoded to "Admin" so it shows the flat layout (Home, Activity, Accounts, Settings) */}
-                <BottomNav userRole="Admin" />
             </div>
         </PageTransition>
     );

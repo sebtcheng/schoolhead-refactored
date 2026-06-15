@@ -5,6 +5,9 @@ const router = express.Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [QUEST] UNIT 7 MASTER REPAIR/INVENTORY
+// NEW TABLES: unit7_buildings_inventory, unit7_buildings_repairs,
+//             unit7_buildings_demolition, unit7_school_buildable_spaces,
+//             unit7_facilities
 // ─────────────────────────────────────────────────────────────────────────────
 
 // 7. GET /api/ph_schools/unit7/:id/master
@@ -13,7 +16,7 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
     const { id } = req.params;
 
     // Fetch Inventory grouped by building_name
-    const invRes = await safeQuery('SELECT * FROM ph_buildings_inventory WHERE school_id = $1', [id]);
+    const invRes = await safeQuery('SELECT * FROM unit7_buildings_inventory WHERE school_id = $1', [id]);
 
     const buildingsMap = {};
     invRes.rows.forEach(room => {
@@ -34,7 +37,6 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
         id: room.id,
         room_name: room.room_name,
         grade_level: room.grade_level,
-        advisory_teacher: room.advisory_teacher,
         room_length: room.room_length,
         room_width: room.room_width,
         seats: room.seats,
@@ -50,11 +52,11 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
     // Fetch Repairs
     const repairRes = await safeQuery(`
       SELECT r.*, i.less_than_7x9, i."7x9", i.above_7x9 
-      FROM ph_buildings_repairs r
+      FROM unit7_buildings_repairs r
       LEFT JOIN (
           SELECT DISTINCT ON (school_id, building_name, room_name) 
                  school_id, building_name, room_name, less_than_7x9, "7x9", above_7x9
-          FROM ph_buildings_inventory
+          FROM unit7_buildings_inventory
           ORDER BY school_id, building_name, room_name, id DESC
       ) i ON r.school_id = i.school_id 
         AND r.building_name = i.building_name 
@@ -62,17 +64,18 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
       WHERE r.school_id = $1
     `, [id]);
 
-    // Fetch Unit 7 flags
-    const schoolRes = await safeQuery('SELECT unit7_completed, unit7_has_no_building FROM ph_schools WHERE school_id = $1', [id]);
-    const school = schoolRes.rows[0] || {};
+    // Fetch unit7_facilities summary (completion status + counters)
+    const facilitiesRes = await safeQuery('SELECT * FROM unit7_facilities WHERE school_id = $1', [id]);
+    const facilities = facilitiesRes.rows[0] || null;
 
     res.json({
       success: true,
       data: {
         inventory: inventory,
         repairs: repairRes.rows,
-        isCompleted: school.unit7_completed === true,
-        has_no_building: school.unit7_has_no_building === true
+        isCompleted: facilities?.unit7_completed === true,
+        has_no_building: facilities?.unit7_has_buildable_space === false,
+        facilities: facilities
       }
     });
   } catch (err) {
@@ -81,11 +84,29 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
   }
 });
 
+// 7.1 GET /api/ph_schools/unit7/:id/facilities (READ MODE — unit7_facilities summary)
+router.get('/api/ph_schools/unit7/:id/facilities', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await safeQuery(
+      'SELECT * FROM unit7_facilities WHERE school_id = $1',
+      [id]
+    );
+    res.json({
+      success: true,
+      facilities: result.rows[0] || null
+    });
+  } catch (err) {
+    console.error(`❌ [Unit 7 Facilities Read] Error for school ${req.params.id}:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 8.5. GET /api/ph_schools/unit7/:id/spaces (UNIT 7 BUILDABLE SPACES)
 router.get('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await safeQuery('SELECT * FROM public.ph_school_buildable_spaces WHERE school_id = $1', [id]);
+    const result = await safeQuery('SELECT * FROM unit7_school_buildable_spaces WHERE school_id = $1', [id]);
     res.json({
       success: true,
       spaces: result.rows
@@ -97,21 +118,34 @@ router.get('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
 
 // 8.5.1. POST /api/ph_schools/unit7/:id/spaces
 router.post('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, iern } = req.body;
 
-    const result = await safeQuery(
-      `INSERT INTO ph_school_buildable_spaces (
+    await client.query('BEGIN');
+    const result = await client.query(
+      `INSERT INTO unit7_school_buildable_spaces (
         school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [
-        id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
-      ]
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (iern, space_name) DO UPDATE SET
+        center_lat = EXCLUDED.center_lat,
+        center_lng = EXCLUDED.center_lng,
+        length_m = EXCLUDED.length_m,
+        width_m = EXCLUDED.width_m,
+        rotation_deg = EXCLUDED.rotation_deg,
+        total_area_sqm = EXCLUDED.total_area_sqm
+      RETURNING id`,
+      [id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm]
     );
+    await client.query('COMMIT');
     res.json({ success: true, id: result.rows[0].id });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`❌ [POST Space] Error for school ${req.params.id}:`, err.message);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -122,7 +156,7 @@ router.delete('/api/ph_schools/unit7/spaces/:spaceId', async (req, res) => {
     const { spaceId } = req.params;
     await client.query('BEGIN');
     await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
-    await client.query('DELETE FROM ph_school_buildable_spaces WHERE id = $1', [spaceId]);
+    await client.query('DELETE FROM unit7_school_buildable_spaces WHERE id = $1', [spaceId]);
     await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
@@ -166,6 +200,7 @@ router.post('/api/save-physical-facilities', async (req, res) => {
     await client.query('BEGIN');
     await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
+    // Keep ph_schools JSONB snapshot for backward compatibility
     await client.query(
       `UPDATE ph_schools SET
        unit7_data = $1, unit7_rooms = $2, unit7_repair = $3, unit7_demolition = $4,
@@ -184,15 +219,17 @@ router.post('/api/save-physical-facilities', async (req, res) => {
       ]
     );
 
+    // ── Clear NEW unit7_ tables ───────────────────────────────────────────────
     console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id} (IERN: ${iern})...`);
     const clearQuery = (table) => `DELETE FROM ${table} WHERE school_id = $1 OR iern = $2`;
-    await client.query(clearQuery('ph_buildings_inventory'), [school_id, iern]);
-    await client.query(clearQuery('ph_buildings_repairs'), [school_id, iern]);
-    await client.query(clearQuery('ph_buildings_demolition'), [school_id, iern]);
-    await client.query(clearQuery('ph_school_buildable_spaces'), [school_id, iern]);
+    await client.query(clearQuery('unit7_buildings_inventory'), [school_id, iern]);
+    await client.query(clearQuery('unit7_buildings_repairs'), [school_id, iern]);
+    await client.query(clearQuery('unit7_buildings_demolition'), [school_id, iern]);
+    await client.query(clearQuery('unit7_school_buildable_spaces'), [school_id, iern]);
 
+    // ── Insert into unit7_buildings_inventory ─────────────────────────────────
     if (Array.isArray(rooms) && rooms.length > 0) {
-      console.log(`🏢 [Unit 7 Master] Inserting ${rooms.length} rooms into ph_buildings_inventory...`);
+      console.log(`🏢 [Unit 7 Master] Inserting ${rooms.length} rooms into unit7_buildings_inventory...`);
       for (const room of rooms) {
         try {
           const b = (inventoryEntries || []).find(inv => inv.id === room.building_local_id) || {};
@@ -200,18 +237,18 @@ router.post('/api/save-physical-facilities', async (req, res) => {
           const classroomVal = parseInt(b.classroom);
 
           await client.query(
-            `INSERT INTO ph_buildings_inventory (
-              school_id, iern, building_name, room_name, category, storey, classroom, 
-              year_completed, remarks, status, is_in_use, seats, grade_level, advisory_teacher,
+            `INSERT INTO unit7_buildings_inventory (
+              school_id, iern, building_name, room_name, category, storey, classroom,
+              year_completed, remarks, status, is_in_use, seats, grade_level,
               less_than_7x9, "7x9", above_7x9, dimension
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
             [
               school_id, iern, room.building_name, room.room_name, b.category,
               isNaN(storeyVal) ? 1 : storeyVal,
               isNaN(classroomVal) ? 1 : classroomVal,
               b.year_completed, b.remarks, room.status, room.is_in_use !== false,
               ((room.grade_level || "").includes("Non-Instructional") ? null : room.seats),
-              room.grade_level, room.teacher_id,
+              room.grade_level,
               (room.less_than_7x9 === 1 || (room.dimension || '').toLowerCase() === 'less than 7x9' ? 1 : 0),
               (room["7x9"] === 1 || (room.dimension || '').toLowerCase() === '7x9' ? 1 : 0),
               (room.above_7x9 === 1 || (room.dimension || '').toLowerCase() === 'above 7x9' ? 1 : 0),
@@ -225,14 +262,15 @@ router.post('/api/save-physical-facilities', async (req, res) => {
       }
     }
 
+    // ── Insert into unit7_buildings_repairs ───────────────────────────────────
     if (Array.isArray(repairEntries) && repairEntries.length > 0) {
       console.log(`🛠️ [Unit 7 Master] Inserting ${repairEntries.length} repair entries...`);
       for (const rep of repairEntries) {
         try {
           const damageVal = parseInt(rep.damage_ratio);
           await client.query(
-            `INSERT INTO ph_buildings_repairs (
-              school_id, iern, building_name, room_name, item_name, oms, 
+            `INSERT INTO unit7_buildings_repairs (
+              school_id, iern, building_name, room_name, item_name, oms,
               condition, damage_ratio, recommended_action, demo_justification, remarks
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
             [
@@ -242,18 +280,19 @@ router.post('/api/save-physical-facilities', async (req, res) => {
             ]
           );
         } catch (repErr) {
-          console.error(`❌ [Unit 7 Master] Failed to insert repair entry for building: ${rep.building_no}`, repErr.message);
+          console.error(`❌ [Unit 7 Master] Failed to insert repair: ${rep.building_no}`, repErr.message);
           throw repErr;
         }
       }
     }
 
+    // ── Insert into unit7_buildings_demolition ────────────────────────────────
     if (Array.isArray(demolitionEntries) && demolitionEntries.length > 0) {
       console.log(`🏚️ [Unit 7 Master] Inserting ${demolitionEntries.length} demolition entries...`);
       for (const demo of demolitionEntries) {
         try {
           await client.query(
-            `INSERT INTO ph_buildings_demolition (
+            `INSERT INTO unit7_buildings_demolition (
               school_id, iern, building_name, room_name, age, safety, calamity, upgrade,
               less_than_7x9, "7x9", above_7x9
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
@@ -269,12 +308,13 @@ router.post('/api/save-physical-facilities', async (req, res) => {
             ]
           );
         } catch (demoErr) {
-          console.error(`❌ [Unit 7 Master] Failed to insert demolition entry: ${demo.building_name}`, demoErr.message);
+          console.error(`❌ [Unit 7 Master] Failed to insert demolition: ${demo.building_name}`, demoErr.message);
           throw demoErr;
         }
       }
     }
 
+    // ── Insert into unit7_school_buildable_spaces ─────────────────────────────
     if (Array.isArray(spaces) && spaces.length > 0) {
       console.log(`📐 [Unit 7 Master] Inserting ${spaces.length} buildable spaces...`);
       for (const s of spaces) {
@@ -287,7 +327,7 @@ router.post('/api/save-physical-facilities', async (req, res) => {
           const area = parseFloat(s.total_area_sqm);
 
           await client.query(
-            `INSERT INTO ph_school_buildable_spaces (
+            `INSERT INTO unit7_school_buildable_spaces (
               school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (iern, space_name) DO NOTHING`,
@@ -304,6 +344,43 @@ router.post('/api/save-physical-facilities', async (req, res) => {
         }
       }
     }
+
+    // ── Upsert unit7_facilities summary ───────────────────────────────────────
+    const noBuildings = Array.isArray(inventoryEntries) ? inventoryEntries.length : 0;
+    const noRooms = Array.isArray(rooms) ? rooms.length : 0;
+    const noSpaces = Array.isArray(spaces) ? spaces.length : 0;
+
+    // Count rooms where status indicates repair — reads from unit7_buildings_inventory.status
+    const REPAIR_STATUSES = ['repair', 'for repair', 'for major repairs', 'for minor repairs'];
+    const noRepairs = Array.isArray(rooms)
+      ? rooms.filter(r => REPAIR_STATUSES.includes((r.status || '').toLowerCase().trim())).length
+      : 0;
+
+    const noDemolitions = Array.isArray(demolitionEntries) ? demolitionEntries.length : 0;
+    const hasSpace = !u7_confirm_no_space;
+
+    await client.query(`
+      INSERT INTO unit7_facilities (
+        iern, school_id,
+        unit7, unit7_completed, unit7_updated_at,
+        unit7_no_buildings, unit7_no_rooms,
+        unit7_has_buildable_space, unit7_no_buildable_space,
+        unit7_no_repair_rooms, unit7_no_demolition,
+        updated_at
+      ) VALUES ($1, $2, 100, TRUE, CURRENT_TIMESTAMP, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+      ON CONFLICT (iern) DO UPDATE SET
+        school_id = EXCLUDED.school_id,
+        unit7 = 100,
+        unit7_completed = TRUE,
+        unit7_updated_at = CURRENT_TIMESTAMP,
+        unit7_no_buildings = EXCLUDED.unit7_no_buildings,
+        unit7_no_rooms = EXCLUDED.unit7_no_rooms,
+        unit7_has_buildable_space = EXCLUDED.unit7_has_buildable_space,
+        unit7_no_buildable_space = EXCLUDED.unit7_no_buildable_space,
+        unit7_no_repair_rooms = EXCLUDED.unit7_no_repair_rooms,
+        unit7_no_demolition = EXCLUDED.unit7_no_demolition,
+        updated_at = CURRENT_TIMESTAMP
+    `, [iern, school_id, noBuildings, noRooms, hasSpace, noSpaces, noRepairs, noDemolitions]);
 
     await client.query('COMMIT');
     console.log(`✅ [Unit 7 Master] School ${school_id} finalized and normalized successfully.`);

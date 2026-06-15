@@ -8,7 +8,6 @@ import {
     FiDatabase, FiSettings
 } from 'react-icons/fi';
 import { getModularOutbox, deleteModularFromOutbox } from '../db';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 
 const SyncCenter = () => {
@@ -284,10 +283,7 @@ const SyncCenter = () => {
                             </div>
                         )}
                     </div>
-
                 </div>
-
-                <BottomNav userRole="School Head" />
             </div>
             
             <style jsx="true">{`

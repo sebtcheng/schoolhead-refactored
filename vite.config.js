@@ -6,6 +6,19 @@ import { readFileSync } from 'fs'
 // Read version from package.json — single source of truth
 const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
+const handleProxyError = (proxy, _options) => {
+  proxy.on('error', (err, req, res) => {
+    if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'text/plain' });
+        res.end('Bad Gateway: Backend server is starting or offline.');
+      }
+      return; // Suppress connection refusal stack trace in console
+    }
+    console.error('Proxy error:', err);
+  });
+};
+
 export default defineConfig({
   base: '/insighted-schoolhead/',
   define: {
@@ -68,23 +81,27 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/insighted-schoolhead/, ''),
+        configure: handleProxyError,
       },
       '/insighted-schoolhead/uploads': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/insighted-schoolhead/, ''),
+        configure: handleProxyError,
       },
       // Bare /api fallback (for any direct calls without base prefix)
       '/api': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         secure: false,
+        configure: handleProxyError,
       },
       '/uploads': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         secure: false,
+        configure: handleProxyError,
       },
     },
   },

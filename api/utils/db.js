@@ -147,10 +147,22 @@ export async function updateSchoolTotalCompletion(iern) {
   if (!iern) return;
   try {
     const res = await safeQuery(
-      `SELECT school_id, unit1, unit2, unit3, unit4, unit5, unit6, unit7, unit8, unit9,
-              unit1_completed, unit2_completed, unit3_completed, unit4_completed,
-              unit5_completed, unit6_completed, unit7_completed, unit8_completed, unit9_completed
-       FROM ph_schools WHERE iern = $1`,
+      `SELECT ps.school_id, ps.unit5, ps.unit6, ps.unit7, ps.unit8, ps.unit9,
+              ps.unit5_completed, ps.unit6_completed, ps.unit7_completed, ps.unit8_completed, ps.unit9_completed,
+              COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
+              CASE WHEN u1.unit1_completed = TRUE THEN 1.00 ELSE COALESCE(u1.unit1, 0)::numeric / 100.00 END AS unit1,
+              COALESCE(u2.unit2_completed = 100.00, FALSE) AS unit2_completed,
+              CASE WHEN u2.unit2 = TRUE THEN 1.00 ELSE 0.00 END AS unit2,
+              COALESCE(u3.unit3_completed = 100.00, FALSE) AS unit3_completed,
+              CASE WHEN u3.unit3 = TRUE THEN 1.00 ELSE 0.00 END AS unit3,
+              COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
+              CASE WHEN u4.unit4 = TRUE THEN 1.00 ELSE 0.00 END AS unit4
+       FROM ph_schools ps
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
+       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
+       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern
+       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern
+       WHERE ps.iern = $1`,
       [iern]
     );
     if (res.rows.length === 0) return;
