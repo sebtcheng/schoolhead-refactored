@@ -186,9 +186,10 @@ const startServer = async () => {
     try {
         console.log("🚀 Initializing InsightEd Master Services...");
 
+        const isVercel = process.env.VERCEL === '1';
         const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
         
-        if (isPrimaryWorker) {
+        if (isPrimaryWorker && !isVercel) {
             console.log("🏗️ [Primary] Running boot-time migrations...");
             try {
                 const migClient = await pool.connect();
@@ -202,23 +203,31 @@ const startServer = async () => {
             } catch (migErr) {
                 console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
             }
+        } else if (isVercel) {
+            console.log("⚡ Running as Vercel Serverless Function (migrations skipped).");
         } else {
             console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
         }
 
-        const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => {
-            console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
-            if (process.send) {
-                process.send('ready');
-            }
-        });
+        if (!isVercel) {
+            const PORT = process.env.PORT || 3000;
+            app.listen(PORT, () => {
+                console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
+                if (process.send) {
+                    process.send('ready');
+                }
+            });
+        }
 
     } catch (error) {
         console.error("❌ CRITICAL: Master startup sequence failed!");
         console.error(error);
-        process.exit(1);
+        if (process.env.VERCEL !== '1') {
+            process.exit(1);
+        }
     }
 };
 
 startServer();
+
+export default app;
