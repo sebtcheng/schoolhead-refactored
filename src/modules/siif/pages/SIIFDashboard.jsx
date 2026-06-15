@@ -89,7 +89,7 @@ const SIIFDashboard = ({ user, token }) => {
                     </div>
                     <div className="text-right flex flex-col items-end gap-2 shrink-0 max-w-[45%] sm:max-w-[50%] min-w-0">
                         <button
-                            onClick={() => window.location.href = '/insighted-other-services/dashboard'}
+                            onClick={() => navigate('/nodes-dashboard')}
                             className="p-2 bg-white/50 rounded-xl hover:bg-white/80 transition-all text-slate-800 border border-slate-300 flex items-center gap-1.5 shadow-sm"
                         >
                             <TbArrowLeft size={16} />
