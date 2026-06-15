@@ -4,7 +4,8 @@
  * Resolves to '/api' in localhost (where base is /)
  */
 const BASE_PATH = import.meta.env.BASE_URL;
-const API_BASE = `${BASE_PATH.endsWith('/') ? BASE_PATH.slice(0, -1) : BASE_PATH}/api`;
+const ENV_API_URL = import.meta.env.VITE_API_URL;
+const API_BASE = ENV_API_URL ? ENV_API_URL : `${BASE_PATH.endsWith('/') ? BASE_PATH.slice(0, -1) : BASE_PATH}/api`;
 
 /**
  * Build an API URL. 
