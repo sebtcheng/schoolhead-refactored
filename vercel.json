@@ -10,6 +10,34 @@
       "destination": "/api/index.js"
     },
     {
+      "source": "/insighted-schoolhead/assets/:path*",
+      "destination": "/assets/:path*"
+    },
+    {
+      "source": "/insighted-schoolhead/sw.js",
+      "destination": "/sw.js"
+    },
+    {
+      "source": "/insighted-schoolhead/manifest.json",
+      "destination": "/manifest.json"
+    },
+    {
+      "source": "/insighted-schoolhead/favicon.ico",
+      "destination": "/favicon.ico"
+    },
+    {
+      "source": "/insighted-schoolhead/insighted_app.png",
+      "destination": "/insighted_app.png"
+    },
+    {
+      "source": "/insighted-schoolhead/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/insighted-schoolhead/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
