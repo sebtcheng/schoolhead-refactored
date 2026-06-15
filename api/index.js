@@ -57,6 +57,14 @@ app.get('/api/ping', (req, res) => res.json({
 }));
 app.get('/ping', (req, res) => res.json({ status: 'pong-root' }));
 
+// --- URL NORMALIZATION FOR VERCEL SUBPATH ---
+app.use((req, res, next) => {
+  if (req.url.startsWith('/insighted-schoolhead')) {
+    req.url = req.url.replace('/insighted-schoolhead', '');
+  }
+  next();
+});
+
 // --- CORS & BODY PARSERS ---
 const allowedOrigins = [
   'http://localhost:5173',
