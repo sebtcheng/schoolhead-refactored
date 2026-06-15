@@ -686,8 +686,8 @@ const SIIFFormsHub = ({ user, token }) => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        style={{ zIndex: 110 }}
-                        className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[110] flex flex-col justify-center items-center p-4 overflow-hidden"
+                        style={{ zIndex: 9999 }}
+                        className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[9999] flex flex-col justify-center items-center p-4 overflow-hidden"
                     >
                         <motion.div
                             initial={{ y: '100%', opacity: 0 }}
