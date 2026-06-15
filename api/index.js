@@ -4,33 +4,33 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-import { initOtpTable, runMigrations } from './db_init.js';
+import { initOtpTable, runMigrations } from '../server/db_init.js';
 
 // Import Database & Utilities
-import { pool } from './utils/db.js';
+import { pool } from '../server/utils/db.js';
 
 // Import Helpers & Uploads
-import { UPLOAD_BASE_PATH } from './utils/helpers.js';
+import { UPLOAD_BASE_PATH } from '../server/utils/helpers.js';
 
 // Import Unit Modular Routers
-import unit1Router from './units/unit1/index.js';
-import unit2Router from './units/unit2/index.js';
-import unit3Router from './units/unit3/index.js';
-import unit4Router from './units/unit4/index.js';
-import unit5Router from './units/unit5/index.js';
-import unit6Router from './units/unit6/index.js';
-import unit7Router from './units/unit7/index.js';
-import unit8Router from './units/unit8/index.js';
-import unit9Router from './units/unit9/index.js';
-import authRouter from './units/auth/index.js';
+import unit1Router from '../server/units/unit1/index.js';
+import unit2Router from '../server/units/unit2/index.js';
+import unit3Router from '../server/units/unit3/index.js';
+import unit4Router from '../server/units/unit4/index.js';
+import unit5Router from '../server/units/unit5/index.js';
+import unit6Router from '../server/units/unit6/index.js';
+import unit7Router from '../server/units/unit7/index.js';
+import unit8Router from '../server/units/unit8/index.js';
+import unit9Router from '../server/units/unit9/index.js';
+import authRouter from '../server/units/auth/index.js';
 
 // Import New Modular Routers
-import pushRouter from './units/push/index.js';
-import docsRouter from './units/docs/index.js';
-import dashboardRouter from './units/dashboard/index.js';
-import locationRouter from './units/location/index.js';
-import settingsRouter from './units/settings/index.js';
-import siifRouter from './modules/siif/index.js';
+import pushRouter from '../server/units/push/index.js';
+import docsRouter from '../server/units/docs/index.js';
+import dashboardRouter from '../server/units/dashboard/index.js';
+import locationRouter from '../server/units/location/index.js';
+import settingsRouter from '../server/units/settings/index.js';
+import siifRouter from '../server/modules/siif/index.js';
 
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js (Modular) <<< 📌");
 
