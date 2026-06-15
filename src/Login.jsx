@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-const logo = "/OFFICIAL%20LOGO/InsightED%20logo%205%20x%203%20in.png";
+import logo from './assets/InsightEdLogoApp.png';
 import trafficErrorImg from './assets/traffic_error.png';
 import depedLogo from './assets/deped.png';
 import bagongPilipinasLogo from './assets/bagongpilipinas.png';
