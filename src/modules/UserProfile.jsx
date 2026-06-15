@@ -2,15 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import BottomNav from './BottomNav';
-
 import PageTransition from '../components/PageTransition';
 import { useTheme } from '../context/ThemeContext'; // Import Hook
 import { useServiceWorker } from '../context/ServiceWorkerContext'; // Import SW Hook
 
 // Icons
-import { FiUser, FiInfo, FiMoon, FiLogOut, FiChevronRight, FiChevronLeft, FiSave, FiEdit3, FiHelpCircle, FiChevronDown, FiChevronUp, FiStar, FiMessageSquare, FiCheckCircle, FiRefreshCw, FiDownloadCloud, FiTool, FiShield, FiLock } from "react-icons/fi"; // Added FiShield and FiLock
-import { TbAlertTriangle } from "react-icons/tb";
+import { FiUser, FiInfo, FiMoon, FiLogOut, FiChevronRight, FiChevronLeft, FiSave, FiEdit3, FiHelpCircle, FiChevronDown, FiChevronUp, FiStar, FiMessageSquare, FiCheckCircle, FiRefreshCw, FiDownloadCloud, FiTool, FiShield, FiLock, FiHome, FiSettings, FiBookOpen } from "react-icons/fi"; // Added FiShield and FiLock
+import { TbAlertTriangle, TbSchool } from "react-icons/tb";
+import { LuCompass } from "react-icons/lu";
+import { api } from "../lib/api";
 
 const FAQ_DATA = [
     {
@@ -79,6 +79,18 @@ const UserProfile = () => {
     const [schoolId, setSchoolId] = useState(null);
     const [iern, setIern] = useState(null);
     const [homeRoute, setHomeRoute] = useState('/');
+    const [schoolName, setSchoolName] = useState(() => {
+        try {
+            const cachedActivity = localStorage.getItem('activity_data');
+            if (cachedActivity) {
+                const parsed = JSON.parse(cachedActivity);
+                return parsed?.schoolInfo?.school_name || '';
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        return '';
+    });
 
     // UI State
     const [activeTab, setActiveTab] = useState('settings'); // 'settings', 'profile', 'about', 'faq'
@@ -182,24 +194,47 @@ const UserProfile = () => {
                 });
                 setHomeRoute(getDashboardPath(mappedUser.role));
 
-                // School ID check (if missing, fetch it)
-                const currentSchoolId = mappedUser.school_id || mappedUser.schoolId;
-                if (currentSchoolId) {
-                    setSchoolId(currentSchoolId);
-                } else if (mappedUser.uid) {
+                // School ID and IERN check
+                const sid = mappedUser.school_id || mappedUser.schoolId;
+                if (sid) {
+                    setSchoolId(sid);
                     try {
-                        const response = await fetch(`api/school-by-user/${mappedUser.uid}`, {
+                        const res = await fetch(api(`/api/iern/${sid}`), {
                             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                         });
-                        if (response.ok) {
-                            const result = await response.json();
-                            if (result.exists) {
-                                setSchoolId(result.data.school_id);
-                                setIern(result.data.iern);
+                        if (res.ok) {
+                            const data = await res.json();
+                            console.log('[IERN Debug] Direct lookup:', data);
+                            if (data.iern) {
+                                setIern(data.iern);
+                                setUserData(prev => ({ ...prev, iern: data.iern }));
                             }
                         }
-                    } catch (error) {
-                        // Silent error
+                    } catch (e) {
+                        console.error('[IERN Debug] Error:', e);
+                    }
+                }
+
+                // Fallback: Fetch full school details if SID was missing but UID exists
+                if (!sid) {
+                    const targetUid = mappedUser.uid || mappedUser.user_id || mappedUser.id;
+                    if (targetUid) {
+                        try {
+                            const response = await fetch(api(`/api/school-by-user/${targetUid}`), {
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                            });
+                            if (response.ok) {
+                                const result = await response.json();
+                                console.log('[IERN Debug] User-based lookup:', result);
+                                if (result.exists) {
+                                    setSchoolId(result.data.school_id);
+                                    setIern(result.data.iern);
+                                    setUserData(prev => ({ ...prev, iern: result.data.iern }));
+                                }
+                            }
+                        } catch (error) {
+                            console.error("[IERN Debug] Fallback error:", error);
+                        }
                     }
                 }
             } else if (!authLoading) {
@@ -213,9 +248,21 @@ const UserProfile = () => {
                 setHomeRoute(getDashboardPath(currentRole));
             }
         };
-
         syncUserData();
     }, [user, user?.uid, authLoading]); 
+
+    useEffect(() => {
+        if (schoolId && !schoolName) {
+            fetch(api(`/ph_schools/progress/${schoolId}`))
+                .then(res => res.json())
+                .then(json => {
+                    if (json.success && json.data?.schoolInfo?.school_name) {
+                        setSchoolName(json.data.schoolInfo.school_name);
+                    }
+                })
+                .catch(err => console.error("Error fetching school name:", err));
+        }
+    }, [schoolId, schoolName]);
 
     // --- SCROLL LOCK FOR OPTIMIZE MODALS ---
     useEffect(() => {
@@ -263,7 +310,7 @@ const UserProfile = () => {
                 currentPasscode: securityData.passcode
             };
 
-            const response = await fetch('api/users/update', {
+            const response = await fetch(api(`/api/users/update`), {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -323,7 +370,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('api/auth/change-password', {
+            const response = await fetch(api(`/api/auth/change-password`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -386,7 +433,7 @@ const UserProfile = () => {
         setLoading(true);
         try {
             // If user has a passcode, we should ideally verify it first or pass it to the setup endpoint
-            const response = await fetch('api/auth/setup-passcode', {
+            const response = await fetch(api(`/api/auth/setup-passcode`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -432,7 +479,7 @@ const UserProfile = () => {
 
         setLoading(true);
         try {
-            const response = await fetch('api/feedback', {
+            const response = await fetch(api(`/api/feedback`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -584,7 +631,7 @@ const UserProfile = () => {
                 </div>
                 <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col flex-1 min-w-[140px]">
                     <span className="text-[10px] uppercase font-bold text-slate-400 mb-1">IERN</span>
-                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{userData?.iern || "NOT-GEN-SYS"}</span>
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{iern || userData?.iern || "NOT-GEN-SYS"}</span>
                 </div>
             </div>
 
@@ -713,25 +760,29 @@ const UserProfile = () => {
     // 2. ABOUT VIEW
     const renderAbout = () => (
         <div className="p-5 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm text-center">
-                {/* Placeholder Logo / Brand */}
-                <div className="w-[60px] h-[60px] bg-[#004A99] rounded-2xl mx-auto mb-4 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-xl shadow-blue-900/5 dark:shadow-none border border-transparent dark:border-slate-700/50 text-center relative overflow-hidden">
+                {/* Branding Logo */}
+                <div className="w-[80px] h-[80px] bg-[#004A99] dark:bg-blue-600 rounded-[2rem] mx-auto mb-6 flex items-center justify-center text-white font-black text-3xl shadow-xl shadow-blue-500/30">
                     IE
                 </div>
-                <h2 className="text-[#004A99] dark:text-blue-300 mb-1.5 text-xl font-bold">InsightEd</h2>
-                <p className="text-gray-400 dark:text-gray-500 text-xs text-center">Version {import.meta.env.VITE_APP_VERSION || '1.0.0'} (Beta)</p>
+                
+                <h2 className="text-[#004A99] dark:text-blue-400 mb-1 text-2xl font-black tracking-tight">InsightED</h2>
+                <p className="text-gray-400 dark:text-gray-500 text-sm font-medium mb-8">Version {import.meta.env.VITE_APP_VERSION || '1.0.0'} (Beta)</p>
 
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed my-5 text-left">
-                    <strong>InsightEd</strong> is a comprehensive monitoring and management tool designed for the Department of Education.
-                    It bridges the gap between School Heads, Engineers, HR, and Admin by providing real-time data on school infrastructure, resources, and personnel.
-                </p>
-                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4 text-left">
-                    Our mission is to empower decision-makers with accurate, on-the-ground data to ensure safer and more conducive learning environments for students.
-                </p>
+                <div className="space-y-6 text-left">
+                    <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed font-medium">
+                        <strong className="text-slate-800 dark:text-white font-black">InsightED</strong> is a mobile-first data collection application for real-time field data collection, designed to transform raw school-level data into actionable organizational strategies. By serving as the digital conduit to the STRIDE Dashboard, the application enables the Department to perform proactive management towards strategic use of critical education resources.
+                    </p>
+                    
+                    <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed font-medium">
+                        With high-fidelity data captured directly from the source, the Department can execute informed, evidence-based actions with unprecedented speed. This modernization of education management ensures that the Department can identify and address the unique needs of every school, guaranteeing that resources and support are deployed precisely where they will most improve the quality of education for our learners.
+                    </p>
+                </div>
 
-                <div className="h-px bg-gray-100 dark:bg-slate-600 my-5"></div>
-                <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest">
-                    © 2024 InsightEd Development Team. <br />All rights reserved.
+                <div className="h-px bg-slate-100 dark:bg-slate-700/50 my-8"></div>
+                
+                <p className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                    © 2024 INSIGHTED DEVELOPMENT TEAM.<br />ALL RIGHTS RESERVED.
                 </p>
             </div>
         </div>
@@ -1106,38 +1157,417 @@ const UserProfile = () => {
     
     return (
         <PageTransition>
-            <div className={`min-h-screen font-sans pb-20 transition-colors duration-300 ${isDarkMode ? 'bg-[#1a202c]' : 'bg-[#f5f7fa]'}`}>
+            <>
+                <div className="nodes-app-layout">
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                    
+                    :root {
+                      --navy: #08315F;
+                      --blue: #075985;
+                      --blue-600: #0284C7;
+                      --blue-400: #7DD3FC;
+                      --blue-100: #E0F2FE;
+                      --blue-50: #F0F9FF;
+                      --gold: #FBBF24;
+                      --amber: #D97706;
+                      --red: #B91C1C;
+                      --bg: #F0F9FF;
+                      --card: #FFFFFF;
+                      --text: #0F172A;
+                      --muted: #64748B;
+                      --line: #BAE6FD;
+                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --radius: 22px;
+                    }
 
-                {/* DYNAMIC HEADER */}
-                <div className="bg-gradient-to-br from-[#004A99] to-[#003366] dark:from-slate-900 dark:to-slate-800 p-5 h-20 flex items-center justify-between text-white rounded-b-3xl shadow-lg transition-all duration-300">
-                    {activeTab !== 'settings' && (
-                        <button className="bg-transparent border-0 text-white cursor-pointer flex items-center" onClick={() => {
-                            setActiveTab('settings');
-                            setIsEditing(false); // Reset edit mode on back
-                        }}>
-                            <FiChevronLeft size={24} />
-                        </button>
-                    )}
-                    <h2 className="m-0 text-lg font-semibold flex-1 text-center">
-                        {activeTab === 'settings' ? 'Settings' :
-                            activeTab === 'profile' ? 'Edit Profile' :
-                                activeTab === 'faq' ? 'FAQ' : 'About'}
-                    </h2>
-                    {/* Spacer to balance header if back button exists */}
-                    {activeTab !== 'settings' && <div className="w-6"></div>}
+                    .nodes-app-layout {
+                      display: grid;
+                      grid-template-columns: 260px 1fr;
+                      min-height: 100vh;
+                      font-family: var(--font-body);
+                      color: var(--text);
+                      background-color: var(--blue-50);
+                      background-attachment: fixed;
+                      background-image:
+                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.30) 0 34%, transparent 78%),
+                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.42) 0 36%, transparent 80%),
+                        radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.30) 0 34%, transparent 78%),
+                        radial-gradient(45% 52.5% at 8% 92%, rgba(217, 119, 6, 0.26) 0 28%, rgba(251, 191, 36, 0.18) 42%, transparent 80%);
+                    }
+
+                    .nodes-sidebar {
+                      position: relative;
+                      color: white;
+                      padding: 24px;
+                      display: flex;
+                      flex-direction: column;
+                      gap: 28px;
+                      background: linear-gradient(180deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--blue) 72%, var(--navy) 28%));
+                      border-right: 1px solid rgba(255, 255, 255, 0.24);
+                      box-shadow: 18px 0 42px rgba(11, 31, 77, 0.16);
+                      overflow: hidden;
+                    }
+
+                    .nodes-brand {
+                      background: transparent;
+                      padding: 8px 0px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      gap: 8px;
+                    }
+
+                    .nodes-brand img {
+                      filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+                    }
+
+                    .nodes-nav {
+                      display: flex;
+                      flex-direction: column;
+                      gap: 8px;
+                    }
+
+                    .nodes-nav a {
+                      display: flex;
+                      align-items: center;
+                      gap: 12px;
+                      padding: 12px 14px;
+                      border-radius: 14px;
+                      color: rgba(255, 255, 255, 0.78);
+                      font-size: 14px;
+                      font-weight: 700;
+                      text-decoration: none;
+                      transition: all 0.2s ease;
+                      border: 1px solid transparent;
+                    }
+
+                    .nodes-nav a:hover {
+                      color: white;
+                      background: rgba(255, 255, 255, 0.08);
+                    }
+
+                    .nodes-nav a.active {
+                      background: rgba(255, 255, 255, 0.16);
+                      color: white;
+                      border-color: rgba(255, 255, 255, 0.28);
+                      box-shadow:
+                        inset 0 -3px 0 var(--gold),
+                        0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
+                    }
+
+                    .nodes-topbar {
+                      position: relative;
+                      isolation: isolate;
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                      gap: 25px;
+                      min-height: 110px;
+                      padding: 16px 32px;
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+                      background: linear-gradient(135deg, var(--blue-50), white);
+                      box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
+                      overflow: hidden;
+                    }
+
+                    .nodes-topbar::before {
+                      content: "";
+                      position: absolute;
+                      left: 0;
+                      top: 0;
+                      bottom: 0;
+                      width: 76%;
+                      background:
+                        radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%),
+                        linear-gradient(135deg, var(--navy), var(--blue));
+                      clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
+                      z-index: 0;
+                    }
+
+                    .nodes-topbar::after {
+                      content: "";
+                      position: absolute;
+                      width: 112px;
+                      height: 112px;
+                      right: 18px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      border-radius: 999px;
+                      background:
+                        radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
+                      box-shadow:
+                        0 0 0 12px color-mix(in srgb, var(--gold) 8%, transparent),
+                        0 0 28px color-mix(in srgb, var(--gold) 24%, transparent);
+                      z-index: 0;
+                    }
+
+                    .nodes-topbar > * {
+                      position: relative;
+                      z-index: 1;
+                    }
+
+                    .nodes-topbar h1 {
+                      margin: 0;
+                      font-family: var(--font-heading);
+                      font-size: 28px;
+                      line-height: 1.12;
+                      font-weight: 900;
+                      letter-spacing: 0.01em;
+                      color: var(--blue);
+                      -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
+                      paint-order: stroke fill;
+                      text-shadow:
+                        -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+                        1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+                        -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+                        1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+                        0 4px 10px rgba(11, 31, 77, 0.34),
+                        0 12px 28px rgba(15, 23, 42, 0.26);
+                    }
+
+                    .nodes-topbar .eyebrow {
+                      color: var(--gold);
+                      font-size: 11px;
+                      font-weight: 900;
+                      letter-spacing: 0.2em;
+                      text-transform: uppercase;
+                      font-family: var(--font-heading);
+                    }
+
+                    .nodes-card {
+                      background: var(--card);
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+                      border-radius: var(--radius);
+                      box-shadow: none;
+                      transition: all 0.2s ease;
+                    }
+
+                    .nodes-card:hover {
+                      transform: translateY(-2px);
+                    }
+
+                    /* Cards */
+                    .bg-white, .dark\\:bg-slate-800 {
+                      background: var(--card) !important;
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                      box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05) !important;
+                    }
+
+                    .font-heading {
+                      font-family: var(--font-heading) !important;
+                    }
+                    .font-body {
+                      font-family: var(--font-body) !important;
+                    }
+                    
+                    h2, h3, h1, h4 {
+                      font-family: var(--font-heading) !important;
+                      font-weight: 900 !important;
+                    }
+
+                    /* Override style for inputs and select components to give nodes dashboard chunky outline theme */
+                    input[type="text"], input[type="password"], input[type="email"], input[type="number"], select, textarea {
+                      border-color: #BAE6FD !important;
+                      border-width: 2px !important;
+                      border-radius: 20px !important;
+                      background-color: #FFFFFF !important;
+                      font-family: var(--font-body) !important;
+                      transition: all 0.2s ease-in-out !important;
+                      color: #1E293B !important;
+                      text-align: left !important;
+                    }
+                    input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+                      outline: none !important;
+                      border-color: #0284C7 !important;
+                      box-shadow: 0 0 0 4px #E0F2FE !important;
+                    }
+                    
+                    /* Buttons and Toggles */
+                    .bg-slate-900 {
+                      background-color: var(--navy) !important;
+                    }
+                    .bg-[#004A99] {
+                      background-color: var(--blue-600) !important;
+                    }
+                    .from-[#004A99] {
+                      --tw-gradient-from: var(--blue-600) !important;
+                      --tw-gradient-to: var(--navy) !important;
+                      --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+                    }
+
+                    @media (max-width: 768px) {
+                      .nodes-app-layout {
+                        grid-template-columns: 1fr;
+                        padding-bottom: 82px;
+                      }
+
+                      .nodes-sidebar {
+                        position: fixed;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        top: auto;
+                        z-index: 40;
+                        display: block;
+                        padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+                        border: 0;
+                        border-top: 1px solid rgba(255, 255, 255, 0.46);
+                        background:
+                          radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 48%),
+                          radial-gradient(ellipse at 84% 0%, color-mix(in srgb, var(--red) 10%, transparent), transparent 46%),
+                          linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
+                        box-shadow:
+                          0 -18px 44px rgba(11, 31, 77, 0.26),
+                          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+                        overflow: hidden;
+                      }
+
+                      .nodes-brand {
+                        display: none;
+                      }
+
+                      .nodes-nav {
+                        display: grid;
+                        grid-template-columns: repeat(5, 1fr);
+                        gap: 4px;
+                        width: min(760px, 100%);
+                        margin: 0 auto;
+                      }
+
+                      .nodes-nav a {
+                        display: grid;
+                        place-items: center;
+                        gap: 2px;
+                        min-height: 48px;
+                        padding: 6px 2px;
+                        border-radius: 16px;
+                        color: rgba(255, 255, 255, 0.82);
+                        font-size: 8px;
+                        line-height: 1;
+                        text-align: center;
+                        border: 1px solid transparent;
+                        background: transparent;
+                        text-decoration: none;
+                      }
+
+                      .nodes-nav a.active {
+                        background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
+                        color: white;
+                        border-color: rgba(255, 255, 255, 0.28);
+                        box-shadow:
+                          inset 0 -3px 0 var(--gold),
+                          0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
+                      }
+
+                      .nodes-topbar {
+                        min-height: 90px;
+                        padding: 10px 16px;
+                      }
+
+                      .nodes-topbar h1 {
+                        font-size: clamp(18px, 5.5vw, 22px);
+                      }
+
+                      .nodes-topbar::before {
+                        width: 85%;
+                      }
+
+                      .nodes-card {
+                        border-width: 2px;
+                        border-radius: 14px;
+                      }
+                    }
+                    `
+                }} />
+
+                {/* Left Sidebar on Desktop / Bottom Bar on Mobile */}
+                <div className="nodes-sidebar">
+                    <div className="nodes-brand">
+                        <img 
+                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
+                            alt="InsightED Logo" 
+                            className="object-contain"
+                            style={{ width: '16rem', height: '9rem' }}
+                            onError={(e) => {
+                                e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
+                            }}
+                        />
+                    </div>
+
+                    <div className="nodes-nav">
+                        <a href="#/nodes-dashboard">
+                            <FiHome size={18} />
+                            <span>Home</span>
+                        </a>
+                        <a href="#/my-activity">
+                            <FiBookOpen size={18} />
+                            <span>CLOUD</span>
+                        </a>
+                        <a href="#/modular-dashboard">
+                            <LuCompass size={18} />
+                            <span>Units</span>
+                        </a>
+                        <a href="#/guide/school-head">
+                            <TbSchool size={18} />
+                            <span>Guide</span>
+                        </a>
+                        <a href="#/profile" className="active">
+                            <FiSettings size={18} />
+                            <span>Settings</span>
+                        </a>
+                    </div>
                 </div>
 
-                {/* CONTENT AREA */}
-                <div className="">
-                    {activeTab === 'settings' && renderSettingsMenu()}
-                    {activeTab === 'profile' && renderProfileEdit()}
-                    {activeTab === 'faq' && renderFAQ()}
-                    {activeTab === 'feedback' && renderFeedback()}
-                    {activeTab === 'about' && renderAbout()}
+                {/* Main Content Area */}
+                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
+                    
+                    {/* Header / Topbar */}
+                    <div className="nodes-topbar">
+                        <div className="flex flex-col">
+                            {activeTab !== 'settings' ? (
+                                <button 
+                                    className="bg-white/10 hover:bg-white/20 border border-white/20 text-white cursor-pointer px-3 py-1.5 rounded-xl flex items-center gap-1 w-fit transition-all duration-200 active:scale-95 mb-2 relative z-20" 
+                                    onClick={() => {
+                                        setActiveTab('settings');
+                                        setIsEditing(false); // Reset edit mode on back
+                                    }}
+                                >
+                                    <FiChevronLeft size={16} />
+                                    <span className="text-xs font-black uppercase tracking-wider">Back to Settings</span>
+                                </button>
+                            ) : (
+                                <span className="eyebrow">
+                                    Account Settings
+                                </span>
+                            )}
+                            <h1 className="flex items-center gap-2">
+                                <span className="text-white">
+                                    {activeTab === 'settings' ? `SETTINGS • ${schoolName || 'InsightEd Campus'}` :
+                                     activeTab === 'profile' ? 'EDIT PROFILE' :
+                                     activeTab === 'faq' ? 'FAQ / KNOWLEDGE BASE' :
+                                     activeTab === 'feedback' ? 'USER FEEDBACK' : 'ABOUT INSIGHTED'}
+                                </span>
+                            </h1>
+                            <p className="text-[10px] font-bold text-[#E0F2FE] uppercase tracking-[0.2em] mt-0.5 relative z-10">
+                                School ID: {schoolId || '------'} • Head: {user?.first_name || user?.firstName || 'User'} {user?.last_name || user?.lastName || ''}
+                            </p>
+                        </div>
+                    </div>
 
+                    {/* CONTENT AREA */}
+                    <div className="p-4 sm:p-6">
+                        {activeTab === 'settings' && renderSettingsMenu()}
+                        {activeTab === 'profile' && renderProfileEdit()}
+                        {activeTab === 'faq' && renderFAQ()}
+                        {activeTab === 'feedback' && renderFeedback()}
+                        {activeTab === 'about' && renderAbout()}
+                    </div>
                 </div>
-
-                <BottomNav homeRoute={homeRoute} userRole={userData?.role || user?.account_category || user?.role || localStorage.getItem('userRole')} />
+            </div>
                 
                 {/* Security Verification Modal (Generic for Email/Profile Updates) */}
                 {renderSecurityModal()}
@@ -1295,7 +1725,7 @@ const UserProfile = () => {
                                         
                                         try {
                                             // 1. Remote Repair Protocol: Align Unit 8 JSONB
-                                            await fetch('api/system/align-unit8', {
+                                            await fetch(api(`/api/system/align-unit8`), {
                                                 method: 'POST',
                                                 headers: {
                                                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -1343,7 +1773,7 @@ const UserProfile = () => {
                         </div>
                     </div>
                 )}
-            </div>
+            </>
         </PageTransition>
     );
 };

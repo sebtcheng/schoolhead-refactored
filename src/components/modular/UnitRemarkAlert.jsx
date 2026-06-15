@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertTriangle, FiCheckCircle, FiSend } from 'react-icons/fi';
+import { api } from "../../lib/api";
 
 const UnitRemarkAlert = ({ unitId, schoolId }) => {
     const [remarks, setRemarks] = useState([]);
@@ -9,7 +10,7 @@ const UnitRemarkAlert = ({ unitId, schoolId }) => {
     const fetchRemarks = async () => {
         if (!schoolId || !unitId) return;
         try {
-            const res = await fetch(`api/audit/remarks/${schoolId}`);
+            const res = await fetch(api(`/audit/remarks/${schoolId}`));
             if (res.ok) {
                 const result = await res.json();
                 // Backend returns array directly. Also using 'instruction' column from DB.
@@ -29,7 +30,7 @@ const UnitRemarkAlert = ({ unitId, schoolId }) => {
 
     const handleMarkFixed = async (remarkId) => {
         try {
-            const res = await fetch(`api/audit/remarks/${remarkId}/status`, {
+            const res = await fetch(api(`/api/audit/remarks/${remarkId}/status`), {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'fixed' })

@@ -6,10 +6,11 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
-const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm text-center";
-const chunkySelect = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm appearance-none flex-1 text-center";
+const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm placeholder:text-gray-300 font-body";
+const chunkySelect = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%23075985%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:24px] bg-[right_1rem_center] bg-no-repeat disabled:opacity-50 disabled:bg-gray-50 font-body";
 const toggleBtnBase = "flex-1 py-4 px-6 rounded-2xl font-black text-base border-2 transition-all flex items-center justify-center gap-2 shadow-sm";
 const toggleBtnActive = "bg-indigo-100 border-indigo-500 text-indigo-700 shadow-indigo-100";
 const toggleBtnInactive = "bg-white border-gray-200 text-gray-400 hover:bg-gray-50";
@@ -120,9 +121,9 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     // PHASE 2 State
     const [ictData, setIctData] = useState({
-        laptops_total: "", laptops_func: "", laptops_teaching: "", laptops_working: "",
-        tablets_total: "", tablets_func: "", tablets_teaching: "", tablets_working: "",
-        desktops_total: "", desktops_func: "", desktops_teaching: "", desktops_working: "",
+        laptops_total: "", laptops_func: "", laptops_teaching: "", laptops_working: "", laptops_students: "",
+        tablets_total: "", tablets_func: "", tablets_teaching: "", tablets_working: "", tablets_students: "",
+        desktops_total: "", desktops_func: "", desktops_teaching: "", desktops_working: "", desktops_students: "",
         smart_tvs_total: "", smart_tvs_func: "", smart_tvs_cond: "",
         projectors_total: "", projectors_func: "", projectors_cond: "",
         printers_total: "", printers_func: "", printers_cond: "",
@@ -195,7 +196,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}?t=${Date.now()}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -286,13 +287,13 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     else if (['7','8','9','10'].includes(nid)) isOffered = hasJHS;
                     else if (['11','12'].includes(nid)) isOffered = hasSHS;
                     
-                    const u2Grade = u2Parsed.find(x => x.grade_level === pg.id);
-                    const isActive = u2Grade ? u2Grade.is_active !== false : true;
-
                     const enrollment = getEnrollmentForGrade(pg.id);
                     const sections = getCountForGrade(pg.id);
                     
-                    if (isActive && (enrollment > 0 || sections > 0 || isOffered)) {
+                    // A grade level is active and shown if and only if it has enrollment or sections > 0 in Unit 2 read mode
+                    const isActive = enrollment > 0 || sections > 0;
+
+                    if (isActive) {
                         expectedGrades.push({ id: pg.id, grade_level: pg.label, enrolled: enrollment, sections: sections, isVerified: false });
                     }
                 });
@@ -300,7 +301,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 const multigradeGrades = [];
                 for (let i = 1; i <= 3; i++) {
                     const groupName = d[`multigrade_groupings_${i}`];
-                    const groupSections = getCountForGrade(`mg_${i}`) || parseInt(d[`multigrade_sections_${i}`] || 0);
+                    const groupSections = getCountForGrade(`mg_${i}`) || parseInt(d[`multigrade_sections_${i}`] || 0) || parseInt(d[`multigrade_size_${i}`] || 0) || 1;
                     if (groupName && groupSections > 0) {
                         const label = groupName.toLowerCase();
                         let gradeNums = label.match(/\d+/g) || [];
@@ -352,7 +353,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                         console.log(`[Unit6-Diag] Count mismatch for ${sg.grade_level}: FreshEnrolled=${mergedExpectedGrades[idx].enrolled}, StaleEnrolled=${sg.enrolled}`);
                                     }
                                     // eslint-disable-next-line no-unused-vars
-                                    const { enrolled, sections, ...rest } = sg;
+                                    const { enrolled, sections, grade_level, ...rest } = sg;
                                     mergedExpectedGrades[idx] = { ...mergedExpectedGrades[idx], ...rest, isVerified: true };
                                 }
                             });
@@ -560,6 +561,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 if (prev.hasOwnProperty(`${prefix}_func`)) newState[`${prefix}_func`] = cleanValue;
                 // Reset Personnel Usage if applicable
                 if (prev.hasOwnProperty(`${prefix}_teaching`)) newState[`${prefix}_teaching`] = cleanValue;
+                if (prev.hasOwnProperty(`${prefix}_students`)) newState[`${prefix}_students`] = cleanValue;
             }
 
             return newState;
@@ -573,12 +575,14 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             const total = parseInt(ictData[`${cat.key}_total`]) || 0;
             const func = isAdvanced ? (parseInt(ictData[`${cat.key}_working`]) || 0) : (parseInt(ictData[`${cat.key}_func`]) || 0);
             const teaching = isAdvanced ? (parseInt(ictData[`${cat.key}_teaching`]) || 0) : 0;
+            const students = isAdvanced ? (parseInt(ictData[`${cat.key}_students`]) || 0) : 0;
             const tStr = ictData[`${cat.key}_total`];
             const fStr = isAdvanced ? ictData[`${cat.key}_working`] : ictData[`${cat.key}_func`];
             const teachStr = isAdvanced ? ictData[`${cat.key}_teaching`] : "";
+            const studentStr = isAdvanced ? ictData[`${cat.key}_students`] : "";
 
             if (fStr !== "" && func > total) { isValid = false; errors[cat.key] = true; } 
-            else if (isAdvanced && teachStr !== "" && teaching > total) { isValid = false; errors[cat.key] = true; }
+            else if (isAdvanced && (teachStr !== "" || studentStr !== "") && (teaching + students) > total) { isValid = false; errors[cat.key] = true; }
             else { errors[cat.key] = false; }
             
             broken[cat.key] = total - func;
@@ -590,10 +594,13 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             // 2. Functional/Working count must be provided if Total > 0
             if (total > 0 && fStr === "") isValid = false;
             
-            // 3. Teaching/Non-Teaching count must be provided if Total > 0 (Advanced only)
+            // 3. Teaching count must be provided if Total > 0 (Advanced only)
             if (isAdvanced && total > 0 && teachStr === "") isValid = false;
 
-            // 4. Backward check: if sub-field is provided but total is blank
+            // 4. Student count must be provided if Total > 0 (Advanced only)
+            if (isAdvanced && total > 0 && studentStr === "") isValid = false;
+
+            // 5. Backward check: if sub-field is provided but total is blank
             if (tStr === "" && fStr !== "") isValid = false;
         });
         return { isValid, errors, broken };
@@ -781,7 +788,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 6,
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
-                    url: `api/ph_schools/${storedId}`,
+                    url: api(`/ph_schools/${storedId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: storedId
@@ -801,7 +808,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 return;
             }
 
-            const res = await fetch(`api/ph_schools/${storedId}`, {
+            const res = await fetch(api(`/api/ph_schools/${storedId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -810,7 +817,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             if (res.ok) {
                 // Perform secondary syncs in parallel
                 try {
-                    await fetch(`api/ph_schools/unit9/${storedId}/ecarts`, {
+                    await fetch(api(`/api/ph_schools/unit9/${storedId}/ecarts`), {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ ecarts: eCarts })
@@ -828,7 +835,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
                 // Sync progress to dashboard
                 try {
-                    await fetch('api/user/progress', {
+                    await fetch(api(`/api/user/progress`), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ unitId: 6, schoolId: storedId })
@@ -846,7 +853,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 6,
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
-                    url: `api/ph_schools/${storedId}`,
+                    url: api(`/ph_schools/${storedId}`),
                     method: 'PUT',
                     payload: { ...payload, unit6_completed: true },
                     schoolId: storedId
@@ -885,21 +892,84 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         const totalWASH = WASH_CATEGORIES.reduce((acc, cat) => acc + (parseInt(washData[`${cat.key}_total`]) || 0), 0);
         
         return (
-            <div className="min-h-screen bg-[#F8FAFC] font-sans pb-40">
-                <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 px-6 py-4">
-                    <div className="max-w-xl mx-auto flex items-center justify-between">
-                        <button onClick={() => navigate("/modular-dashboard")} className="p-2.5 rounded-2xl bg-slate-50 text-slate-400 hover:text-slate-900 border border-slate-100 transition-all active:scale-90">
-                            <FiArrowLeft className="w-5 h-5" />
+            <div className="min-h-screen unit1-page font-sans pb-40">
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                    
+                    :root {
+                      --navy: #08315F;
+                      --blue: #075985;
+                      --blue-600: #0284C7;
+                      --blue-400: #7DD3FC;
+                      --blue-100: #E0F2FE;
+                      --blue-50: #F0F9FF;
+                      --gold: #FBBF24;
+                      --amber: #D97706;
+                      --red: #B91C1C;
+                      --bg: #F0F9FF;
+                      --card: #FFFFFF;
+                      --text: #0F172A;
+                      --muted: #64748B;
+                      --line: #BAE6FD;
+                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --radius: 22px;
+                    }
+
+                    .unit1-page {
+                      font-family: var(--font-body);
+                      background-color: var(--blue-50);
+                      background-image:
+                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                    }
+
+                    .bg-white.rounded-\\[2\\.5rem\\], 
+                    .bg-slate-50.rounded-\\[2\\.5rem\\],
+                    .bg-slate-900.rounded-\\[2\\.5rem\\],
+                    .bg-white.rounded-\\[2rem\\],
+                    .bg-slate-900.rounded-\\[2rem\\] {
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                    }
+
+                    .nodes-card {
+                      background: var(--card);
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                      box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                    }
+                    
+                    .font-heading {
+                      font-family: var(--font-heading) !important;
+                    }
+                    .font-body {
+                      font-family: var(--font-body) !important;
+                    }
+                    
+                    h2, h3, h1 {
+                      font-family: var(--font-heading);
+                    }
+                    `
+                }} />
+                <header className="px-6 py-5 flex items-center justify-between border-b border-gray-100/50 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
+                            <FiArrowLeft className="w-6 h-6" />
                         </button>
-                        <div className="text-center">
-                            <p className="text-[10px] font-black tracking-[0.2em] text-indigo-500 uppercase leading-none mb-1">Unit 06</p>
-                            <h1 className="text-sm font-black text-slate-800 uppercase tracking-tight">Audit Summary</h1>
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">
+                                Reviewing
+                            </span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                School Resources
+                            </span>
                         </div>
-                        <div className="w-10" />
                     </div>
                 </header>
 
-                <div className="max-w-xl mx-auto pt-8 px-6 space-y-12">
+                <div className="max-w-7xl mx-auto pt-8 px-6 md:px-8 space-y-12 w-full">
                     <UnitRemarkAlert unitId="u6" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
                     
                     {/* Hero Stats */}
@@ -916,236 +986,249 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         <p className="text-slate-500 font-medium text-sm mt-2 max-w-[280px] mx-auto">Complete inventory of ICT, Seating, and Utility infrastructure.</p>
                     </div>
 
-                    {/* Dashboard Metrics */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-5 text-4xl">💻</div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ICT Assets</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black text-slate-800">{totalUnitsICT}</span>
-                                <span className="text-[10px] font-bold text-slate-400">UNITS</span>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Left Column: Metrics Summary, Wash CR & Utilities, eCart */}
+                        <div className="lg:col-span-1 space-y-6">
+                            {/* Dashboard Metrics */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-5 text-4xl">💻</div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ICT Assets</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-3xl font-black text-slate-800">{totalUnitsICT}</span>
+                                        <span className="text-[10px] font-bold text-slate-400">UNITS</span>
+                                    </div>
+                                </motion.div>
+                                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-slate-900 p-6 rounded-[2.5rem] shadow-xl shadow-slate-200 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl">🚿</div>
+                                    <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">WASH Units</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-3xl font-black text-white">{totalWASH}</span>
+                                        <span className="text-[10px] font-bold text-indigo-400">TOTAL</span>
+                                    </div>
+                                </motion.div>
                             </div>
-                        </motion.div>
-                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-slate-900 p-6 rounded-[2.5rem] shadow-xl shadow-slate-200 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 text-4xl">🚿</div>
-                            <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">WASH Units</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black text-white">{totalWASH}</span>
-                                <span className="text-[10px] font-bold text-indigo-400">TOTAL</span>
-                            </div>
-                        </motion.div>
+
+                            {/* Utilities & Wash Infrastructure */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Infrastructure & Wash</h3>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
+                                        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-2xl flex items-center justify-center shadow-inner">⚡</div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Electricity</p>
+                                            <h4 className="text-base font-black text-slate-800 leading-tight">{utilitiesData.utility_electricity || "Non-Electrified"}</h4>
+                                            {utilitiesData.has_solar_or_gen && <span className="text-[9px] font-bold text-amber-600 uppercase mt-1 block">✅ Solar/Genset Backup</span>}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
+                                        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-2xl flex items-center justify-center shadow-inner">🌐</div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Connectivity</p>
+                                            <h4 className="text-base font-black text-slate-800 leading-tight">{utilitiesData.utility_internet_yesno ? "Broadband Active" : "No Internet"}</h4>
+                                            <span className="text-[9px] font-bold text-blue-500 uppercase mt-1 block">{utilitiesData.utility_internet_yesno ? utilitiesData.utility_internet_funder : "Manual Sync Required"}</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
+                                        <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center shadow-inner">🚽</div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sanitation</p>
+                                            <h4 className="text-base font-black text-slate-800 leading-tight">{washData.attached_cr_classrooms || 0} Unit/s</h4>
+                                            <span className="text-[9px] font-bold text-indigo-500 uppercase mt-1 block">Attached Class CRs</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* eCart Packages */}
+                            {hasEcart && (
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-2">
+                                        <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
+                                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">eCart Packages</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {eCarts.map((cart, idx) => (
+                                            <div key={idx} className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden group shadow-2xl shadow-indigo-100">
+                                                <div className="absolute top-0 right-0 p-6 text-6xl opacity-10 group-hover:scale-125 transition-transform">🎒</div>
+                                                <div className="relative z-10">
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div>
+                                                            <h4 className="text-xl font-black italic tracking-tighter uppercase leading-none mb-2">{cart.batches_name}</h4>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2.5 py-1 bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-indigo-300">{cart.year_received}</span>
+                                                                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{cart.sources_fund}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${cart.charging_condition === 'Functional' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
+                                                            {cart.charging_condition} Status
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
+                                                        <div className="text-center">
+                                                            <p className="text-2xl font-black">{cart.ecart_laptops || 0}</p>
+                                                            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Laptops</p>
+                                                        </div>
+                                                        <div className="text-center border-x border-white/5">
+                                                            <p className="text-2xl font-black">{cart.ecart_tablets || 0}</p>
+                                                            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Tablets</p>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <p className="text-2xl font-black">{cart.ecart_tv || 0}</p>
+                                                            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Smart TV</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                        </div>
+
+                        {/* Right Column: Seating & ICT */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Seating health */}
+                            <section className="space-y-4">
+                                <div className="flex items-center justify-between px-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+                                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Seating health</h3>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full">{generalRoomsData.general_rooms_count || 0} Classrooms</span>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
+                                    {gradesData.filter(g => g.isVerified).map((g, idx) => {
+                                        const total = (parseInt(g.armchair_wood_func)||0) + (parseInt(g.armchair_plastic_func)||0) + (parseInt(g.armchair_plastic_steel_func)||0) + (parseInt(g.individual_table_chair_func)||0) + ((parseInt(g.two_seater_wood_func)||0)*2) + ((parseInt(g.two_seater_wood_steel_func)||0)*2) + (parseInt(g.wooden_chair_only_func)||0) + (parseInt(g.plastic_chair_only_func)||0);
+                                        let enrolledTotal = parseInt(g.enrolled)||0;
+                                        let isParent = g.is_sharing_parent && g.shared_with?.length > 0;
+                                        let isChild = g.is_shared_child;
+
+                                        if (isParent) {
+                                            g.shared_with.forEach(id => {
+                                                const p = gradesData.find(x => x.id === id);
+                                                if (p) enrolledTotal += parseInt(p.enrolled || 0);
+                                            });
+                                        }
+
+                                        const shortage = !isChild && total < enrolledTotal;
+                                        const ratio = Math.min(100, (total / (enrolledTotal || 1)) * 100);
+
+                                        return (
+                                            <motion.div 
+                                                key={g.id}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: idx * 0.05 }}
+                                                className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden"
+                                            >
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black ${isChild ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-50 text-slate-400 border border-slate-100 shadow-inner'}`}>
+                                                            {isChild ? "🔗" : g.grade_level.slice(0,3).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-black text-slate-900 text-lg leading-none mb-1">{g.grade_level}</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                {isChild ? `Shares with ${gradesData.find(p => p.id === g.sharing_parent_id)?.grade_level}` : `${enrolledTotal} Enrolled`}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    {!isChild && (
+                                                        <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase ${shortage ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                            {shortage ? `Deficit: ${enrolledTotal - total}` : "Adequate Supply"}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {!isChild && (
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                            <span>Seat Capacity</span>
+                                                            <span>{ratio.toFixed(0)}% Coverage</span>
+                                                        </div>
+                                                        <div className="h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100 p-0.5">
+                                                            <motion.div 
+                                                                initial={{ width: 0 }} 
+                                                                animate={{ width: `${ratio}%` }} 
+                                                                className={`h-full rounded-full ${shortage ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 'bg-gradient-to-r from-emerald-400 to-emerald-600'}`}
+                                                            />
+                                                        </div>
+                                                        <div className="flex gap-4 pt-1">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-bold text-slate-300 uppercase">Functional</span>
+                                                                <span className="text-sm font-black text-slate-700">{total}</span>
+                                                            </div>
+                                                            <div className="w-px h-6 bg-slate-100 self-center" />
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-bold text-slate-300 uppercase">Enrolled</span>
+                                                                <span className="text-sm font-black text-slate-700">{enrolledTotal}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+
+                            {/* ICT Distribution */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">ICT Distribution</h3>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {ICT_CATEGORIES.map(cat => {
+                                        const total = parseInt(ictData[`${cat.key}_total`]) || 0;
+                                        const isAdvanced = ["laptops", "tablets", "desktops"].includes(cat.key);
+                                        const func = isAdvanced ? (parseInt(ictData[`${cat.key}_working`]) || 0) : (parseInt(ictData[`${cat.key}_func`]) || 0);
+                                        if (total === 0) return null;
+                                        const teaching = isAdvanced ? (parseInt(ictData[`${cat.key}_teaching`]) || 0) : 0;
+                                        const students = isAdvanced ? (parseInt(ictData[`${cat.key}_students`]) || 0) : 0;
+                                        const nonTeaching = isAdvanced ? Math.max(0, total - teaching - students) : 0;
+
+                                        return (
+                                            <div key={cat.key} className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm flex flex-col items-center group relative overflow-hidden">
+                                                <div className="absolute -top-2 -right-2 p-4 opacity-5 text-4xl group-hover:scale-125 transition-transform duration-700">{cat.emoji}</div>
+                                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center mb-4 border border-indigo-100/50 shadow-inner group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                                                    {cat.emoji}
+                                                </div>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{cat.label}</span>
+                                                <div className="w-full h-1.5 bg-slate-50 rounded-full mt-4 overflow-hidden">
+                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${(func/total)*100}%` }} className="h-full bg-indigo-500 rounded-full" />
+                                                </div>
+
+                                                {isAdvanced && total > 0 && (
+                                                    <div className="w-full mt-4 pt-3 border-t border-slate-50 flex justify-between gap-2">
+                                                        <div className="flex flex-col items-center flex-1">
+                                                             <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Teaching</span>
+                                                             <span className="text-[10px] font-black text-indigo-500">{teaching}</span>
+                                                        </div>
+                                                        <div className="w-px h-4 bg-slate-50 self-center" />
+                                                        <div className="flex flex-col items-center flex-1">
+                                                             <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Students</span>
+                                                             <span className="text-[10px] font-black text-indigo-500">{students}</span>
+                                                        </div>
+                                                        <div className="w-px h-4 bg-slate-50 self-center" />
+                                                        <div className="flex flex-col items-center flex-1">
+                                                             <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Non-Teach</span>
+                                                             <span className="text-[10px] font-black text-slate-400">{nonTeaching}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+                        </div>
                     </div>
-
-                    {/* ── SEATING INVENTORY ── */}
-                    <section className="space-y-6">
-                        <div className="flex items-center justify-between px-2">
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
-                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Seating health</h3>
-                            </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase bg-slate-100 px-3 py-1 rounded-full">{generalRoomsData.general_rooms_count || 0} Classrooms</span>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {gradesData.filter(g => g.isVerified).map((g, idx) => {
-                                const total = (parseInt(g.armchair_wood_func)||0) + (parseInt(g.armchair_plastic_func)||0) + (parseInt(g.armchair_plastic_steel_func)||0) + (parseInt(g.individual_table_chair_func)||0) + ((parseInt(g.two_seater_wood_func)||0)*2) + ((parseInt(g.two_seater_wood_steel_func)||0)*2) + (parseInt(g.wooden_chair_only_func)||0) + (parseInt(g.plastic_chair_only_func)||0);
-                                let enrolledTotal = parseInt(g.enrolled)||0;
-                                let isParent = g.is_sharing_parent && g.shared_with?.length > 0;
-                                let isChild = g.is_shared_child;
-
-                                if (isParent) {
-                                    g.shared_with.forEach(id => {
-                                        const p = gradesData.find(x => x.id === id);
-                                        if (p) enrolledTotal += parseInt(p.enrolled || 0);
-                                    });
-                                }
-
-                                const shortage = !isChild && total < enrolledTotal;
-                                const ratio = Math.min(100, (total / (enrolledTotal || 1)) * 100);
-
-                                return (
-                                    <motion.div 
-                                        key={g.id}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: idx * 0.05 }}
-                                        className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden"
-                                    >
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black ${isChild ? 'bg-indigo-50 text-indigo-500' : 'bg-slate-50 text-slate-400 border border-slate-100 shadow-inner'}`}>
-                                                    {isChild ? "🔗" : g.grade_level.slice(0,3).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-black text-slate-900 text-lg leading-none mb-1">{g.grade_level}</h4>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                        {isChild ? `Shares with ${gradesData.find(p => p.id === g.sharing_parent_id)?.grade_level}` : `${enrolledTotal} Enrolled`}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            {!isChild && (
-                                                <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase ${shortage ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                                    {shortage ? `Deficit: ${enrolledTotal - total}` : "Adequate Supply"}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {!isChild && (
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    <span>Seat Capacity</span>
-                                                    <span>{ratio.toFixed(0)}% Coverage</span>
-                                                </div>
-                                                <div className="h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100 p-0.5">
-                                                    <motion.div 
-                                                        initial={{ width: 0 }} 
-                                                        animate={{ width: `${ratio}%` }} 
-                                                        className={`h-full rounded-full ${shortage ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 'bg-gradient-to-r from-emerald-400 to-emerald-600'}`}
-                                                    />
-                                                </div>
-                                                <div className="flex gap-4 pt-1">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-slate-300 uppercase">Functional</span>
-                                                        <span className="text-sm font-black text-slate-700">{total}</span>
-                                                    </div>
-                                                    <div className="w-px h-6 bg-slate-100 self-center" />
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-slate-300 uppercase">Enrolled</span>
-                                                        <span className="text-sm font-black text-slate-700">{enrolledTotal}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                );
-                            })}
-                        </div>
-                    </section>
-
-                    {/* ── ICT DISTRIBUTION ── */}
-                    <section className="space-y-6">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">ICT Distribution</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            {ICT_CATEGORIES.map(cat => {
-                                const total = parseInt(ictData[`${cat.key}_total`]) || 0;
-                                const isAdvanced = ["laptops", "tablets", "desktops"].includes(cat.key);
-                                const func = isAdvanced ? (parseInt(ictData[`${cat.key}_working`]) || 0) : (parseInt(ictData[`${cat.key}_func`]) || 0);
-                                if (total === 0) return null;
-                                const teaching = isAdvanced ? (parseInt(ictData[`${cat.key}_teaching`]) || 0) : 0;
-                                const nonTeaching = isAdvanced ? Math.max(0, total - teaching) : 0;
-
-                                return (
-                                    <div key={cat.key} className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm flex flex-col items-center group relative overflow-hidden">
-                                        <div className="absolute -top-2 -right-2 p-4 opacity-5 text-4xl group-hover:scale-125 transition-transform duration-700">{cat.emoji}</div>
-                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center mb-4 border border-indigo-100/50 shadow-inner group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
-                                            {cat.emoji}
-                                        </div>
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{cat.label}</span>
-                                        <div className="w-full h-1.5 bg-slate-50 rounded-full mt-4 overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${(func/total)*100}%` }} className="h-full bg-indigo-500 rounded-full" />
-                                        </div>
-
-                                        {isAdvanced && total > 0 && (
-                                            <div className="w-full mt-4 pt-3 border-t border-slate-50 flex justify-between gap-2">
-                                                <div className="flex flex-col items-center flex-1">
-                                                     <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Teaching</span>
-                                                     <span className="text-[10px] font-black text-indigo-500">{teaching}</span>
-                                                </div>
-                                                <div className="w-px h-4 bg-slate-50 self-center" />
-                                                <div className="flex flex-col items-center flex-1">
-                                                     <span className="text-[7px] font-black text-slate-300 uppercase tracking-tighter">Non-Teach</span>
-                                                     <span className="text-[10px] font-black text-slate-400">{nonTeaching}</span>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </section>
-
-                    {/* ── eCART PACKAGES ── */}
-                    {hasEcart && (
-                        <section className="space-y-6">
-                            <div className="flex items-center gap-2 px-2">
-                                <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">eCart Packages</h3>
-                            </div>
-                            <div className="space-y-4">
-                                {eCarts.map((cart, idx) => (
-                                    <div key={idx} className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden group shadow-2xl shadow-indigo-100">
-                                        <div className="absolute top-0 right-0 p-6 text-6xl opacity-10 group-hover:scale-125 transition-transform">🎒</div>
-                                        <div className="relative z-10">
-                                            <div className="flex justify-between items-start mb-6">
-                                                <div>
-                                                    <h4 className="text-xl font-black italic tracking-tighter uppercase leading-none mb-2">{cart.batches_name}</h4>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="px-2.5 py-1 bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-indigo-300">{cart.year_received}</span>
-                                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{cart.sources_fund}</span>
-                                                    </div>
-                                                </div>
-                                                <div className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border ${cart.charging_condition === 'Functional' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
-                                                    {cart.charging_condition} Status
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5">
-                                                <div className="text-center">
-                                                    <p className="text-2xl font-black">{cart.ecart_laptops || 0}</p>
-                                                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Laptops</p>
-                                                </div>
-                                                <div className="text-center border-x border-white/5">
-                                                    <p className="text-2xl font-black">{cart.ecart_tablets || 0}</p>
-                                                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Tablets</p>
-                                                </div>
-                                                <div className="text-center">
-                                                    <p className="text-2xl font-black">{cart.ecart_tv || 0}</p>
-                                                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Smart TV</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-
-                    {/* ── UTILITIES & WASH ── */}
-                    <section className="space-y-6">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">Infrastructure & Wash</h3>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Utility Cards */}
-                            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-2xl flex items-center justify-center shadow-inner">⚡</div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Electricity</p>
-                                    <h4 className="text-base font-black text-slate-800 leading-tight">{utilitiesData.utility_electricity || "Non-Electrified"}</h4>
-                                    {utilitiesData.has_solar_or_gen && <span className="text-[9px] font-bold text-amber-600 uppercase mt-1 block">✅ Solar/Genset Backup</span>}
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-2xl flex items-center justify-center shadow-inner">🌐</div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Connectivity</p>
-                                    <h4 className="text-base font-black text-slate-800 leading-tight">{utilitiesData.utility_internet_yesno ? "Broadband Active" : "No Internet"}</h4>
-                                    <span className="text-[9px] font-bold text-blue-500 uppercase mt-1 block">{utilitiesData.utility_internet_yesno ? utilitiesData.utility_internet_funder : "Manual Sync Required"}</span>
-                                </div>
-                            </div>
-                            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-5">
-                                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center shadow-inner">🚽</div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sanitation</p>
-                                    <h4 className="text-base font-black text-slate-800 leading-tight">{washData.attached_cr_classrooms || 0} Unit/s</h4>
-                                    <span className="text-[9px] font-bold text-indigo-500 uppercase mt-1 block">Attached Class CRs</span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
                 </div>
 
                 {/* Fixed bottom Unlock button for Review Mode */}
@@ -1167,7 +1250,67 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     }
 
     return (
-        <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-gray-50 to-gray-200 flex flex-col font-sans">
+        <div className="min-h-screen unit1-page flex flex-col font-sans text-gray-900 overflow-hidden">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\],
+                .bg-white.rounded-\\[2rem\\],
+                .bg-slate-900.rounded-\\[2rem\\] {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+                `
+            }} />
             {/* Header */}
             {!propReadOnly && (
                 <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3 pb-4">
@@ -1431,16 +1574,20 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                                         <motion.div variants={expandVariants} initial="hidden" animate="visible" exit="hidden" className="overflow-hidden space-y-4">
                                                             {/* Usage Breakdown */}
                                                             <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100">
-                                                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Personnel Usage Breakdown</p>
-                                                                <div className="grid grid-cols-2 gap-3">
+                                                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Personnel &amp; Student Usage Breakdown</p>
+                                                                <div className="grid grid-cols-3 gap-3">
                                                                     <div>
                                                                         <p className="text-[9px] font-bold text-indigo-600 mb-1 ml-1">Teaching</p>
                                                                         <input type="number" name={`${cat.key}_teaching`} value={ictData[`${cat.key}_teaching`]} onChange={handleIctChange} min="0" placeholder="" className={`${chunkyInput} !mt-0 !bg-white focus:!border-indigo-400`} />
                                                                     </div>
                                                                     <div>
+                                                                        <p className="text-[9px] font-bold text-indigo-600 mb-1 ml-1">Students</p>
+                                                                        <input type="number" name={`${cat.key}_students`} value={ictData[`${cat.key}_students`]} onChange={handleIctChange} min="0" placeholder="" className={`${chunkyInput} !mt-0 !bg-white focus:!border-indigo-400`} />
+                                                                    </div>
+                                                                    <div>
                                                                         <p className="text-[9px] font-bold text-slate-400 mb-1 ml-1">Non-Teaching</p>
                                                                         <div className={`${chunkyInput} !mt-0 !bg-slate-50 text-slate-400 border-dashed flex items-center justify-center`}>
-                                                                            {ictData[`${cat.key}_total`] !== "" && ictData[`${cat.key}_teaching`] !== "" ? Math.max(0, total - (parseInt(ictData[`${cat.key}_teaching`]) || 0)) : "-"}
+                                                                            {ictData[`${cat.key}_total`] !== "" && ictData[`${cat.key}_teaching`] !== "" && ictData[`${cat.key}_students`] !== "" ? Math.max(0, total - (parseInt(ictData[`${cat.key}_teaching`]) || 0) - (parseInt(ictData[`${cat.key}_students`]) || 0)) : "-"}
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -1873,28 +2020,20 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 </div>
 
                                 {/* Certification Checkbox */}
-                                <motion.div 
+                                <div 
                                     onClick={() => setIsCertified(!isCertified)}
-                                    className={`mt-6 p-6 rounded-[2.5rem] border-2 flex items-start gap-4 cursor-pointer transition-all ${
-                                        isCertified 
-                                            ? 'bg-emerald-50 border-emerald-300' 
-                                            : 'bg-white border-slate-200'
-                                    }`}
+                                    className={`mt-6 p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                                 >
-                                    <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${
-                                        isCertified 
-                                            ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                            : 'border-slate-300 bg-white'
-                                    }`}>
-                                        {isCertified && <FiCheck className="w-4 h-4" />}
+                                    <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                        {isCertified && <FiCheck className="w-5 h-5" />}
                                     </div>
                                     <div>
-                                        <p className={`text-[13px] font-black leading-tight ${isCertified ? 'text-emerald-900' : 'text-slate-500'}`}>
-                                            I hereby certify that all data and information provided in this module/unit are true and correct.
+                                        <p className={`text-sm font-black leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                            I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
                                         </p>
-                                        <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Data Integrity Gate</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
                                     </div>
-                                </motion.div>
+                                </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -1902,34 +2041,56 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             </main>
 
             {!propReadOnly && (
-                <div className="fixed bottom-0 left-0 w-full p-5 bg-white border-t border-gray-100 flex flex-col items-center z-40 shadow-[0_-2px_12px_rgba(0,0,0,0.02)]">
-                    <div className="w-full max-w-md">
-                        {/* School-wide Status Confirmation removed as requested */}
-                    </div>
-                    <div className="w-full max-w-md flex items-center gap-3">
-                        <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none">
-                            <FiSave className="w-6 h-6" />
-                            <span className="text-sm font-bold text-gray-500">Save Draft</span>
-                        </button>
+                <div className="fixed bottom-0 left-0 w-full p-6 bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-center z-40 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+                    <div className="w-full max-w-md flex gap-3">
                         {currentPhase === 1 ? (
-                            <button disabled={!isPhase1Valid} onClick={handleMainProceed} className="flex-1 py-4 rounded-2xl text-white font-black text-lg text-center bg-emerald-500 border-b-[5px] border-emerald-700 active:border-b-0 active:translate-y-[5px] transition-all disabled:opacity-50 shadow-lg flex items-center justify-center gap-2">
-                                Continue to Phase 2 <FiChevronRight className="w-5 h-5" />
-                            </button>
-                        ) : currentPhase === 2 ? (
-                            <button disabled={!ictStats.isValid} onClick={handlePhase2Proceed} className="flex-1 py-4 rounded-2xl text-white font-black text-lg text-center bg-blue-500 border-b-[5px] border-blue-700 active:border-b-0 active:translate-y-[5px] transition-all disabled:opacity-50 shadow-lg flex items-center justify-center gap-2">
-                                Continue to Mobile Labs (eCart) <FiChevronRight className="w-5 h-5" />
-                            </button>
-                        ) : currentPhase === 3 ? (
-                            <button disabled={!isPhase3Valid} onClick={handlePhase3Proceed} className="flex-1 py-4 rounded-2xl text-white font-black text-lg text-center bg-emerald-500 border-b-[5px] border-emerald-700 active:border-b-0 active:translate-y-[5px] transition-all disabled:opacity-50 shadow-lg flex items-center justify-center gap-2">
-                                Continue to Phase 4 (WASH) <FiChevronRight className="w-5 h-5" />
-                            </button>
-                        ) : currentPhase === 4 ? (
-                            <button disabled={!washStats.isValid} onClick={handlePhase4Proceed} className="flex-1 py-4 rounded-2xl text-white font-black text-lg text-center bg-indigo-500 border-b-[5px] border-indigo-700 active:border-b-0 active:translate-y-[5px] transition-all disabled:opacity-50 shadow-lg flex items-center justify-center gap-2">
-                                Continue to Phase 5 (Utilities) <FiChevronRight className="w-5 h-5" />
+                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0">
+                                <FiSave className="w-6 h-6" />
+                                <span className="text-sm font-bold text-blue-500">Save Draft</span>
                             </button>
                         ) : (
-                            <button disabled={!isPhase5Valid || !isCertified || loading} onClick={handleFinalSubmit} className="flex-1 py-4 rounded-2xl text-white font-black text-lg text-center bg-emerald-500 border-b-[5px] border-emerald-700 active:border-b-0 active:translate-y-[5px] transition-all disabled:opacity-50 shadow-lg flex items-center justify-center gap-2">
-                                {loading ? "Submitting..." : "Submit School Resources"} <FiCheckCircle className="w-5 h-5" />
+                            <>
+                                <button onClick={() => setCurrentPhase(p => p - 1)}
+                                    className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0">
+                                    <FiArrowLeft className="w-6 h-6" />
+                                </button>
+                                <button onClick={() => setShowDraftModal(true)}
+                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0"
+                                >
+                                    <FiSave className="w-6 h-6" />
+                                    <span className="text-sm font-bold text-blue-500">Save Draft</span>
+                                </button>
+                            </>
+                        )}
+                        {currentPhase < 5 ? (
+                            <button
+                                onClick={
+                                    currentPhase === 1 ? handleMainProceed :
+                                    currentPhase === 2 ? handlePhase2Proceed :
+                                    currentPhase === 3 ? handlePhase3Proceed :
+                                    handlePhase4Proceed
+                                }
+                                disabled={
+                                    (currentPhase === 1 && !isPhase1Valid) ||
+                                    (currentPhase === 2 && !ictStats.isValid) ||
+                                    (currentPhase === 3 && !isPhase3Valid) ||
+                                    (currentPhase === 4 && !washStats.isValid)
+                                }
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
+                            >
+                                <span>Next Step &gt;</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleFinalSubmit}
+                                disabled={!isPhase5Valid || !isCertified || loading}
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-emerald-100 flex justify-center items-center gap-2"
+                            >
+                                {loading ? "Saving..." : (
+                                    <span className="flex items-center justify-center gap-2">
+                                        SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                    </span>
+                                )}
                             </button>
                         )}
                     </div>

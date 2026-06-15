@@ -11,6 +11,13 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# R session history
+.Rhistory
+
+# CRITICAL SECRETS – never commit
+.env
+server/.env
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -46,11 +53,12 @@ uploads/
 extracted_images/
 insighted_engr_photos/
 
-# Temporary audit and setup scripts
-tmp/
-production_debug_audit.cjs
-setup-ssh-key.*
-.claude/settings.local.json
+# Organized scratch scripts (gitignored for safety)
+scripts/scratch/
+
+# Migrated data/configs
+configs/target/
+data/
 
 # Forensic Results and Data Snapshots (Sensitivity Protection)
 *_results.json

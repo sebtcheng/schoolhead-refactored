@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     FiCloud, FiWifi, FiCheckCircle, FiAlertCircle, FiTrash2, 
@@ -7,7 +8,6 @@ import {
     FiDatabase, FiSettings
 } from 'react-icons/fi';
 import { getModularOutbox, deleteModularFromOutbox } from '../db';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 
 const SyncCenter = () => {
@@ -17,11 +17,6 @@ const SyncCenter = () => {
     const [syncProgress, setSyncProgress] = useState(0);
     const [syncStatus, setSyncStatus] = useState({}); // itemID -> 'syncing' | 'success' | 'error'
     const [syncErrors, setSyncErrors] = useState({}); // itemID -> string message
-    const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
-
-    useEffect(() => {
-        loadData();
-    }, []);
 
     const loadData = async () => {
         try {
@@ -31,6 +26,11 @@ const SyncCenter = () => {
             console.error("Failed to load modular outbox:", error);
         }
     };
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadData();
+    }, []);
 
     const handleSync = async () => {
         if (!navigator.onLine) {
@@ -73,7 +73,7 @@ const SyncCenter = () => {
                     try {
                         const errorData = await response.json();
                         errorMsg = errorData.error || errorData.message || errorMsg;
-                    } catch (e) {
+                    } catch {
                         // Not JSON or no error field
                     }
                     setSyncStatus(prev => ({ ...prev, [item.id]: 'error' }));
@@ -225,7 +225,7 @@ const SyncCenter = () => {
                         </div>
 
                         <AnimatePresence mode="popLayout">
-                            {pendingItems.map((item, idx) => (
+                            {pendingItems.map((item) => (
                                 <motion.div 
                                     key={item.id}
                                     layout
@@ -283,10 +283,7 @@ const SyncCenter = () => {
                             </div>
                         )}
                     </div>
-
                 </div>
-
-                <BottomNav userRole="School Head" />
             </div>
             
             <style jsx="true">{`

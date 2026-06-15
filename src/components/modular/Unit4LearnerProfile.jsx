@@ -6,6 +6,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const TOTAL_CHAPTERS = 5; // 1: Gatekeeper, 2: Demo Loop, 3: Move Loop, 4: Health Check, 5: Review & Submit
@@ -28,6 +29,7 @@ const ALL_GRADES_REF = [
 
 const DEMOGRAPHIC_CARDS = [
     { id: "als",       icon: "📚", label: "ALS Learners",                    color: "amber" },
+    { id: "fourps",    icon: "💳", label: "4Ps Learners",                    color: "blue" },
     { id: "muslim",    icon: "🕌", label: "Muslim Learners",         color: "emerald" },
     { id: "ip",        icon: "⛰️", label: "Indigenous People (IP)",           color: "orange" },
     { id: "displaced", icon: "🏕️", label: "Displaced Learners",              color: "rose" },
@@ -50,7 +52,7 @@ const colorClasses = {
     red:     { bg: "bg-red-100",     border: "border-red-500",     text: "text-red-700",     shadow: "shadow-red-200" },
 };
 
-const chunkyInput = "w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl text-lg font-bold text-gray-700 focus:outline-none focus:border-violet-500 focus:bg-violet-50 transition-colors shadow-sm text-center";
+const chunkyInput = "w-full p-3 bg-white border-2 border-[#BAE6FD] rounded-xl text-lg font-bold text-slate-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm text-center font-body";
 
 // ── Framer Motion Variants ────────────────────────────────────────────────
 const pageVariants = {
@@ -123,7 +125,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}?t=${Date.now()}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -201,15 +203,33 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         setEnrollmentTotal(parseInt(q.grandTotal) || parseInt(baseline.total_enrollment) || 0);
                     } catch (e) { console.warn("Unit 2 Parse error", e); }
                 } else {
-                    filteredGrades = ALL_GRADES_REF.filter(g => offeringAllowed.includes(g.id));
+                    const hasUnit2Data = baseline.unit2_completed || baseline.unit2_has_data;
+                    const processedTotals = {};
+                    if (hasUnit2Data) {
+                        filteredGrades = ALL_GRADES_REF.filter(g => {
+                            const enrollVal = baseline[`enroll_${g.id}`];
+                            const total = parseInt(enrollVal) || 0;
+                            processedTotals[g.id] = total;
+                            return offeringAllowed.includes(g.id) && total > 0;
+                        });
+                        setGradeTotalsMap(processedTotals);
+                    } else {
+                        filteredGrades = ALL_GRADES_REF.filter(g => offeringAllowed.includes(g.id));
+                    }
                     setDynamicGrades(filteredGrades);
                     setEnrollmentTotal(parseInt(baseline.total_enrollment) || 0);
                 }
 
+                const sortGroups = (groups) => [...(groups || [])].sort((a, b) => {
+                    const idxA = DEMOGRAPHIC_CARDS.findIndex(c => c.id === a);
+                    const idxB = DEMOGRAPHIC_CARDS.findIndex(c => c.id === b);
+                    return idxA - idxB;
+                });
+
                 // 5. MASTER PRECEDENCE: SYNC CENTER > DRAFT > DATABASE
                 if (pendingUnit4) {
                     const p = pendingUnit4.payload;
-                    setSelectedGroups(p.selected_learner_groups || []);
+                    setSelectedGroups(sortGroups(p.selected_learner_groups || []));
                     setDemographicsData(p.demographicsData || {});
                     setMovementData(p.movementData || {});
                     setBmiData({ 
@@ -226,7 +246,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
                 } else if (draft) {
                     setCurrentChapter(draft.currentChapter || 1);
-                    setSelectedGroups(draft.selectedGroups || []);
+                    setSelectedGroups(sortGroups(draft.selectedGroups || []));
                     setCatIdx(draft.catIdx || 0);
                     setDemographicsData(draft.demographicsData || {});
                     setHasMovement(draft.hasMovement);
@@ -238,7 +258,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     setTimeout(() => setShowWelcomeBack(false), 3000);
 
                 } else if (baseline.unit4_completed || propReadOnly) {
-                    if (Array.isArray(baseline.selected_learner_groups)) setSelectedGroups(baseline.selected_learner_groups);
+                    if (Array.isArray(baseline.selected_learner_groups)) setSelectedGroups(sortGroups(baseline.selected_learner_groups));
                     const demoObj = {};
                     const moveObj = {};
                     let hasAnyMove = false;
@@ -459,7 +479,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 4,
                     label: "Unit 4: Learner Profile Stats",
-                    url: `api/ph_schools/unit4/${schoolId}`,
+                    url: api(`/ph_schools/unit4/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -481,7 +501,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             let res;
             try {
-                res = await fetch(`api/ph_schools/unit4/${schoolId}`, {
+                res = await fetch(api(`/api/ph_schools/unit4/${schoolId}`), {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
@@ -507,7 +527,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             // Sync progress to dashboard
             try {
-                await fetch('api/user/progress', {
+                await fetch(api(`/api/user/progress`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ unitId: 4, schoolId })
@@ -522,7 +542,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 4,
                     label: "Unit 4: Learner Profile Stats",
-                    url: `api/ph_schools/unit4/${schoolId}`,
+                    url: api(`/ph_schools/unit4/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -601,21 +621,84 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         const repSum  = sumMove("repeater");
 
         return (
-            <div className="min-h-screen bg-slate-50/50 font-sans">
-                <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                    <div className="max-w-md mx-auto flex items-center gap-3">
-                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+            <div className="min-h-screen unit1-page font-sans">
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                    
+                    :root {
+                      --navy: #08315F;
+                      --blue: #075985;
+                      --blue-600: #0284C7;
+                      --blue-400: #7DD3FC;
+                      --blue-100: #E0F2FE;
+                      --blue-50: #F0F9FF;
+                      --gold: #FBBF24;
+                      --amber: #D97706;
+                      --red: #B91C1C;
+                      --bg: #F0F9FF;
+                      --card: #FFFFFF;
+                      --text: #0F172A;
+                      --muted: #64748B;
+                      --line: #BAE6FD;
+                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --radius: 22px;
+                    }
+
+                    .unit1-page {
+                      font-family: var(--font-body);
+                      background-color: var(--blue-50);
+                      background-image:
+                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                    }
+
+                    .bg-white.rounded-\\[2\\.5rem\\], 
+                    .bg-slate-50.rounded-\\[2\\.5rem\\],
+                    .bg-slate-900.rounded-\\[2\\.5rem\\],
+                    .bg-white.rounded-3xl,
+                    .bg-slate-950.rounded-3xl {
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                    }
+
+                    .nodes-card {
+                      background: var(--card);
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                      box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                    }
+                    
+                    .font-heading {
+                      font-family: var(--font-heading) !important;
+                    }
+                    .font-body {
+                      font-family: var(--font-body) !important;
+                    }
+                    
+                    h2, h3, h1 {
+                      font-family: var(--font-heading);
+                    }
+                    `
+                }} />
+                <header className="px-6 py-5 flex items-center justify-between border-b border-gray-100/50 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
                             <FiArrowLeft className="w-6 h-6" />
                         </button>
-                        <div className="flex-1 text-center">
-                            <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 4</div>
-                            <h1 className="text-sm font-black text-gray-800">Learner Profile</h1>
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">
+                                Reviewing
+                            </span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                Learner Profile
+                            </span>
                         </div>
-                        <div className="w-10" />
                     </div>
                 </header>
 
-                <div className="max-w-md mx-auto pb-32 mt-4 px-4 space-y-8">
+                <div className="max-w-7xl mx-auto pb-32 mt-4 px-4 md:px-8 space-y-8 w-full">
                     <UnitRemarkAlert unitId="u4" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
                     {/* Header */}
                     <div className="text-center mb-10">
@@ -633,182 +716,187 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         <p className="text-slate-500 font-medium mt-2 italic">"Demographic profiling and health status report"</p>
                     </div>
 
-                    {/* Primary Metrics */}
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-100 relative overflow-hidden group border border-white/10">
-                        <div className="absolute -bottom-10 -right-10 text-9xl opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none">🧬</div>
-                        <div className="relative z-10 text-center">
-                            <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Registry Coverage</p>
-                            <div className="flex items-center justify-around py-4 border-y border-white/10 mt-4">
-                                <div>
-                                    <p className="text-4xl font-black leading-none">{enrollmentTotal}</p>
-                                    <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Total Students</p>
-                                </div>
-                                <div className="w-px h-12 bg-white/10" />
-                                <div>
-                                    <p className="text-4xl font-black leading-none">{displayGroups.length}</p>
-                                    <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Priority Groups</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Left Column: Summary Metrics & BMI */}
+                        <div className="lg:col-span-1 space-y-6">
+                            {/* Primary Metrics */}
+                            <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-100 relative overflow-hidden group border border-white/10">
+                                <div className="absolute -bottom-10 -right-10 text-9xl opacity-10 group-hover:rotate-12 transition-transform duration-700 pointer-events-none">🧬</div>
+                                <div className="relative z-10 text-center">
+                                    <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Registry Coverage</p>
+                                    <div className="flex items-center justify-around py-4 border-y border-white/10 mt-4">
+                                        <div>
+                                            <p className="text-4xl font-black leading-none">{enrollmentTotal}</p>
+                                            <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Total Students</p>
+                                        </div>
+                                        <div className="w-px h-12 bg-white/10" />
+                                        <div>
+                                            <p className="text-4xl font-black leading-none">{displayGroups.length}</p>
+                                            <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Priority Groups</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* Health Profile */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Health Profile (BMI)</h3>
+                                </div>
+                                <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-2xl font-black text-emerald-600">
+                                                {enrollmentTotal > 0 ? (((savedData?.bmi_normal || 0) / enrollmentTotal) * 100).toFixed(1) : 0}%
+                                            </p>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Standard BMI Weight</p>
+                                        </div>
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🥗</div>
+                                    </div>
+                                    
+                                    <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                        <div style={{ width: `${( (savedData?.bmi_severely_wasted||0) / enrollmentTotal ) * 100}%` }} className="bg-red-500" title="Severely Wasted" />
+                                        <div style={{ width: `${( (savedData?.bmi_wasted||0) / enrollmentTotal ) * 100}%` }} className="bg-amber-400" title="Wasted" />
+                                        <div style={{ width: `${( (savedData?.bmi_normal||0) / enrollmentTotal ) * 100}%` }} className="bg-emerald-500" title="Normal" />
+                                        <div style={{ width: `${( (savedData?.bmi_overweight_obese||0) / enrollmentTotal ) * 100}%` }} className="bg-rose-400" title="Overweight/Obese" />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-red-500" /> Sev. Wasted</span>
+                                                <span className="font-black text-slate-700">{savedData?.bmi_severely_wasted || 0}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-amber-400" /> Wasted</span>
+                                                <span className="font-black text-slate-700">{savedData?.bmi_wasted || 0}</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Normal</span>
+                                                <span className="font-black text-slate-700">{savedData?.bmi_normal || 0}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-rose-400" /> Obese+</span>
+                                                <span className="font-black text-slate-700">{savedData?.bmi_overweight_obese || 0}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        {/* Right Column: Demographics & Movement */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Special Groups Details */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Detailed Demographics</h3>
+                                </div>
+
+                                {displayGroups.length === 0 ? (
+                                    <div className="bg-white rounded-3xl p-8 border border-dashed border-slate-200 text-center text-slate-400">
+                                        <p className="font-bold italic">No priority groups reported.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-4">
+                                        {displayGroups.map(g => {
+                                            const total = g.id === 'als' 
+                                                ? (parseInt(savedData?.als_total) || 0)
+                                                : dynamicGrades.reduce((sum, gr) => sum + (parseInt(savedData?.[`${g.id}_${gr.id}`]) || 0), 0);
+                                            
+                                            return (
+                                                <div key={g.id} className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm overflow-hidden group">
+                                                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-50">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">{g.icon}</div>
+                                                            <div>
+                                                                <h4 className="font-black text-slate-800">{g.label}</h4>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Unit 4 Profile</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Total Count</p>
+                                                            <span className="text-xl font-black text-indigo-600">{total}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Grade Breakdown (Horizontal Scroll) */}
+                                                    {g.id !== 'als' && (
+                                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                                            {dynamicGrades.map(gr => {
+                                                                const val = parseInt(savedData?.[`${g.id}_${gr.id}`]) || 0;
+                                                                if (val === 0) return null;
+                                                                return (
+                                                                    <div key={gr.id} className="flex-shrink-0 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 flex items-center gap-2">
+                                                                        <span className="text-[9px] font-black text-slate-400 uppercase">{gr.label}</span>
+                                                                        <span className="text-xs font-black text-indigo-600">{val}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </section>
+
+                            {/* Learner Activity / Movement */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Learner Activity</h3>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Dropouts */}
+                                    <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-3 opacity-5 text-4xl">🔻</div>
+                                        <div className="relative z-10">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Prev. SY Dropouts</p>
+                                            <p className="text-3xl font-black text-rose-600">{dropSum}</p>
+                                            <div className="mt-4 pt-4 border-t border-slate-50 space-y-1">
+                                                {dynamicGrades.map(gr => {
+                                                    const val = parseInt(savedData?.[`dropout_${gr.id}`]) || 0;
+                                                    if (val === 0) return null;
+                                                    return (
+                                                        <div key={gr.id} className="flex justify-between text-[9px]">
+                                                            <span className="font-bold text-slate-400 uppercase">{gr.label}</span>
+                                                            <span className="font-black text-rose-500">{val}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Repeaters */}
+                                    <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-3 opacity-5 text-4xl">🔄</div>
+                                        <div className="relative z-10">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Curr. SY Dropouts</p>
+                                            <p className="text-3xl font-black text-orange-600">{repSum}</p>
+                                            <div className="mt-4 pt-4 border-t border-slate-50 space-y-1">
+                                                {dynamicGrades.map(gr => {
+                                                    const val = parseInt(savedData?.[`repeater_${gr.id}`]) || 0;
+                                                    if (val === 0) return null;
+                                                    return (
+                                                        <div key={gr.id} className="flex justify-between text-[9px]">
+                                                            <span className="font-bold text-slate-400 uppercase">{gr.label}</span>
+                                                            <span className="font-black text-orange-500">{val}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
                     </div>
-
-                    {/* Special Groups Details */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Detailed Demographics</h3>
-                        </div>
-
-                        {displayGroups.length === 0 ? (
-                            <div className="bg-white rounded-3xl p-8 border border-dashed border-slate-200 text-center text-slate-400">
-                                <p className="font-bold italic">No priority groups reported.</p>
-                            </div>
-                        ) : (
-                            <div className="grid gap-4">
-                                {displayGroups.map(g => {
-                                    const total = g.id === 'als' 
-                                        ? (parseInt(savedData?.als_total) || 0)
-                                        : dynamicGrades.reduce((sum, gr) => sum + (parseInt(savedData?.[`${g.id}_${gr.id}`]) || 0), 0);
-                                    
-                                    return (
-                                        <div key={g.id} className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm overflow-hidden group">
-                                            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-50">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">{g.icon}</div>
-                                                    <div>
-                                                        <h4 className="font-black text-slate-800">{g.label}</h4>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Unit 4 Profile</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Total Count</p>
-                                                    <span className="text-xl font-black text-indigo-600">{total}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Grade Breakdown (Horizontal Scroll) */}
-                                            {g.id !== 'als' && (
-                                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                                    {dynamicGrades.map(gr => {
-                                                        const val = parseInt(savedData?.[`${g.id}_${gr.id}`]) || 0;
-                                                        if (val === 0) return null;
-                                                        return (
-                                                            <div key={gr.id} className="flex-shrink-0 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 flex items-center gap-2">
-                                                                <span className="text-[9px] font-black text-slate-400 uppercase">{gr.label}</span>
-                                                                <span className="text-xs font-black text-indigo-600">{val}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </section>
-
-                    {/* Learner Activity / Movement */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Learner Activity</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Dropouts */}
-                            <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-3 opacity-5 text-4xl">🔻</div>
-                                <div className="relative z-10">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Prev. SY Dropouts</p>
-                                    <p className="text-3xl font-black text-rose-600">{dropSum}</p>
-                                    <div className="mt-4 pt-4 border-t border-slate-50 space-y-1">
-                                        {dynamicGrades.map(gr => {
-                                            const val = parseInt(savedData?.[`dropout_${gr.id}`]) || 0;
-                                            if (val === 0) return null;
-                                            return (
-                                                <div key={gr.id} className="flex justify-between text-[9px]">
-                                                    <span className="font-bold text-slate-400 uppercase">{gr.label}</span>
-                                                    <span className="font-black text-rose-500">{val}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Repeaters */}
-                            <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-3 opacity-5 text-4xl">🔄</div>
-                                <div className="relative z-10">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Curr. SY Dropouts</p>
-                                    <p className="text-3xl font-black text-orange-600">{repSum}</p>
-                                    <div className="mt-4 pt-4 border-t border-slate-50 space-y-1">
-                                        {dynamicGrades.map(gr => {
-                                            const val = parseInt(savedData?.[`repeater_${gr.id}`]) || 0;
-                                            if (val === 0) return null;
-                                            return (
-                                                <div key={gr.id} className="flex justify-between text-[9px]">
-                                                    <span className="font-bold text-slate-400 uppercase">{gr.label}</span>
-                                                    <span className="font-black text-orange-500">{val}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Health Profile */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Health Profile (BMI)</h3>
-                        </div>
-                        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-2xl font-black text-emerald-600">
-                                        {enrollmentTotal > 0 ? (((savedData?.bmi_normal || 0) / enrollmentTotal) * 100).toFixed(1) : 0}%
-                                    </p>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Standard BMI Weight</p>
-                                </div>
-                                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🥗</div>
-                            </div>
-                            
-                            <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                                <div style={{ width: `${( (savedData?.bmi_severely_wasted||0) / enrollmentTotal ) * 100}%` }} className="bg-red-500" title="Severely Wasted" />
-                                <div style={{ width: `${( (savedData?.bmi_wasted||0) / enrollmentTotal ) * 100}%` }} className="bg-amber-400" title="Wasted" />
-                                <div style={{ width: `${( (savedData?.bmi_normal||0) / enrollmentTotal ) * 100}%` }} className="bg-emerald-500" title="Normal" />
-                                <div style={{ width: `${( (savedData?.bmi_overweight_obese||0) / enrollmentTotal ) * 100}%` }} className="bg-rose-400" title="Overweight/Obese" />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-[10px]">
-                                        <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-red-500" /> Sev. Wasted</span>
-                                        <span className="font-black text-slate-700">{savedData?.bmi_severely_wasted || 0}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-[10px]">
-                                        <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-amber-400" /> Wasted</span>
-                                        <span className="font-black text-slate-700">{savedData?.bmi_wasted || 0}</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-[10px]">
-                                        <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Normal</span>
-                                        <span className="font-black text-slate-700">{savedData?.bmi_normal || 0}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-[10px]">
-                                        <span className="flex items-center gap-1.5 text-slate-400 font-bold uppercase"><div className="w-2 h-2 rounded-full bg-rose-400" /> Obese+</span>
-                                        <span className="font-black text-slate-700">{savedData?.bmi_overweight_obese || 0}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                        {/* Fixed bottom button will handle this */}
-
                 </div>
                 {/* Fixed bottom Unlock button for Review Mode */}
                 {!propReadOnly && (
@@ -832,7 +920,67 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     // WIZARD MODE
     // ══════════════════════════════════════════════════════════════════════
     return (
-        <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-slate-50 to-gray-100 flex flex-col font-sans text-slate-800">
+        <div className="min-h-screen unit1-page flex flex-col font-sans text-slate-800">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\],
+                .bg-white.rounded-3xl,
+                .bg-slate-950.rounded-3xl {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+                `
+            }} />
             <div className="max-w-md mx-auto w-full px-4">
                 <UnitRemarkAlert unitId="u4" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
             </div>
@@ -883,7 +1031,14 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                         
                                         return (
                                             <motion.button key={card.id} whileTap={{ scale: 0.98 }}
-                                                onClick={() => setSelectedGroups(p => p.includes(card.id) ? p.filter(x => x !== card.id) : [...p, card.id])}
+                                                onClick={() => setSelectedGroups(p => {
+                                                    const next = p.includes(card.id) ? p.filter(x => x !== card.id) : [...p, card.id];
+                                                    return next.sort((a, b) => {
+                                                        const idxA = DEMOGRAPHIC_CARDS.findIndex(c => c.id === a);
+                                                        const idxB = DEMOGRAPHIC_CARDS.findIndex(c => c.id === b);
+                                                        return idxA - idxB;
+                                                    });
+                                                })}
                                                 className={`w-full p-6 rounded-[2rem] border-4 transition-all duration-300 flex items-center gap-5 text-left shadow-xl ${isSelected ? `${cStyles.bg} ${cStyles.border} shadow-indigo-100/50 scale-100` : "bg-white border-slate-100 hover:border-indigo-100 grayscale hover:grayscale-0 scale-[0.98]"}`}>
                                                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl ${isSelected ? "bg-white shadow-inner" : "bg-slate-50"}`}>
                                                     {card.icon}
@@ -1294,18 +1449,20 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
                                 </div>
 
-                                <motion.div
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => setIsVerified(!isVerified)}
-                                    className={`w-full p-6 rounded-[2rem] flex items-start text-left gap-4 border-2 transition-all duration-300 cursor-pointer ${isVerified ? "bg-emerald-50 border-emerald-200 shadow-sm" : "bg-white border-slate-100 text-slate-400 hover:border-slate-200"}`}
+                                <div 
+                                    onClick={() => setIsCertified(!isCertified)}
+                                    className={`w-full p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                                 >
-                                    <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex-shrink-0 flex items-center justify-center transition-all ${isVerified ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-300"}`}>
-                                        {isVerified && <FiCheck strokeWidth={4} className="w-4 h-4" />}
+                                    <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                        {isCertified && <FiCheck className="w-5 h-5" />}
                                     </div>
-                                    <p className={`text-xs font-bold leading-relaxed ${isVerified ? 'text-emerald-900' : 'text-slate-500 italic uppercase tracking-widest'}`}>
-                                        I hereby certify that all data and information provided in this module/unit is true and correct
-                                    </p>
-                                </motion.div>
+                                    <div>
+                                        <p className={`text-sm font-black leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                            I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                        </p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
+                                    </div>
+                                </div>
 
                             </motion.div>
                         )}
@@ -1318,38 +1475,43 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             {/* ── Sticky Footer ── */}
             {!propReadOnly && (
                 <div className="fixed bottom-0 left-0 w-full p-6 bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-center z-50 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
-                    <div className="w-full max-w-xl flex gap-4">
+                    <div className="w-full max-w-md flex gap-3">
                         
                         {currentChapter === 1 ? (
-                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none">
+                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none">
                                 <FiSave className="w-6 h-6" />
-                                <span className="text-sm font-bold text-gray-500">Save Draft</span>
+                                <span className="text-sm font-bold text-blue-500">Save Draft</span>
                             </button>
                         ) : (
-                            <div className="flex gap-2">
+                            <>
                                 <button onClick={handleBack}
-                                    className="w-16 h-16 flex justify-center items-center rounded-3xl bg-slate-100 text-slate-500 border-2 border-slate-200 active:translate-y-[2px] transition-all">
+                                    className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0">
                                     <FiArrowLeft className="w-6 h-6" />
                                 </button>
                                 <button onClick={() => setShowDraftModal(true)}
-                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none"
+                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0"
                                 >
                                     <FiSave className="w-6 h-6" />
                                     <span className="text-sm font-bold text-blue-500">Save Draft</span>
                                 </button>
-                            </div>
+                            </>
                         )}
 
                         {currentChapter === TOTAL_CHAPTERS ? (
-                            <button onClick={handleSubmit} disabled={loading || !isVerified}
-                                    className="flex-1 h-16 rounded-3xl text-white font-black text-xl bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all duration-100 disabled:opacity-50 shadow-xl shadow-emerald-100 flex justify-center items-center gap-2">
-                                    {loading ? "Syncing..." : "Submit Profile"}
+                            <button onClick={handleSubmit} disabled={loading || !isCertified}
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg flex justify-center items-center gap-2"
+                            >
+                                {loading ? "Syncing..." : (
+                                    <span className="flex items-center justify-center gap-2">
+                                        SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                    </span>
+                                )}
                             </button>
                         ) : (
                             <button onClick={handleNext} disabled={!isStepValid}
-                                className="flex-1 h-16 rounded-3xl text-white font-black text-xl bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all duration-100 disabled:opacity-50 shadow-xl shadow-indigo-100 flex justify-center items-center gap-2 uppercase tracking-widest">
-                                {currentChapter === 2 && selectedGroups.length > 1 && catIdx < selectedGroups.length - 1 ? "Next Group" : currentChapter === 1 && selectedGroups.length === 0 ? "Skip Steps" : "Continue"}
-                                <FiChevronRight className="w-6 h-6" />
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg flex justify-center items-center gap-2"
+                            >
+                                <span>Next Step &gt;</span>
                             </button>
                         )}
                     </div>

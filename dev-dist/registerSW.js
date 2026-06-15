@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/insighted/dev-sw.js?dev-sw', { scope: '/insighted/', type: 'module' })

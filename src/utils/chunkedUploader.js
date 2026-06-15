@@ -1,9 +1,4 @@
-/**
- * chunkedUploader.js
- * High-performance, low-memory file slicing and uploading utility.
- * Distributes large PDFs into 5MB chunks and streams them to the backend,
- * bypassing total-file base64 conversion and browser memory locks.
- */
+import { api } from '../lib/api';
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 const MAX_CONCURRENT = 3;
@@ -43,7 +38,7 @@ export const uploadFileInChunks = async (file, onProgress) => {
 
         while (retries < maxRetries && !failed) {
             try {
-                const res = await fetch('api/upload/pdf-chunk', {
+                const res = await fetch(api(`/api/upload/pdf-chunk`), {
                     method: 'POST',
                     body: formData
                 });
@@ -96,7 +91,7 @@ export const uploadFileInChunks = async (file, onProgress) => {
         const finalizeUpload = async () => {
             if (onProgress) onProgress(95); // Finalizing
             try {
-                const res = await fetch('api/upload/multipart-finalize', {
+                const res = await fetch(api(`/api/upload/multipart-finalize`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

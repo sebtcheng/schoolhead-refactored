@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { clearProjectsCache, saveUnitDraft, getUnitDraft, saveSchoolToCache } from '../db';
 import { normalizeRole } from '../config/roleGroups';
+import { api } from "../lib/api";
 
 const AuthContext = createContext(null);
 
@@ -26,8 +27,8 @@ export const AuthProvider = ({ children }) => {
             // Fetch both in parallel: registry for authoritative profile fields,
             // ph_schools for user-updated data (especially coordinates)
             const [iernFetch, phFetch] = await Promise.all([
-                fetch(`api/schools_iern/${schoolId}`).catch(() => null),
-                fetch(`api/ph_schools/${schoolId}`).catch(() => null)
+                fetch(api(`/schools_iern/${schoolId}`)).catch(() => null),
+                fetch(api(`/ph_schools/${schoolId}`)).catch(() => null)
             ]);
             let registryData = null;
             if (iernFetch?.ok) {
@@ -84,7 +85,7 @@ export const AuthProvider = ({ children }) => {
                 const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s timeout
 
                 try {
-                    const res = await fetch('api/auth/me', {
+                    const res = await fetch(api(`/api/auth/me`), {
                         headers: {
                             'Authorization': `Bearer ${token}`
                         },
@@ -106,6 +107,7 @@ export const AuthProvider = ({ children }) => {
                         if (userData.division) localStorage.setItem('userDivision', userData.division);
                         
                         setUser(userData);
+                        localStorage.setItem('remembered_user', JSON.stringify(userData));
                         
                         // Sync session data for components relying on localStorage
                         if (userData.uid) localStorage.setItem('userId', userData.uid);
@@ -115,21 +117,40 @@ export const AuthProvider = ({ children }) => {
                             // Background seed task
                             seedUnit1FromMaster(userData.school_id);
                         }
-                    } else {
+                    } else if (res.status === 401 || res.status === 403) {
                         // Token invalid or expired
                         localStorage.removeItem('token');
                         localStorage.removeItem('userId');
                         localStorage.removeItem('userRole');
+                        localStorage.removeItem('remembered_user');
                         setToken(null);
                         setUser(null);
+                    } else {
+                        // Server temporary error (e.g. 500, 502, 503) - use fallback to prevent log out
+                        const cachedUser = localStorage.getItem('remembered_user');
+                        if (cachedUser) {
+                            try {
+                                setUser(JSON.parse(cachedUser));
+                            } catch (e) {
+                                setUser(null);
+                            }
+                        } else {
+                            setUser(null);
+                        }
                     }
                 } catch (err) {
-                    if (err.name === 'AbortError') {
-                        console.warn("Auth initialization timed out.");
+                    console.warn("Auth initialization network error (server restarting/offline):", err.message);
+                    // Use cached session to prevent logging out during server restarts
+                    const cachedUser = localStorage.getItem('remembered_user');
+                    if (cachedUser) {
+                        try {
+                            setUser(JSON.parse(cachedUser));
+                        } catch (e) {
+                            setUser(null);
+                        }
                     } else {
-                        console.error("Auth init error:", err);
+                        setUser(null);
                     }
-                    setUser(null);
                 } finally {
                     clearTimeout(timeoutId);
                 }
@@ -240,7 +261,7 @@ export const AuthProvider = ({ children }) => {
                 return;
             }
 
-            const res = await fetch('api/auth/verify-passcode', {
+            const res = await fetch(api(`/api/auth/verify-passcode`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

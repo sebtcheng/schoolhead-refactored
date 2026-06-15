@@ -1,14 +1,13 @@
 {
   "name": "insighted",
   "private": true,
-  "version": "1.0.25",
+  "version": "1.0.26",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node --watch api/index.js",
-    "dev:siif": "npm run dev:full --prefix siif-service",
-    "dev:full": "concurrently -n \"SERVER,VITE,SIIF\" -c \"bgBlue.bold,bgMagenta.bold,bgYellow.bold\" \"npm run server\" \"npm run dev\" \"npm run dev:siif\"",
-    "dev:turbo": "node turbo-dev.js",
+    "server": "node --watch-path=api api/index.js",
+    "dev:full": "concurrently -n \"SERVER,VITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run server\" \"npm run dev\"",
+    "dev:turbo": "node scripts/turbo-dev.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

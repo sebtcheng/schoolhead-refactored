@@ -6,6 +6,7 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const TOTAL_CHAPTERS = 4; // 1: Gatekeeper, 2: Grade Loop, 3: ADM, 4: Review
@@ -115,7 +116,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}?t=${Date.now()}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -151,24 +152,62 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 
                 const expectedGrades = [];
                 let hasKinder = false; let hasElem = false; let hasJHS = false; let hasSHS = false;
-                if (co === "purely elementary") { hasKinder = true; hasElem = true; }
-                else if (co === "elementary school and junior high school (k-10)") { hasKinder = true; hasElem = true; hasJHS = true; }
-                else if (co === "junior high and senior high") { hasJHS = true; hasSHS = true; }
-                else if (co === "all offering (k to 12)") { hasKinder = true; hasElem = true; hasJHS = true; hasSHS = true; }
-                else if (co === "purely junior high school") { hasJHS = true; }
-                else if (co === "purely senior high school") { hasSHS = true; }
-                else {
-                    hasKinder = co.includes("elementary") || co.includes("k to 10") || co.includes("k to 12") || co.includes("kinder");
-                    hasElem = co.includes("elementary") || co.includes("k to 10") || co.includes("k to 12") || co.includes("k-10") || co.includes("k-12");
-                    hasJHS = co.includes("junior high") || co.includes("jhs") || co.includes("k to 10") || co.includes("k to 12") || co.includes("k-10") || co.includes("k-12");
-                    hasSHS = co.includes("senior high") || co.includes("shs") || co.includes("k to 12") || co.includes("k-12");
+                if (co === "purely elementary" || co === "purely es" || co === "elementary") { 
+                    hasKinder = true; hasElem = true; 
+                } else if (co === "elementary school and junior high school (k-10)" || co === "es and jhs (k to 10)") { 
+                    hasKinder = true; hasElem = true; hasJHS = true; 
+                } else if (co === "junior high and senior high" || co === "jhs with shs") { 
+                    hasJHS = true; hasSHS = true; 
+                } else if (co === "all offering (k to 12)" || co === "all offering (k-12)") { 
+                    hasKinder = true; hasElem = true; hasJHS = true; hasSHS = true; 
+                } else if (co === "purely junior high school" || co === "purely jhs") { 
+                    hasJHS = true; 
+                } else if (co === "purely senior high school" || co === "purely shs") { 
+                    hasSHS = true; 
+                } else {
+                    hasKinder = co.includes("elementary") || co.includes("es") || co.includes("k to 10") || co.includes("k to 12") || co.includes("k-10") || co.includes("k-12") || co.includes("kinder");
+                    hasElem = co.includes("elementary") || co.includes("es") || co.includes("k to 10") || co.includes("k to 12") || co.includes("k-10") || co.includes("k-12");
+                    hasJHS = co.includes("junior") || co.includes("jhs") || co.includes("k to 10") || co.includes("k to 12") || co.includes("k-10") || co.includes("k-12");
+                    hasSHS = co.includes("senior") || co.includes("shs") || co.includes("k to 12") || co.includes("k-12");
                 }
 
                 // [FIX] Robust grade detection from Unit 2/3 payload
-                let parsedSections = [];
-                if (baseline.unit3_simplified_counts) {
-                    try { parsedSections = typeof baseline.unit3_simplified_counts === 'string' ? JSON.parse(baseline.unit3_simplified_counts) : (baseline.unit3_simplified_counts.array || baseline.unit3_simplified_counts); } catch (e) {}
+                let parsedSections = {};
+                const gradeKeysList = ['kinder', 'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12'];
+                gradeKeysList.forEach(gk => {
+                    let summaryStr = null;
+                    if (gk === "kinder") {
+                        summaryStr = baseline.grade_kinder_size;
+                    } else {
+                        summaryStr = baseline[`grade_${gk.replace('g', '')}_size`];
+                    }
+                    if (summaryStr) {
+                        let total = 0;
+                        const parts = summaryStr.split(',').map(p => p.trim());
+                        parts.forEach(part => {
+                            const match = part.match(/^(\d+)\s*\((.+)\)$/);
+                            if (match) {
+                                total += parseInt(match[1]) || 0;
+                            }
+                        });
+                        parsedSections[gk] = total;
+                    }
+                });
+                for (let nIdx = 1; nIdx <= 3; nIdx++) {
+                    const summaryStr = baseline[`multigrade_size_${nIdx}`];
+                    if (summaryStr) {
+                        let total = 0;
+                        const parts = summaryStr.split(',').map(p => p.trim());
+                        parts.forEach(part => {
+                            const match = part.match(/^(\d+)\s*\((.+)\)$/);
+                            if (match) {
+                                total += parseInt(match[1]) || 0;
+                            }
+                        });
+                        parsedSections[`mg_${nIdx}`] = total;
+                    }
                 }
+
                 let u2Parsed = [];
                 if (baseline.unit2_simplified_enrollment) {
                     try {
@@ -178,27 +217,20 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 }
 
                 const getEnrollmentForGrade = (gradeId) => {
-                    const found = u2Parsed.find(x => x.grade_level === gradeId);
-                    if (found) return parseInt(found.total || 0);
-                    return 0;
+                    const colName = gradeId === 'kinder' ? 'enroll_kinder' : `enroll_${gradeId}`;
+                    return parseInt(baseline[colName] || 0);
                 };
 
-                const getActiveStatusForGrade = (gradeId) => {
-                    const found = u2Parsed.find(x => x.grade_level === gradeId);
-                    // In Unit 2, is_active is true/false. If not found, assume offered by default unless we have data suggesting otherwise.
-                    if (found) return found.is_active !== false;
-                    return true;
-                };
                 const getCountForGrade = (gradeId) => {
-                    const found = Array.isArray(parsedSections) ? parsedSections.find(sec => sec.grade_level === gradeId) : null;
-                    if (found) return parseInt(found.total_sections || 0);
-                    return 0;
+                    return parsedSections[gradeId] || 0;
                 };
 
                 const ALL_POSSIBLE_GRADES = [
                     { id: "kinder", label: "Kinder" },
                     ...['1','2','3','4','5','6','7','8','9','10','11','12'].map(lvl => ({ id: `g${lvl}`, label: `Grade ${lvl}` }))
                 ];
+
+                const hasUnit2Data = (parseInt(baseline.total_enrollment) || 0) > 0;
 
                 ALL_POSSIBLE_GRADES.forEach(pg => {
                     let isOffered = false;
@@ -210,10 +242,11 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                     
                     const enrollment = getEnrollmentForGrade(pg.id);
                     const sections = getCountForGrade(pg.id);
-                    const isActive = getActiveStatusForGrade(pg.id);
 
-                    // Skip the grade if it was explicitly disabled in Unit 2
-                    if (isActive === false) return;
+                    // Skip the grade if it was explicitly disabled in Unit 2 (enrollment is 0 in database table)
+                    if (hasUnit2Data && enrollment === 0) {
+                        return;
+                    }
 
                     if (enrollment > 0 || sections > 0 || isOffered) {
                         expectedGrades.push({ id: pg.id, label: pg.label });
@@ -241,7 +274,11 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 });
 
                 const finalGrades = finalExpectedGrades.map(g => ({ key: g.id, label: g.label }));
-                setFilteredGrades(finalGrades);
+                if (finalGrades.length === 0) {
+                    setFilteredGrades(ALL_POSSIBLE_GRADES.map(g => ({ key: g.id, label: g.label })));
+                } else {
+                    setFilteredGrades(finalGrades);
+                }
 
                 // 5. MASTER PRECEDENCE: SYNC CENTER > DRAFT > DATABASE
                 if (pendingUnit5) {
@@ -272,7 +309,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                         prefillMap[`mode_${g.key}`] = baseline[`mode_${g.key}`] || "";
                     });
                     setMapData(prefillMap);
-                    setHasAdms(baseline.adm_mdl || baseline.adm_odl || baseline.adm_tvi || baseline.adm_blended);
+                    setHasAdms(!!baseline.has_adms);
                     setAdmData({
                         adm_mdl: !!baseline.adm_mdl, adm_odl: !!baseline.adm_odl, adm_tvi: !!baseline.adm_tvi, adm_blended: !!baseline.adm_blended
                     });
@@ -393,7 +430,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 5,
                     label: "Unit 5: Shifting & Modality",
-                    url: `api/ph_schools/unit5/${schoolId}`,
+                    url: api(`/ph_schools/unit5/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -413,7 +450,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 return;
             }
 
-            const res = await fetch(`api/ph_schools/unit5/${schoolId}`, {
+            const res = await fetch(api(`/api/ph_schools/unit5/${schoolId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -435,7 +472,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
             // Sync progress to dashboard
             try {
-                await fetch('api/user/progress', {
+                await fetch(api(`/api/user/progress`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ unitId: 5, schoolId })
@@ -452,7 +489,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 5,
                     label: "Unit 5: Shifting & Modality",
-                    url: `api/ph_schools/unit5/${schoolId}`,
+                    url: api(`/ph_schools/unit5/${schoolId}`),
                     method: 'PUT',
                     payload: { iern, has_standard_shifting: hasStandardShifting, ...mapData, ...finalAdm, mapData, admData: finalAdm, has_adms: hasAdms },
                     schoolId: schoolId
@@ -468,26 +505,86 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
     };
 
 
-    // ══════════════════════════════════════════════
-    // REVIEW MODE
-    // ══════════════════════════════════════════════
     if (isReviewMode) {
         return (
-            <div className="min-h-screen bg-slate-50/50 font-sans">
-                <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                    <div className="max-w-md mx-auto flex items-center gap-3">
-                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600">
+            <div className="min-h-screen unit1-page font-sans">
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                    
+                    :root {
+                      --navy: #08315F;
+                      --blue: #075985;
+                      --blue-600: #0284C7;
+                      --blue-400: #7DD3FC;
+                      --blue-100: #E0F2FE;
+                      --blue-50: #F0F9FF;
+                      --gold: #FBBF24;
+                      --amber: #D97706;
+                      --red: #B91C1C;
+                      --bg: #F0F9FF;
+                      --card: #FFFFFF;
+                      --text: #0F172A;
+                      --muted: #64748B;
+                      --line: #BAE6FD;
+                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --radius: 22px;
+                    }
+
+                    .unit1-page {
+                      font-family: var(--font-body);
+                      background-color: var(--blue-50);
+                      background-image:
+                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                    }
+
+                    .bg-white.rounded-\\[2\\.5rem\\], 
+                    .bg-slate-50.rounded-\\[2\\.5rem\\],
+                    .bg-slate-900.rounded-\\[2\\.5rem\\],
+                    .bg-white.rounded-3xl,
+                    .bg-white.border-2.border-gray-100.rounded-3xl {
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                    }
+
+                    .nodes-card {
+                      background: var(--card);
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                      box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                    }
+                    
+                    .font-heading {
+                      font-family: var(--font-heading) !important;
+                    }
+                    .font-body {
+                      font-family: var(--font-body) !important;
+                    }
+                    
+                    h2, h3, h1 {
+                      font-family: var(--font-heading);
+                    }
+                    `
+                }} />
+                <header className="px-6 py-5 flex items-center justify-between border-b border-gray-100/50 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
                             <FiArrowLeft className="w-6 h-6" />
                         </button>
-                        <div className="flex-1 text-center">
-                            <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 5</div>
-                            <h1 className="text-sm font-black text-gray-800">Shifting & Modality</h1>
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">
+                                Reviewing
+                            </span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                Shifting & Modality
+                            </span>
                         </div>
-                        <div className="w-10" />
                     </div>
                 </header>
 
-                <div className="max-w-md mx-auto pb-32 mt-4 px-4 space-y-8">
+                <div className="max-w-7xl mx-auto pb-32 mt-4 px-4 md:px-8 space-y-8 w-full">
                     <UnitRemarkAlert unitId="u5" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
                     {/* Header */}
                     <div className="text-center mb-10">
@@ -505,113 +602,118 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                         <p className="text-slate-500 font-medium mt-2 italic">"Instructional delivery and shifting model report"</p>
                     </div>
 
-                    {/* Primary Configuration Card */}
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-100 relative overflow-hidden group border border-white/10">
-                        <div className="absolute top-0 right-0 p-8 text-8xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700 pointer-events-none">🗓️</div>
-                        <div className="relative z-10">
-                            <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-center">Core Operational Model</p>
-                            <div className="flex items-center justify-around py-4 border-y border-white/10 mt-4">
-                                <div className="text-center">
-                                    <p className="text-2xl font-black leading-none">{hasStandardShifting ? "Standard" : "Custom"}</p>
-                                    <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Base Setup</p>
-                                </div>
-                                <div className="w-px h-12 bg-white/10" />
-                                <div className="text-center">
-                                    <p className="text-2xl font-black leading-none">{hasAdms ? "Active" : "None"}</p>
-                                    <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Emergency ADMs</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Left Column: Primary Config & ADM */}
+                        <div className="lg:col-span-1 space-y-6">
+                            {/* Primary Configuration Card */}
+                            <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-100 relative overflow-hidden group border border-white/10">
+                                <div className="absolute top-0 right-0 p-8 text-8xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700 pointer-events-none">🗓️</div>
+                                <div className="relative z-10">
+                                    <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-center">Core Operational Model</p>
+                                    <div className="flex items-center justify-around py-4 border-y border-white/10 mt-4">
+                                        <div className="text-center">
+                                            <p className="text-2xl font-black leading-none">{hasStandardShifting ? "Standard" : "Custom"}</p>
+                                            <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Base Setup</p>
+                                        </div>
+                                        <div className="w-px h-12 bg-white/10" />
+                                        <div className="text-center">
+                                            <p className="text-2xl font-black leading-none">{hasAdms ? "Active" : "None"}</p>
+                                            <p className="text-[9px] font-bold text-indigo-400 uppercase mt-2 tracking-widest">Emergency ADMs</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {hasStandardShifting && (
+                                        <div className="mt-6 flex items-center justify-center gap-3 bg-white/5 py-3 rounded-2xl border border-white/10">
+                                            <FiCheckCircle className="text-emerald-400" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100">100% Homogeneous Single-Shift</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            
-                            {hasStandardShifting && (
-                                <div className="mt-6 flex items-center justify-center gap-3 bg-white/5 py-3 rounded-2xl border border-white/10">
-                                    <FiCheckCircle className="text-emerald-400" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100">100% Homogeneous Single-Shift</span>
+
+                            {/* ADM Section */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Emergency ADM Status</h3>
                                 </div>
-                            )}
+
+                                {!hasAdms ? (
+                                    <div className="bg-white rounded-[2rem] p-6 border border-slate-50 shadow-sm flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 text-2xl">🛡️</div>
+                                        <div>
+                                            <h4 className="font-black text-slate-800 text-sm">No Active ADMs</h4>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase">Emergency Modes Disabled</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-[2rem] p-6 border border-rose-100 shadow-sm space-y-4">
+                                        <div className="flex items-center gap-4 mb-2">
+                                            <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center text-rose-500 text-2xl animate-pulse">🚨</div>
+                                            <div>
+                                                <h4 className="font-black text-slate-800 text-sm">Active Intervention</h4>
+                                                <p className="text-[9px] font-bold text-rose-400 uppercase">Alternative Modes in Use</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Object.entries(admData).map(([k, v]) => {
+                                                if (!v) return null;
+                                                const match = ADM_CARDS.find(c => c.id === k);
+                                                return (
+                                                    <div key={k} className="bg-rose-50 text-rose-700 font-bold text-[10px] px-4 py-2 rounded-xl flex items-center gap-2 border border-rose-100">
+                                                        {match?.icon && <span className="scale-75">{match.icon}</span>}
+                                                        {match?.label}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+                        </div>
+
+                        {/* Right Column: Grade Modality Mapping */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Schedule Mapping Details */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Grade-Level Mapping</h3>
+                                </div>
+
+                                {hasStandardShifting ? (
+                                    <div className="bg-white rounded-[2rem] p-8 border border-slate-100 text-center shadow-sm">
+                                        <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">🏛️</div>
+                                        <h4 className="text-xl font-black text-slate-800 mb-1">Standard Uniformity</h4>
+                                        <p className="text-xs font-medium text-slate-500 leading-relaxed px-4">
+                                            All grade levels follow the <span className="text-indigo-600 font-bold">Single Shift</span> model with <span className="text-emerald-600 font-bold">In-Person Classes</span> as the primary delivery mode.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-4">
+                                        {filteredGrades.map(g => (
+                                            <div key={g.key} className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm flex flex-col group hover:border-indigo-200 transition-colors">
+                                                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-50">
+                                                    <span className="font-black text-slate-800 text-lg">{g.label}</span>
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400">{g.key.toUpperCase().slice(0,3)}</div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col items-center gap-1">
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Shifting</span>
+                                                        <span className="font-black text-slate-700 text-[10px] uppercase text-center">{mapData[`shift_${g.key}`] || "Not Defined"}</span>
+                                                    </div>
+                                                    <div className="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex flex-col items-center gap-1">
+                                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Modality</span>
+                                                        <span className="font-black text-indigo-600 text-[10px] uppercase text-center">{mapData[`mode_${g.key}`] || "Not Defined"}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
                         </div>
                     </div>
-
-                    {/* Schedule Mapping Details */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Grade-Level Mapping</h3>
-                        </div>
-
-                        {hasStandardShifting ? (
-                            <div className="bg-white rounded-[2rem] p-8 border border-slate-100 text-center shadow-sm">
-                                <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">🏛️</div>
-                                <h4 className="text-xl font-black text-slate-800 mb-1">Standard Uniformity</h4>
-                                <p className="text-xs font-medium text-slate-500 leading-relaxed px-4">
-                                    All grade levels follow the <span className="text-indigo-600 font-bold">Single Shift</span> model with <span className="text-emerald-600 font-bold">In-Person Classes</span> as the primary delivery mode.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="grid gap-4">
-                                {filteredGrades.map(g => (
-                                    <div key={g.key} className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-sm flex flex-col group hover:border-indigo-200 transition-colors">
-                                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-50">
-                                            <span className="font-black text-slate-800 text-lg">{g.label}</span>
-                                            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400">{g.key.toUpperCase().slice(0,3)}</div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex flex-col items-center gap-1">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Shifting</span>
-                                                <span className="font-black text-slate-700 text-[10px] uppercase text-center">{mapData[`shift_${g.key}`] || "Not Defined"}</span>
-                                            </div>
-                                            <div className="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex flex-col items-center gap-1">
-                                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Modality</span>
-                                                <span className="font-black text-indigo-600 text-[10px] uppercase text-center">{mapData[`mode_${g.key}`] || "Not Defined"}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </section>
-
-                    {/* ADM Section */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Emergency ADM Status</h3>
-                        </div>
-
-                        {!hasAdms ? (
-                            <div className="bg-white rounded-[2rem] p-6 border border-slate-50 shadow-sm flex items-center gap-4">
-                                <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 text-2xl">🛡️</div>
-                                <div>
-                                    <h4 className="font-black text-slate-800 text-sm">No Active ADMs</h4>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Emergency Modes Disabled</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="bg-white rounded-[2rem] p-6 border border-rose-100 shadow-sm space-y-4">
-                                <div className="flex items-center gap-4 mb-2">
-                                    <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center text-rose-500 text-2xl animate-pulse">🚨</div>
-                                    <div>
-                                        <h4 className="font-black text-slate-800 text-sm">Active Intervention</h4>
-                                        <p className="text-[9px] font-bold text-rose-400 uppercase">Alternative Modes in Use</p>
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {Object.entries(admData).map(([k, v]) => {
-                                        if (!v) return null;
-                                        const match = ADM_CARDS.find(c => c.id === k);
-                                        return (
-                                            <div key={k} className="bg-rose-50 text-rose-700 font-bold text-[10px] px-4 py-2 rounded-xl flex items-center gap-2 border border-rose-100">
-                                                {match?.icon && <span className="scale-75">{match.icon}</span>}
-                                                {match?.label}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </section>
-
-                        {/* Fixed bottom button will handle this */}
-
                 </div>
                 {/* Fixed bottom Unlock button for Review Mode */}
                 {!propReadOnly && (
@@ -635,7 +737,67 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
     // WIZARD MODE
     // ══════════════════════════════════════════════
     return (
-        <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-indigo-50/30 to-purple-50 flex flex-col font-sans relative overflow-x-hidden">
+        <div className="min-h-screen unit1-page flex flex-col font-sans relative overflow-x-hidden">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\],
+                .bg-white.rounded-3xl,
+                .bg-white.border-2.border-gray-100.rounded-3xl {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+                `
+            }} />
             {!propReadOnly && (
                 <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
                     <div className="max-w-md mx-auto flex items-center gap-3">
@@ -852,18 +1014,20 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                                     </div>
                                 </div>
 
-                                <motion.div
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => setIsVerified(!isVerified)}
-                                    className={`w-full p-6 rounded-[2rem] flex items-start text-left gap-4 border-2 transition-all duration-300 cursor-pointer ${isVerified ? "bg-emerald-50 border-emerald-200 shadow-sm" : "bg-white border-slate-100 text-slate-400 hover:border-slate-200"}`}
+                                <div 
+                                    onClick={() => setIsCertified(!isCertified)}
+                                    className={`w-full p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                                 >
-                                    <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex-shrink-0 flex items-center justify-center transition-all ${isVerified ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-300"}`}>
-                                        {isVerified && <FiCheck strokeWidth={4} className="w-4 h-4" />}
+                                    <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                        {isCertified && <FiCheck className="w-5 h-5" />}
                                     </div>
-                                    <p className={`text-xs font-bold leading-relaxed ${isVerified ? 'text-emerald-900' : 'text-slate-500 italic uppercase tracking-widest'}`}>
-                                        I hereby certify that all data and information provided in this module/unit is true and correct
-                                    </p>
-                                </motion.div>
+                                    <div>
+                                        <p className={`text-sm font-black leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                            I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                        </p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
+                                    </div>
+                                </div>
                             </motion.div>
                         )}
 
@@ -874,28 +1038,28 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
             {/* ── Sticky Footer ── */}
             {!propReadOnly && (
-                <div className="fixed bottom-0 left-0 w-full p-4 bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-center z-40 shadow-[0_-4px_16px_rgba(0,0,0,0.02)]">
-                    <div className="w-full max-w-md flex gap-3 px-2">
+                <div className="fixed bottom-0 left-0 w-full p-6 bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-center z-40 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+                    <div className="w-full max-w-md flex gap-3">
                         {currentChapter === 1 ? (
-                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none">
+                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none">
                                 <FiSave className="w-6 h-6" />
-                                <span className="text-sm font-bold text-gray-500">Save Draft</span>
+                                <span className="text-sm font-bold text-blue-500">Save Draft</span>
                             </button>
                         ) : (
-                            <div className="flex gap-2">
+                            <>
                                 <button onClick={handleBack}
-                                    className="w-16 h-16 flex justify-center items-center rounded-3xl bg-slate-100 text-slate-500 border-2 border-slate-200 active:translate-y-[2px] transition-all outline-none">
+                                    className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0">
                                     <FiArrowLeft className="w-6 h-6" />
                                 </button>
                                 <button onClick={() => setShowDraftModal(true)}
-                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none"
+                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0"
                                 >
                                     <FiSave className="w-6 h-6" />
                                     <span className="text-sm font-bold text-blue-500">Save Draft</span>
                                 </button>
-                            </div>
+                            </>
                         )}
-                        {currentChapter < 4 && (
+                        {currentChapter < 4 ? (
                             <button
                                 onClick={handleNext}
                                 disabled={
@@ -903,18 +1067,21 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                                     (currentChapter === 2 && !isGradeInputValid()) ||
                                     (currentChapter === 3 && !isStep3Valid)
                                 }
-                                className="flex-1 py-4 rounded-2xl font-black text-lg bg-indigo-600 text-white shadow-lg shadow-indigo-200 active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2"
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
-                                {currentChapter === 1 ? (hasStandardShifting ? "Continue to ADMs" : "Start Mapping") : currentChapter === 3 ? "Review Data" : "Next Grade"}
+                                <span>Next Step &gt;</span>
                             </button>
-                        )}
-                        {currentChapter === 4 && (
+                        ) : (
                             <button
                                 onClick={handleSubmit}
-                                disabled={!isVerified || loading}
-                                className="flex-[2] py-4 rounded-2xl font-black text-lg bg-emerald-500 text-white shadow-lg shadow-emerald-200 active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2"
+                                disabled={!isCertified || loading}
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-emerald-100 flex justify-center items-center gap-2"
                             >
-                                {loading ? <span className="animate-pulse">Saving...</span> : <span><FiCheck className="inline w-5 h-5 mr-1 mb-0.5" /> Submit Data</span>}
+                                {loading ? "Saving..." : (
+                                    <span className="flex items-center justify-center gap-2">
+                                        SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                    </span>
+                                )}
                             </button>
                         )}
                     </div>

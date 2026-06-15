@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
 import { FiSearch, FiChevronLeft, FiChevronRight, FiRefreshCw, FiGrid, FiList, FiActivity, FiBriefcase, FiUser, FiTrash2, FiSlash, FiCheckCircle, FiStar, FiMessageSquare, FiKey, FiCopy, FiX, FiMapPin, FiCheck, FiLock } from "react-icons/fi";
 import { TbSchool } from "react-icons/tb";
+import { api } from "../lib/api";
 
 
 // --- REUSABLE STAT COMPONENT ---
@@ -72,7 +72,7 @@ const AdminDashboard = () => {
     // --- FETCH DATA ---
     const fetchPendingSchools = async () => {
         try {
-            const res = await fetch('api/admin/pending-schools', {
+            const res = await fetch(api(`/api/admin/pending-schools`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -92,7 +92,7 @@ const AdminDashboard = () => {
             // Requirement said "history of ... requests that have been approved or denied".
             // Implementation plan said "Filter ... performed by the current admin (optional)". 
             // Let's show ALL for now as Admins usually want to see overall activity.
-            const res = await fetch(`api/admin/reviewed-schools`, {
+            const res = await fetch(api(`/api/admin/reviewed-schools`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -106,7 +106,7 @@ const AdminDashboard = () => {
 
     const fetchUserStats = async () => {
         try {
-            const res = await fetch(`api/admin/user-stats?region=${geoRegionFilter}&division=${geoDivisionFilter}&role=${roleFilter}`, {
+            const res = await fetch(api(`/api/admin/user-stats?region=${geoRegionFilter}&division=${geoDivisionFilter}&role=${roleFilter}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -120,7 +120,7 @@ const AdminDashboard = () => {
 
     const fetchFilterOptions = async () => {
         try {
-            const res = await fetch('api/admin/filter-options', {
+            const res = await fetch(api(`/api/admin/filter-options`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             if (res.ok) {
@@ -142,12 +142,12 @@ const AdminDashboard = () => {
             }
  
             const [schoolsRes, projectsRes, auditRes, deadlineRes, feedbackRes, nexusLocksRes] = await Promise.all([
-                fetch('api/schools', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
-                fetch('api/projects', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
-                fetch('api/activities', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
-                fetch('api/settings/enrolment_deadline', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
-                fetch('api/admin/feedback', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
-                fetch('api/settings/nexus_module_locks', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json())
+                fetch(api(`/api/schools`), { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch(api(`/api/projects`), { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch(api(`/api/activities`), { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch(api(`/api/settings/enrolment_deadline`), { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch(api(`/api/admin/feedback`), { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()),
+                fetch(api(`/api/settings/nexus_module_locks`), { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json())
             ]);
 
 
@@ -198,7 +198,7 @@ const AdminDashboard = () => {
             // Only search users if we are on the accounts tab to save bandwidth
             if (activeTab !== 'accounts') return;
 
-            const res = await fetch(`api/admin/users?page=${usersPage}&limit=${usersLimit}&search=${searchTerm}&role=${roleFilter}&region=${geoRegionFilter}&division=${geoDivisionFilter}`, {
+            const res = await fetch(api(`/api/admin/users?page=${usersPage}&limit=${usersLimit}&search=${searchTerm}&role=${roleFilter}&region=${geoRegionFilter}&division=${geoDivisionFilter}`), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
             const data = await res.json();
@@ -279,7 +279,7 @@ const AdminDashboard = () => {
         setUpdatingDeadline(true);
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch('api/settings/save', {
+            const res = await fetch(api(`/api/settings/save`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -312,7 +312,7 @@ const AdminDashboard = () => {
         setUpdatingLocks(true);
         try {
             const adminUid = user ? user.uid : 'admin';
-            const res = await fetch('api/settings/save', {
+            const res = await fetch(api(`/api/settings/save`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -344,7 +344,7 @@ const AdminDashboard = () => {
 
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch(`api/admin/users/${uid}/status`, {
+            const res = await fetch(api(`/api/admin/users/${uid}/status`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -368,7 +368,7 @@ const AdminDashboard = () => {
 
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch(`api/admin/users/${uid}?adminUid=${adminUid}`, {
+            const res = await fetch(api(`/api/admin/users/${uid}?adminUid=${adminUid}`), {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
             });
@@ -387,7 +387,7 @@ const AdminDashboard = () => {
         if (!window.confirm("Are you sure you want to APPROVE this school?")) return;
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch(`api/admin/approve-school/${pendingId}`, {
+            const res = await fetch(api(`/api/admin/approve-school/${pendingId}`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -420,7 +420,7 @@ const AdminDashboard = () => {
 
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch(`api/admin/reject-school/${pendingId}`, {
+            const res = await fetch(api(`/api/admin/reject-school/${pendingId}`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -453,7 +453,7 @@ const AdminDashboard = () => {
 
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch(`api/admin/resubmit-request/${pendingId}`, {
+            const res = await fetch(api(`/api/admin/resubmit-request/${pendingId}`), {
                 method: 'PATCH',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -490,7 +490,7 @@ const AdminDashboard = () => {
         // 2. Call API
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch('api/admin/reset-password', {
+            const res = await fetch(api(`/api/admin/reset-password`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -526,7 +526,7 @@ const AdminDashboard = () => {
         setFraudOutput(null);
         try {
             const adminUid = user ? user.uid : 'unknown';
-            const res = await fetch('api/admin/run-fraud-detection', {
+            const res = await fetch(api(`/api/admin/run-fraud-detection`), {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -1452,14 +1452,11 @@ const AdminDashboard = () => {
                                     {activeTab === 'audit' && renderAuditTable()}
                                     {activeTab === 'feedback' && renderFeedbackView()}
                                     {activeTab === 'accounts' && renderAccountManagement()}
-                                    {/* {activeTab === 'knowledge' && <KnowledgeManager />} Component Removed */}
                                 </>
                             )}
                         </div>
                     </div>
                 </div>
-
-                <BottomNav userRole="Admin" />
             </div>
         </PageTransition>
     );

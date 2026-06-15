@@ -3,9 +3,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 
 const animations = {
-    initial: { opacity: 0, scale: 0.99, filter: "blur(5px)" },
-    animate: { opacity: 1, scale: 1, filter: "blur(0px)" },
-    exit: { opacity: 0, scale: 1.01, filter: "blur(5px)" }
+    initial: { opacity: 0, y: 18, scale: 0.985 },
+    animate: { opacity: 1, y: 0, scale: 1 },
+    exit:    { opacity: 0, y: -12, scale: 0.99 }
 };
 
 const PageTransition = ({ children }) => {
@@ -16,8 +16,8 @@ const PageTransition = ({ children }) => {
             animate="animate"
             exit="exit"
             transition={{
-                duration: 0.3,
-                ease: [0.4, 0, 0.2, 1] // "Curve - Material Design Standard"
+                duration: 0.45,
+                ease: [0.22, 1, 0.36, 1], // custom cubic-bezier: fast start, silky finish
             }}
             className="w-full h-full"
         >

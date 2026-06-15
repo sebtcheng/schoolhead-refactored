@@ -6,10 +6,11 @@ import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
-const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-slate-200 rounded-2xl text-xl font-black text-slate-700 text-center focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 hover:border-slate-300 transition-colors shadow-sm disabled:opacity-50 disabled:bg-slate-100";
-const subInput = "w-full p-3 mt-1 bg-white border-2 border-slate-200 rounded-xl text-lg font-bold text-slate-700 text-center focus:outline-none focus:border-indigo-400 focus:bg-indigo-50 hover:border-slate-300 transition-colors shadow-sm disabled:opacity-50 disabled:bg-slate-100";
+const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-xl font-black text-slate-800 text-center focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] hover:border-slate-300 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-100 font-body";
+const subInput = "w-full p-3 mt-1 bg-white border-2 border-[#BAE6FD] rounded-xl text-lg font-bold text-slate-800 text-center focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] hover:border-slate-300 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-100 font-body";
 
 const ALL_GRADES = [
     { label: "Kindergarten", id: "kinder" },
@@ -83,6 +84,33 @@ const getCapacityBounds = (gradeName, col_below, col_within, col_above) => {
     return { minTotal, maxTotal };
 };
 
+const parseSummaryString = (str, gradeLabel) => {
+    const data = { total_sections: 0, col_below: 0, col_within: 0, col_above: 0 };
+    if (!str) return data;
+    
+    const options = getClassSizeOptions(gradeLabel);
+    
+    const parts = str.split(',').map(p => p.trim());
+    parts.forEach(part => {
+        const match = part.match(/^(\d+)\s*\((.+)\)$/);
+        if (match) {
+            const count = parseInt(match[1]) || 0;
+            const label = match[2].trim();
+            
+            if (label === options[0]) {
+                data.col_below = count;
+            } else if (label === options[1]) {
+                data.col_within = count;
+            } else if (label === options[2]) {
+                data.col_above = count;
+            }
+            data.total_sections += count;
+        }
+    });
+    return data;
+};
+
+
 const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const navigate = useNavigate();
 
@@ -134,6 +162,21 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
         
         // --- 0. Parse Unit 2 Data for Strict Filtering ---
         let u2ActiveGrades = {}; // Map of gradeId -> { is_active, total }
+        
+        // First, check for flat enroll_ fields directly in the data object (from database query)
+        const gradeKeys = ['kinder', 'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12'];
+        gradeKeys.forEach(gk => {
+            const enrollVal = d[`enroll_${gk}`];
+            if (enrollVal !== undefined && enrollVal !== null) {
+                const total = parseInt(enrollVal) || 0;
+                u2ActiveGrades[gk] = {
+                    is_active: total > 0,
+                    total: total
+                };
+            }
+        });
+
+        // Overlay/prefer structured unit2_simplified_enrollment if present
         if (d.unit2_simplified_enrollment) {
             try {
                 const u2Raw = typeof d.unit2_simplified_enrollment === 'string'
@@ -300,7 +343,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 // 2. Reconstruct school baseline
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(`api/ph_schools/${storedId}`);
+                    const res = await fetch(api(`/ph_schools/${storedId}`));
                     if (res.ok) {
                         const saved = await res.json();
                         if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
@@ -329,7 +372,6 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 }
 
                 if (pendingUnit3) {
-                    baseline.unit3_simplified_counts = pendingUnit3.payload?.unit3_simplified_counts;
                     // Also flag as completed to trigger Read Only if needed
                     baseline.unit3_completed = true; 
                 }
@@ -342,21 +384,27 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 setAvailableGrades(activeClasses);
 
                 let sectionCounts = {};
-                if (baseline.unit3_simplified_counts) {
-                    try {
-                        const raw = typeof baseline.unit3_simplified_counts === 'string' ? JSON.parse(baseline.unit3_simplified_counts) : baseline.unit3_simplified_counts;
-                        const arr = Array.isArray(raw) ? raw : (raw.array || []);
-                        arr.forEach(item => {
-                            sectionCounts[item.grade_level] = {
-                                total_sections: item.total_sections || 0,
-                                col_below: item.col_below || 0,
-                                col_within: item.col_within || 0,
-                                col_above: item.col_above || 0,
-                                selectedSize: item.class_size || item.selectedSize || null
-                            };
-                        });
-                    } catch (e) { console.warn("Unit3 baseline parse err", e); }
-                }
+                activeClasses.forEach(ac => {
+                    let summaryStr = null;
+                    if (ac.id === "kinder") {
+                        summaryStr = baseline.grade_kinder_size;
+                    } else if (ac.id.startsWith("g")) {
+                        const num = ac.id.replace('g', '');
+                        summaryStr = baseline[`grade_${num}_size`];
+                    } else if (ac.id.startsWith("mg_")) {
+                        const idx = ac.id.split("_")[1];
+                        summaryStr = baseline[`multigrade_size_${idx}`];
+                    }
+                    
+                    const parsed = parseSummaryString(summaryStr, ac.label);
+                    sectionCounts[ac.id] = {
+                        total_sections: parsed.total_sections,
+                        col_below: parsed.col_below,
+                        col_within: parsed.col_within,
+                        col_above: parsed.col_above,
+                        selectedSize: parsed.total_sections > 0 ? summaryStr : null
+                    };
+                });
 
                 let mergedData = {};
                 activeClasses.forEach(ac => {
@@ -474,25 +522,11 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
         setLoading(true);
 
         try {
-            // Build the simplified counts array
-            const payloadArray = availableGrades.map(g => {
-                const data = sectionData[g.id] || { total_sections: 0, col_below: 0, col_within: 0, col_above: 0 };
-                return {
-                    grade_level: g.id,
-                    is_active: true,
-                    total_sections: data.total_sections,
-                    col_below: data.col_below,
-                    col_within: data.col_within,
-                    col_above: data.col_above
-                };
-            });
-
             const payload = {
                 iern,
                 has_multigrade: availableGrades.some(g => g.id.startsWith("mg_")),
                 multigrade_sections_count: 0,
                 multigrade_groups: null,
-                unit3_simplified_counts: JSON.stringify(payloadArray),
                 sectionData: sectionData, // IMPORTANT: needed for offline summary reconstruction
                 totalSteps: availableGrades.length
             };
@@ -524,7 +558,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 3,
                     label: "Unit 3: Section Organization",
-                    url: `api/ph_schools/unit3/${schoolId}`,
+                    url: api(`/ph_schools/unit3/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -544,7 +578,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 return;
             }
 
-            const res = await fetch(`api/ph_schools/unit3/${schoolId}`, {
+            const res = await fetch(api(`/api/ph_schools/unit3/${schoolId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -554,7 +588,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
             // Sync progress to cloud (fire-and-forget)
             try {
-                await fetch('api/user/progress', {
+                await fetch(api(`/api/user/progress`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ unitId: 3, schoolId })
@@ -578,7 +612,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 await addModularToOutbox({
                     unitId: 3,
                     label: "Unit 3: Section Organization",
-                    url: `api/ph_schools/unit3/${schoolId}`,
+                    url: api(`/ph_schools/unit3/${schoolId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: schoolId
@@ -622,7 +656,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
         const getPercent = (val) => totalClasses > 0 ? Math.round((val / totalClasses) * 100) : 0;
 
         return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto pb-32 mt-4 space-y-8">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full pb-32 mt-4 space-y-8 px-2">
                 {/* Header */}
                 <div className="text-center mb-10">
                     <motion.div 
@@ -639,135 +673,197 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                     <p className="text-slate-500 font-medium mt-2 italic px-4 text-center">"Section distribution and class-size optimization report"</p>
                 </div>
 
-                {/* Main Stats */}
-                <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-teal-100 relative overflow-hidden group border border-white/5">
-                    <div className="absolute top-0 right-0 p-8 text-8xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">📋</div>
-                    <div className="relative z-10">
-                        <p className="text-teal-300 text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-center">Overall Class Capacity</p>
-                        <div className="flex items-center justify-around py-4 border-y border-white/10 mt-4">
-                            <div className="text-center">
-                                <p className="text-4xl font-black leading-none">{totalClasses}</p>
-                                <p className="text-[9px] font-bold text-teal-400 uppercase mt-2 tracking-widest">Total Sections</p>
-                            </div>
-                            <div className="w-px h-12 bg-white/10" />
-                            <div className="text-center">
-                                <p className="text-4xl font-black leading-none">{averageClassSize}</p>
-                                <p className="text-[9px] font-bold text-teal-400 uppercase mt-2 tracking-widest">Avg Size</p>
-                            </div>
-                        </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Left Column: Overall Capacity Card */}
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-teal-100 relative overflow-hidden group border border-white/5">
+                            <div className="absolute top-0 right-0 p-8 text-8xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">📋</div>
+                            <div className="relative z-10">
+                                <p className="text-teal-300 text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-center">Overall Class Capacity</p>
+                                <div className="flex items-center justify-around py-4 border-y border-white/10 mt-4">
+                                    <div className="text-center">
+                                        <p className="text-4xl font-black leading-none">{totalClasses}</p>
+                                        <p className="text-[9px] font-bold text-teal-400 uppercase mt-2 tracking-widest">Total Sections</p>
+                                    </div>
+                                    <div className="w-px h-12 bg-white/10" />
+                                    <div className="text-center">
+                                        <p className="text-4xl font-black leading-none">{averageClassSize}</p>
+                                        <p className="text-[9px] font-bold text-teal-400 uppercase mt-2 tracking-widest">Avg Size</p>
+                                    </div>
+                                </div>
 
-                        {/* Distribution Visualizer */}
-                        <div className="mt-8 space-y-3">
-                            <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-teal-200">
-                                <span>Size Distribution</span>
-                                <span>In Standard: {getPercent(distribution.within)}%</span>
+                                {/* Distribution Visualizer */}
+                                <div className="mt-8 space-y-3">
+                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-teal-200">
+                                        <span>Size Distribution</span>
+                                        <span>In Standard: {getPercent(distribution.within)}%</span>
+                                    </div>
+                                    <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden flex">
+                                        <div style={{ width: `${getPercent(distribution.below)}%` }} className="h-full bg-blue-400" title="Below Standard" />
+                                        <div style={{ width: `${getPercent(distribution.within)}%` }} className="h-full bg-emerald-400" title="Within Standard" />
+                                        <div style={{ width: `${getPercent(distribution.above)}%` }} className="h-full bg-rose-400" title="Above Standard" />
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                        <span className="flex items-center gap-1 text-[8px] font-black uppercase text-blue-300">
+                                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" /> Below
+                                        </span>
+                                        <span className="flex items-center gap-1 text-[8px] font-black uppercase text-emerald-300">
+                                            <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" /> In-Standard
+                                        </span>
+                                        <span className="flex items-center gap-1 text-[8px] font-black uppercase text-rose-300">
+                                            <div className="w-1.5 h-1.5 bg-rose-400 rounded-full" /> Over
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden flex">
-                                <div style={{ width: `${getPercent(distribution.below)}%` }} className="h-full bg-blue-400" title="Below Standard" />
-                                <div style={{ width: `${getPercent(distribution.within)}%` }} className="h-full bg-emerald-400" title="Within Standard" />
-                                <div style={{ width: `${getPercent(distribution.above)}%` }} className="h-full bg-rose-400" title="Above Standard" />
-                            </div>
-                            <div className="flex justify-between gap-2">
-                                <span className="flex items-center gap-1 text-[8px] font-black uppercase text-blue-300">
-                                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" /> Below
-                                </span>
-                                <span className="flex items-center gap-1 text-[8px] font-black uppercase text-emerald-300">
-                                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full" /> In-Standard
-                                </span>
-                                <span className="flex items-center gap-1 text-[8px] font-black uppercase text-rose-300">
-                                    <div className="w-1.5 h-1.5 bg-rose-400 rounded-full" /> Over
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Detailed Breakdown */}
-                <div className="space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                        <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-6 bg-teal-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Grade-by-Grade Detail</h3>
                         </div>
                     </div>
 
-                    <div className="grid gap-4">
-                        {(availableGrades || []).map(g => {
-                            const data = sectionData[g.id] || {};
-                            if (!data.is_active && data.is_active !== undefined) return null;
-                            const pills = getClassSizeOptions(g.label);
-                            const isMG = g.id.startsWith("mg_");
-                            
-                            return (
-                                <div key={g.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:border-teal-200 transition-colors">
-                                    <div className="flex items-start justify-between relative z-10">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h4 className="text-xl font-black text-slate-800 tracking-tight">{g.label}</h4>
-                                                {isMG && <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-600 text-[8px] font-black uppercase border border-rose-100 tracking-tighter">Multigrade</span>}
-                                            </div>
-                                            
-                                            <div className="mt-4 space-y-3">
-                                                {/* Threshold Guide */}
-                                                <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                                                    <span>Standard Thresholds:</span>
-                                                    <span className="text-teal-600 font-bold">{pills[1]}</span>
-                                                </div>
+                    {/* Right Column: Detailed Breakdown */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-teal-500 rounded-full" />
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Grade-by-Grade Detail</h3>
+                            </div>
+                        </div>
 
-                                                <div className="flex flex-wrap gap-2">
-                                                    {data.col_below > 0 && (
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100">
-                                                                <span className="w-2 h-2 rounded-full bg-blue-400" />
-                                                                <span className="text-[10px] font-black text-blue-700">{data.col_below} Sec</span>
-                                                                <span className="text-[8px] font-bold text-blue-400 uppercase tracking-tighter">({pills[0]})</span>
+                        <div className="grid gap-4">
+                            {(availableGrades || []).map(g => {
+                                const data = sectionData[g.id] || {};
+                                if (!data.is_active && data.is_active !== undefined) return null;
+                                const pills = getClassSizeOptions(g.label);
+                                const isMG = g.id.startsWith("mg_");
+                                
+                                return (
+                                    <div key={g.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:border-teal-200 transition-colors">
+                                        <div className="flex items-start justify-between relative z-10">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h4 className="text-xl font-black text-slate-800 tracking-tight">{g.label}</h4>
+                                                    {isMG && <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-600 text-[8px] font-black uppercase border border-rose-100 tracking-tighter">Multigrade</span>}
+                                                </div>
+                                                
+                                                <div className="mt-4 space-y-3">
+                                                    {/* Threshold Guide */}
+                                                    <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                                                        <span>Standard Thresholds:</span>
+                                                        <span className="text-teal-600 font-bold">{pills[1]}</span>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {data.col_below > 0 && (
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100">
+                                                                    <span className="w-2 h-2 rounded-full bg-blue-400" />
+                                                                    <span className="text-[10px] font-black text-blue-700">{data.col_below} Sec</span>
+                                                                    <span className="text-[8px] font-bold text-blue-400 uppercase tracking-tighter">({pills[0]})</span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                    {data.col_within > 0 && (
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100">
-                                                                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                                                                <span className="text-[10px] font-black text-emerald-700">{data.col_within} Sec</span>
-                                                                <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-tighter">({pills[1]})</span>
+                                                        )}
+                                                        {data.col_within > 0 && (
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100">
+                                                                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                                                                    <span className="text-[10px] font-black text-emerald-700">{data.col_within} Sec</span>
+                                                                    <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-tighter">({pills[1]})</span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                    {data.col_above > 0 && (
-                                                        <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-100">
-                                                                <span className="w-2 h-2 rounded-full bg-rose-400" />
-                                                                <span className="text-[10px] font-black text-rose-700">{data.col_above} Sec</span>
-                                                                <span className="text-[8px] font-bold text-rose-400 uppercase tracking-tighter">({pills[2]})</span>
+                                                        )}
+                                                        {data.col_above > 0 && (
+                                                            <div className="flex flex-col gap-1">
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-100">
+                                                                    <span className="w-2 h-2 rounded-full bg-rose-400" />
+                                                                    <span className="text-[10px] font-black text-rose-700">{data.col_above} Sec</span>
+                                                                    <span className="text-[8px] font-bold text-rose-400 uppercase tracking-tighter">({pills[2]})</span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="text-right ml-4">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Sections</p>
-                                            <div className="bg-slate-900 text-white px-5 py-2 rounded-2xl font-black text-2xl shadow-lg group-hover:bg-teal-600 transition-colors">
-                                                {data.total_sections || 0}
+                                            <div className="text-right ml-4">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Sections</p>
+                                                <div className="bg-slate-900 text-white px-5 py-2 rounded-2xl font-black text-2xl shadow-lg group-hover:bg-teal-600 transition-colors">
+                                                    {data.total_sections || 0}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
-
-
-
-                {/* Fixed bottom button will handle this */}
-
             </motion.div>
         );
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-32">
+        <div className="min-h-screen unit1-page pb-32">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\] {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .bg-white.rounded-3xl {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+                `
+            }} />
             <UnitRemarkAlert unitId="u3" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
             <AnimatePresence>
                 {showSuccess && <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message="Section Counts updated." redirectUrl="/modular-dashboard" />}
@@ -785,38 +881,41 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
             </AnimatePresence>
 
             {/* Header */}
-            <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
-                <div className="max-w-md mx-auto px-5 py-4 flex items-center justify-between relative">
-                    <div className="flex items-center gap-2 z-10">
-                        <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-50 transition-colors">
-                            <FiArrowLeft className="w-6 h-6" />
-                        </button>
-                    </div>
-                    <div className="absolute left-0 right-0 text-center pointer-events-none">
-                        <div className="text-[10px] font-black tracking-widest text-indigo-400 uppercase">Unit 3</div>
-                        <h1 className="text-sm font-black text-gray-800">Section Registry</h1>
-                    </div>
-                    <div className="w-10 z-10 text-right">
-                        {!effectiveReadOnly && (
-                            <span className="text-xs font-bold text-slate-400">
-                                {currentStep > totalSteps ? 'Final' : currentStep > 0 ? `${currentStep} / ${totalSteps}` : 'Intro'}
-                            </span>
-                        )}
+            <header className="px-6 py-5 flex items-center justify-between border-b border-gray-100/50 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => effectiveReadOnly ? navigate("/modular-dashboard") : handleBack()} 
+                        className="p-2 -ml-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                    >
+                        <FiArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div className="flex flex-col ml-2">
+                        <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">
+                            {effectiveReadOnly ? "Reviewing" : "Module 3"}
+                        </span>
+                        <span className="text-sm font-black text-slate-800 leading-tight">
+                            Section Registry
+                        </span>
                     </div>
                 </div>
-
-                {/* Progress Bar */}
                 {!effectiveReadOnly && (
-                    <div className="w-full h-1 bg-slate-100">
-                        <div 
-                            className="h-full bg-indigo-500 transition-all duration-300 ease-out"
-                            style={{ width: `${progressPercent}%` }}
-                        />
+                    <div className="flex items-center gap-4">
+                        <div className="w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <motion.div 
+                                className="h-full bg-blue-600 rounded-full" 
+                                initial={{ width: 0 }} 
+                                animate={{ width: `${progressPercent}%` }} 
+                                transition={{ duration: 0.8, ease: "circOut" }} 
+                            />
+                        </div>
+                        <span className="text-xs font-black tracking-widest text-gray-300 uppercase">
+                            Step {currentStep > totalSteps ? 'Final' : currentStep > 0 ? `${currentStep}/${totalSteps}` : 'Intro'}
+                        </span>
                     </div>
                 )}
             </header>
 
-            <main className="max-w-md mx-auto p-5 pb-10 mt-4">
+            <main className={effectiveReadOnly ? "max-w-7xl mx-auto px-4 md:px-8 w-full mt-4" : "max-w-md mx-auto p-5 pb-10 mt-4"}>
                 
                 {isFetching ? (
                     <div className="flex flex-col items-center justify-center h-64">
@@ -1074,22 +1173,17 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
                         <div 
                             onClick={() => setIsCertified(!isCertified)}
-                            className={`p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer flex items-start gap-4 mb-10 ${
-                                isCertified 
-                                    ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
-                                    : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'
-                            }`}
+                            className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                         >
-                            <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${
-                                isCertified 
-                                    ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                    : 'border-slate-300 bg-white'
-                            }`}>
-                                {isCertified && <FiCheck className="w-4 h-4" />}
+                            <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                {isCertified && <FiCheck className="w-5 h-5" />}
                             </div>
-                            <p className={`text-xs font-bold leading-relaxed ${isCertified ? 'text-emerald-900' : 'text-slate-500 uppercase tracking-widest'}`}>
-                                I hereby certify that all data and information provided in this module/unit is true and correct
-                            </p>
+                            <div>
+                                <p className={`text-sm font-black leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                    I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                </p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -1107,41 +1201,46 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                             <button 
                                 onClick={() => setCurrentStep(1)} 
                                 disabled={loading}
-                                className="p-4 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-2xl font-bold border-2 border-slate-200 transition-all active:scale-95 flex items-center justify-center shrink-0 w-16 h-16 outline-none"
+                                className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0"
                             >
                                 <FiArrowLeft className="w-6 h-6" />
                             </button>
                         ) : currentStep === 0 ? (
-                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 flex items-center justify-center gap-2 text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none">
+                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none">
                                 <FiSave className="w-6 h-6" />
-                                <span className="text-sm font-bold text-gray-500">Save Draft</span>
+                                <span className="text-sm font-bold text-blue-500">Save Draft</span>
                             </button>
                         ) : (
-                            <div className="flex gap-2">
+                            <>
                                 <button onClick={handleBack} disabled={loading}
-                                    className="p-4 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-2xl font-bold border-2 border-slate-200 transition-all active:scale-95 flex items-center justify-center shrink-0 w-16 h-16 outline-none"
+                                    className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0"
                                 >
                                     <FiArrowLeft className="w-6 h-6" />
                                 </button>
                                 <button onClick={() => setShowDraftModal(true)}
-                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none"
+                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0"
                                 >
                                     <FiSave className="w-6 h-6" />
                                     <span className="text-sm font-bold text-blue-500">Save Draft</span>
                                 </button>
-                            </div>
+                            </>
                         )}
                     
                     {/* Next / Submit Button */}
                         <button 
                             disabled={loading || (currentStep <= totalSteps && !isCurrentStepValid) || (currentStep > totalSteps && !isCertified)} 
                             onClick={currentStep > totalSteps ? handleFinalSubmit : handleNext} 
-                            className={`flex-1 h-16 rounded-2xl text-white font-black text-lg text-center transition-all disabled:opacity-50 disabled:bg-slate-300 disabled:border-slate-400 disabled:text-slate-500 disabled:translate-y-0 shadow-lg flex items-center justify-center gap-2 ${currentStep > totalSteps ? 'bg-emerald-500 border-emerald-700' : 'bg-indigo-500 border-indigo-700'} border-b-[5px] active:border-b-0 active:translate-y-[5px]`}
+                            className={`flex-1 h-16 rounded-3xl text-white font-black text-lg text-center transition-all disabled:opacity-40 shadow-lg flex items-center justify-center gap-2 border-b-[6px] active:border-b-0 active:translate-y-[6px]
+                                ${currentStep > totalSteps ? 'bg-emerald-600 border-emerald-800 shadow-emerald-100' : 'bg-indigo-600 border-indigo-800 shadow-indigo-100'}`}
                         >
                             {currentStep > totalSteps ? (
-                                loading ? "Saving..." : "Yes, Save Registry"
+                                loading ? "Saving..." : (
+                                    <span className="flex items-center justify-center gap-2">
+                                        SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                    </span>
+                                )
                             ) : (
-                                <>Next Step <FiChevronRight className="w-5 h-5" /></>
+                                <span>Next Step &gt;</span>
                             )}
                         </button>
                     </div>

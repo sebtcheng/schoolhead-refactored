@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from "../lib/api";
 
 const ServiceWorkerContext = createContext(null);
 
@@ -12,19 +13,21 @@ export const ServiceWorkerProvider = ({ children }) => {
     const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
     useEffect(() => {
-        if ('serviceWorker' in navigator) {
+        // Skip SW registration in dev mode — Vite-PWA devOptions.enabled is false,
+        // so dev-sw.js is not served and the browser would get an HTML 404 fallback
+        // with MIME type 'text/html', causing a SecurityError.
+        if ('serviceWorker' in navigator && !import.meta.env.DEV) {
             const basePath = import.meta.env.BASE_URL || '/';
-            const swFileName = import.meta.env.DEV ? 'dev-sw.js?dev-sw' : 'sw.js';
+            const swFileName = 'sw.js';
             // Version is auto-injected from package.json by vite.config.js at build time
             const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
-            const joinChar = swFileName.includes('?') ? '&' : '?';
-            const swUrl = `${basePath}${swFileName}${joinChar}v=${APP_VERSION}`.replace('//', '/');
+            const swUrl = `${basePath}${swFileName}?v=${APP_VERSION}`.replace('//', '/');
 
             const registerSW = async () => {
                 try {
                     const reg = await navigator.serviceWorker.register(swUrl, {
                         scope: basePath,
-                        type: import.meta.env.DEV ? 'module' : 'classic'
+                        type: 'classic'
                     });
                     setRegistration(reg);
                     console.log('InsightEd PWA Registered at:', reg.scope);
@@ -200,7 +203,7 @@ export const ServiceWorkerProvider = ({ children }) => {
 
         try {
             // 1. Fetch the Public Key from our server
-            const response = await fetch('api/vapid-public-key');
+            const response = await fetch(api(`/vapid-public-key`));
             if (!response.ok) throw new Error("Failed to fetch VAPID key");
             const { publicKey } = await response.json();
             
@@ -223,7 +226,7 @@ export const ServiceWorkerProvider = ({ children }) => {
             });
 
             // 4. Send the subscription object to our PostgreSQL backend
-            const saveResponse = await fetch('api/save-subscription', {
+            const saveResponse = await fetch(api(`/api/save-subscription`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

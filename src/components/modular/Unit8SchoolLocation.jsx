@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiMapPin, FiActivity, FiShield, FiCloudRain, FiTruck, FiNavigation, FiZap, FiAlertTriangle, FiCheck, FiSave, FiUnlock, FiWifiOff } from 'react-icons/fi';
 import { FaBus, FaCarSide, FaWalking, FaWater, FaMountain, FaClinicMedical, FaSignal, FaMapMarkerAlt } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
-import SchoolLocation from '../../forms/SchoolLocation';
 import SuccessModal from '../SuccessModal';
-import BottomNav from '../../modules/BottomNav';
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
+import { api } from "../../lib/api";
 
 const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const navigate = useNavigate();
@@ -70,7 +69,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     if (pendingU8.payload.iern) setIern(pendingU8.payload.iern);
                     if (!propReadOnly) setIsReadOnly(true); // Treat as read-only if it's in outbox
                 } else if (effectiveReadOnly) {
-                    const res = await fetch(`api/school-location/${schoolId}`);
+                    const res = await fetch(api(`/school-location/${schoolId}`));
                     const result = await res.json();
                     if (result.success && result.data) {
                         setLocationData(result.data);
@@ -81,7 +80,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // Check for Draft (only if not viewing a completed unit)
                 if (!effectiveReadOnly && !pendingU8) {
                     // Also fetch IERN from the main school record to ensure we have it for the form
-                    const schoolRes = await fetch(`api/ph_schools/${schoolId}?t=${Date.now()}`);
+                    const schoolRes = await fetch(api(`/ph_schools/${schoolId}?t=${Date.now()}`));
                     if (schoolRes.ok) {
                         const schoolData = await schoolRes.json();
                         if (schoolData.exists && schoolData.data && schoolData.data.iern) {
@@ -131,7 +130,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         }
 
         // Mandatory Sync to backend on every successful save to update timestamp
-        fetch('api/user/progress', {
+        fetch(api(`/api/user/progress`), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ unitId: 8, schoolId })
@@ -425,21 +424,109 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         <motion.div 
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
-            className="min-h-screen bg-slate-50/50 font-sans"
+            className="min-h-screen unit1-page font-sans text-gray-900"
         >
-            <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-4">
-                <div className="max-w-md mx-auto flex items-center justify-between">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\],
+                .bg-white.rounded-\\[2rem\\],
+                .bg-slate-900.rounded-\\[2rem\\] {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+
+                /* Override style for inputs and select components to give nodes dashboard chunky outline theme */
+                input[type="text"], input[type="number"], select, textarea {
+                  border-color: #BAE6FD !important;
+                  border-width: 2px !important;
+                  border-radius: 20px !important;
+                  background-color: #FFFFFF !important;
+                  font-family: var(--font-body) !important;
+                  transition: all 0.2s ease-in-out !important;
+                }
+                input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+                  outline: none !important;
+                  border-color: #0284C7 !important;
+                  box-shadow: 0 0 0 4px #E0F2FE !important;
+                }
+                `
+            }} />
+            <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-100 px-6 py-5">
+                <div className={effectiveReadOnly ? "max-w-md md:max-w-7xl mx-auto flex items-center gap-2 w-full" : "max-w-md mx-auto flex items-center justify-between"}>
                     <button onClick={() => navigate("/modular-dashboard")} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
                         <FiArrowLeft className="w-5 h-5" />
                     </button>
-                    <div className="flex-1 text-center">
-                        <div className="text-[10px] font-black tracking-widest text-[#004A99] uppercase">Unit 8</div>
-                        <h1 className="text-sm font-black text-gray-800 uppercase tracking-tight">School Terrain</h1>
-                    </div>
-                    {!propReadOnly && (
-                        <button onClick={() => setShowDraftModal(true)} className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
-                            <FiSave className="w-5 h-5" />
-                        </button>
+                    {effectiveReadOnly ? (
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-500 uppercase leading-none">
+                                Reviewing
+                            </span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                School Terrain
+                            </span>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex-1 text-center">
+                                <div className="text-[10px] font-black tracking-widest text-[#004A99] uppercase">Unit 8</div>
+                                <h1 className="text-sm font-black text-gray-800 uppercase tracking-tight">School Terrain</h1>
+                            </div>
+                            {!propReadOnly && (
+                                <button onClick={() => setShowDraftModal(true)} className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                                    <FiSave className="w-5 h-5" />
+                                </button>
+                            )}
+                        </>
                     )}
                 </div>
             </header>

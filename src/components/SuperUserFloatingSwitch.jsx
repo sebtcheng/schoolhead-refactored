@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TbArrowsLeftRight, TbFileExport } from "react-icons/tb";
 import { generateMonitoringReport, generateEngineerReport } from '../utils/ReportGenerator';
+import { api } from "../lib/api";
 
 const SuperUserFloatingSwitch = () => {
     const navigate = useNavigate();
@@ -57,7 +58,7 @@ const SuperUserFloatingSwitch = () => {
                 if (region) params.set('region', region);
                 if (division) params.set('division', division);
 
-                const res = await fetch(`api/super-user/export-summary?${params.toString()}`);
+                const res = await fetch(api(`/super-user/export-summary?${params.toString()}`));
                 const kpiData = await res.json();
                 generateMonitoringReport(kpiData);
             }
