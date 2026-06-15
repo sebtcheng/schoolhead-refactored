@@ -21,6 +21,7 @@ const handleProxyError = (proxy, _options) => {
 
 export default defineConfig({
   base: '/insighted-schoolhead/',
+  base: '/insighted-schoolhead/',
   define: {
     // Exposes version to the app as import.meta.env.VITE_APP_VERSION
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
@@ -35,6 +36,7 @@ export default defineConfig({
       injectRegister: null,
       manifestFilename: 'manifest.json',
       devOptions: {
+        enabled: false,
         enabled: false,
         type: 'module',
         navigateFallback: 'index.html',
@@ -105,4 +107,4 @@ export default defineConfig({
       },
     },
   },
-});
+});

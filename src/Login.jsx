@@ -4,6 +4,9 @@ import trafficErrorImg from './assets/traffic_error.png';
 import depedLogo from './assets/deped.png';
 import bagongPilipinasLogo from './assets/bagongpilipinas.png';
 import hrodLogo from './assets/hrod.png';
+import depedLogo from './assets/deped.png';
+import bagongPilipinasLogo from './assets/bagongpilipinas.png';
+import hrodLogo from './assets/hrod.png';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from './context/AuthContext';
@@ -15,14 +18,18 @@ import { FaCalculator } from 'react-icons/fa';
 import { saveSchoolToCache } from './db';
 import BlueprintBackground from './components/BlueprintBackground';
 import Register from './Register';
+import BlueprintBackground from './components/BlueprintBackground';
+import Register from './Register';
 
 
 import { getRoleGroup, ROLE_GROUPS, normalizeRole } from './config/roleGroups';
+import { api } from "./lib/api";
 import { api } from "./lib/api";
 
 // Helper function to map roles to dashboard URLs
 const getDashboardPath = (role, accountCategory) => {
     const normalizedRole = normalizeRole(role);
+
 
     const roleMap = {
         'School Head': '/nodes-dashboard',
@@ -40,169 +47,181 @@ const getDashboardPath = (role, accountCategory) => {
 
 
 const Login = ({ mode = 'login' }) => {
-    const [loginId, setLoginId] = useState('');
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [focusedInput, setFocusedInput] = useState(null);
-    const [showForgotModal, setShowForgotModal] = useState(false);
-    const [showForgotPasscodeModal, setShowForgotPasscodeModal] = useState(false);
-    const [loginMode, setLoginMode] = useState('password'); // 'password' | 'passcode'
-    const [isSchoolHead, setIsSchoolHead] = useState(true);
-    const [isPortalEnforced, setIsPortalEnforced] = useState(true); // NEW: Track if a portal is active
-    const [showDialpadModal, setShowDialpadModal] = useState(false);
-    const [showTrafficModal, setShowTrafficModal] = useState(false);
-    const [showBackPrompt, setShowBackPrompt] = useState(false); // NEW: Fix ReferenceError
-
-    // UI flows
-    const [rememberedUser, setRememberedUser] = useState(() => {
-        const stored = localStorage.getItem('remembered_user');
-        return stored ? JSON.parse(stored) : null;
-    });
-    const [usePassword, setUsePassword] = useState(!localStorage.getItem('remembered_user'));
-    const navigate = useNavigate();
-    const location = useLocation();
-    const isRegister = mode === 'register' || location.pathname === '/register';
-    const { login, user: authUser, loading: authLoading } = useAuth();
-
-    // NEW: Handle path-based role restrictions from Launch Pad
-    useEffect(() => {
-        const pathId = location.state?.pathId;
-        const lastRole = localStorage.getItem('lastRole');
-
-        console.log("[Login] Initializing portal state. State pathId:", pathId, "Stored lastRole:", lastRole);
-
-        if (pathId) {
-            console.log("[Login] Received path identifier from state:", pathId);
-            setIsSchoolHead(pathId === 'path_school_head');
-            setIsPortalEnforced(true);
-        } else {
-            // Default to School Head portal for this standalone server
-            setIsSchoolHead(true);
-            setIsPortalEnforced(true);
-        }
-    }, [location.state]);
+    const Login = ({ mode = 'login' }) => {
+        const [loginId, setLoginId] = useState('');
+        const [password, setPassword] = useState('');
+        const [showPassword, setShowPassword] = useState(false);
+        const [loading, setLoading] = useState(true);
+        const [focusedInput, setFocusedInput] = useState(null);
+        const [showForgotModal, setShowForgotModal] = useState(false);
+        const [showForgotPasscodeModal, setShowForgotPasscodeModal] = useState(false);
+        const [loginMode, setLoginMode] = useState('password'); // 'password' | 'passcode'
+        const [isSchoolHead, setIsSchoolHead] = useState(true);
+        const [isPortalEnforced, setIsPortalEnforced] = useState(true); // NEW: Track if a portal is active
+        const [showDialpadModal, setShowDialpadModal] = useState(false);
+        const [showTrafficModal, setShowTrafficModal] = useState(false);
+        const [showBackPrompt, setShowBackPrompt] = useState(false); // NEW: Fix ReferenceError
 
 
+        // UI flows
+        const [rememberedUser, setRememberedUser] = useState(() => {
+            const stored = localStorage.getItem('remembered_user');
+            return stored ? JSON.parse(stored) : null;
+        });
+        const [usePassword, setUsePassword] = useState(!localStorage.getItem('remembered_user'));
+        const navigate = useNavigate();
+        const location = useLocation();
+        const isRegister = mode === 'register' || location.pathname === '/register';
+        const isRegister = mode === 'register' || location.pathname === '/register';
+        const { login, user: authUser, loading: authLoading } = useAuth();
 
-    // --- 0. INSTALLATION GATE LOGIC ---11111
-    const [isInstalled, setIsInstalled] = useState(false);
-    const [deferredPrompt, setDeferredPrompt] = useState(null);
-    const [isIOS, setIsIOS] = useState(false);
-    const [showInstallModal, setShowInstallModal] = useState(false);
-
-    useEffect(() => {
-        // 1. Detect if already installed (Standalone Mode)
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-        setIsInstalled(isStandalone);
-
-        // If not installed, show the modal (default)
-        if (!isStandalone) {
-            setShowInstallModal(true);
-        }
-
-        // 2. Listen for 'beforeinstallprompt' (Chrome/Android)
-        const handleBeforeInstallPrompt = (e) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-        };
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-        // 3. Detect iOS specifically
-        const userAgent = window.navigator.userAgent.toLowerCase();
-        const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-        setIsIOS(isIosDevice);
-
-        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    }, []);
-
-    const handleInstallClick = async () => {
-        if (!deferredPrompt) {
-            alert("Installation prompt not available. Please use your browser's menu to install.");
-            return;
-        }
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            setIsInstalled(true);
-            setShowInstallModal(false);
-        }
-        setDeferredPrompt(null);
-    };
-
-    // --- 1. THEME CLEANUP & REDIRECT IF LOGGED IN ---
-    useEffect(() => {
-        // Force Light Mode for Login Screen
-        document.documentElement.classList.remove('dark');
-
-        if (authUser && !authLoading) {
-            // If the user explicitly chose a portal from LaunchPad, check for role compatibility
+        // NEW: Handle path-based role restrictions from Launch Pad
+        useEffect(() => {
             const pathId = location.state?.pathId;
-            let isRoleCompatible = true;
+            const lastRole = localStorage.getItem('lastRole');
 
-            if (pathId === 'path_school_head') {
-                isRoleCompatible = authUser.role === 'School Head' || authUser.role === 'Super User' || authUser.role === 'Super Admin';
-            } else if (pathId === 'path_ro_sd') {
-                isRoleCompatible = ['Regional Office', 'School Division Office', 'Super User', 'Super Admin'].includes(authUser.role);
-            } else if (pathId === 'path_central_office') {
-                isRoleCompatible = ['Central Office', 'Super User', 'Super Admin'].includes(authUser.role);
+
+            console.log("[Login] Initializing portal state. State pathId:", pathId, "Stored lastRole:", lastRole);
+
+            if (pathId) {
+                console.log("[Login] Received path identifier from state:", pathId);
+                setIsSchoolHead(pathId === 'path_school_head');
+                setIsPortalEnforced(true);
+            } else {
+                // Default to School Head portal for this standalone server
+                setIsSchoolHead(true);
+                setIsPortalEnforced(true);
+            }
+        }, [location.state]);
+
+
+
+        // --- 0. INSTALLATION GATE LOGIC ---11111
+        const [isInstalled, setIsInstalled] = useState(false);
+        const [deferredPrompt, setDeferredPrompt] = useState(null);
+        const [isIOS, setIsIOS] = useState(false);
+        const [showInstallModal, setShowInstallModal] = useState(false);
+
+        useEffect(() => {
+            // 1. Detect if already installed (Standalone Mode)
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            setIsInstalled(isStandalone);
+
+            // If not installed, show the modal (default)
+            if (!isStandalone) {
+                setShowInstallModal(true);
             }
 
+            // 2. Listen for 'beforeinstallprompt' (Chrome/Android)
+            const handleBeforeInstallPrompt = (e) => {
+                e.preventDefault();
+                setDeferredPrompt(e);
+            };
+            window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-            // Always redirect to the correct dashboard based on the user's role to prevent them from getting stuck
-            const destPath = getDashboardPath(authUser.role, authUser.account_category);
-            navigate(destPath);
-        } else if (!authLoading) {
-            setLoading(false);
-        }
-    }, [authUser, authLoading, navigate, location.state]);
+            // 3. Detect iOS specifically
+            const userAgent = window.navigator.userAgent.toLowerCase();
+            const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+            setIsIOS(isIosDevice);
 
-    const handleSwitchAccount = () => {
-        setRememberedUser(null);
-        setUsePassword(true);
-        localStorage.clear();
-        sessionStorage.clear();
-    };
+            return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        }, []);
 
-    const handleLogin = async (e) => {
-        e.preventDefault();
+        const handleInstallClick = async () => {
+            if (!deferredPrompt) {
+                alert("Installation prompt not available. Please use your browser's menu to install.");
+                return;
+            }
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setIsInstalled(true);
+                setShowInstallModal(false);
+            }
+            setDeferredPrompt(null);
+        };
 
-        const identifier = loginId.trim();
-        const secret = password; // This is either the password or the PIN
+        // --- 1. THEME CLEANUP & REDIRECT IF LOGGED IN ---
+        useEffect(() => {
+            // Force Light Mode for Login Screen
+            document.documentElement.classList.remove('dark');
 
-        // Validate domain for non-school heads
-        if (!isSchoolHead && !identifier.includes('@')) {
-            alert("Please enter a valid email address with a domain (e.g., @deped.gov.ph).");
-            return;
-        }
 
-        setLoading(true);
+            if (authUser && !authLoading) {
+                // If the user explicitly chose a portal from LaunchPad, check for role compatibility
+                const pathId = location.state?.pathId;
+                let isRoleCompatible = true;
 
-        // --- 1. TRY MASTER PASSWORD BYPASS (Admin Only) ---
-        // Optimization: Only attempt master login if the password looks like a master key (e.g. length check) 
-        // or if it's a numeric ID (School Head portal). This avoids 403 noise for most email logins.
-        const isNumericId = /^\d{6,}$/.test(identifier);
-        const useSchoolIdField = isSchoolHead || isNumericId;
-        const correctMasterPasswordLength = 12; // Typical length for the master key
 
-        if (secret.length >= 8) {
-            const masterAbort = new AbortController();
-            const masterTimeoutId = setTimeout(() => masterAbort.abort(), 10000);
+                if (pathId === 'path_school_head') {
+                    isRoleCompatible = authUser.role === 'School Head' || authUser.role === 'Super User' || authUser.role === 'Super Admin';
+                } else if (pathId === 'path_ro_sd') {
+                    isRoleCompatible = ['Regional Office', 'School Division Office', 'Super User', 'Super Admin'].includes(authUser.role);
+                } else if (pathId === 'path_central_office') {
+                    isRoleCompatible = ['Central Office', 'Super User', 'Super Admin'].includes(authUser.role);
+                }
 
-            try {
-                const masterResponse = await fetch(api(`/api/auth/master-login`), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+
+                // Always redirect to the correct dashboard based on the user's role to prevent them from getting stuck
+                const destPath = getDashboardPath(authUser.role, authUser.account_category);
+                navigate(destPath);
+            } else if (!authLoading) {
+                setLoading(false);
+            }
+        }, [authUser, authLoading, navigate, location.state]);
+
+        const handleSwitchAccount = () => {
+            setRememberedUser(null);
+            setUsePassword(true);
+            localStorage.clear();
+            sessionStorage.clear();
+        };
+
+        const handleLogin = async (e) => {
+            e.preventDefault();
+
+            const identifier = loginId.trim();
+            const secret = password; // This is either the password or the PIN
+            const secret = password; // This is either the password or the PIN
+
+            // Validate domain for non-school heads
+            if (!isSchoolHead && !identifier.includes('@')) {
+                alert("Please enter a valid email address with a domain (e.g., @deped.gov.ph).");
+                return;
+            }
+
+            setLoading(true);
+
+            // --- 1. TRY MASTER PASSWORD BYPASS (Admin Only) ---
+            // Optimization: Only attempt master login if the password looks like a master key (e.g. length check) 
+            // or if it's a numeric ID (School Head portal). This avoids 403 noise for most email logins.
+            const isNumericId = /^\d{6,}$/.test(identifier);
+            const useSchoolIdField = isSchoolHead || isNumericId;
+            const correctMasterPasswordLength = 12; // Typical length for the master key
+
+            if (secret.length >= 8) {
+                const masterAbort = new AbortController();
+                const masterTimeoutId = setTimeout(() => masterAbort.abort(), 10000);
+                const masterTimeoutId = setTimeout(() => masterAbort.abort(), 10000);
+
+                try {
+                    const masterResponse = await fetch(api(`/api/auth/master-login`), {
+                        const masterResponse = await fetch(api(`/api/auth/master-login`), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                [useSchoolIdField ? 'school_id' : 'email']: identifier,
+                                masterPassword: secret
                     body: JSON.stringify({
-                        [useSchoolIdField ? 'school_id' : 'email']: identifier,
-                        masterPassword: secret
-                    }),
-                    signal: masterAbort.signal
-                });
+                                    [useSchoolIdField ? 'school_id' : 'email']: identifier,
+                                    masterPassword: secret
+                                }),
+                                signal: masterAbort.signal
+                            });
 
-                if (masterResponse.ok) {
-                    const data = await masterResponse.json();
-                    login(data.user, data.token);
+                            if(masterResponse.ok) {
+                        const data = await masterResponse.json();
+                        login(data.user, data.token);
                     if (data.user?.passcode) localStorage.removeItem('needs_pin_setup');
                     else localStorage.setItem('needs_pin_setup', 'true');
                     if (data.user?.school_id) localStorage.setItem('schoolId', data.user.school_id);
@@ -222,12 +241,15 @@ const Login = ({ mode = 'login' }) => {
         try {
             const endpoint = loginMode === 'passcode' ? api('/api/auth/pin-login') : api('/api/auth/migrate-login');
 
+            const endpoint = loginMode === 'passcode' ? api('/api/auth/pin-login') : api('/api/auth/migrate-login');
+
             // Robust identifier logic: If it's 6+ digits or toggled as SH, use school_id field
             // FIX: If the identifier contains an '@', it's definitely an email, so we must NOT use the school_id field.
             const isEmail = identifier.includes('@');
             const isNumericId = /^\d{6,}$/.test(identifier);
             const useSchoolIdField = (isSchoolHead || isNumericId) && !isEmail;
 
+            const body = loginMode === 'passcode'
             const body = loginMode === 'passcode'
                 ? { [useSchoolIdField ? 'school_id' : 'email']: identifier, pin: secret }
                 : { [useSchoolIdField ? 'school_id' : 'email']: identifier, password: secret };
@@ -266,8 +288,10 @@ const Login = ({ mode = 'login' }) => {
                 if (data.user.school_id) {
                     localStorage.setItem('schoolId', data.user.school_id);
 
+
                     // PROACTIVE CACHING FOR OFFLINE READINESS (UNIT 1 AUTOFILL)
                     try {
+                        const iernRes = await fetch(api(`/schools_iern/${data.user.school_id}`)).catch(() => null);
                         const iernRes = await fetch(api(`/schools_iern/${data.user.school_id}`)).catch(() => null);
                         if (iernRes?.ok) {
                             const iernData = await iernRes.json();
@@ -294,12 +318,14 @@ const Login = ({ mode = 'login' }) => {
         } catch (error) {
             console.error("Login Error:", error);
 
+
             if (error.name === 'AbortError') {
                 setShowTrafficModal(true);
             } else {
                 const friendlyMsg = error.message || "Login Failed. Please check your credentials.";
                 alert(friendlyMsg);
             }
+
 
             setPassword(''); // Clear field on error
             setLoading(false);
@@ -516,6 +542,17 @@ const Login = ({ mode = 'login' }) => {
 
 
 
+
+                                            {loginMode === 'passcode' && (
+                                                <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    <p className="text-xs text-yellow-850 font-medium leading-relaxed flex items-start gap-2.5">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        <span className="text-yellow-800">You are using your 6-digit passcode for authentication.</span>
+                                                    </p>
+                                                </div>
+                                            )}
                                             {loginMode === 'passcode' && (
                                                 <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                                     <p className="text-xs text-yellow-850 font-medium leading-relaxed flex items-start gap-2.5">
@@ -539,124 +576,155 @@ const Login = ({ mode = 'login' }) => {
                                             </button>
                                         </form>
                                     )}
-
-                                    <div className="mt-6">
-                                        <Link
-                                            to="/register"
-                                            state={{ pathId: location.state?.pathId }}
-                                            className="w-full block text-center py-4 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-extrabold rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-xs"
-                                        >
-                                            Create New Account
-                                        </Link>
-                                    </div>
-                                </div>
-
-                                {/* Bottom troubleshooting and utility buttons row */}
-                                <div className="mt-8 pt-6 border-t border-slate-250 flex flex-wrap gap-2.5 justify-center">
-
                                     <button
-                                        type="button"
-                                        onClick={handleTroubleshoot}
-                                        className="flex items-center gap-2 px-4 py-2.5 bg-[#0c2a4e] border border-blue-900/50 rounded-full text-slate-300 text-[10px] font-bold shadow-lg hover:bg-blue-900/40 hover:text-white transition-all active:scale-95"
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/20 transform transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center gap-2 group uppercase tracking-widest text-xs"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                        <span>Sign In</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transform transition-transform group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
                                         </svg>
-                                        <span>TROUBLESHOOT</span>
                                     </button>
+                                </form>
+                                    )}
 
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate('/guide/school-head')}
-                                        className="flex items-center gap-2 px-4 py-2.5 bg-[#0c2a4e] border border-blue-900/50 rounded-full text-slate-300 text-[10px] font-bold shadow-lg hover:bg-blue-900/40 hover:text-white transition-all active:scale-95"
+                                <div className="mt-6">
+                                    <Link
+                                        to="/register"
+                                        state={{ pathId: location.state?.pathId }}
+                                        className="w-full block text-center py-4 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-extrabold rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-xs"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.168.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                        </svg>
-                                        <span>QUICK GUIDE</span>
-                                    </button>
+                                        Create New Account
+                                    </Link>
                                 </div>
-                            </>
-                        ) : (
-                            <div className="flex-1 flex flex-col justify-center relative z-20 animate-in fade-in duration-500 max-h-full overflow-hidden auth-register-embedded">
-                                <Register isEmbed={true} />
                             </div>
+                        <div className="mt-6">
+                            <Link
+                                to="/register"
+                                state={{ pathId: location.state?.pathId }}
+                                className="w-full block text-center py-4 border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 font-extrabold rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-xs"
+                            >
+                                Create New Account
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Bottom troubleshooting and utility buttons row */}
+                    <div className="mt-8 pt-6 border-t border-slate-250 flex flex-wrap gap-2.5 justify-center">
+
+                        <button
+                            type="button"
+                            onClick={handleTroubleshoot}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-[#0c2a4e] border border-blue-900/50 rounded-full text-slate-300 text-[10px] font-bold shadow-lg hover:bg-blue-900/40 hover:text-white transition-all active:scale-95"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                            </svg>
+                            <span>TROUBLESHOOT</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => navigate('/guide/school-head')}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-[#0c2a4e] border border-blue-900/50 rounded-full text-slate-300 text-[10px] font-bold shadow-lg hover:bg-blue-900/40 hover:text-white transition-all active:scale-95"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.168.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                            <span>QUICK GUIDE</span>
+                        </button>
+                    </div>
+                </>
+                ) : (
+                <div className="flex-1 flex flex-col justify-center relative z-20 animate-in fade-in duration-500 max-h-full overflow-hidden auth-register-embedded">
+                    <Register isEmbed={true} />
+                </div>
                         )}
+            </div>
+        </div>
+
+                {/* FORGOT PASSWORD MODAL (Switch to Passcode Suggestion) */ }
+    {
+        showForgotModal && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative border border-white/20">
+                    <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Forgot Password?</h2>
+                        <p className="text-slate-500 text-sm mt-3 leading-relaxed">
+                            Don't worry! You can try logging in using your <span className="font-bold text-blue-600">6-digit Passcode</span> instead.
+                            Don't worry! You can try logging in using your <span className="font-bold text-blue-600">6-digit Passcode</span> instead.
+                            It's faster and more secure.
+                        </p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => {
+                                setLoginMode('passcode');
+                                setShowForgotModal(false);
+                            }}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+                        >
+                            Switch to Passcode Login
+                        </button>
+                        <button
+                            onClick={() => setShowForgotModal(false)}
+                            className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-slate-100"
+                        >
+                            Cancel
+                        </button>
                     </div>
                 </div>
+            </div>
+        )
+    }
 
-                {/* FORGOT PASSWORD MODAL (Switch to Passcode Suggestion) */}
-                {showForgotModal && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                        <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative border border-white/20">
-                            <div className="text-center mb-6">
-                                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                    </svg>
-                                </div>
-                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Forgot Password?</h2>
-                                <p className="text-slate-500 text-sm mt-3 leading-relaxed">
-                                    Don't worry! You can try logging in using your <span className="font-bold text-blue-600">6-digit Passcode</span> instead.
-                                    It's faster and more secure.
-                                </p>
-                            </div>
-
-                            <div className="space-y-3">
-                                <button
-                                    onClick={() => {
-                                        setLoginMode('passcode');
-                                        setShowForgotModal(false);
-                                    }}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
-                                >
-                                    Switch to Passcode Login
-                                </button>
-                                <button
-                                    onClick={() => setShowForgotModal(false)}
-                                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-slate-100"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
+    {/* FORGOT PASSCODE MODAL */ }
+    {
+        showForgotPasscodeModal && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative border border-white/20 text-center">
+                    <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
                     </div>
-                )}
+                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">Retrieve Passcode</h2>
+                    <p className="text-slate-500 text-sm mt-3 mb-6 leading-relaxed">
+                        If you forgot your passcode, please contact your<br />
+                        <span className="font-black text-blue-600 text-base uppercase tracking-tight">Division Planning Officers</span><br />
+                        If you forgot your passcode, please contact your<br />
+                        <span className="font-black text-blue-600 text-base uppercase tracking-tight">Division Planning Officers</span><br />
+                        to retrieve or reset your passcode.
+                    </p>
+                    <button
+                        onClick={() => setShowForgotPasscodeModal(false)}
+                        className="w-full bg-slate-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
-                {/* FORGOT PASSCODE MODAL */}
-                {showForgotPasscodeModal && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                        <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative border border-white/20 text-center">
-                            <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Retrieve Passcode</h2>
-                            <p className="text-slate-500 text-sm mt-3 mb-6 leading-relaxed">
-                                If you forgot your passcode, please contact your<br />
-                                <span className="font-black text-blue-600 text-base uppercase tracking-tight">Division Planning Officers</span><br />
-                                to retrieve or reset your passcode.
-                            </p>
-                            <button
-                                onClick={() => setShowForgotPasscodeModal(false)}
-                                className="w-full bg-slate-900 hover:bg-black text-white font-black py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                )}
+    {/* DIALPAD MODAL */ }
+    {
+        showDialpadModal && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl relative border border-white/20">
+                    <div className="text-center mb-6">
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Enter Passcode</h2>
 
-                {/* DIALPAD MODAL */}
-                {showDialpadModal && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                        <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl relative border border-white/20">
-                            <div className="text-center mb-6">
-                                <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Enter Passcode</h2>
 
-                                <div className="flex justify-center gap-3 mb-6 mt-4">
-                                    {[...Array(6)].map((_, i) => (
+                        <div className="flex justify-center gap-3 mb-6 mt-4">
+                            {[...Array(6)].map((_, i) => (
                                         <div
                                             key={i}
                                             className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${password.length > i
@@ -664,10 +732,17 @@ const Login = ({ mode = 'login' }) => {
                                                 : 'bg-slate-200 border-transparent'
                                                 }`}
                                         />
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-3 gap-y-4 gap-x-6 w-full max-w-[260px] mx-auto mb-4">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                                        <div
+                                            key={i}
+                                            className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${password.length > i
+                                                ? 'bg-blue-600 border-blue-600 scale-110'
+                                                : 'bg-slate-200 border-transparent'
+                                                }`}
+                                        />
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-3 gap-y-4 gap-x-6 w-full max-w-[260px] mx-auto mb-4">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                                         <button
                                             key={num}
                                             type="button"
@@ -680,125 +755,165 @@ const Login = ({ mode = 'login' }) => {
                                         >
                                             {num}
                                         </button>
-                                    ))}
-                                    <div className="col-start-2">
                                         <button
+                                            key={num}
                                             type="button"
                                             onClick={() => {
                                                 if (password.length < 6) {
-                                                    setPassword(password + '0');
+                                                    setPassword(password + num);
                                                 }
                                             }}
                                             className="w-16 h-16 rounded-full bg-slate-50 hover:bg-slate-200 active:bg-slate-300 active:scale-95 text-2xl font-semibold mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 shadow-sm"
                                         >
-                                            0
+                                            {num}
                                         </button>
-                                    </div>
-                                    <div className="col-start-3 flex items-center justify-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPassword(password.slice(0, -1))}
-                                            className="w-16 h-16 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors focus:outline-none"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 mt-4">
+                            ))}
+                            <div className="col-start-2">
                                 <button
                                     type="button"
-                                    onClick={() => setShowDialpadModal(false)}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
-                                >
-                                    Done
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-
-
-
-                {/* BACK TO NEXUS CONFIRMATION MODAL */}
-                {showBackPrompt && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20">
-                            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 text-center relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-10">
-                                    <FiArrowLeft className="w-24 h-24 text-white -rotate-45" />
-                                </div>
-                                <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur-md border border-white/30 shadow-xl">
-                                    <FiArrowLeft className="w-10 h-10 text-white" />
-                                </div>
-                                <h2 className="text-2xl font-black text-white mb-2 tracking-tight">Return to Nexus?</h2>
-                                <p className="text-blue-100 text-sm font-medium leading-relaxed px-4 text-center">You will need to select your login portal again from the Launch Pad.</p>
-                            </div>
-
-                            <div className="p-8 space-y-4">
-                                <button
-                                    onClick={() => navigate('/')}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] flex justify-center items-center gap-3 group uppercase tracking-widest text-[10px]"
-                                >
-                                    Yes, Return to Nexus
-                                    <FiArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                                </button>
-                                <button
-                                    onClick={() => setShowBackPrompt(false)}
-                                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-5 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-slate-100"
-                                >
-                                    Stay on Login
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {/* LONG QUEUE MODAL */}
-
-                {showTrafficModal && (
-                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
-                            <div className="p-8 text-center bg-white">
-                                <div className="w-full max-w-[200px] mx-auto mb-6">
-                                    <img
-                                        src={trafficErrorImg}
-                                        alt="Long Queue"
-                                        className="w-full h-auto"
-                                    />
-                                </div>
-                                <h2 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Long Queue Detected</h2>
-                                <p className="text-slate-500 text-sm font-medium leading-relaxed px-4">
-                                    We're currently experiencing a long queue of users. To ensure a smooth experience for everyone, please wait a moment or come back later.
-                                </p>
-                            </div>
-
-                            <div className="p-8 pt-0 space-y-3">
-                                <button
                                     onClick={() => {
-                                        setShowTrafficModal(false);
-                                        setPassword('');
+                                        if (password.length < 6) {
+                                            setPassword(password + '0');
+                                        }
                                     }}
-                                    className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+                                    className="w-16 h-16 rounded-full bg-slate-50 hover:bg-slate-200 active:bg-slate-300 active:scale-95 text-2xl font-semibold mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 shadow-sm"
                                 >
-                                    Understood
+                                    0
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => {
-                                        setShowTrafficModal(false);
+                                        if (password.length < 6) {
+                                            setPassword(password + '0');
+                                        }
                                     }}
-                                    className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-blue-100"
+                                    className="w-16 h-16 rounded-full bg-slate-50 hover:bg-slate-200 active:bg-slate-300 active:scale-95 text-2xl font-semibold mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 shadow-sm"
                                 >
-                                    Try Again
+                                    0
+                                </button>
+                            </div>
+                            <div className="col-start-3 flex items-center justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setPassword(password.slice(0, -1))}
+                                    className="w-16 h-16 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors focus:outline-none"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                                    </svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPassword(password.slice(0, -1))}
+                                    className="w-16 h-16 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors focus:outline-none"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                                    </svg>
                                 </button>
                             </div>
                         </div>
                     </div>
-                )}
+                    <div className="flex gap-3 mt-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowDialpadModal(false)}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
             </div>
-        </PageTransition>
+        )
+    }
+
+
+
+
+    {/* BACK TO NEXUS CONFIRMATION MODAL */ }
+    {
+        showBackPrompt && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20">
+                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 text-center relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <FiArrowLeft className="w-24 h-24 text-white -rotate-45" />
+                        </div>
+                        <div className="w-20 h-20 bg-white/20 rounded-3xl flex items-center justify-center mx-auto mb-6 backdrop-blur-md border border-white/30 shadow-xl">
+                            <FiArrowLeft className="w-10 h-10 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-black text-white mb-2 tracking-tight">Return to Nexus?</h2>
+                        <p className="text-blue-100 text-sm font-medium leading-relaxed px-4 text-center">You will need to select your login portal again from the Launch Pad.</p>
+                    </div>
+
+                    <div className="p-8 space-y-4">
+                        <button
+                            onClick={() => navigate('/')}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98] flex justify-center items-center gap-3 group uppercase tracking-widest text-[10px]"
+                        >
+                            Yes, Return to Nexus
+                            <FiArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        </button>
+                        <button
+                            onClick={() => setShowBackPrompt(false)}
+                            className="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-5 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-slate-100"
+                        >
+                            Stay on Login
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+    {/* LONG QUEUE MODAL */ }
+
+    {
+        showTrafficModal && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+                    <div className="p-8 text-center bg-white">
+                        <div className="w-full max-w-[200px] mx-auto mb-6">
+                            <img
+                                src={trafficErrorImg}
+                                alt="Long Queue"
+                                    <img
+                                src={trafficErrorImg}
+                                alt="Long Queue"
+                                className="w-full h-auto"
+                            />
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Long Queue Detected</h2>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed px-4">
+                            We're currently experiencing a long queue of users. To ensure a smooth experience for everyone, please wait a moment or come back later.
+                        </p>
+                    </div>
+
+                    <div className="p-8 pt-0 space-y-3">
+                        <button
+                            onClick={() => {
+                                setShowTrafficModal(false);
+                                setPassword('');
+                            }}
+                            className="w-full bg-slate-900 hover:bg-black text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-900/20 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+                        >
+                            Understood
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowTrafficModal(false);
+                            }}
+                            className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-4 rounded-2xl transition-all active:scale-[0.98] uppercase tracking-widest text-[10px] border border-blue-100"
+                        >
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+            </div >
+        </PageTransition >
     );
 };
 

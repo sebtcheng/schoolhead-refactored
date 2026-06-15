@@ -45,9 +45,7 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 import NodesDashboard from './modules/NexusDashboard';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
-
-
-
+import SIIFModule from './modules/siif/SIIFModule';
 
 // --- WRAPPER COMPONENT TO HANDLE LOCATION ---
 const AnimatedRoutes = () => {
@@ -81,6 +79,57 @@ const AnimatedRoutes = () => {
       navigate('/login', { replace: true, state });
     }
   }, [user, loading, location.pathname, navigate]);
+
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [checkingMaintenance, setCheckingMaintenance] = useState(true);
+
+  // Check Maintenance Status periodically (Reduced from per-route check to every 5 mins)
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const checkMaintenance = async () => {
+      try {
+        const res = await fetch('api/settings/maintenance_mode', { signal: controller.signal });
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : {};
+        setMaintenanceMode(data.value === 'true');
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error("Maintenance Check Failed:", err);
+        }
+      } finally {
+        setCheckingMaintenance(false);
+      }
+    };
+
+    checkMaintenance(); // Initial check on mount
+
+    const intervalId = setInterval(checkMaintenance, 300000); // Poll every 5 minutes
+
+    return () => {
+      clearInterval(intervalId);
+      controller.abort();
+    };
+  }, []); // Run ONLY on mount
+
+  if (checkingMaintenance) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium animate-pulse">Initializing InsightED...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const role = localStorage.getItem('userRole');
+  const isProtected = location.pathname !== '/' && location.pathname !== '/register';
+  const isAdmin = role === 'Admin' || role === 'Super Admin' || role === 'Super User';
+
+  // if (maintenanceMode && isProtected && !isAdmin) {
+  //   return <MaintenanceScreen />;
+  // }
 
   return (
     <Routes>
@@ -212,6 +261,9 @@ const AnimatedRoutes = () => {
       <Route path="/activities" element={<ProtectedRoute><Activity /></ProtectedRoute>} />
       <Route path="/outbox" element={<ProtectedRoute><Outbox /></ProtectedRoute>} />
       <Route path="/sync-center" element={<ProtectedRoute allowedRoles={['School Head']}><SyncCenter /></ProtectedRoute>} />
+
+      {/* SIIF Module */}
+      <Route path="/siif/*" element={<ProtectedRoute allowedRoles={['School Head']}><SIIFModule /></ProtectedRoute>} />
 
       {/* School Head Forms (Redirected to Modular Units) */}
       <Route path="/school-profile" element={<Navigate to="/modular/unit-1" replace />} />
