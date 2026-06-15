@@ -218,9 +218,9 @@ const NodesDashboard = () => {
             textColor: 'text-blue-700',
             bgLight: 'bg-blue-50',
             progress: 0,
-            route: SIIF_URL,
+            route: '/siif',
             description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-            isLocked: !user?.is_testaccount,
+            isLocked: false,
         },
         {
             id: 'soss',
