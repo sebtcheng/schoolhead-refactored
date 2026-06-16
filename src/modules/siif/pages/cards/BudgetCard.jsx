@@ -137,7 +137,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
     const renderFormScreen = () => (
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
             {/* Header Info Card */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-3 relative overflow-hidden">
+            <div className="siif-card p-6 space-y-3 relative overflow-hidden">
                 {allocAmt > 0 && (
                     <div className="absolute top-0 right-0 px-4 py-1.5 bg-siif-blue/5 text-siif-blue text-[9px] font-black uppercase rounded-bl-2xl border-b border-l border-siif-blue/10">
                         Official Allocation: {formatCurrency(allocAmt)}
@@ -223,7 +223,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                     const activeGrades = (bData.selectedGrades || []).filter(g => (parseInt(counts[g]) || 0) > 0);
 
                     return (
-                        <div key={intId} className="bg-white p-4 sm:p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-3 hover:border-siif-blue/20 transition-all duration-300">
+                        <div key={intId} className="siif-card p-4 sm:p-5 flex flex-col gap-3 hover:border-siif-blue transition-all duration-300">
                             {/* Header & Budget Row */}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                                 <div className="flex items-center gap-3 sm:gap-4 flex-1">
@@ -292,7 +292,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
     // ── SUMMARY SCREEN ────────────────────────────────────────────────────────────
     const renderSummaryScreen = () => (
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-5">
+            <div className="siif-card p-6 space-y-5">
                 <div>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Summary — Budget Estimations</p>
                     <div className="space-y-3">
@@ -386,34 +386,34 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
 
     return (
         <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
-            <div className="bg-siif-blue text-white pt-14 pb-8 px-6 rounded-b-[3rem] shadow-xl relative overflow-hidden shrink-0">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-24 -mt-24 pointer-events-none" />
-                <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+            {/* Header */}
+            <div className="siif-topbar !m-0 !border-x-0 !border-t-0 !rounded-b-[2rem] flex-col items-stretch !items-start !justify-start shrink-0 z-20 print:hidden relative">
+                <div className="flex items-center justify-between w-full mb-4">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={screen === 'summary' ? () => setScreen('form') : onClose}
-                            className="p-2.5 bg-white/10 rounded-2xl border border-white/20 text-white"
+                            className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600"
                         >
                             {screen === 'summary' ? <TbArrowLeft size={20} /> : <TbChevronLeft size={20} />}
                         </button>
                         <div>
-                            <p className="text-[9px] font-black text-blue-200 uppercase tracking-[0.3em]">
+                            <p className="eyebrow">
                                 Step 4 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Estimate'}
                             </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight">Budget Estimations</h1>
+                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">Budget Estimations</h1>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2.5 bg-white/10 hover:bg-white/20 rounded-2xl transition-all border border-white/20 text-white shrink-0"
+                        className="p-3 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 shrink-0"
                         title="Close"
                     >
                         <TbX size={20} />
                     </button>
                 </div>
-                <div className="relative z-10 flex gap-2 mt-4">
-                    <div className="h-1.5 flex-1 rounded-full bg-white" />
-                    <div className={`h-1.5 flex-1 rounded-full transition-all ${screen === 'summary' ? 'bg-white' : 'bg-white/30'}`} />
+                <div className="flex gap-2 w-full mt-2">
+                    <div className="h-1.5 flex-1 rounded-full bg-siif-blue" />
+                    <div className={`h-1.5 flex-1 rounded-full transition-all ${screen === 'summary' ? 'bg-siif-blue' : 'bg-slate-200'}`} />
                 </div>
             </div>
 

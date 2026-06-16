@@ -10,7 +10,8 @@ import {
     TbCheck,
     TbLayoutDashboard,
     TbClock,
-    TbTool
+    TbTool,
+    TbChevronLeft
 } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { useSIIFUtilization } from '../hooks/useSIIFUtilization';
@@ -262,15 +263,21 @@ const SIIFUtilization = ({ user, token }) => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 p-6 pb-32">
-            <header className="mb-8">
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 bg-[#0038A8] rounded-xl flex items-center justify-center text-white shadow-lg">
+        <div className="p-6 pb-32">
+            <header className="siif-topbar siif-topbar-flush flex-col items-stretch !items-start !justify-start gap-6 pb-8 print:hidden mb-8 w-full">
+                <div className="flex items-center gap-3 w-full">
+                    <button onClick={() => navigate('/siif')} className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 mr-2">
+                        <TbChevronLeft size={20} />
+                    </button>
+                    <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-siif-blue shadow-inner shrink-0">
                         <TbTrendingUp size={24} />
                     </div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">SIIF Utilization</h1>
+                    <div>
+                        <p className="eyebrow">National Education Command Center</p>
+                        <h1 className="text-xl font-black text-slate-800 tracking-tight italic uppercase">SIIF Utilization</h1>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Quarterly Tracking</p>
+                    </div>
                 </div>
-                <p className="text-slate-500 text-sm font-bold pl-13">FY 2026 Quarterly Tracking</p>
             </header>
 
             {/* ─── Summary Dashboard ─── */}

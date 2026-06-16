@@ -408,20 +408,18 @@ const SIIFFormsHub = ({ user, token }) => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-32 text-lg">
+        <div className="pb-32 text-lg">
 
             {/* ── Header ── */}
-            <div className="bg-siif-blue text-white pt-12 pb-12 px-6 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
-
-                <div className="relative z-10 flex items-center justify-between mb-8">
+            <div className="siif-topbar siif-topbar-flush flex-col items-stretch !items-start !justify-start gap-4 sm:gap-6 pb-6 sm:pb-8 print:hidden">
+                <div className="flex items-center justify-between w-full relative z-10 mb-2">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => navigate('/siif')} className="p-3 bg-white/10 rounded-2xl hover:bg-white/20 transition-all text-white border border-white/10">
+                        <button onClick={() => navigate('/siif')} className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600">
                             <TbChevronLeft size={20} />
                         </button>
                         <div>
-                            <h1 className="text-xl font-black italic tracking-tight uppercase leading-none">Planning Hub</h1>
-                            <p className="text-[9px] font-bold text-blue-200 uppercase tracking-widest mt-1">
+                            <h1 className="text-xl font-black italic tracking-tight uppercase leading-none text-slate-800">Planning Hub</h1>
+                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
                                 {deadline ? `Deadline: ${new Date(deadline).toLocaleDateString()} @ ${new Date(deadline).toLocaleTimeString()}` : 'No Deadline Set'}
                             </p>
                         </div>
@@ -429,38 +427,38 @@ const SIIFFormsHub = ({ user, token }) => {
                     <button
                         onClick={handleSaveDraft}
                         disabled={saving || selectedInterventions.length === 0 || isExpired || isNotYetOpen}
-                        className="p-3 bg-white/10 rounded-2xl border border-white/20 disabled:opacity-40 relative"
+                        className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl disabled:opacity-40 relative text-slate-600"
                         title="Save Draft"
                     >
                         <FiSave size={20} />
                         {syncStatus === 'saving' && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-siif-yellow rounded-full border-2 border-siif-blue animate-pulse" />
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-siif-yellow rounded-full border-2 border-white animate-pulse" />
                         )}
                         {syncStatus === 'saved' && selectedInterventions.length > 0 && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-siif-blue" />
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white" />
                         )}
                     </button>
                 </div>
 
                 {/* Progress donut */}
-                <div className="relative z-10 flex items-center gap-6">
-                    <div className="relative w-20 h-20 shrink-0 flex items-center justify-center">
+                <div className="relative z-10 flex items-center gap-6 w-full">
+                    <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                         <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="4" />
+                                fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="4" />
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" stroke="white" strokeWidth="4"
+                                fill="none" stroke="var(--blue)" strokeWidth="4"
                                 strokeDasharray={`${progressPct}, 100`}
                                 style={{ transition: 'stroke-dasharray 0.6s ease' }}
                             />
                         </svg>
-                        <span className="absolute text-sm font-black text-white">{progressPct}%</span>
+                        <span className="absolute text-sm font-black text-slate-800">{progressPct}%</span>
                     </div>
                     <div>
-                        <p className="text-2xl font-black italic leading-tight">
+                        <p className="text-xl font-black italic leading-tight text-slate-800">
                             {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
                         </p>
-                        <p className="text-blue-200 text-[11px] font-bold mt-1">
+                        <p className="text-slate-500 text-[11px] font-bold mt-1">
                             {isExpired
                                 ? (deadline ? `Window closed on ${new Date(deadline).toLocaleString()}.` : 'Submission window is closed.')
                                 : isNotYetOpen
@@ -627,7 +625,7 @@ const SIIFFormsHub = ({ user, token }) => {
             {/* ── Full-screen card panels ── */}
             <AnimatePresence>
                 {activeCard === 'interventions' && (
-                    <motion.div key="int" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-50 flex flex-col overflow-hidden">
+                    <motion.div key="int" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
                         <InterventionsCard
                             value={selectedInterventions}
                             aral={aral}
@@ -640,7 +638,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </motion.div>
                 )}
                 {activeCard === 'beneficiaries' && (
-                    <motion.div key="ben" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-50 flex flex-col overflow-hidden">
+                    <motion.div key="ben" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
                         <BeneficiariesCard
                             selectedInterventions={selectedInterventions}
                             value={beneficiaries}
@@ -653,7 +651,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </motion.div>
                 )}
                 {activeCard === 'activities' && (
-                    <motion.div key="act" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-50 flex flex-col overflow-hidden">
+                    <motion.div key="act" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
                         <ActivitiesCard
                             selectedInterventions={selectedInterventions}
                             value={activities}
@@ -665,7 +663,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </motion.div>
                 )}
                 {activeCard === 'budget' && (
-                    <motion.div key="bud" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-50 flex flex-col overflow-hidden">
+                    <motion.div key="bud" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
                         <BudgetCard
                             user={user}
                             interventions={selectedInterventions}
@@ -688,8 +686,8 @@ const SIIFFormsHub = ({ user, token }) => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        style={{ zIndex: 110 }}
-                        className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[110] flex flex-col justify-center items-center p-4 overflow-hidden"
+                        style={{ zIndex: 9999 }}
+                        className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[9999] flex flex-col justify-center items-center p-4 overflow-hidden"
                     >
                         <motion.div
                             initial={{ y: '100%', opacity: 0 }}

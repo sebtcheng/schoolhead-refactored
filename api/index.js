@@ -71,6 +71,7 @@ const allowedOrigins = [
   'http://localhost:5174',
   'https://insight-ed-mobile-pwa.vercel.app',
   'https://insight-ed-frontend.vercel.app',
+  'https://insighted-portal.onrender.com',
   ...(process.env.CORS_ORIGIN_VM ? [process.env.CORS_ORIGIN_VM] : []),
 ];
 app.use(cors({

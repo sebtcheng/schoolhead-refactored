@@ -9,14 +9,16 @@ const SIIFSettings = ({ user }) => {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-32">
-            <div className="bg-[#0038A8] pt-12 pb-20 px-8 rounded-b-[3rem] shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-                <h1 className="text-2xl font-black text-white relative z-10">Settings</h1>
-                <p className="text-blue-100 text-sm relative z-10">Module Preferences & Account</p>
+        <div className="pb-32">
+            <div className="siif-topbar siif-topbar-flush flex-col items-stretch !items-start !justify-start gap-4 pb-8 print:hidden">
+                <div>
+                    <p className="eyebrow">National Education Command Center</p>
+                    <h1 className="text-xl font-black text-slate-800 relative z-10 italic uppercase tracking-tight">Settings</h1>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Module Preferences & Account</p>
+                </div>
             </div>
 
-            <div className="px-6 -mt-10 relative z-20 space-y-4">
+            <div className="px-6 mt-6 relative z-20 space-y-4">
                 <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 flex items-center gap-4">
                     <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-[#0038A8] font-black text-xl">
                         {user.first_name?.charAt(0)}

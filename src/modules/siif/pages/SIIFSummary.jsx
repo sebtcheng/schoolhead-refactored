@@ -177,7 +177,7 @@ const SIIFSummary = ({ user, token }) => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
+        <div className="flex flex-col pb-24">
             {/* Header */}
             <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white pt-16 pb-12 px-6 rounded-b-[2.5rem] shadow-xl relative overflow-hidden shrink-0">
                 <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />

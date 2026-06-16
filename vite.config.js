@@ -20,7 +20,7 @@ const handleProxyError = (proxy, _options) => {
 };
 
 export default defineConfig({
-  base: '/insighted-schoolhead/',
+  base: process.env.RENDER ? '/' : '/insighted-schoolhead/',
   define: {
     // Exposes version to the app as import.meta.env.VITE_APP_VERSION
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(version),
