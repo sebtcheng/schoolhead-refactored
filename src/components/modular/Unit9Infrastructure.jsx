@@ -13,8 +13,8 @@ import { isNetworkError, logSubmissionDiagnostic } from "../../utils/submissionH
 import { api } from "../../lib/api";
 
 // --- Shared Styles ---
-const chunkyInput = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm text-center";
-const chunkySelect = "w-full p-4 mt-2 bg-gray-50 border-2 border-gray-200 rounded-2xl text-lg font-black text-gray-700 focus:outline-none focus:border-indigo-500 focus:bg-indigo-50 transition-colors shadow-sm appearance-none flex-1 text-center";
+const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm placeholder:text-gray-300 font-body";
+const chunkySelect = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M5%207L10%2012L15%207%22%20stroke%3D%22%23075985%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E')] bg-[length:24px] bg-[right_1rem_center] bg-no-repeat disabled:opacity-50 disabled:bg-gray-50 font-body";
 const toggleBtnBase = "flex-1 py-4 px-6 rounded-2xl font-black text-base border-2 transition-all flex items-center justify-center gap-2 shadow-sm";
 const toggleBtnActive = "bg-indigo-100 border-indigo-500 text-indigo-700 shadow-indigo-100";
 const toggleBtnInactive = "bg-white border-gray-200 text-gray-400 hover:bg-gray-50";
@@ -86,207 +86,211 @@ const SummaryView = ({
     setCurrentPage, 
     navigate 
 }) => (
-    <div className="space-y-8">
-        {/* 1. Electrical Capacity & Main Power */}
-        <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-6 bg-yellow-400 rounded-full" />
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Power Grid & Panel</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-4">
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Main Power Source</p>
-                    <p className="text-lg font-black text-indigo-900">{generalData.main_power_source || "None Reported"}</p>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Left Column: Section 1, Section 2, Section 4 */}
+        <div className="space-y-8">
+            {/* 1. Electrical Capacity & Main Power */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-6 bg-yellow-400 rounded-full" />
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Power Grid & Panel</h3>
                 </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Meters</p>
-                    <p className="text-2xl font-black text-slate-800">{generalData.active_meters || 0}</p>
-                </div>
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Wiring Age</p>
-                    <p className="text-lg font-black text-slate-800">{generalData.wiring_age || "N/A"}</p>
-                </div>
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm col-span-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Last Full Electrical Inspection</p>
-                    <p className="text-lg font-black text-slate-800">{generalData.last_inspection_year || "Not Reported"}</p>
-                </div>
-            </div>
-            
-            <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl">
-                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4">Panel Safety Checks</h4>
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-300">Clear Access</span>
-                        {generalData.panel_clear === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_clear === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-300">Labeled Switches</span>
-                        {generalData.panel_labeled === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_labeled === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-300">Locked Panel</span>
-                        {generalData.panel_locked === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_locked === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
+                <div className="grid grid-cols-1 gap-4">
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Main Power Source</p>
+                        <p className="text-lg font-black text-indigo-900">{generalData.main_power_source || "None Reported"}</p>
                     </div>
                 </div>
-            </div>
-        </section>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Meters</p>
+                        <p className="text-2xl font-black text-slate-800">{generalData.active_meters || 0}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Wiring Age</p>
+                        <p className="text-lg font-black text-slate-800">{generalData.wiring_age || "N/A"}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm col-span-2">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Last Full Electrical Inspection</p>
+                        <p className="text-lg font-black text-slate-800">{generalData.last_inspection_year || "Not Reported"}</p>
+                    </div>
+                </div>
+                
+                <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl">
+                    <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-4">Panel Safety Checks</h4>
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300">Clear Access</span>
+                            {generalData.panel_clear === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_clear === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300">Labeled Switches</span>
+                            {generalData.panel_labeled === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_labeled === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300">Locked Panel</span>
+                            {generalData.panel_locked === 1 ? <FiCheckCircle className="text-emerald-400" /> : generalData.panel_locked === 2 ? <span className="text-[10px] font-bold text-slate-500">N/A</span> : <FiX className="text-rose-400" />}
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-        {/* 2. Safety & Hazards */}
-        <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Safety & Hazard Review</h3>
-            </div>
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm grid grid-cols-2 gap-y-6 gap-x-4 text-center">
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Hallway Lights</p>
-                    {getStatusBadge(fixedWiringData.lights_working, ['Working', 'Not Working', 'N/A'])}
+            {/* 2. Safety & Hazards */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Safety & Hazard Review</h3>
                 </div>
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Bare Wires</p>
-                    {getStatusBadge(fixedWiringData.bare_wires_visible, ['Detected', 'None', 'N/A'])}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm grid grid-cols-2 gap-y-6 gap-x-4 text-center">
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Hallway Lights</p>
+                        {getStatusBadge(fixedWiringData.lights_working, ['Working', 'Not Working', 'N/A'])}
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Bare Wires</p>
+                        {getStatusBadge(fixedWiringData.bare_wires_visible, ['Detected', 'None', 'N/A'])}
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Outlet Covers</p>
+                        {getStatusBadge(fixedWiringData.outlet_covers_unbroken, ['Unbroken', 'Damaged', 'N/A'])}
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">CCTV System</p>
+                        {getStatusBadge(applianceCctvData.cctv_recording_clear, ['Active', 'Offline', 'N/A'])}
+                    </div>
                 </div>
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Outlet Covers</p>
-                    {getStatusBadge(fixedWiringData.outlet_covers_unbroken, ['Unbroken', 'Damaged', 'N/A'])}
-                </div>
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">CCTV System</p>
-                    {getStatusBadge(applianceCctvData.cctv_recording_clear, ['Active', 'Offline', 'N/A'])}
-                </div>
-            </div>
-        </section>
+            </section>
 
-        {/* 3. Disaster Readiness & Security Inventory */}
-        <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Security & Disaster Status</h3>
-            </div>
-            
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm grid grid-cols-2 gap-4 mb-4">
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Fire Exit Sign</p>
-                    {getStatusBadge(inventoryData.fire_exit_exists, ['Installed', 'Missing', 'N/A'])}
+            {/* 4. Electrical Maintenance Spares */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Maintenance Inventory</h3>
                 </div>
-                <div className="space-y-1">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Emergency Lights</p>
-                    {getStatusBadge(inventoryData.backup_light_exists, ['Functional', 'Missing', 'N/A'])}
+                <div className="grid grid-cols-1 gap-3">
+                    {[
+                        { id: 'light_bulbs', label: 'Bulbs / LED Tubes' },
+                        { id: 'outlet_covers', label: 'Spare Plate Covers' },
+                        { id: 'circuit_breakers', label: 'Spare Breakers' },
+                        { id: 'extension_cords', label: 'Extension Cords' }
+                    ].map(item => (
+                        <div key={item.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                            <span className="font-black text-slate-700 text-xs ml-2">{item.label}</span>
+                            <div className="flex gap-2">
+                                <div className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-center font-black text-[10px]">
+                                    {inventoryData.items?.[item.id]?.working || 0} USED
+                                </div>
+                                <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-center font-black text-[10px]">
+                                    {inventoryData.items?.[item.id]?.spares || 0} SPARE
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                        <span className="font-black text-slate-700 text-xs ml-2">Electrical Tape</span>
+                        <div className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl font-black text-xs">
+                            {inventoryData.items?.electrical_tape?.total || 0} ROLLS
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </section>
+        </div>
 
-            <div className="grid grid-cols-1 gap-3">
-                {[
-                    { id: 'cctv_cameras', label: 'CCTV Cameras', icon: <FiCamera /> },
-                    { id: 'fire_extinguishers', label: 'Fire Extinguisher Tanks', icon: <FiShield /> },
-                    { id: 'first_aid_kits', label: 'First Aid Kits', icon: <FiPlus /> },
-                    { id: 'portable_megaphones', label: 'Bullhorns', icon: <FiPhone /> },
-                    { id: 'battery_radios', label: 'Portable Radios', icon: <FiZap /> },
-                    { id: 'large_flashlights', label: 'Flashlights', icon: <FiZap /> }
-                ].map(item => (
-                    <div key={item.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+        {/* Right Column: Section 3, Section 5, Section 6 */}
+        <div className="space-y-8">
+            {/* 3. Disaster Readiness & Security Inventory */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Security & Disaster Status</h3>
+                </div>
+                
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm grid grid-cols-2 gap-4 mb-4">
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Fire Exit Sign</p>
+                        {getStatusBadge(inventoryData.fire_exit_exists, ['Installed', 'Missing', 'N/A'])}
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight">Emergency Lights</p>
+                        {getStatusBadge(inventoryData.backup_light_exists, ['Functional', 'Missing', 'N/A'])}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                    {[
+                        { id: 'cctv_cameras', label: 'CCTV Cameras', icon: <FiCamera /> },
+                        { id: 'fire_extinguishers', label: 'Fire Extinguisher Tanks', icon: <FiShield /> },
+                        { id: 'first_aid_kits', label: 'First Aid Kits', icon: <FiPlus /> },
+                        { id: 'portable_megaphones', label: 'Bullhorns', icon: <FiPhone /> },
+                        { id: 'battery_radios', label: 'Portable Radios', icon: <FiZap /> },
+                        { id: 'large_flashlights', label: 'Flashlights', icon: <FiZap /> }
+                    ].map(item => (
+                        <div key={item.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500">
+                                    {item.icon}
+                                </div>
+                                <span className="font-black text-slate-700 text-sm">{item.label}</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-center font-black text-xs">
+                                    {inventoryData.items?.[item.id]?.working || 0} OK
+                                </div>
+                                <div className="px-3 py-1 bg-rose-50 text-rose-700 rounded-lg text-center font-black text-xs">
+                                    {inventoryData.items?.[item.id]?.broken || 0} FAIL
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500">
-                                {item.icon}
+                                <FiPlus />
                             </div>
-                            <span className="font-black text-slate-700 text-sm">{item.label}</span>
+                            <span className="font-black text-slate-700 text-sm">Emergency Whistles</span>
                         </div>
-                        <div className="flex gap-2">
-                            <div className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-center font-black text-xs">
-                                {inventoryData.items?.[item.id]?.working || 0} OK
-                            </div>
-                            <div className="px-3 py-1 bg-rose-50 text-rose-700 rounded-lg text-center font-black text-xs">
-                                {inventoryData.items?.[item.id]?.broken || 0} FAIL
-                            </div>
+                        <div className="px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs shadow-lg">
+                            {inventoryData.items?.emergency_whistles?.total || 0} PCS 
                         </div>
-                    </div>
-                ))}
-                <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-500">
-                            <FiPlus />
-                        </div>
-                        <span className="font-black text-slate-700 text-sm">Emergency Whistles</span>
-                    </div>
-                    <div className="px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs shadow-lg">
-                        {inventoryData.items?.emergency_whistles?.total || 0} PCS 
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        {/* 4. Electrical Maintenance Spares */}
-        <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Maintenance Inventory</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-                {[
-                    { id: 'light_bulbs', label: 'Bulbs / LED Tubes' },
-                    { id: 'outlet_covers', label: 'Spare Plate Covers' },
-                    { id: 'circuit_breakers', label: 'Spare Breakers' },
-                    { id: 'extension_cords', label: 'Extension Cords' }
-                ].map(item => (
-                    <div key={item.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
-                        <span className="font-black text-slate-700 text-xs ml-2">{item.label}</span>
-                        <div className="flex gap-2">
-                            <div className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-center font-black text-[10px]">
-                                {inventoryData.items?.[item.id]?.working || 0} USED
-                            </div>
-                            <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-center font-black text-[10px]">
-                                {inventoryData.items?.[item.id]?.spares || 0} SPARE
-                            </div>
-                        </div>
+            {/* 5. Capacity & Protection */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-6 bg-indigo-600 rounded-full" />
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Capacity & Protection</h3>
+                </div>
+                <div className="space-y-3">
+                    <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.ecart_load_ready === 1 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : inventoryData.ecart_load_ready === 2 ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
+                        {inventoryData.ecart_load_ready === 1 ? <FiCheckCircle /> : inventoryData.ecart_load_ready === 2 ? <FiInfo /> : <FiX />}
+                        <p className="text-[10px] font-bold uppercase leading-tight">
+                            {inventoryData.ecart_load_ready === 2 ? "Grid Load Support: Not Applicable" : "Can support full e-Classroom load (20+ units)"}
+                        </p>
                     </div>
-                ))}
-                <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
-                    <span className="font-black text-slate-700 text-xs ml-2">Electrical Tape</span>
-                    <div className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl font-black text-xs">
-                        {inventoryData.items?.electrical_tape?.total || 0} ROLLS
+                    <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.has_surge_protection === 1 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : inventoryData.has_surge_protection === 2 ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
+                        {inventoryData.has_surge_protection === 1 ? <FiCheckCircle /> : inventoryData.has_surge_protection === 2 ? <FiInfo /> : <FiAlertTriangle />}
+                        <p className="text-[10px] font-bold uppercase leading-tight">
+                            {inventoryData.has_surge_protection === 2 ? "Surge Protection: Not Applicable" : "ICT Equipment protected by Surge/AVR"}
+                        </p>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        {/* 5. Capacity & Protection */}
-        <section className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-6 bg-indigo-600 rounded-full" />
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Capacity & Protection</h3>
-            </div>
-            <div className="space-y-3">
-                <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.ecart_load_ready === 1 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : inventoryData.ecart_load_ready === 2 ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
-                    {inventoryData.ecart_load_ready === 1 ? <FiCheckCircle /> : inventoryData.ecart_load_ready === 2 ? <FiInfo /> : <FiX />}
-                    <p className="text-[10px] font-bold uppercase leading-tight">
-                        {inventoryData.ecart_load_ready === 2 ? "Grid Load Support: Not Applicable" : "Can support full e-Classroom load (20+ units)"}
+            {/* 6. Auditor Notes */}
+            <section className="space-y-4 pb-12">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-6 bg-slate-400 rounded-full" />
+                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Auditor Remarks</h3>
+                </div>
+                <div className="bg-white border-2 border-slate-100 p-6 rounded-[2rem] min-h-[100px] shadow-sm">
+                    <p className="text-sm font-medium text-slate-600 leading-relaxed capitalize-first italic">
+                        {inventoryData.remarks || "No additional remarks provided for this audit."}
                     </p>
                 </div>
-                <div className={`p-4 rounded-2xl flex items-center gap-3 border ${inventoryData.has_surge_protection === 1 ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : inventoryData.has_surge_protection === 2 ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-rose-50 border-rose-100 text-rose-800'}`}>
-                    {inventoryData.has_surge_protection === 1 ? <FiCheckCircle /> : inventoryData.has_surge_protection === 2 ? <FiInfo /> : <FiAlertTriangle />}
-                    <p className="text-[10px] font-bold uppercase leading-tight">
-                        {inventoryData.has_surge_protection === 2 ? "Surge Protection: Not Applicable" : "ICT Equipment protected by Surge/AVR"}
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        {/* 6. Auditor Notes */}
-        <section className="space-y-4 pb-12">
-            <div className="flex items-center gap-2 mb-2">
-                <div className="w-1.5 h-6 bg-slate-400 rounded-full" />
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Auditor Remarks</h3>
-            </div>
-            <div className="bg-white border-2 border-slate-100 p-6 rounded-[2rem] min-h-[100px] shadow-sm">
-                <p className="text-sm font-medium text-slate-600 leading-relaxed capitalize-first italic">
-                    {inventoryData.remarks || "No additional remarks provided for this audit."}
-                </p>
-            </div>
-        </section>
-
-        {/* Fixed bottom button will handle this */}
+            </section>
+        </div>
     </div>
 );
 
@@ -461,100 +465,87 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
     const restoreFromPayload = (p, autofillPower) => {
         if (!p) return;
 
-        // Helper to convert boolean to integer (1, 0) or pass through 0,1,2
-        const normalizeStatus = (val) => {
-            if (val === true) return 1;
-            if (val === false) return 0;
-            if (typeof val === 'number') return val;
-            if (val === null || val === undefined || val === "") return 2; // Default to 2 (N/A)
-            return parseInt(val) || 0;
+        // Convert "yes"/"no"/"n/a" text (from new flat DB columns) to 1/0/2 for YesNoToggle
+        // Also handles legacy integer values and booleans for backwards compat
+        const fromYesNo = (val) => {
+            if (val === 'yes')  return 1;
+            if (val === 'no')   return 0;
+            if (val === 'n/a')  return 2;
+            if (val === true  || val === 1) return 1;
+            if (val === false || val === 0) return 0;
+            if (val === null || val === undefined || val === '') return 2;
+            const n = parseInt(val);
+            return isNaN(n) ? 2 : n;
         };
 
-        const rawGen = p.u9_general ? JSON.parse(p.u9_general) : {};
+        // --- Page 1: Read from flat DB columns ---
         const parsedGeneral = {
-            ...rawGen,
-            panel_clear: normalizeStatus(rawGen.panel_clear),
-            panel_labeled: normalizeStatus(rawGen.panel_labeled),
-            panel_locked: normalizeStatus(rawGen.panel_locked)
+            main_power_source:    p.u9_main_power_source    || autofillPower || '',
+            active_meters:        p.u9_active_meters         ?? '',
+            wiring_age:           p.u9_wiring_age            || '',
+            last_inspection_year: p.u9_last_inspection_year  || '',
+            panel_clear:          fromYesNo(p.u9_panel_clear),
+            panel_labeled:        fromYesNo(p.u9_panel_labeled),
+            panel_locked:         fromYesNo(p.u9_panel_locked),
         };
-        
-        // Preserve autofill if it exists and the payload's value is empty/placeholder
-        if (autofillPower && (!parsedGeneral.main_power_source || parsedGeneral.main_power_source === "None Reported")) {
-            parsedGeneral.main_power_source = autofillPower;
-        }
 
-        const rawWiring = p.u9_wiring ? JSON.parse(p.u9_wiring) : {};
+        // --- Page 2: Read from flat DB columns ---
         const parsedWiring = {
-            ...rawWiring,
-            lights_working: normalizeStatus(rawWiring.lights_working),
-            outlet_covers_unbroken: normalizeStatus(rawWiring.outlet_covers_unbroken),
-            child_safety_covered: normalizeStatus(rawWiring.child_safety_covered),
-            water_splash_safe: normalizeStatus(rawWiring.water_splash_safe),
-            bare_wires_visible: normalizeStatus(rawWiring.bare_wires_visible),
-            enough_outlets: normalizeStatus(rawWiring.enough_outlets)
+            lights_working:          fromYesNo(p.u9_lights_working_chk),
+            outlet_covers_unbroken:  fromYesNo(p.u9_outlet_covers_unbroken),
+            child_safety_covered:    fromYesNo(p.u9_child_safety_covered),
+            water_splash_safe:       fromYesNo(p.u9_water_splash_safe),
+            bare_wires_visible:      fromYesNo(p.u9_bare_wires_visible),
+            enough_outlets:          fromYesNo(p.u9_enough_outlets),
         };
 
-        const rawCctv = p.u9_cords_cctv ? JSON.parse(p.u9_cords_cctv) : {};
+        // --- Page 3: Read from flat DB columns ---
         const parsedCctv = {
-            ...rawCctv,
-            ext_cord_temp_only: normalizeStatus(rawCctv.ext_cord_temp_only),
-            no_trip_hazards: normalizeStatus(rawCctv.no_trip_hazards),
-            appliance_cords_good: normalizeStatus(rawCctv.appliance_cords_good),
-            plugs_feel_cool: normalizeStatus(rawCctv.plugs_feel_cool),
-            cctv_recording_clear: normalizeStatus(rawCctv.cctv_recording_clear),
-            dvr_room_cool_locked: normalizeStatus(rawCctv.dvr_room_cool_locked),
-            cctv_wires_protected: normalizeStatus(rawCctv.cctv_wires_protected)
+            ext_cord_temp_only:   fromYesNo(p.u9_ext_cord_temp_only),
+            no_trip_hazards:      fromYesNo(p.u9_no_trip_hazards),
+            appliance_cords_good: fromYesNo(p.u9_appliance_cords_good),
+            plugs_feel_cool:      fromYesNo(p.u9_plugs_feel_cool),
+            cctv_recording_clear: fromYesNo(p.u9_cctv_recording_clear),
+            dvr_room_cool_locked: fromYesNo(p.u9_dvr_room_cool_locked),
+            cctv_wires_protected: fromYesNo(p.u9_cctv_wires_protected),
         };
 
         setGeneralData(prev => ({ ...prev, ...parsedGeneral }));
         setFixedWiringData(prev => ({ ...prev, ...parsedWiring }));
         setApplianceCctvData(prev => ({ ...prev, ...parsedCctv }));
-        
-        // Handle Individual Columns Restoration for Inventory
-        const dbInventory = {
-            fire_exit_exists: normalizeStatus(p.u9_fire_exit_exists ?? null),
-            backup_light_exists: normalizeStatus(p.u9_backup_light_exists ?? null),
-            ecart_load_ready: normalizeStatus(p.u9_ecart_load_ready ?? null),
-            has_surge_protection: normalizeStatus(p.u9_has_surge_protection ?? null),
-            remarks: p.u9_remarks || "",
-            items: {
-                cctv_cameras: { total: (parseInt(p.u9_cctv_working) + parseInt(p.u9_cctv_broken)).toString(), working: (p.u9_cctv_working ?? "").toString(), broken: (p.u9_cctv_broken ?? "").toString(), spares: (p.u9_cctv_spares ?? "").toString() },
-                fire_extinguishers: { total: (parseInt(p.u9_fire_ext_working) + parseInt(p.u9_fire_ext_broken)).toString(), working: (p.u9_fire_ext_working ?? "").toString(), broken: (p.u9_fire_ext_broken ?? "").toString(), spares: (p.u9_fire_ext_spares ?? "").toString() },
-                first_aid_kits: { total: (parseInt(p.u9_first_aid_working) + parseInt(p.u9_first_aid_broken)).toString(), working: (p.u9_first_aid_working ?? "").toString(), broken: (p.u9_first_aid_broken ?? "").toString(), spares: (p.u9_first_aid_spares ?? "").toString() },
-                portable_megaphones: { total: (parseInt(p.u9_bullhorns_working) + parseInt(p.u9_bullhorns_broken)).toString(), working: (p.u9_bullhorns_working ?? "").toString(), broken: (p.u9_bullhorns_broken ?? "").toString(), spares: (p.u9_bullhorns_spares ?? "").toString() },
-                battery_radios: { total: (parseInt(p.u9_radios_working) + parseInt(p.u9_radios_broken)).toString(), working: (p.u9_radios_working ?? "").toString(), broken: (p.u9_radios_broken ?? "").toString(), spares: (p.u9_radios_spares ?? "").toString() },
-                large_flashlights: { total: (parseInt(p.u9_flashlight_working) + parseInt(p.u9_flashlight_broken)).toString(), working: (p.u9_flashlight_working ?? "").toString(), broken: (p.u9_flashlight_broken ?? "").toString(), spares: (p.u9_flashlight_spares ?? "").toString() },
-                emergency_whistles: { total: (p.u9_whistles_quantity ?? "").toString() },
-                light_bulbs: { total: (parseInt(p.u9_bulbs_working) + parseInt(p.u9_bulbs_broken)).toString(), working: (p.u9_bulbs_working ?? "").toString(), broken: (p.u9_bulbs_broken ?? "").toString(), spares: (p.u9_bulbs_spares ?? "").toString() },
-                outlet_covers: { total: (parseInt(p.u9_covers_working) + parseInt(p.u9_covers_broken)).toString(), working: (p.u9_covers_working ?? "").toString(), broken: (p.u9_covers_broken ?? "").toString(), spares: (p.u9_covers_spares ?? "").toString() },
-                circuit_breakers: { total: (parseInt(p.u9_breakers_working) + parseInt(p.u9_breakers_broken)).toString(), working: (p.u9_breakers_working ?? "").toString(), broken: (p.u9_breakers_broken ?? "").toString(), spares: (p.u9_breakers_spares ?? "").toString() },
-                extension_cords: { total: (parseInt(p.u9_ext_cords_working) + parseInt(p.u9_ext_cords_broken)).toString(), working: (p.u9_ext_cords_working ?? "").toString(), broken: (p.u9_ext_cords_broken ?? "").toString(), spares: (p.u9_ext_cords_spares ?? "").toString() },
-                electrical_tape: { total: (p.u9_tape_quantity ?? "").toString() }
-            }
-        };
 
-        const rawInventory = p.u9_final ? JSON.parse(p.u9_final) : {};
-        const parsedInventory = {
-            ...rawInventory,
-            fire_exit_exists: normalizeStatus(rawInventory.fire_exit_exists),
-            backup_light_exists: normalizeStatus(rawInventory.backup_light_exists),
-            ecart_load_ready: normalizeStatus(rawInventory.ecart_load_ready),
-            has_surge_protection: normalizeStatus(rawInventory.has_surge_protection)
+        // --- Page 4: Read inventory from flat columns ---
+        const dbInventory = {
+            fire_exit_exists:   fromYesNo(p.u9_fire_exit_exists),
+            backup_light_exists: fromYesNo(p.u9_backup_light_exists),
+            ecart_load_ready:   fromYesNo(p.u9_ecart_load_ready),
+            has_surge_protection: fromYesNo(p.u9_has_surge_protection),
+            remarks: p.u9_remarks || '',
+            items: {
+                cctv_cameras:        { total: ((parseInt(p.u9_cctv_working)||0) + (parseInt(p.u9_cctv_broken)||0)).toString(), working: (p.u9_cctv_working ?? '').toString(), broken: (p.u9_cctv_broken ?? '').toString(), spares: (p.u9_cctv_spares ?? '').toString() },
+                fire_extinguishers:  { total: ((parseInt(p.u9_fire_ext_working)||0) + (parseInt(p.u9_fire_ext_broken)||0)).toString(), working: (p.u9_fire_ext_working ?? '').toString(), broken: (p.u9_fire_ext_broken ?? '').toString(), spares: (p.u9_fire_ext_spares ?? '').toString() },
+                first_aid_kits:      { total: ((parseInt(p.u9_first_aid_working)||0) + (parseInt(p.u9_first_aid_broken)||0)).toString(), working: (p.u9_first_aid_working ?? '').toString(), broken: (p.u9_first_aid_broken ?? '').toString(), spares: (p.u9_first_aid_spares ?? '').toString() },
+                portable_megaphones: { total: ((parseInt(p.u9_bullhorns_working)||0) + (parseInt(p.u9_bullhorns_broken)||0)).toString(), working: (p.u9_bullhorns_working ?? '').toString(), broken: (p.u9_bullhorns_broken ?? '').toString(), spares: (p.u9_bullhorns_spares ?? '').toString() },
+                battery_radios:      { total: ((parseInt(p.u9_radios_working)||0) + (parseInt(p.u9_radios_broken)||0)).toString(), working: (p.u9_radios_working ?? '').toString(), broken: (p.u9_radios_broken ?? '').toString(), spares: (p.u9_radios_spares ?? '').toString() },
+                large_flashlights:   { total: ((parseInt(p.u9_flashlight_working)||0) + (parseInt(p.u9_flashlight_broken)||0)).toString(), working: (p.u9_flashlight_working ?? '').toString(), broken: (p.u9_flashlight_broken ?? '').toString(), spares: (p.u9_flashlight_spares ?? '').toString() },
+                emergency_whistles:  { total: (p.u9_whistles_quantity ?? '').toString() },
+                light_bulbs:         { total: ((parseInt(p.u9_bulbs_working)||0) + (parseInt(p.u9_bulbs_broken)||0)).toString(), working: (p.u9_bulbs_working ?? '').toString(), broken: (p.u9_bulbs_broken ?? '').toString(), spares: (p.u9_bulbs_spares ?? '').toString() },
+                outlet_covers:       { total: ((parseInt(p.u9_covers_working)||0) + (parseInt(p.u9_covers_broken)||0)).toString(), working: (p.u9_covers_working ?? '').toString(), broken: (p.u9_covers_broken ?? '').toString(), spares: (p.u9_covers_spares ?? '').toString() },
+                circuit_breakers:    { total: ((parseInt(p.u9_breakers_working)||0) + (parseInt(p.u9_breakers_broken)||0)).toString(), working: (p.u9_breakers_working ?? '').toString(), broken: (p.u9_breakers_broken ?? '').toString(), spares: (p.u9_breakers_spares ?? '').toString() },
+                extension_cords:     { total: ((parseInt(p.u9_ext_cords_working)||0) + (parseInt(p.u9_ext_cords_broken)||0)).toString(), working: (p.u9_ext_cords_working ?? '').toString(), broken: (p.u9_ext_cords_broken ?? '').toString(), spares: (p.u9_ext_cords_spares ?? '').toString() },
+                electrical_tape:     { total: (p.u9_tape_quantity ?? '').toString() }
+            }
         };
 
         setInventoryData(prev => ({
             ...prev,
             ...dbInventory,
-            ...parsedInventory,
-            items: {
-                ...prev.items,
-                ...dbInventory.items,
-                ...(parsedInventory.items || {}) // Fallback to JSON if individual columns were empty
-            }
+            items: { ...prev.items, ...dbInventory.items }
         }));
     };
 
     // --- Handlers ---
+
     const updateGeneral = (field, val) => {
         if (field === 'active_meters' && val.length > 3) return;
         if (field === 'last_inspection_year' && val.length > 4) return;
@@ -772,25 +763,100 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
     );
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-32">
-            <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between">
-                <button 
-                    type="button"
-                    onClick={() => isReviewMode ? navigate("/modular-dashboard") : handleSaveDraft()} 
-                    className="p-2 -ml-2 rounded-full hover:bg-slate-50 text-slate-400"
-                >
-                    <FiArrowLeft size={24} />
-                </button>
-                <div className="text-center">
-                    <p className={`text-[10px] font-black tracking-[0.2em] uppercase ${isReviewMode ? 'text-amber-500' : 'text-indigo-500'}`}>
-                        {isReviewMode ? 'Audit Locked' : 'Unit 9'}
-                    </p>
-                    <h1 className="text-sm font-black text-slate-800">Infrastructure & Safety</h1>
+        <div className="min-h-screen unit1-page flex flex-col font-sans overflow-x-hidden pb-32 text-gray-900">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\],
+                .bg-white.rounded-\\[2rem\\],
+                .bg-slate-900.rounded-\\[2rem\\] {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+                `
+            }} />
+            <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4">
+                <div className={isReviewMode ? "max-w-md md:max-w-7xl mx-auto flex items-center gap-2 w-full" : "max-w-md mx-auto flex items-center justify-between w-full"}>
+                    <button 
+                        type="button"
+                        onClick={() => isReviewMode ? navigate("/modular-dashboard") : handleSaveDraft()} 
+                        className="p-2 -ml-2 rounded-full hover:bg-slate-50 text-slate-400"
+                    >
+                        <FiArrowLeft size={24} />
+                    </button>
+                    {isReviewMode ? (
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-500 uppercase leading-none">
+                                Reviewing
+                            </span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                Infrastructure & Safety
+                            </span>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="text-center flex-1">
+                                <p className="text-[10px] font-black tracking-[0.2em] uppercase text-indigo-500">
+                                    Unit 9
+                                </p>
+                                <h1 className="text-sm font-black text-slate-800">Infrastructure & Safety</h1>
+                            </div>
+                            <div className="w-6" />
+                        </>
+                    )}
                 </div>
-                <div className="w-6" />
             </header>
 
-            <main className="max-w-md mx-auto p-6">
+            <main className={isReviewMode ? "max-w-md md:max-w-7xl mx-auto p-6 w-full" : "max-w-md mx-auto p-6"}>
                 <AnimatePresence mode="wait">
                     {showWelcomeBack && (
                         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-6 p-4 bg-indigo-600 rounded-2xl text-white text-center shadow-lg">
@@ -910,20 +976,6 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                         </div>
                                     </div>
 
-                                    <button 
-                                        type="button"
-                                        onClick={() => {
-                                            if (generalData.active_meters === "") {
-                                                alert("Please enter the number of active meters before proceeding.");
-                                                return;
-                                            }
-                                            setCurrentPage(2);
-                                        }} 
-                                        className="w-full py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
-                                    >
-                                        <span>Next Audit Phase</span>
-                                        <FiChevronRight />
-                                    </button>
                                 </motion.div>
                             )}
 
@@ -947,22 +999,6 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                         <YesNoToggle label="Are there enough outlets so that you don't have to use many 'double adapters' in one spot?" value={fixedWiringData.enough_outlets} onChange={(v) => updateWiring('enough_outlets', v)} disabled={isReadOnly} />
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button 
-                                            type="button"
-                                            onClick={() => setCurrentPage(1)} 
-                                            className="py-6 rounded-[2rem] bg-white border-2 border-slate-100 text-slate-400 font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
-                                        >
-                                            <FiChevronLeft /> Back
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={() => setCurrentPage(3)} 
-                                            className="py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
-                                        >
-                                            Next Phase <FiChevronRight />
-                                        </button>
-                                    </div>
                                 </motion.div>
                             )}
 
@@ -990,22 +1026,6 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                         <YesNoToggle label="Are CCTV wires hidden or protected so they cannot be easily cut?" value={applianceCctvData.cctv_wires_protected} onChange={(v) => updateAppliance('cctv_wires_protected', v)} disabled={isReadOnly} />
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button 
-                                            type="button"
-                                            onClick={() => setCurrentPage(2)} 
-                                            className="py-6 rounded-[2rem] bg-white border-2 border-slate-100 text-slate-400 font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
-                                        >
-                                            <FiChevronLeft /> Back
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={() => setCurrentPage(4)} 
-                                            className="py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
-                                        >
-                                            Next Phase <FiChevronRight />
-                                        </button>
-                                    </div>
                                 </motion.div>
                             )}
 
@@ -1137,38 +1157,81 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                                 <textarea readOnly={isReadOnly} value={inventoryData.remarks} onChange={(e) => updateInventory('remarks', e.target.value)} placeholder="Note any specific hazards or urgent needs..." className="w-full p-6 mt-2 bg-white border-2 border-slate-200 rounded-[2rem] text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-300 min-h-[120px]" />
                                             </section>
 
-                                            <div onClick={() => !isReadOnly && setIsCertified(!isCertified)} className={`p-6 rounded-[2rem] border-2 transition-all flex items-center gap-4 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-100 text-slate-400'}`}>
-                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isCertified ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'}`}>
-                                                    {isCertified && <FiCheck size={14} />}
+                                            <div 
+                                                onClick={() => !isReadOnly && setIsCertified(!isCertified)}
+                                                className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                                    {isCertified && <FiCheck className="w-5 h-5" />}
                                                 </div>
-                                                <p className="text-xs font-bold leading-tight uppercase tracking-tight">I certify that our school's electrical and safety infrastructure has been physically audited.</p>
+                                                <div>
+                                                    <p className={`text-sm font-black text-left leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                                        I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                                    </p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic text-left">Official Certification for SY 2025-2026</p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button 
-                                            type="button"
-                                            onClick={() => setCurrentPage(3)} 
-                                            className="py-6 rounded-[2rem] bg-white border-2 border-slate-100 text-slate-400 font-black text-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
-                                        >
-                                            <FiChevronLeft /> Back
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={handleFinalSubmit} 
-                                            disabled={isReadOnly || !isCertified} 
-                                            className="py-6 rounded-[2rem] bg-slate-900 text-white font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all disabled:opacity-50"
-                                        >
-                                            <FiSave /> Submit Audit
-                                        </button>
-                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
                     </>
                 )}
             </main>
+
+            {!isReadOnly && !isReviewMode && (
+                <div className="fixed bottom-0 left-0 w-full p-6 bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-center z-40 shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+                    <div className="w-full max-w-md flex gap-3">
+                        {currentPage === 1 ? (
+                            <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0">
+                                <FiSave className="w-6 h-6" />
+                                <span className="text-sm font-bold text-blue-500">Save Draft</span>
+                            </button>
+                        ) : (
+                            <>
+                                <button onClick={() => setCurrentPage(p => p - 1)}
+                                    className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0">
+                                    <FiArrowLeft className="w-6 h-6" />
+                                </button>
+                                <button onClick={() => setShowDraftModal(true)}
+                                    className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0"
+                                >
+                                    <FiSave className="w-6 h-6" />
+                                    <span className="text-sm font-bold text-blue-500">Save Draft</span>
+                                </button>
+                            </>
+                        )}
+                        {currentPage < 4 ? (
+                            <button
+                                onClick={() => {
+                                    if (currentPage === 1 && generalData.active_meters === "") {
+                                        alert("Please enter the number of active meters before proceeding.");
+                                        return;
+                                    }
+                                    setCurrentPage(p => p + 1);
+                                }}
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
+                            >
+                                <span>Next Step &gt;</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleFinalSubmit}
+                                disabled={!isCertified}
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-emerald-100 flex justify-center items-center gap-2"
+                            >
+                                {loading ? "Saving..." : (
+                                    <span className="flex items-center justify-center gap-2">
+                                        SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                    </span>
+                                )}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
             {/* Fixed bottom Unlock button for Review Mode */}
             {isReviewMode && !propReadOnly && (
                 <div className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-[60]">

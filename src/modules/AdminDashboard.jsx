@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { useAuth } from '../context/AuthContext';
 import { FiSearch, FiChevronLeft, FiChevronRight, FiRefreshCw, FiGrid, FiList, FiActivity, FiBriefcase, FiUser, FiTrash2, FiSlash, FiCheckCircle, FiStar, FiMessageSquare, FiKey, FiCopy, FiX, FiMapPin, FiCheck, FiLock } from "react-icons/fi";
@@ -1453,14 +1452,11 @@ const AdminDashboard = () => {
                                     {activeTab === 'audit' && renderAuditTable()}
                                     {activeTab === 'feedback' && renderFeedbackView()}
                                     {activeTab === 'accounts' && renderAccountManagement()}
-                                    {/* {activeTab === 'knowledge' && <KnowledgeManager />} Component Removed */}
                                 </>
                             )}
                         </div>
                     </div>
                 </div>
-
-                <BottomNav userRole="Admin" />
             </div>
         </PageTransition>
     );

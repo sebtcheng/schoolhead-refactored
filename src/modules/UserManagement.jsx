@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import BottomNav from './BottomNav';
 import PageTransition from '../components/PageTransition';
 import { FiX, FiClock, FiUsers, FiCopy, FiSearch, FiCheck, FiSave } from 'react-icons/fi';
 import { api } from "../lib/api";
@@ -291,7 +290,6 @@ const UserManagement = () => {
                     </div>
                 )}
             </div>
-            <BottomNav />
         </PageTransition>
     );
 };

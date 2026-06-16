@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { FiX, FiCheckCircle, FiEdit2, FiCheck, FiArrowRight, FiArrowLeft, FiChevronLeft, FiPlus, FiTrash2, FiMapPin, FiSave, FiSearch, FiChevronDown, FiUnlock, FiAlertTriangle, FiClock, FiAlertOctagon, FiCloudLightning, FiTrendingUp, FiWifiOff } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
-import BottomNav from "../../modules/BottomNav";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
@@ -253,6 +252,13 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     const [isReadOnly, setIsReadOnly] = useState(propReadOnly || false);
     const allBuildings = buildings;
     const isAuditIncomplete = !hasNoBuilding && roomsData.some(r => !r.dimension || !r.status);
+    const hasCheckedCompletion = React.useRef(false);
+
+    useEffect(() => {
+        if (propReadOnly !== undefined) {
+            setIsReadOnly(propReadOnly);
+        }
+    }, [propReadOnly]);
 
     useEffect(() => {
         const init = async () => {
@@ -367,7 +373,21 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 setAvailableGrades([...filteredMonogrades, ...mgGroups, ...snedGrades]);
 
 
+                // Initial completion check - only run once on mount
+                let isUnitCompleted = false;
+                if (!hasCheckedCompletion.current) {
+                    const storedProgress = localStorage.getItem('quest_progress');
+                    const progress = storedProgress ? JSON.parse(storedProgress) : null;
+                    isUnitCompleted = progress?.completedUnits?.includes(7);
+
+                    if (isUnitCompleted && !propReadOnly && !isReadOnly) {
+                        setIsReadOnly(true);
+                    }
+                    hasCheckedCompletion.current = true;
+                }
+
                 // 4. RESTORE UNIT 7 DATA
+                const effectiveReadOnly = propReadOnly || isReadOnly || isUnitCompleted || (!!pendingUnit7);
                 if (pendingUnit7) {
                     setBuildings(pendingUnit7.payload?.inventoryEntries || []);
                     setRoomsData(pendingUnit7.payload?.rooms || []);
@@ -376,6 +396,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     setHasRepair(pendingUnit7.payload?.repairEntries?.length > 0);
                     setSavedData(pendingUnit7.payload);
                     setIsReadOnly(true);
+                } else if (effectiveReadOnly) {
+                    fetchMasterData(storedId);
                 } else if (draft) {
                     setCurrentPage(draft.currentPage || 1);
                     setBuildings(draft.buildings || []);
@@ -1210,24 +1232,87 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         const [showAllRooms, setShowAllRooms] = useState(false);
 
         return (
-            <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans pb-52">
-                <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                    <div className="max-w-md mx-auto flex items-center gap-3">
+            <div className="min-h-screen unit1-page flex flex-col font-sans pb-52">
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                    
+                    :root {
+                      --navy: #08315F;
+                      --blue: #075985;
+                      --blue-600: #0284C7;
+                      --blue-400: #7DD3FC;
+                      --blue-100: #E0F2FE;
+                      --blue-50: #F0F9FF;
+                      --gold: #FBBF24;
+                      --amber: #D97706;
+                      --red: #B91C1C;
+                      --bg: #F0F9FF;
+                      --card: #FFFFFF;
+                      --text: #0F172A;
+                      --muted: #64748B;
+                      --line: #BAE6FD;
+                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --radius: 22px;
+                    }
+
+                    .unit1-page {
+                      font-family: var(--font-body);
+                      background-color: var(--blue-50);
+                      background-image:
+                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                    }
+
+                    .bg-white.rounded-\\[2\\.5rem\\], 
+                    .bg-slate-50.rounded-\\[2\\.5rem\\],
+                    .bg-slate-900.rounded-\\[2\\.5rem\\],
+                    .bg-white.rounded-\\[2rem\\],
+                    .bg-slate-900.rounded-\\[2rem\\] {
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                    }
+
+                    .nodes-card {
+                      background: var(--card);
+                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                      border-radius: var(--radius) !important;
+                      box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                    }
+                    
+                    .font-heading {
+                      font-family: var(--font-heading) !important;
+                    }
+                    .font-body {
+                      font-family: var(--font-body) !important;
+                    }
+                    
+                    h2, h3, h1 {
+                      font-family: var(--font-heading);
+                    }
+                    `
+                }} />
+                <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-6 py-5 border-b border-gray-100/50">
+                    <div className="max-w-md md:max-w-7xl mx-auto flex items-center gap-2 w-full">
                         <button 
-                            onClick={() => isReadOnly ? navigate("/modular-dashboard") : handleBack()} 
+                            onClick={() => navigate("/modular-dashboard")} 
                             className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
                         >
                             <FiArrowLeft className="w-6 h-6" />
                         </button>
-                        <div className="flex-1 text-center">
-                            <div className="text-[10px] font-black tracking-widest text-indigo-500 uppercase">Unit 7</div>
-                            <h1 className="text-sm font-black text-gray-800">Physical Facilities</h1>
+                        <div className="flex flex-col ml-2">
+                            <span className="text-[10px] font-black tracking-widest text-indigo-500 uppercase leading-none">
+                                Reviewing
+                            </span>
+                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                Physical Facilities
+                            </span>
                         </div>
-                        <div className="w-10" />
                     </div>
                 </header>
 
-                <div className="max-w-md mx-auto mt-4 px-4 space-y-10">
+                <div className="max-w-md md:max-w-7xl mx-auto mt-4 px-4 space-y-10 w-full">
                     <UnitRemarkAlert unitId="u7" schoolId={targetSchoolId || localStorage.getItem('schoolId')} />
                     {/* Header */}
                     <div className="text-center mb-10">
@@ -1245,281 +1330,289 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                         <p className="text-slate-500 font-medium mt-2 italic">"Comprehensive audit of campus infrastructure"</p>
                     </div>
 
-                    {hasNoBuilding && (
-                        <div className="bg-amber-50 border-2 border-amber-200 rounded-[2.5rem] p-8 text-center shadow-sm">
-                            <div className="text-4xl mb-4">📢</div>
-                            <h4 className="text-amber-800 font-black text-xl uppercase tracking-tight">Confirmed: No Buildings</h4>
-                            <p className="text-amber-600 text-[11px] font-bold mt-2 uppercase tracking-widest leading-relaxed">
-                                This school has officially reported having no physical building structures on site.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* High Level Metrics */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
-                            <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">🏗️</div>
-                            <p className="text-indigo-300 text-[8px] font-black uppercase tracking-widest mb-1">Structures</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black">{buildings.length}</span>
-                                <span className="text-[10px] font-bold text-indigo-400">BLDGS</span>
-                            </div>
-                        </div>
-                        <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
-                            <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700">🏫</div>
-                            <p className="text-indigo-100 text-[8px] font-black uppercase tracking-widest mb-1">Total Rooms</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black">{totalClassrooms}</span>
-                                <span className="text-[10px] font-bold text-indigo-200">CLASSROOMS</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* ── PHASE 1: BUILDABLE SPACES ── */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Buildable Footprint</h3>
-                        </div>
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden p-2">
-                            <div className="h-[220px] rounded-[2rem] overflow-hidden bg-slate-50 relative">
-                                {centerMap && centerMap[0] !== 0 ? (
-                                    <MapContainer 
-                                        key={`summary-map-${centerMap[0]}-${centerMap[1]}-${spaces.length}`}
-                                        center={centerMap} 
-                                        zoom={18} 
-                                        scrollWheelZoom={false} 
-                                        dragging={false} 
-                                        doubleClickZoom={false} 
-                                        zoomControl={false} 
-                                        className="h-full w-full"
-                                    >
-                                        <TileLayer 
-                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            maxZoom={20}
-                                        />
-                                        <RecenterMap center={centerMap} />
-                                        {spaces.map((s, idx) => {
-                                            const poly = calculateRotatedPolygon(parseFloat(s.center_lat), parseFloat(s.center_lng), parseFloat(s.length_m) || 0, parseFloat(s.width_m) || 0, parseFloat(s.rotation_deg) || 0);
-                                            return poly ? (
-                                                <Polygon key={'ro-' + idx} positions={poly} pathOptions={{ color: '#4f46e5', weight: 3, fillOpacity: 0.2 }} />
-                                            ) : null;
-                                        })}
-                                    </MapContainer>
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-300 font-bold italic">Map Preview Unavailable</div>
-                                )}
-                            </div>
-                            <div className="p-4 space-y-3">
-                                {spaces.map(s => (
-                                    <div key={s.id} className="flex items-center justify-between px-2">
-                                        <div>
-                                            <h4 className="font-black text-slate-800 text-[13px]">{s.space_name}</h4>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{s.length_m}m &times; {s.width_m}m</p>
-                                        </div>
-                                        <span className="text-[11px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                                            {parseFloat(s.total_area_sqm).toFixed(1)} m&sup2;
-                                        </span>
-                                    </div>
-                                ))}
-                                {spaces.length === 0 && <p className="text-center text-slate-400 text-[10px] font-bold italic py-2">No spaces recorded.</p>}
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* ── PHASE 2: BUILDING INVENTORY ── */}
-                    <section className="space-y-4">
-                        <div className="flex items-center justify-between px-2">
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Building Inventory</h3>
-                            </div>
-                            {!isReadOnly && (
-                                <button
-                                    onClick={() => {
-                                        setIsReadOnly(false);
-                                        setCurrentPage(2);
-                                        setShowBuildingModal(true);
-                                        setEditingBuildingId(null);
-                                        setBuildingFormData({
-                                            building_name: "", category: "Academic Building", storey: "", classroom: "",
-                                            year_completed: currentYear, remarks: "", status: "Good Condition",
-                                            condemn_age: false, condemn_hazard: false, condemn_calamity: false, condemn_upgrade: false
-                                        });
-                                    }}
-                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
-                                >
-                                    <FiPlus /> Register New Building
-                                </button>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {buildings.map(b => (
-                                <div key={b.id} className={`bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden group ${((b.status || "").toLowerCase() === 'condemned' || (b.status || "").toLowerCase() === 'for condemnation') ? 'border-rose-100 shadow-rose-50/50' : ''}`}>
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h4 className="font-black text-slate-800 text-lg tracking-tight uppercase">{b.building_name || b.building_no || 'Building N/A'}</h4>
-                                            <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.15em]">{b.category}</p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            {!isReadOnly && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setIsReadOnly(false);
-                                                        setCurrentPage(2);
-                                                        handleEditBuilding(b);
-                                                    }}
-                                                    className="p-3 bg-white text-indigo-500 rounded-xl shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-50 active:scale-95"
-                                                    title="Edit Building"
-                                                >
-                                                    <FiEdit2 className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                            {!isReadOnly && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const confirm = window.confirm(`Delete building "${b.building_name}"? This will also remove its room assignments.`);
-                                                        if (confirm) {
-                                                            setBuildings(buildings.filter(x => x.id !== b.id));
-                                                            setRoomsData(roomsData.filter(r => r.building_local_id !== b.id));
-                                                        }
-                                                    }}
-                                                    className="p-3 bg-white text-rose-500 rounded-xl shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 active:scale-95"
-                                                    title="Delete Building"
-                                                >
-                                                    <FiTrash2 className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${b.status === 'Newly Built' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
-                                                b.status === 'Good Condition' ? 'bg-blue-50 border-blue-100 text-blue-600' :
-                                                    'bg-rose-50 border-rose-100 text-rose-600'
-                                                }`}>
-                                                {b.status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-slate-50 p-3 rounded-2xl">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Verticality</p>
-                                            <p className="text-[13px] font-black text-slate-700">{b.storey} Storey</p>
-                                        </div>
-                                        <div className="bg-slate-50 p-3 rounded-2xl">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
-                                            <p className="text-[13px] font-black text-slate-700">{roomsData.filter(r => r.building_local_id === b.id).length} Classroom</p>
-                                        </div>
-                                    </div>
-                                    {b.remarks && (
-                                        <p className="mt-4 text-[11px] font-medium text-slate-500 italic px-1">&ldquo;{b.remarks}&rdquo;</p>
-                                    )}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                        {/* Left Column: Stats & Map */}
+                        <div className="space-y-8 lg:col-span-1">
+                            {hasNoBuilding && (
+                                <div className="bg-amber-50 border-2 border-amber-200 rounded-[2.5rem] p-8 text-center shadow-sm">
+                                    <div className="text-4xl mb-4">📢</div>
+                                    <h4 className="text-amber-800 font-black text-xl uppercase tracking-tight">Confirmed: No Buildings</h4>
+                                    <p className="text-amber-600 text-[11px] font-bold mt-2 uppercase tracking-widest leading-relaxed">
+                                        This school has officially reported having no physical building structures on site.
+                                    </p>
                                 </div>
-                            ))}
-                        </div>
-                    </section>
-
-                    {/* ── PHASE 3: GRANULAR ROOM AUDIT ── */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Granular Room Audit</h3>
-                        </div>
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
-                                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Master Room List</span>
-                                <span className="bg-indigo-600 px-3 py-1 rounded-full text-[10px] font-black text-white">
-                                    {roomsData.length} AUDITED
-                                </span>
-                            </div>
-                            <div className="p-2 overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-slate-50">
-                                            <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Room Name</th>
-                                            <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Level</th>
-                                            <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Condition</th>
-                                            <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Seats</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {(showAllRooms ? roomsData : roomsData.slice(0, 10)).map(room => (
-                                            <tr key={room.id} className="group hover:bg-slate-50/50 transition-colors">
-                                                <td className="px-4 py-4">
-                                                    <p className="font-black text-slate-800 text-xs">{room.room_name}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 tracking-tighter uppercase">{room.dimension || '7x9'}</p>
-                                                </td>
-                                                <td className="px-4 py-4">
-                                                    <span className="font-bold text-slate-600 text-[11px] whitespace-nowrap">{(room.grade_level || "").replace(/;/g, ', ') || '--'}</span>
-                                                </td>
-                                                <td className="px-4 py-4 text-center">
-                                                    <div className={`inline-flex items-center justify-center w-6 h-6 rounded-lg ${room.status === 'Good Condition' || room.status === 'Newly Built' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                                        }`}>
-                                                        {room.status === 'Good Condition' || room.status === 'Newly Built' ? <FiCheck className="w-3.5 h-3.5" /> : <FiAlertTriangle className="w-3.5 h-3.5" />}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 text-center">
-                                                    <span className="font-bold text-slate-600 text-[11px] whitespace-nowrap">{room.seats || '--'}</span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {roomsData.length > 10 && (
-                                <button
-                                    onClick={() => setShowAllRooms(!showAllRooms)}
-                                    className="w-full p-4 text-[10px] font-black text-indigo-500 hover:text-indigo-700 bg-slate-50/30 border-t border-slate-50 transition-colors uppercase tracking-widest"
-                                >
-                                    {showAllRooms ? 'Show Less' : `View All ${roomsData.length} Rooms`}
-                                </button>
                             )}
-                        </div>
-                    </section>
 
-                    {/* ── PHASE 4: REQUIRED REPAIRS ── */}
-                    <section className="space-y-4 pb-12">
-                        <div className="flex items-center gap-2 px-2">
-                            <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Maintenance Assessment</h3>
-                        </div>
-                        <div className="space-y-4">
-                            {groupedRepairsArray.map(r => (
-                                <div key={r.roomId} className="bg-white rounded-[2rem] p-6 border border-rose-100 shadow-sm relative overflow-hidden group">
-                                    <div className="absolute top-0 right-0 p-4 text-4xl opacity-5 group-hover:scale-110 transition-transform">🛠️</div>
-                                    <div className="mb-4">
-                                        <h4 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tight">{r.room_name}</h4>
-                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.15em]">{r.building_name} · DIM: {r.room_length}x{r.room_width}</p>
+                            {/* High Level Metrics */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
+                                    <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700 pointer-events-none">🏗️</div>
+                                    <p className="text-indigo-300 text-[8px] font-black uppercase tracking-widest mb-1">Structures</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-3xl font-black">{buildings.length}</span>
+                                        <span className="text-[10px] font-bold text-indigo-400">BLDGS</span>
                                     </div>
-                                    <div className="space-y-3">
-                                        {r.items.map((itm, iidx) => (
-                                            <div key={iidx} className="bg-slate-50 rounded-2xl p-4 flex justify-between items-center group/item hover:bg-slate-100 transition-colors">
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-[10px] font-black text-slate-700 uppercase">{itm.item}</span>
-                                                        <span className="text-[10px] font-black text-rose-600">{itm.damage_ratio}% SCALE</span>
-                                                    </div>
-                                                    <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-rose-500 transition-all duration-1000" style={{ width: `${itm.damage_ratio}%` }} />
-                                                    </div>
-                                                    <p className="text-[9px] font-medium text-slate-400 mt-2 uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
-                                                        {itm.recommend_action} · {itm.oms || 'Standard Material'}
-                                                    </p>
+                                </div>
+                                <div className="bg-indigo-600 rounded-[2.5rem] p-6 text-white shadow-xl relative overflow-hidden group">
+                                    <div className="absolute -right-4 -bottom-4 text-6xl opacity-10 rotate-12 group-hover:rotate-0 transition-transform duration-700 pointer-events-none">🏫</div>
+                                    <p className="text-indigo-100 text-[8px] font-black uppercase tracking-widest mb-1">Total Rooms</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-3xl font-black">{totalClassrooms}</span>
+                                        <span className="text-[10px] font-bold text-indigo-200">CLASSROOMS</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── PHASE 1: BUILDABLE SPACES ── */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Buildable Footprint</h3>
+                                </div>
+                                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden p-2">
+                                    <div className="h-[220px] rounded-[2rem] overflow-hidden bg-slate-50 relative">
+                                        {centerMap && centerMap[0] !== 0 ? (
+                                            <MapContainer 
+                                                key={`summary-map-${centerMap[0]}-${centerMap[1]}-${spaces.length}`}
+                                                center={centerMap} 
+                                                zoom={18} 
+                                                scrollWheelZoom={false} 
+                                                dragging={false} 
+                                                doubleClickZoom={false} 
+                                                zoomControl={false} 
+                                                className="h-full w-full"
+                                            >
+                                                <TileLayer 
+                                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                                    maxZoom={20}
+                                                />
+                                                <RecenterMap center={centerMap} />
+                                                {spaces.map((s, idx) => {
+                                                    const poly = calculateRotatedPolygon(parseFloat(s.center_lat), parseFloat(s.center_lng), parseFloat(s.length_m) || 0, parseFloat(s.width_m) || 0, parseFloat(s.rotation_deg) || 0);
+                                                    return poly ? (
+                                                        <Polygon key={'ro-' + idx} positions={poly} pathOptions={{ color: '#4f46e5', weight: 3, fillOpacity: 0.2 }} />
+                                                    ) : null;
+                                                })}
+                                            </MapContainer>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300 font-bold italic">Map Preview Unavailable</div>
+                                        )}
+                                    </div>
+                                    <div className="p-4 space-y-3">
+                                        {spaces.map(s => (
+                                            <div key={s.id} className="flex items-center justify-between px-2">
+                                                <div>
+                                                    <h4 className="font-black text-slate-800 text-[13px]">{s.space_name}</h4>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{s.length_m}m &times; {s.width_m}m</p>
                                                 </div>
+                                                <span className="text-[11px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                                                    {parseFloat(s.total_area_sqm).toFixed(1)} m&sup2;
+                                                </span>
                                             </div>
                                         ))}
+                                        {spaces.length === 0 && <p className="text-center text-slate-400 text-[10px] font-bold italic py-2">No spaces recorded.</p>}
                                     </div>
                                 </div>
-                            ))}
-                            {groupedRepairsArray.length === 0 && (
-                                <div className="bg-emerald-50 border border-emerald-100 rounded-[2rem] p-8 text-center">
-                                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm text-2xl">✨</div>
-                                    <h4 className="text-emerald-800 font-black text-lg">Structural Integrity Verified</h4>
-                                    <p className="text-emerald-600 text-[11px] font-medium mt-1 uppercase tracking-widest">No major repairs or rehabilitation required</p>
-                                </div>
-                            )}
+                            </section>
                         </div>
-                    </section>
+
+                        {/* Right Column: Building Inventory, Room Audit, Repairs */}
+                        <div className="space-y-8 lg:col-span-2">
+                            {/* ── PHASE 2: BUILDING INVENTORY ── */}
+                            <section className="space-y-4">
+                                <div className="flex items-center justify-between px-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-6 bg-amber-500 rounded-full" />
+                                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Building Inventory</h3>
+                                    </div>
+                                    {!isReadOnly && (
+                                        <button
+                                            onClick={() => {
+                                                setIsReadOnly(false);
+                                                setCurrentPage(2);
+                                                setShowBuildingModal(true);
+                                                setEditingBuildingId(null);
+                                                setBuildingFormData({
+                                                    building_name: "", category: "Academic Building", storey: "", classroom: "",
+                                                    year_completed: currentYear, remarks: "", status: "Good Condition",
+                                                    condemn_age: false, condemn_hazard: false, condemn_calamity: false, condemn_upgrade: false
+                                                });
+                                            }}
+                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
+                                        >
+                                            <FiPlus /> Register New Building
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {buildings.map(b => (
+                                        <div key={b.id} className={`bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative overflow-hidden group ${((b.status || "").toLowerCase() === 'condemned' || (b.status || "").toLowerCase() === 'for condemnation') ? 'border-rose-100 shadow-rose-50/50' : ''}`}>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h4 className="font-black text-slate-800 text-lg tracking-tight uppercase">{b.building_name || b.building_no || 'Building N/A'}</h4>
+                                                    <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.15em]">{b.category}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIsReadOnly(false);
+                                                                setCurrentPage(2);
+                                                                handleEditBuilding(b);
+                                                            }}
+                                                            className="p-3 bg-white text-indigo-500 rounded-xl shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-indigo-50 active:scale-95"
+                                                            title="Edit Building"
+                                                        >
+                                                            <FiEdit2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {!isReadOnly && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const confirm = window.confirm(`Delete building "${b.building_name}"? This will also remove its room assignments.`);
+                                                                if (confirm) {
+                                                                    setBuildings(buildings.filter(x => x.id !== b.id));
+                                                                    setRoomsData(roomsData.filter(r => r.building_local_id !== b.id));
+                                                                }
+                                                            }}
+                                                            className="p-3 bg-white text-rose-500 rounded-xl shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 active:scale-95"
+                                                            title="Delete Building"
+                                                        >
+                                                            <FiTrash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${b.status === 'Newly Built' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' :
+                                                        b.status === 'Good Condition' ? 'bg-blue-50 border-blue-100 text-blue-600' :
+                                                            'bg-rose-50 border-rose-100 text-rose-600'
+                                                        }`}>
+                                                        {b.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-slate-50 p-3 rounded-2xl">
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Verticality</p>
+                                                    <p className="text-[13px] font-black text-slate-700">{b.storey} Storey</p>
+                                                </div>
+                                                <div className="bg-slate-50 p-3 rounded-2xl">
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Capacity</p>
+                                                    <p className="text-[13px] font-black text-slate-700">{roomsData.filter(r => r.building_local_id === b.id).length} Classroom</p>
+                                                </div>
+                                            </div>
+                                            {b.remarks && (
+                                                <p className="mt-4 text-[11px] font-medium text-slate-500 italic px-1">&ldquo;{b.remarks}&rdquo;</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            {/* ── PHASE 3: GRANULAR ROOM AUDIT ── */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Granular Room Audit</h3>
+                                </div>
+                                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+                                    <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
+                                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Master Room List</span>
+                                        <span className="bg-indigo-600 px-3 py-1 rounded-full text-[10px] font-black text-white">
+                                            {roomsData.length} AUDITED
+                                        </span>
+                                    </div>
+                                    <div className="p-2 overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-50">
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Room Name</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">Level</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Condition</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Seats</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {(showAllRooms ? roomsData : roomsData.slice(0, 10)).map(room => (
+                                                    <tr key={room.id} className="group hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-4 py-4">
+                                                            <p className="font-black text-slate-800 text-xs">{room.room_name}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 tracking-tighter uppercase">{room.dimension || '7x9'}</p>
+                                                        </td>
+                                                        <td className="px-4 py-4">
+                                                            <span className="font-bold text-slate-600 text-[11px] whitespace-nowrap">{(room.grade_level || "").replace(/;/g, ', ') || '--'}</span>
+                                                        </td>
+                                                        <td className="px-4 py-4 text-center">
+                                                            <div className={`inline-flex items-center justify-center w-6 h-6 rounded-lg ${room.status === 'Good Condition' || room.status === 'Newly Built' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                                }`}>
+                                                                {room.status === 'Good Condition' || room.status === 'Newly Built' ? <FiCheck className="w-3.5 h-3.5" /> : <FiAlertTriangle className="w-3.5 h-3.5" />}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-4 text-center">
+                                                            <span className="font-bold text-slate-600 text-[11px] whitespace-nowrap">{room.seats || '--'}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {roomsData.length > 10 && (
+                                        <button
+                                            onClick={() => setShowAllRooms(!showAllRooms)}
+                                            className="w-full p-4 text-[10px] font-black text-indigo-500 hover:text-indigo-700 bg-slate-50/30 border-t border-slate-50 transition-colors uppercase tracking-widest"
+                                        >
+                                            {showAllRooms ? 'Show Less' : `View All ${roomsData.length} Rooms`}
+                                        </button>
+                                    )}
+                                </div>
+                            </section>
+
+                            {/* ── PHASE 4: REQUIRED REPAIRS ── */}
+                            <section className="space-y-4 pb-12">
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-1.5 h-6 bg-rose-500 rounded-full" />
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Maintenance Assessment</h3>
+                                </div>
+                                <div className="space-y-4">
+                                    {groupedRepairsArray.map(r => (
+                                        <div key={r.roomId} className="bg-white rounded-[2rem] p-6 border border-rose-100 shadow-sm relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 text-4xl opacity-5 group-hover:scale-110 transition-transform">🛠️</div>
+                                            <div className="mb-4">
+                                                <h4 className="font-black text-slate-800 text-lg leading-tight uppercase tracking-tight">{r.room_name}</h4>
+                                                <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.15em]">{r.building_name} · DIM: {r.room_length}x{r.room_width}</p>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {r.items.map((itm, iidx) => (
+                                                    <div key={iidx} className="bg-slate-50 rounded-2xl p-4 flex justify-between items-center group/item hover:bg-slate-100 transition-colors">
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="text-[10px] font-black text-slate-700 uppercase">{itm.item}</span>
+                                                                <span className="text-[10px] font-black text-rose-600">{itm.damage_ratio}% SCALE</span>
+                                                            </div>
+                                                            <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-rose-500 transition-all duration-1000" style={{ width: `${itm.damage_ratio}%` }} />
+                                                            </div>
+                                                            <p className="text-[9px] font-medium text-slate-400 mt-2 uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                                                                {itm.recommend_action} · {itm.oms || 'Standard Material'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {groupedRepairsArray.length === 0 && (
+                                        <div className="bg-emerald-50 border border-emerald-100 rounded-[2rem] p-8 text-center">
+                                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm text-2xl">✨</div>
+                                            <h4 className="text-emerald-800 font-black text-lg">Structural Integrity Verified</h4>
+                                            <p className="text-emerald-600 text-[11px] font-medium mt-1 uppercase tracking-widest">No major repairs or rehabilitation required</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        </div>
+                    </div>
                 </div>
 
                 {!propReadOnly && (
@@ -1544,7 +1637,82 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
     // ── Render Header & Main Content ──────────────────────────────────────
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col font-sans overflow-x-hidden pb-52">
+        <div className="min-h-screen unit1-page flex flex-col font-sans overflow-x-hidden pb-52 text-gray-900">
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                
+                :root {
+                  --navy: #08315F;
+                  --blue: #075985;
+                  --blue-600: #0284C7;
+                  --blue-400: #7DD3FC;
+                  --blue-100: #E0F2FE;
+                  --blue-50: #F0F9FF;
+                  --gold: #FBBF24;
+                  --amber: #D97706;
+                  --red: #B91C1C;
+                  --bg: #F0F9FF;
+                  --card: #FFFFFF;
+                  --text: #0F172A;
+                  --muted: #64748B;
+                  --line: #BAE6FD;
+                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --radius: 22px;
+                }
+
+                .unit1-page {
+                  font-family: var(--font-body);
+                  background-color: var(--blue-50);
+                  background-image:
+                    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.15) 0 34%, transparent 78%),
+                    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.22) 0 36%, transparent 80%);
+                }
+
+                .bg-white.rounded-\\[2\\.5rem\\], 
+                .bg-slate-50.rounded-\\[2\\.5rem\\],
+                .bg-slate-900.rounded-\\[2\\.5rem\\],
+                .bg-white.rounded-\\[2rem\\],
+                .bg-slate-900.rounded-\\[2rem\\] {
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                }
+
+                .nodes-card {
+                  background: var(--card);
+                  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%) !important;
+                  border-radius: var(--radius) !important;
+                  box-shadow: 0 10px 25px -5px rgba(8, 49, 95, 0.05);
+                }
+                
+                .font-heading {
+                  font-family: var(--font-heading) !important;
+                }
+                .font-body {
+                  font-family: var(--font-body) !important;
+                }
+                
+                h2, h3, h1 {
+                  font-family: var(--font-heading);
+                }
+
+                /* Override style for inputs and select components to give nodes dashboard chunky outline theme */
+                input[type="text"], input[type="number"], select, textarea {
+                  border-color: #BAE6FD !important;
+                  border-width: 2px !important;
+                  border-radius: 20px !important;
+                  background-color: #FFFFFF !important;
+                  font-family: var(--font-body) !important;
+                  transition: all 0.2s ease-in-out !important;
+                }
+                input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+                  outline: none !important;
+                  border-color: #0284C7 !important;
+                  box-shadow: 0 0 0 4px #E0F2FE !important;
+                }
+                `
+            }} />
             {/* Header / Nav */}
             {(!propReadOnly && !isReadOnly) && (
                 <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-4">
@@ -1898,6 +2066,22 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                             </div>
                                         </div>
                                     ))}
+
+                                    {/* Certification Checkbox */}
+                                    <div 
+                                        onClick={() => setIsCertified(!isCertified)}
+                                        className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                            {isCertified && <FiCheck className="w-5 h-5" />}
+                                        </div>
+                                        <div>
+                                            <p className={`text-sm font-black text-left leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                                I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
+                                            </p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic text-left">Official Certification for SY 2025-2026</p>
+                                        </div>
+                                    </div>
                                     
                                     <button 
                                         onClick={() => {
@@ -2457,31 +2641,35 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
             {/* Wizard Navigation Buttons */}
             {!isReadOnly && (
-                <footer className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/80 backdrop-blur-md border-t border-slate-100 flex justify-center z-30 pointer-events-none">
-                    <div className="w-full max-w-sm flex gap-3 pointer-events-auto">
-                        <button onClick={handleBack} className="flex-none w-16 h-16 rounded-3xl bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
+                <footer className="fixed bottom-0 left-0 w-full p-6 pb-10 bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-center z-30 pointer-events-none">
+                    <div className="w-full max-w-md flex gap-3 pointer-events-auto">
+                        <button onClick={handleBack} className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0">
                             <FiArrowLeft className="w-6 h-6" />
                         </button>
 
-                        <button onClick={() => setShowDraftModal(true)} className="flex-none w-16 h-16 rounded-3xl bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-900 active:scale-95 transition-all outline-none shrink-0">
+                        <button onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0">
                             <FiSave className="w-6 h-6" />
+                            <span className="text-sm font-bold text-blue-500">Save Draft</span>
                         </button>
 
                         {currentPage === 2 ? (
                             <button
                                 onClick={handleMasterSubmit}
-                                disabled={loading || (buildings.length === 0 && !hasNoBuilding) || isAuditIncomplete}
-                                className={`flex-1 py-5 rounded-3xl text-white font-black text-xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-b-[6px] active:border-b-0 active:translate-y-[6px] ${isAuditIncomplete ? 'bg-slate-400 border-slate-600' : 'bg-indigo-600 border-indigo-900'}`}
+                                disabled={loading || (buildings.length === 0 && !hasNoBuilding) || isAuditIncomplete || !isCertified}
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-emerald-100 flex justify-center items-center gap-2"
                             >
-                                {loading ? "Processing..." : "Finish Unit Audit"}
-                                <FiCheckCircle className="w-6 h-6" />
+                                {loading ? "Processing..." : (
+                                    <span className="flex items-center justify-center gap-2">
+                                        SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                    </span>
+                                )}
                             </button>
                         ) : currentPage === 3 ? (
                             <button
                                 onClick={handleSaveBuilding}
-                                className="flex-1 py-5 rounded-3xl bg-indigo-600 text-white font-black text-xl shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 border-b-[6px] border-indigo-900 active:border-b-0 active:translate-y-[6px]"
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
-                                Save & Setup Rooms <FiArrowRight className="w-6 h-6" />
+                                <span>Save & Setup Rooms</span> <FiArrowRight className="w-5 h-5" />
                             </button>
                         ) : currentPage === 4 ? (
                             <button
@@ -2534,9 +2722,9 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                         setCurrentPage(6);
                                     }
                                 }}
-                                className="flex-1 py-5 rounded-3xl bg-indigo-500 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-600 transition-all border-b-[6px] border-indigo-700 active:border-b-0 active:translate-y-[6px]"
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
-                                Process Room Audit <FiArrowRight className="w-6 h-6" />
+                                <span>Process Room Audit</span> <FiArrowRight className="w-5 h-5" />
                             </button>
                         ) : currentPage === 5 ? (
                             <button
@@ -2551,9 +2739,9 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                     handlePartialSync();
                                     setCurrentPage(6);
                                 }}
-                                className="flex-1 py-5 rounded-3xl bg-emerald-600 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px]"
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
-                                Complete Building Audit <FiArrowRight className="w-6 h-6" />
+                                <span>Complete Building Audit</span> <FiArrowRight className="w-5 h-5" />
                             </button>
                         ) : (currentPage === 1) ? (
                             <button
@@ -2564,16 +2752,16 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                         setCurrentPage(currentPage + 1);
                                     }
                                 }}
-                                className="flex-1 py-5 rounded-3xl bg-indigo-500 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-600 transition-all border-b-[6px] border-indigo-700 active:border-b-0 active:translate-y-[6px]"
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
-                                Next Step <FiArrowRight className="w-6 h-6" />
+                                <span>Next Step</span> <FiArrowRight className="w-5 h-5" />
                             </button>
                         ) : currentPage !== 6 ? (
                             <button
                                 onClick={() => setCurrentPage(currentPage + 1)}
-                                className="flex-1 py-5 rounded-3xl bg-indigo-500 text-white font-black text-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 hover:bg-indigo-600 transition-all border-b-[6px] border-indigo-700 active:border-b-0 active:translate-y-[6px]"
+                                className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
-                                Next Step <FiArrowRight className="w-6 h-6" />
+                                <span>Next Step</span> <FiArrowRight className="w-5 h-5" />
                             </button>
                         ) : null}
                     </div>

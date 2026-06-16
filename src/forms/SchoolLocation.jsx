@@ -6,7 +6,7 @@ import {
     FaShieldAlt, FaMapMarkerAlt, FaClinicMedical, FaSignal, FaCloudRain,
     FaHorse, FaBicycle, FaMotorcycle
 } from 'react-icons/fa';
-import { FiSave, FiClock, FiMapPin } from 'react-icons/fi';
+import { FiSave, FiClock, FiMapPin, FiArrowLeft, FiCheckCircle } from 'react-icons/fi';
 import PageTransition from '../components/PageTransition';
 import SuccessModal from '../components/SuccessModal';
 import { addModularToOutbox } from "../db";
@@ -1001,28 +1001,20 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                             </div>
 
                             {/* Certification Checkbox */}
-                            <motion.div 
+                            <div 
                                 onClick={() => setIsCertified(!isCertified)}
-                                className={`mt-10 p-6 rounded-[2.5rem] border-2 flex items-start gap-4 cursor-pointer transition-all ${
-                                    isCertified 
-                                        ? 'bg-emerald-50 border-emerald-300' 
-                                        : 'bg-white border-slate-200'
-                                }`}
+                                className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}
                             >
-                                <div className={`mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors ${
-                                    isCertified 
-                                        ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                        : 'border-slate-300 bg-white'
-                                }`}>
-                                    {isCertified && <FiSave className="w-4 h-4" />}
+                                <div className={`w-8 h-8 rounded-xl flex-none flex items-center justify-center transition-all ${isCertified ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200'}`}>
+                                    {isCertified && <FiCheck className="w-5 h-5" />}
                                 </div>
                                 <div>
-                                    <p className={`text-[13px] font-black leading-tight ${isCertified ? 'text-emerald-900' : 'text-slate-500'}`}>
-                                        I hereby certify that all data and information provided in this module/unit are true and correct.
+                                    <p className={`text-sm font-black leading-relaxed ${isCertified ? 'text-emerald-950' : 'text-slate-500'}`}>
+                                        I hereby certify that the learner counts and gender breakdown provided are accurate and based on our school's current official enrollment records.
                                     </p>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Data Integrity Gate</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 italic">Official Certification for SY 2025-2026</p>
                                 </div>
-                            </motion.div>
+                            </div>
                         </div>
                     </motion.div>
                 );
@@ -1122,52 +1114,53 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                 </AnimatePresence>
 
                 {!isReadOnly && (
-                        <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-gray-100 dark:border-slate-800 z-50">
-                            <div className="max-w-2xl mx-auto flex gap-4">
-                                <button type="button" onClick={() => setShowDraftModal(true)} className="flex-none h-16 px-6 rounded-3xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center gap-2 text-gray-400 dark:text-slate-500 hover:text-gray-900 dark:hover:text-slate-200 active:scale-95 transition-all outline-none">
-                                     <FiSave className="w-6 h-6" />
-                                     <span className="text-sm font-bold text-gray-500 dark:text-slate-400">Save Draft</span>
+                    <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-md border-t border-gray-100 z-50 flex justify-center shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+                        <div className="w-full max-w-md flex gap-3">
+                            {currentStep > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={prevStep}
+                                    className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 active:scale-95 transition-all outline-none shrink-0"
+                                >
+                                    <FiArrowLeft className="w-6 h-6" />
                                 </button>
-                                {currentStep > 1 && (
-                                    <button 
-                                        type="button" 
-                                        onClick={prevStep}
-                                        className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 font-black py-4 rounded-2xl active:scale-95 transition-all text-sm uppercase tracking-widest"
-                                    >
-                                        Back
-                                    </button>
-                                )}
-                                
-                                {currentStep < 5 ? (
-                                    <button 
-                                        key="btn-next"
-                                        type="button" 
-                                        onClick={nextStep}
-                                        disabled={currentStep === 3 && !isStep3Valid()}
-                                        className={`flex-[2] font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest active:scale-95 ${currentStep === 3 && !isStep3Valid() ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white shadow-blue-500/30'}`}
-                                    >
-                                        Next
-                                    </button>
-                                ) : (
-                                    <button 
-                                        key="btn-save"
-                                        type="submit" 
-                                        disabled={loading || !isCertified || !isStep3Valid()}
-                                        className={`flex-[2] font-black py-4 rounded-2xl shadow-lg transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 ${(!isCertified || !isStep3Valid()) ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 text-white shadow-emerald-500/30'}`}
-                                    >
-                                        {loading ? (
-                                            <div className="w-5 h-5 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                        ) : (
-                                            <>
-                                                <FaShieldAlt />
-                                                Submit Unit Profile
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-                            </div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setShowDraftModal(true)}
+                                className="flex-none h-16 px-6 rounded-3xl bg-blue-50 border-2 border-blue-100 flex items-center justify-center gap-2 text-blue-500 hover:text-blue-700 active:scale-95 transition-all outline-none shrink-0"
+                            >
+                                <FiSave className="w-6 h-6" />
+                                <span className="text-sm font-bold text-blue-500">Save Draft</span>
+                            </button>
+
+                            {currentStep < 5 ? (
+                                <button
+                                    key="btn-next"
+                                    type="button"
+                                    onClick={nextStep}
+                                    disabled={currentStep === 3 && !isStep3Valid()}
+                                    className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
+                                >
+                                    <span>Next Step &gt;</span>
+                                </button>
+                            ) : (
+                                <button
+                                    key="btn-save"
+                                    type="submit"
+                                    disabled={loading || !isCertified || !isStep3Valid()}
+                                    className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-emerald-100 flex justify-center items-center gap-2"
+                                >
+                                    {loading ? "Saving..." : (
+                                        <span className="flex items-center justify-center gap-2">
+                                            SUBMIT ENTRY <FiCheckCircle className="w-5 h-5" />
+                                        </span>
+                                    )}
+                                </button>
+                            )}
                         </div>
-                    )}
+                    </div>
+                )}
                 </form>
 
                 <AnimatePresence>

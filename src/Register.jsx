@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-const logo = "/OFFICIAL%20LOGO/InsightED%20logo%205%20x%203%20in.png";
+import logo from './assets/InsightEdLogoApp.png';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import BlueprintBackground from './components/BlueprintBackground';

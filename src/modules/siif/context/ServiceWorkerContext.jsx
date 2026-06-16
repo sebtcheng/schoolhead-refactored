@@ -12,7 +12,7 @@ export const ServiceWorkerProvider = ({ children }) => {
     const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
     useEffect(() => {
-        if ('serviceWorker' in navigator) {
+        if ('serviceWorker' in navigator && !import.meta.env.DEV) {
             const basePath = import.meta.env.BASE_URL || '/';
             const swFileName = import.meta.env.DEV ? 'dev-sw.js?dev-sw' : 'sw.js';
             const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';

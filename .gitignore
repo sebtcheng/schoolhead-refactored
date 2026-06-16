@@ -87,3 +87,8 @@ __pycache__/
 
 # Document exports (often very large)
 *.docx
+
+# SQLite databases and SQL backups
+ph_schools_04282026.sqlite
+insightEd_tables_backup.sql
+

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "node --watch api/index.js",
+    "server": "node --watch-path=api --watch-path=server api/index.js",
     "dev:full": "concurrently -n \"SERVER,VITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run server\" \"npm run dev\"",
     "dev:turbo": "node scripts/turbo-dev.js",
     "build": "vite build",

@@ -4,33 +4,33 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-import { initOtpTable, runMigrations } from './db_init.js';
+import { initOtpTable, runMigrations } from '../server/db_init.js';
 
 // Import Database & Utilities
-import { pool } from './utils/db.js';
+import { pool } from '../server/utils/db.js';
 
 // Import Helpers & Uploads
-import { UPLOAD_BASE_PATH } from './utils/helpers.js';
+import { UPLOAD_BASE_PATH } from '../server/utils/helpers.js';
 
 // Import Unit Modular Routers
-import unit1Router from './units/unit1/index.js';
-import unit2Router from './units/unit2/index.js';
-import unit3Router from './units/unit3/index.js';
-import unit4Router from './units/unit4/index.js';
-import unit5Router from './units/unit5/index.js';
-import unit6Router from './units/unit6/index.js';
-import unit7Router from './units/unit7/index.js';
-import unit8Router from './units/unit8/index.js';
-import unit9Router from './units/unit9/index.js';
-import authRouter from './units/auth/index.js';
+import unit1Router from '../server/units/unit1/index.js';
+import unit2Router from '../server/units/unit2/index.js';
+import unit3Router from '../server/units/unit3/index.js';
+import unit4Router from '../server/units/unit4/index.js';
+import unit5Router from '../server/units/unit5/index.js';
+import unit6Router from '../server/units/unit6/index.js';
+import unit7Router from '../server/units/unit7/index.js';
+import unit8Router from '../server/units/unit8/index.js';
+import unit9Router from '../server/units/unit9/index.js';
+import authRouter from '../server/units/auth/index.js';
 
 // Import New Modular Routers
-import pushRouter from './units/push/index.js';
-import docsRouter from './units/docs/index.js';
-import dashboardRouter from './units/dashboard/index.js';
-import locationRouter from './units/location/index.js';
-import settingsRouter from './units/settings/index.js';
-import siifRouter from './modules/siif/index.js';
+import pushRouter from '../server/units/push/index.js';
+import docsRouter from '../server/units/docs/index.js';
+import dashboardRouter from '../server/units/dashboard/index.js';
+import locationRouter from '../server/units/location/index.js';
+import settingsRouter from '../server/units/settings/index.js';
+import siifRouter from '../server/modules/siif/index.js';
 
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js (Modular) <<< 📌");
 
@@ -57,12 +57,21 @@ app.get('/api/ping', (req, res) => res.json({
 }));
 app.get('/ping', (req, res) => res.json({ status: 'pong-root' }));
 
+// --- URL NORMALIZATION FOR VERCEL SUBPATH ---
+app.use((req, res, next) => {
+  if (req.url.startsWith('/insighted-schoolhead')) {
+    req.url = req.url.replace('/insighted-schoolhead', '');
+  }
+  next();
+});
+
 // --- CORS & BODY PARSERS ---
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'https://insight-ed-mobile-pwa.vercel.app',
   'https://insight-ed-frontend.vercel.app',
+  'https://insighted-portal.onrender.com',
   ...(process.env.CORS_ORIGIN_VM ? [process.env.CORS_ORIGIN_VM] : []),
 ];
 app.use(cors({
@@ -186,9 +195,10 @@ const startServer = async () => {
     try {
         console.log("🚀 Initializing InsightEd Master Services...");
 
+        const isVercel = process.env.VERCEL === '1';
         const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
         
-        if (isPrimaryWorker) {
+        if (isPrimaryWorker && !isVercel) {
             console.log("🏗️ [Primary] Running boot-time migrations...");
             try {
                 const migClient = await pool.connect();
@@ -202,23 +212,31 @@ const startServer = async () => {
             } catch (migErr) {
                 console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
             }
+        } else if (isVercel) {
+            console.log("⚡ Running as Vercel Serverless Function (migrations skipped).");
         } else {
             console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
         }
 
-        const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => {
-            console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
-            if (process.send) {
-                process.send('ready');
-            }
-        });
+        if (!isVercel) {
+            const PORT = process.env.PORT || 3000;
+            app.listen(PORT, () => {
+                console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
+                if (process.send) {
+                    process.send('ready');
+                }
+            });
+        }
 
     } catch (error) {
         console.error("❌ CRITICAL: Master startup sequence failed!");
         console.error(error);
-        process.exit(1);
+        if (process.env.VERCEL !== '1') {
+            process.exit(1);
+        }
     }
 };
 
 startServer();
+
+export default app;

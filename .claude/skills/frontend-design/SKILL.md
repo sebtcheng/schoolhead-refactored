@@ -40,3 +40,17 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 **IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
 
 Remember: Claude is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
+
+---
+
+## 🎯 InsightED SchoolHead Official UI Specifications & Design System
+
+When working on the SchoolHead Official project, adhere to these concrete UI layout grids, color HSL schemes, and styling structures:
+
+1. **Active Fonts**: Pair `Quicksand` (Headings) and `'Comic Neue'` (Body/Inputs) for a premium, friendly aesthetic.
+2. **Layout Grid (`nodes-app-layout`)**: Grid-based desktop sidebar (`260px 1fr`) that transitions into a fixed bottom nav on mobile (`@media (max-width: 768px)`).
+3. **Core Elements**:
+   - `.nodes-sidebar`: Left gradient sidebar on desktop.
+   - `.nodes-topbar`: Header containing an asymmetrical gold polygon background clip (`polygon(0 0, 92% 0, 100% 100%, 0 100%)`).
+   - `.nodes-card`: Rounded content cards with chunky `2.5px solid` blue borders (`color-mix(in srgb, var(--blue) 64%, var(--navy) 36%)`).
+   - Form Inputs: Thick light-blue borders (`#BAE6FD`) with bright focus glow outlines (`#0284C7` and `#E0F2FE` focus shadows).
