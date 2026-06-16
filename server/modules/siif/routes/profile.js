@@ -4,7 +4,7 @@
 // POST /api/siif/auth/setup-passcode
 
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { pool } from '../../../utils/db.js';
 import { authenticate } from '../middleware/authenticate.js';
 
