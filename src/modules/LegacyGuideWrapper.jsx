@@ -34,7 +34,7 @@ const LegacyGuideWrapper = () => {
 
                     .nodes-app-layout {
                       display: grid;
-                      grid-template-columns: 260px 1fr;
+                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
                       font-family: var(--font-body);
                       color: var(--text);
@@ -45,28 +45,63 @@ const LegacyGuideWrapper = () => {
                         radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.42) 0 36%, transparent 80%),
                         radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.30) 0 34%, transparent 78%),
                         radial-gradient(45% 52.5% at 8% 92%, rgba(217, 119, 6, 0.26) 0 28%, rgba(251, 191, 36, 0.18) 42%, transparent 80%);
+                      transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     }
 
                     .nodes-sidebar {
+                      display: flex;
+                      width: 80px;
                       position: relative;
                       color: white;
-                      padding: 24px;
-                      display: flex;
+                      padding: 24px 8px;
                       flex-direction: column;
+                      align-items: center;
                       gap: 28px;
                       background: linear-gradient(180deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--blue) 72%, var(--navy) 28%));
                       border-right: 1px solid rgba(255, 255, 255, 0.24);
                       box-shadow: 18px 0 42px rgba(11, 31, 77, 0.16);
                       overflow: hidden;
+                      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), align-items 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                      z-index: 50;
+                    }
+
+                    .nodes-sidebar:hover {
+                      width: 260px;
+                      padding: 24px 16px;
+                      align-items: flex-start;
                     }
 
                     .nodes-brand {
-                      background: transparent;
-                      padding: 8px 0px;
                       display: flex;
-                      align-items: center;
                       justify-content: center;
-                      gap: 8px;
+                      width: 100%;
+                      margin-bottom: 8px;
+                      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), justify-content 0.3s ease, padding 0.3s ease;
+                    }
+
+                    .nodes-brand:hover {
+                      transform: scale(1.08);
+                    }
+
+                    .nodes-sidebar:hover .nodes-brand {
+                      justify-content: flex-start;
+                      padding-left: 8px;
+                    }
+
+                    .logo-collapsed {
+                      display: block !important;
+                    }
+                    .logo-expanded {
+                      display: none !important;
+                    }
+
+                    .nodes-sidebar:hover .logo-collapsed {
+                      display: none !important;
+                    }
+                    .nodes-sidebar:hover .logo-expanded {
+                      display: block !important;
+                      max-width: 170px;
+                      height: auto;
                     }
 
                     .nodes-brand img {
@@ -76,26 +111,52 @@ const LegacyGuideWrapper = () => {
                     .nodes-nav {
                       display: flex;
                       flex-direction: column;
-                      gap: 8px;
+                      align-items: center;
+                      gap: 16px;
+                      width: 100%;
+                      transition: align-items 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    }
+
+                    .nodes-sidebar:hover .nodes-nav {
+                      align-items: flex-start;
                     }
 
                     .nodes-nav a {
                       display: flex;
                       align-items: center;
-                      gap: 12px;
-                      padding: 12px 14px;
+                      justify-content: center;
+                      width: 44px;
+                      height: 44px;
                       border-radius: 14px;
                       color: rgba(255, 255, 255, 0.78);
-                      font-size: 14px;
-                      font-weight: 700;
-                      text-decoration: none;
-                      transition: all 0.2s ease;
+                      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                       border: 1px solid transparent;
+                      gap: 12px;
+                    }
+
+                    .nodes-sidebar:hover .nodes-nav a {
+                      justify-content: flex-start;
+                      width: 100%;
+                      padding: 12px 14px;
+                      height: auto;
+                    }
+
+                    .nodes-nav a span {
+                      display: none;
+                      opacity: 0;
+                      transition: opacity 0.3s ease;
+                      white-space: nowrap;
+                    }
+
+                    .nodes-sidebar:hover .nodes-nav a span {
+                      display: inline-block;
+                      opacity: 1;
                     }
 
                     .nodes-nav a:hover {
                       color: white;
                       background: rgba(255, 255, 255, 0.08);
+                      transform: translateY(-2px);
                     }
 
                     .nodes-nav a.active {
@@ -114,12 +175,14 @@ const LegacyGuideWrapper = () => {
                       justify-content: space-between;
                       align-items: center;
                       gap: 25px;
-                      min-height: 110px;
-                      padding: 16px 32px;
+                      min-height: 130px;
+                      padding: 24px 44px;
                       border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
                       background: linear-gradient(135deg, var(--blue-50), white);
                       box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
                       overflow: hidden;
+                      border-radius: var(--radius);
+                      margin: 24px 24px 0 24px;
                     }
 
                     .nodes-topbar::before {
@@ -161,27 +224,18 @@ const LegacyGuideWrapper = () => {
                     .nodes-topbar h1 {
                       margin: 0;
                       font-family: var(--font-heading);
-                      font-size: 28px;
+                      font-size: 36px;
                       line-height: 1.12;
                       font-weight: 900;
-                      letter-spacing: 0.01em;
-                      color: var(--blue);
-                      -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
-                      paint-order: stroke fill;
-                      text-shadow:
-                        -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-                        1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-                        -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-                        1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-                        0 4px 10px rgba(11, 31, 77, 0.34),
-                        0 12px 28px rgba(15, 23, 42, 0.26);
+                      letter-spacing: -0.01em;
+                      color: #ffffff;
                     }
 
                     .nodes-topbar .eyebrow {
                       color: var(--gold);
                       font-size: 11px;
                       font-weight: 900;
-                      letter-spacing: 0.2em;
+                      letter-spacing: 0.15em;
                       text-transform: uppercase;
                       font-family: var(--font-heading);
                     }
@@ -241,6 +295,10 @@ const LegacyGuideWrapper = () => {
                         text-decoration: none;
                       }
 
+                      .nodes-nav a span {
+                        display: block !important;
+                      }
+
                       .nodes-nav a.active {
                         background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
                         color: white;
@@ -252,7 +310,9 @@ const LegacyGuideWrapper = () => {
 
                       .nodes-topbar {
                         min-height: 90px;
-                        padding: 10px 16px;
+                        padding: 16px;
+                        margin: 12px 12px 0 12px;
+                        border-radius: 14px;
                       }
 
                       .nodes-topbar h1 {
@@ -270,10 +330,18 @@ const LegacyGuideWrapper = () => {
                 <div className="nodes-sidebar">
                     <div className="nodes-brand">
                         <img 
+                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`} 
+                            alt="InsightED Logo" 
+                            className="logo-collapsed object-contain w-10 h-10"
+                            onError={(e) => {
+                                e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png";
+                            }}
+                        />
+                        <img 
                             src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
                             alt="InsightED Logo" 
-                            className="object-contain"
-                            style={{ width: '16rem', height: '9rem' }}
+                            className="logo-expanded object-contain"
+                            style={{ width: '10rem', height: '6rem' }}
                             onError={(e) => {
                                 e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
                             }}
@@ -281,24 +349,24 @@ const LegacyGuideWrapper = () => {
                     </div>
 
                     <div className="nodes-nav">
-                        <a href="#/nodes-dashboard">
-                            <FiHome size={18} />
+                        <a href="#/nodes-dashboard" title="Home">
+                            <FiHome size={20} />
                             <span>Home</span>
                         </a>
-                        <a href="#/my-activity">
-                            <FiBookOpen size={18} />
+                        <a href="#/my-activity" title="CLOUD">
+                            <FiBookOpen size={20} />
                             <span>CLOUD</span>
                         </a>
-                        <a href="#/modular-dashboard">
-                            <LuCompass size={18} />
+                        <a href="#/modular-dashboard" title="Units">
+                            <LuCompass size={20} />
                             <span>Units</span>
                         </a>
-                        <a href="#/guide/school-head" className="active">
-                            <TbSchool size={18} />
+                        <a href="#/guide/school-head" className="active" title="Guide">
+                            <TbSchool size={20} />
                             <span>Guide</span>
                         </a>
-                        <a href="#/profile">
-                            <FiSettings size={18} />
+                        <a href="#/profile" title="Settings">
+                            <FiSettings size={20} />
                             <span>Settings</span>
                         </a>
                     </div>
@@ -308,16 +376,19 @@ const LegacyGuideWrapper = () => {
                 <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
                     
                     {/* Header / Topbar */}
-                    <div className="nodes-topbar">
-                        <div className="flex flex-col">
+                    <div className="nodes-topbar animate-fade-in">
+                        <div className="flex flex-col flex-grow select-none pr-8">
                             <span className="eyebrow">
-                                OPERATIONAL MANUAL
+                                DEPARTMENT OF EDUCATION | BUREAU OF HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT
                             </span>
-                            <h1 className="flex items-center gap-2">
-                                <span className="text-white">GUIDE • SCHOOL HEAD</span>
+                            <h1>
+                                SchoolHead Operational Manual
                             </h1>
-                            <p className="text-[10px] font-bold text-[#E0F2FE] uppercase tracking-[0.2em] mt-0.5 relative z-10">
-                                STRIDE Operational Instructions & Resource Management Guidelines
+                            <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-2 relative z-10 leading-relaxed font-sans max-w-[90%]">
+                                Interactive dashboard for mapping school units, district needs, staffing, enrollment, classrooms, MOOE, and related indicators.
+                            </p>
+                            <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-1 relative z-10 leading-relaxed font-sans max-w-[90%]">
+                                Operational Resource Center | STRIDE Instructions & Guidelines
                             </p>
                         </div>
                     </div>

@@ -82,7 +82,19 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
 
     React.useImperativeHandle(ref, () => ({
         getFormData: () => getValues(),
-        getCurrentStep: () => currentStep
+        getCurrentStep: () => currentStep,
+        copyData: (data) => {
+            const sanitized = {
+                ...data,
+                transportation_modes: tryParse(data.transportation_modes),
+                hazards_experienced: tryParse(data.hazards_experienced),
+                water_proximity: tryParse(data.water_proximity),
+                natural_calamities: tryParse(data.natural_calamities),
+                anthropogenic_threats: tryParse(data.anthropogenic_threats)
+            };
+            reset(sanitized);
+            setRiskIndex(data.risk_index);
+        }
     }));
 
     const watchPaved = watch('road_paved_pct');
@@ -173,6 +185,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                 ...data, 
                 school_id: schoolId, 
                 iern,
+                school_yr: "SY 26-27",
                 // Systematic Resilience: Use raw arrays. Zod backend + robust DB casts will handle JSONB correctly.
                 transportation_modes: tryParse(data.transportation_modes),
                 hazards_experienced: tryParse(data.hazards_experienced),
@@ -248,7 +261,7 @@ const SchoolLocation = React.forwardRef(({ schoolId, iern, onSaveSuccess, onSave
                     label: "Unit 8: School Terrain & Location Profile",
                     url: api(`/school-location`),
                     method: 'POST',
-                    payload: { ...data, school_id: schoolId, iern },
+                    payload: { ...data, school_id: schoolId, iern, school_yr: "SY 26-27" },
                     schoolId: schoolId
                 });
                 if (onSaveSuccess) onSaveSuccess({ ...data, risk_index: 'Pending Sync' });

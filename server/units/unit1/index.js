@@ -47,6 +47,7 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
         ];
 
         const fields = allPotentialFields.filter(f => existingCols.has(f));
+        const school_yr = data.school_yr || 'SY 26-27';
 
         const values = fields.map(f => {
             if (f === 'unit1') return 100;
@@ -65,20 +66,20 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
 
         if (fields.length === 0) return res.status(400).json({ error: "No valid fields to update" });
 
-        const columnsStr = ['iern', 'school_id', ...fields].map(c => `"${c}"`).join(', ');
-        const placeholders = ['iern', 'school_id', ...fields].map((_, idx) => `$${idx + 1}`).join(', ');
+        const columnsStr = ['iern', 'school_id', 'school_yr', ...fields].map(c => `"${c}"`).join(', ');
+        const placeholders = ['iern', 'school_id', 'school_yr', ...fields].map((_, idx) => `$${idx + 1}`).join(', ');
         const updateClause = fields.map(f => `"${f}" = EXCLUDED."${f}"`).join(', ');
 
         const query = `
             INSERT INTO unit1_school_identity (${columnsStr})
             VALUES (${placeholders})
-            ON CONFLICT (iern) DO UPDATE SET
+            ON CONFLICT (iern, school_yr) DO UPDATE SET
                 ${updateClause},
                 updated_at = CURRENT_TIMESTAMP
             RETURNING *
         `;
         
-        const result = await safeQuery(query, [resolvedIern, school_id, ...values]);
+        const result = await safeQuery(query, [resolvedIern, school_id, school_yr, ...values]);
         if (result.rowCount === 0) return res.status(404).json({ error: "Failed to save unit 1 data" });
 
         // Update ph_schools progress metadata to remain in sync
@@ -96,7 +97,7 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
         const dbClient = await pool.connect();
         try {
             await dbClient.query('BEGIN');
-            await dbClient.query('DELETE FROM school_ownership_records WHERE iern = $1', [resolvedIern]);
+            await dbClient.query('DELETE FROM school_ownership_records WHERE iern = $1 AND school_yr = $2', [resolvedIern, school_yr]);
 
             const owners = Array.isArray(data.ownership_multiple) ? data.ownership_multiple : [];
             const docs = Array.isArray(data.ownership_document_multiple) ? data.ownership_document_multiple : [];
@@ -107,17 +108,17 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
                     const dType = docs[i] || null;
                     if (oType) {
                         await dbClient.query(
-                            `INSERT INTO school_ownership_records (iern, ownership_type, document_type, ownership_doc_id)
-                             VALUES ($1, $2, $3, $4)`,
-                            [resolvedIern, oType, dType, ownershipDocId]
+                            `INSERT INTO school_ownership_records (iern, ownership_type, document_type, ownership_doc_id, school_yr)
+                             VALUES ($1, $2, $3, $4, $5)`,
+                            [resolvedIern, oType, dType, ownershipDocId, school_yr]
                         );
                     }
                 }
             } else if (data.ownership) {
                 await dbClient.query(
-                    `INSERT INTO school_ownership_records (iern, ownership_type, document_type, ownership_doc_id)
-                     VALUES ($1, $2, $3, $4)`,
-                    [resolvedIern, data.ownership, data.ownership_document_type || null, ownershipDocId]
+                    `INSERT INTO school_ownership_records (iern, ownership_type, document_type, ownership_doc_id, school_yr)
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [resolvedIern, data.ownership, data.ownership_document_type || null, ownershipDocId, school_yr]
                 );
             }
             await dbClient.query('COMMIT');

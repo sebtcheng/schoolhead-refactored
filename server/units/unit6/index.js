@@ -31,12 +31,14 @@ router.put('/api/ph_schools/:id', async (req, res) => {
     const wash = typeof unit7_wash === 'string' ? JSON.parse(unit7_wash) : (unit7_wash || {});
     const utilities = typeof unit7_utilities === 'string' ? JSON.parse(unit7_utilities) : (unit7_utilities || {});
 
+    const school_yr = req.body.school_yr || 'SY 26-27';
+
     await client.query('BEGIN');
 
     // 1. Upsert into unit6_school_resources
     await client.query(
       `INSERT INTO unit6_school_resources (
-         iern, school_id, iern_val, unit6_completed, unit6_updated_at,
+         iern, school_id, iern_val, unit6_completed, unit6_updated_at, school_yr,
          has_general_rooms, general_rooms_count,
          armchair_wood_func, armchair_wood_broken,
          armchair_plastic_func, armchair_plastic_broken,
@@ -68,15 +70,15 @@ router.put('/api/ph_schools/:id', async (req, res) => {
          updated_at
        )
        VALUES (
-         $1, $2, $1, $3, CURRENT_TIMESTAMP,
-         $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+         $1, $2, $1, $3, CURRENT_TIMESTAMP, $4,
+         $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
          $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44,
          $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66,
          $67, $68, $69, $70, $71, $72, $73, $74, $75, $76, $77,
          $78, $79, $80,
          CURRENT_TIMESTAMP
        )
-       ON CONFLICT (school_id) DO UPDATE SET
+       ON CONFLICT (school_id, school_yr) DO UPDATE SET
          iern = EXCLUDED.iern, iern_val = EXCLUDED.iern,
          unit6_completed = EXCLUDED.unit6_completed, unit6_updated_at = CURRENT_TIMESTAMP,
          has_general_rooms = EXCLUDED.has_general_rooms, general_rooms_count = EXCLUDED.general_rooms_count,
@@ -137,17 +139,18 @@ router.put('/api/ph_schools/:id', async (req, res) => {
         parseInt(wash.attached_cr_classrooms) || 0, parseInt(wash.attached_cr_seats) || 0, wash.attached_cr_included_in_main,
         utilities.utility_electricity, utilities.confirm_no_grid, utilities.confirm_no_grid_text, utilities.has_solar_or_gen,
         utilities.utility_internet_yesno, utilities.utility_internet_type, utilities.confirm_no_wired, utilities.confirm_no_wired_text, utilities.utility_internet_funder,
-        parseInt(ict.laptops_students) || 0, parseInt(ict.tablets_students) || 0, parseInt(ict.desktops_students) || 0
+        parseInt(ict.laptops_students) || 0, parseInt(ict.tablets_students) || 0, parseInt(ict.desktops_students) || 0,
+        school_yr
       ]
     );
 
     // 2. Refresh furniture grades tables
-    await client.query('DELETE FROM unit6_furniture_grades WHERE iern = $1', [iern]);
+    await client.query('DELETE FROM unit6_furniture_grades WHERE iern = $1 AND school_yr = $2', [iern, school_yr]);
     if (gradesList && gradesList.length > 0) {
       for (const g of gradesList) {
         await client.query(
           `INSERT INTO unit6_furniture_grades (
-             iern, grade_level,
+             iern, grade_level, school_yr,
              armchair_wood_func, armchair_wood_broken,
              armchair_plastic_func, armchair_plastic_broken,
              armchair_plastic_steel_func, armchair_plastic_steel_broken,
@@ -158,9 +161,9 @@ router.put('/api/ph_schools/:id', async (req, res) => {
              plastic_chair_only_func, plastic_chair_only_broken,
              is_sharing, shared_with, is_kinder_double_shift
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
           [
-            iern, g.id,
+            iern, g.id, school_yr,
             parseInt(g.armchair_wood_func) || 0, parseInt(g.armchair_wood_broken) || 0,
             parseInt(g.armchair_plastic_func) || 0, parseInt(g.armchair_plastic_broken) || 0,
             parseInt(g.armchair_plastic_steel_func) || 0, parseInt(g.armchair_plastic_steel_broken) || 0,
@@ -178,18 +181,18 @@ router.put('/api/ph_schools/:id', async (req, res) => {
     }
 
     // 3. Refresh eCarts table
-    await client.query('DELETE FROM unit6_ecart_batches WHERE iern = $1', [iern]);
+    await client.query('DELETE FROM unit6_ecart_batches WHERE iern = $1 AND school_yr = $2', [iern, school_yr]);
     if (unit7_has_ecart && ecartsList && ecartsList.length > 0) {
       for (const cart of ecartsList) {
         await client.query(
           `INSERT INTO unit6_ecart_batches (
-             iern, batches_name, year_received, sources_fund, ecart_laptops, ecart_tablets, ecart_tv, charging_condition, remarks
+             iern, batches_name, year_received, sources_fund, ecart_laptops, ecart_tablets, ecart_tv, charging_condition, remarks, school_yr
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             iern, cart.batches_name, parseInt(cart.year_received) || 0, cart.sources_fund,
             parseInt(cart.ecart_laptops) || 0, parseInt(cart.ecart_tablets) || 0, parseInt(cart.ecart_tv) || 0,
-            cart.charging_condition, cart.remarks
+            cart.charging_condition, cart.remarks, school_yr
           ]
         );
       }
@@ -200,8 +203,8 @@ router.put('/api/ph_schools/:id', async (req, res) => {
       `UPDATE unit6_school_resources SET
        unit6_completed = $1,
        unit6_updated_at = CURRENT_TIMESTAMP
-       WHERE school_id = $2`,
-      [unit6_completed, id]
+       WHERE school_id = $2 AND school_yr = $3`,
+      [unit6_completed, id, school_yr]
     );
 
     // Sync metadata flags to ph_schools for dashboard progress compatibility

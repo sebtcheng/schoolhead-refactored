@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiCheckCircle, FiCheck, FiEdit2, FiArrowLeft, FiUnlock, FiInfo, FiMaximize2, FiSave, FiWifiOff, FiList, FiAlertTriangle, FiRefreshCw } from "react-icons/fi";
+import { FiX, FiCheckCircle, FiCheck, FiEdit2, FiArrowLeft, FiUnlock, FiInfo, FiMaximize2, FiSave, FiWifiOff, FiList, FiAlertTriangle, FiRefreshCw, FiCopy } from "react-icons/fi";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, deleteModularFromOutbox, saveSchoolToCache, getCachedSchool, getModularOutbox, migrateUnitDrafts } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,6 +12,8 @@ import useReadOnly from "../../hooks/useReadOnly";
 import { normalizeOffering } from "../../utils/dataNormalization";
 import { resolveDocUrl } from "../../utils/assetHelper";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
 
 const TOTAL_STEPS = 7;
 
@@ -119,6 +121,62 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     });
 
     const [originalSchoolLocation, setOriginalSchoolLocation] = useState(null);
+
+    // ── SY 25-26 View & Copy States ──────────────────────────────────────────
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit1", user, targetSchoolId || user?.school_id || localStorage.getItem("schoolId"));
+
+    const copyUnit1 = (d) => {
+        setFormData(prev => ({
+            ...prev,
+            school_name: d.school_name || prev.school_name,
+            region: d.region || prev.region,
+            province: d.province || prev.province,
+            municipality: d.municipality || prev.municipality,
+            barangay: d.barangay || prev.barangay,
+            division: d.division || prev.division,
+            district: d.district || prev.district,
+            leg_district: d.leg_district || prev.leg_district,
+            curricular_offering: d.curricular_offering || prev.curricular_offering,
+            latitude: d.latitude || prev.latitude,
+            longitude: d.longitude || prev.longitude,
+            iern: d.iern || prev.iern,
+            school_head: d.school_head || prev.school_head,
+            contact_number: d.contact_number || prev.contact_number,
+            ownership: d.ownership || prev.ownership,
+            ownership_multiple: d.ownership_multiple || prev.ownership_multiple,
+            google_drive_link: d.google_drive_link || prev.google_drive_link,
+            google_drive_file_id: d.google_drive_file_id || prev.google_drive_file_id,
+            google_drive_file_name: d.google_drive_file_name || prev.google_drive_file_name,
+            google_drive_thumbnail_url: d.google_drive_thumbnail_url || prev.google_drive_thumbnail_url,
+            established_month: d.established_month || prev.established_month,
+            established_year: d.established_year || prev.established_year,
+            school_type: d.school_type || prev.school_type,
+            mother_school_id: d.mother_school_id || prev.mother_school_id,
+            ownership_na_reason: d.ownership_na_reason || prev.ownership_na_reason,
+            annex_details: d.annex_details || prev.annex_details,
+            extension_mother_school_name: d.extension_mother_school_name || prev.extension_mother_school_name,
+            ownership_document_type: d.ownership_document_type || prev.ownership_document_type,
+            ownership_document_multiple: d.ownership_document_multiple || prev.ownership_document_multiple,
+            head_first_name: d.head_first_name || prev.head_first_name,
+            head_middle_name: d.head_middle_name || prev.head_middle_name,
+            head_last_name: d.head_last_name || prev.head_last_name,
+            head_sex: d.head_sex || prev.head_sex,
+            head_position_title: d.head_position_title || prev.head_position_title,
+            head_date_hired: d.head_date_hired || prev.head_date_hired,
+            local_file_path: d.local_file_path || prev.local_file_path,
+            local_file_name: d.local_file_name || prev.local_file_name,
+            local_file_size: d.local_file_size || prev.local_file_size,
+            ownership_doc_id: d.ownership_doc_id || prev.ownership_doc_id,
+            ownership_document_path: d.ownership_document_path || prev.ownership_document_path,
+        }));
+    };
 
     // ── School ID Unlock Safeguard ───────────────────────────────────────────
     const [isSchoolIdLocked, setIsSchoolIdLocked] = useState(true);
@@ -1003,6 +1061,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             // Prepare JSON payload (no more files - using Google Drive links)
             dataToSend = {
+                school_yr: "SY 26-27",
                 school_id: formData.school_id,
                 school_name: formData.school_name,
                 region: formData.region,
@@ -1265,27 +1324,45 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 `
             }} />
             
-            <header className="px-6 py-5 flex items-center justify-between">
+            <header className="px-6 py-5 flex items-center justify-between border-b border-gray-100/50 bg-white/80 backdrop-blur-xl sticky top-0 z-50">
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => isReviewMode ? navigate("/modular-dashboard") : handleBack()} 
-                        className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors"
+                        className="p-2 -ml-2 text-gray-400 hover:text-indigo-600 transition-colors"
                     >
                         <FiArrowLeft className="w-6 h-6" />
                     </button>
-                    {isReviewMode && (
-                        <div className="flex flex-col ml-2">
-                            <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">Reviewing</span>
-                            <span className="text-sm font-black text-slate-800 leading-tight">School Identity</span>
-                        </div>
-                    )}
+                    <div className="flex flex-col ml-2">
+                        <span className="text-[10px] font-black tracking-widest text-indigo-400 uppercase leading-none">
+                            {isReviewMode ? "Reviewing" : "Module 1"}
+                        </span>
+                        <span className="text-sm font-black text-slate-800 leading-tight">
+                            School Identity
+                        </span>
+                    </div>
                 </div>
                 {!isReadOnly && (
-                    <div className="flex-1 max-w-[120px] mx-4 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <motion.div className="h-full bg-blue-600 rounded-full" initial={{ width: 0 }} animate={{ width: `${progressPercentage}%` }} transition={{ duration: 0.8, ease: "circOut" }} />
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleOpenHistoryModal}
+                            title="View / Copy previous SY data"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                        >
+                            <FiCopy className="w-4 h-4" />
+                        </button>
+                        <div className="w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <motion.div 
+                                className="h-full bg-blue-600 rounded-full" 
+                                initial={{ width: 0 }} 
+                                animate={{ width: `${progressPercentage}%` }} 
+                                transition={{ duration: 0.8, ease: "circOut" }} 
+                            />
+                        </div>
+                        <span className="text-xs font-black tracking-widest text-gray-300 uppercase">
+                            Step {currentStep + 1}/{TOTAL_STEPS}
+                        </span>
                     </div>
                 )}
-                {!isReadOnly && <span className="text-xs font-black tracking-widest text-gray-300 uppercase">Step {currentStep + 1}/{TOTAL_STEPS}</span>}
             </header>
 
             {/* Welcome Back Toast */}
@@ -2741,6 +2818,15 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit1"
+                onCopy={() => handleCopyHistoricalData(copyUnit1)}
+            />
+
             {/* Identity Shift Confirmation Modal */}
             <AnimatePresence>
                 {showShiftModal && (

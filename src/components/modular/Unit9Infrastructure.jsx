@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
     FiX, FiCheckCircle, FiChevronRight, FiChevronLeft, FiCheck, FiArrowLeft, 
-    FiSave, FiAlertTriangle, FiZap, FiShield, FiCamera, FiBox, FiPhone, FiInfo, FiTrash2, FiPlus, FiMinus, FiUnlock
+    FiSave, FiAlertTriangle, FiZap, FiShield, FiCamera, FiBox, FiPhone, FiInfo, FiTrash2, FiPlus, FiMinus, FiUnlock, FiCopy
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
@@ -11,6 +11,8 @@ import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { isNetworkError, logSubmissionDiagnostic } from "../../utils/submissionHelper";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
 
 // --- Shared Styles ---
 const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm placeholder:text-gray-300 font-body";
@@ -310,6 +312,19 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
     const [isReadOnly, setIsReadOnly] = useState(propReadOnly);
     const [isReviewMode, setIsReviewMode] = useState(propReadOnly);
     const [hasData, setHasData] = useState(false);
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit9", user, targetSchoolId);
+
+    const copyUnit9 = (d) => {
+        restoreFromPayload(d, generalData.main_power_source);
+    };
 
     // --- Form State ---
 
@@ -642,6 +657,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
         setLoading(true);
         const payload = {
             iern,
+            school_yr: "SY 26-27",
             u9_general: JSON.stringify(generalData),
             u9_wiring: JSON.stringify(fixedWiringData),
             u9_cords_cctv: JSON.stringify(applianceCctvData),
@@ -850,7 +866,14 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                                 </p>
                                 <h1 className="text-sm font-black text-slate-800">Infrastructure & Safety</h1>
                             </div>
-                            <div className="w-6" />
+                            <button
+                                type="button"
+                                onClick={handleOpenHistoryModal}
+                                title="View / Copy previous SY data"
+                                className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                            >
+                                <FiCopy className="w-4 h-4" />
+                            </button>
                         </>
                     )}
                 </div>
@@ -1294,6 +1317,14 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit9"
+                onCopy={() => handleCopyHistoricalData(copyUnit9)}
+            />
         </div>
     );
 }

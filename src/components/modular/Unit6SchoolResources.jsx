@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiCheckCircle, FiChevronRight, FiCheck, FiArrowLeft, FiTrash2, FiPlus, FiUnlock, FiMonitor, FiDroplet, FiSave, FiAlertTriangle, FiAlertCircle, FiWifiOff } from "react-icons/fi";
+import { FiX, FiCheckCircle, FiChevronRight, FiCheck, FiArrowLeft, FiTrash2, FiPlus, FiUnlock, FiMonitor, FiDroplet, FiSave, FiAlertTriangle, FiAlertCircle, FiWifiOff, FiCopy } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
+
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-lg font-semibold text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm placeholder:text-gray-300 font-body";
@@ -174,6 +177,64 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     // Validation Confirmation State
     const [gradeValidationConfirm, setGradeValidationConfirm] = useState("");
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit6", user, targetSchoolId);
+
+    const copyUnit6 = (d) => {
+        if (d.unit7_furniture) {
+            try {
+                const parsed = typeof d.unit7_furniture === 'string' ? JSON.parse(d.unit7_furniture) : d.unit7_furniture;
+                if (parsed.grades) {
+                    setGradesData(prev => prev.map(eg => {
+                        const found = parsed.grades.find(sg => sg.id === eg.id);
+                        if (found) {
+                            const { enrolled, sections, grade_level, ...rest } = found;
+                            return { ...eg, ...rest, isVerified: true };
+                        }
+                        return eg;
+                    }));
+                }
+                if (parsed.general) setGeneralRoomsData(parsed.general);
+            } catch (e) { console.warn("Failed to parse unit7_furniture from historical", e); }
+        }
+
+        if (d.unit7_ict) {
+            try {
+                const parsed = typeof d.unit7_ict === 'string' ? JSON.parse(d.unit7_ict) : d.unit7_ict;
+                setIctData(prev => ({ ...prev, ...parsed }));
+            } catch (e) { console.warn("Failed to parse unit7_ict from historical", e); }
+        }
+
+        if (d.unit7_has_ecart !== undefined) setHasEcart(d.unit7_has_ecart);
+        if (d.unit7_ecarts) {
+            try {
+                const parsed = typeof d.unit7_ecarts === 'string' ? JSON.parse(d.unit7_ecarts) : d.unit7_ecarts;
+                setECarts(parsed);
+            } catch (e) { console.warn("Failed to parse unit7_ecarts from historical", e); }
+        }
+
+        if (d.unit7_wash) {
+            try {
+                const parsed = typeof d.unit7_wash === 'string' ? JSON.parse(d.unit7_wash) : d.unit7_wash;
+                setWashData(prev => ({ ...prev, ...parsed }));
+            } catch (e) { console.warn("Failed to parse unit7_wash from historical", e); }
+        }
+
+        if (d.unit7_utilities) {
+            try {
+                const parsed = typeof d.unit7_utilities === 'string' ? JSON.parse(d.unit7_utilities) : d.unit7_utilities;
+                setUtilitiesData(prev => ({ ...prev, ...parsed }));
+            } catch (e) { console.warn("Failed to parse unit7_utilities from historical", e); }
+        }
+    };
+
 
     // ── Data Fetching ───────────────────────────────────────────────────────────
     useEffect(() => {
@@ -761,6 +822,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         
         try {
             const payload = {
+                school_yr: "SY 26-27",
                 unit7_furniture: JSON.stringify({ grades: gradesData.filter(g => g.isVerified), general: generalRoomsData }),
                 unit7_ict: JSON.stringify(ictData),
                 unit7_has_ecart: hasEcart,
@@ -855,7 +917,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
                     url: api(`/ph_schools/${storedId}`),
                     method: 'PUT',
-                    payload: { ...payload, unit6_completed: true },
+                    payload: { school_yr: "SY 26-27", ...payload, unit6_completed: true },
                     schoolId: storedId
                 });
                 await clearUnitDraft(6, storedId);
@@ -1314,7 +1376,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             {/* Header */}
             {!propReadOnly && (
                 <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3 pb-4">
-                    <div className="max-w-md mx-auto flex items-center gap-3">
+                    <div className="max-w-md mx-auto flex items-center justify-between gap-3">
                         <button onClick={() => {
                             if (currentPhase > 1) {
                                 setCurrentPhase(p => p - 1);
@@ -1331,9 +1393,17 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 transition={{ duration: 0.4 }}
                             />
                         </div>
+                        <button
+                            onClick={handleOpenHistoryModal}
+                            title="View / Copy previous SY data"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100 shrink-0"
+                        >
+                            <FiCopy className="w-4 h-4" />
+                        </button>
                     </div>
                 </header>
             )}
+
 
             {/* Welcome Back Toast */}
             <AnimatePresence>
@@ -2438,9 +2508,18 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit6"
+                onCopy={() => handleCopyHistoricalData(copyUnit6)}
+            />
         </div>
     );
 };
+
 
 export default Unit6SchoolResources;
 

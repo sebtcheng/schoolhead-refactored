@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiCheckCircle, FiEdit2, FiCheck, FiArrowRight, FiArrowLeft, FiChevronLeft, FiPlus, FiTrash2, FiMapPin, FiSave, FiSearch, FiChevronDown, FiUnlock, FiAlertTriangle, FiClock, FiAlertOctagon, FiCloudLightning, FiTrendingUp, FiWifiOff } from "react-icons/fi";
+import { FiX, FiCheckCircle, FiEdit2, FiCheck, FiArrowRight, FiArrowLeft, FiChevronLeft, FiPlus, FiTrash2, FiMapPin, FiSave, FiSearch, FiChevronDown, FiUnlock, FiAlertTriangle, FiClock, FiAlertOctagon, FiCloudLightning, FiTrendingUp, FiWifiOff, FiCopy } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
@@ -10,6 +10,9 @@ import { MapContainer, TileLayer, Marker, Popup, Rectangle, Polygon, useMapEvent
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
+
 // Fix for default marker icon in react-leaflet using unpkg to bypass rollup bundle errors
 const DefaultIcon = L.icon({
     iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -158,6 +161,77 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
 
     // Teacher selection for advisory
     const [teachers, setTeachers] = useState([]);
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit7", user, targetSchoolId);
+
+    const copyUnit7 = (d) => {
+        setHasNoBuilding(d.has_no_building || false);
+
+        if (d.inventory) {
+            const allRooms = [];
+            const normalizedInventory = (d.inventory || []).map((b, idx) => ({
+                ...b,
+                id: b.id || `bldg-${idx}`,
+                classroom: (b.rooms && b.rooms.length > 0) ? b.rooms.length.toString() : (b.classroom || "0"),
+                storey: b.storey || 1
+            }));
+            setBuildings(normalizedInventory);
+            
+            normalizedInventory.forEach(b => {
+                if (b.rooms && Array.isArray(b.rooms)) {
+                    b.rooms.forEach(r => {
+                        allRooms.push({
+                            id: r.id,
+                            building_local_id: b.id,
+                            building_name: b.building_name,
+                            room_name: r.room_name,
+                            grade_level: r.grade_level,
+                            advisory_teacher: r.advisory_teacher,
+                            room_length: r.room_length,
+                            room_width: r.room_width,
+                            dimension: r.dimension || r.dimensions || '',
+                            status: r.status || r.condition || '',
+                            seats: r.seats || '',
+                            is_in_use: r.is_in_use !== false
+                        });
+                    });
+                }
+            });
+            setRoomsData(allRooms);
+        }
+
+        if (d.repairs) {
+            const repairsArray = Array.isArray(d.repairs) ? d.repairs : [];
+            const assessments = repairsArray.map(r => ({
+                id: r.id, 
+                roomId: r.building_name + '-' + (r.room_name || r.room_no || 'Room'),
+                building_name: r.building_name, 
+                room_name: r.room_name || r.room_no,
+                item: r.item_name || 'Repair', 
+                oms: r.oms, 
+                status: r.status || r.condition,
+                condition: r.status || r.condition,
+                damage_ratio: r.damage_ratio, 
+                recommend_action: r.recommended_action,
+                demo_justification: r.demo_justification, 
+                remarks: r.remarks
+            }));
+            setRepairAssessments(assessments);
+            if (assessments.length > 0) setHasRepair(true);
+        }
+
+        if (d.spaces) {
+            setSpaces(d.spaces);
+        }
+    };
+
 
     // Map & Space State
     const [spaces, setSpaces] = useState([]);
@@ -607,6 +681,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
         try {
             setLoading(true);
             const payload = {
+                school_yr: "SY 26-27",
                 ...newSpace,
                 total_area_sqm: totalAreaSqm,
                 iern: schoolData?.iern || null,
@@ -1004,6 +1079,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    school_yr: "SY 26-27",
                     schoolId: schoolId,
                     school_id: schoolId,
                     iern: schoolData?.iern,
@@ -1094,6 +1170,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             }));
 
             const payload = {
+                school_yr: "SY 26-27",
                 schoolId, school_id: schoolId, iern: schoolData?.iern,
                 inventoryEntries: inventoryPayload, rooms: finalRooms, repairEntries: repairPayload,
                 demolitionEntries: demolitionEntries, // Add this line
@@ -1176,6 +1253,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 }));
 
                 const outboxPayload = {
+                    school_yr: "SY 26-27",
                     schoolId, school_id: schoolId, iern: schoolData?.iern,
                     inventoryEntries: buildings, rooms: finalRooms, repairEntries: repairPayload,
                     build_classrooms_total: roomsData.length,
@@ -1725,12 +1803,22 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                             <h1 className="text-sm font-black text-gray-800 uppercase tracking-tight">Physical Facilities</h1>
                         </div>
                         {(!isReadOnly) ? (
-                            <div className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md uppercase tracking-widest">
-                                Step {currentPage}/6
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleOpenHistoryModal}
+                                    title="View / Copy previous SY data"
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                                >
+                                    <FiCopy className="w-4 h-4" />
+                                </button>
+                                <div className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded-md uppercase tracking-widest">
+                                    Step {currentPage}/6
+                                </div>
                             </div>
                         ) : (
                             <div className="w-10"></div>
                         )}
+
                     </div>
                     {/* Visual Progress Bar (Only in Wizard) */}
                     {!isReadOnly && (
@@ -3250,6 +3338,15 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit7"
+                onCopy={() => handleCopyHistoricalData(copyUnit7)}
+            />
         </div>
     );
 }
+

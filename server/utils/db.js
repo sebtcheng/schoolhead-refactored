@@ -143,27 +143,41 @@ export async function cachedQuery(key, fn) {
 }
 
 // Sync completion percentage
-export async function updateSchoolTotalCompletion(iern) {
+export async function updateSchoolTotalCompletion(iern, schoolYr = 'SY 26-27') {
   if (!iern) return;
   try {
     const res = await safeQuery(
-      `SELECT ps.school_id, ps.unit5, ps.unit6, ps.unit7, ps.unit8, ps.unit9,
-              ps.unit5_completed, ps.unit6_completed, ps.unit7_completed, ps.unit8_completed, ps.unit9_completed,
+      `SELECT ps.school_id,
               COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
               CASE WHEN u1.unit1_completed = TRUE THEN 1.00 ELSE COALESCE(u1.unit1, 0)::numeric / 100.00 END AS unit1,
               COALESCE(u2.unit2_completed = 100.00, FALSE) AS unit2_completed,
-              CASE WHEN u2.unit2 = TRUE THEN 1.00 ELSE 0.00 END AS unit2,
+              CASE WHEN COALESCE(u2.unit2_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit2,
               COALESCE(u3.unit3_completed = 100.00, FALSE) AS unit3_completed,
-              CASE WHEN u3.unit3 = TRUE THEN 1.00 ELSE 0.00 END AS unit3,
+              CASE WHEN COALESCE(u3.unit3_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit3,
               COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
-              CASE WHEN u4.unit4 = TRUE THEN 1.00 ELSE 0.00 END AS unit4
+              CASE WHEN COALESCE(u4.unit4_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit4,
+              COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
+              CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u5.unit5, 0)::numeric / 100.00 END AS unit5,
+              COALESCE(u6.unit6_completed, FALSE) AS unit6_completed,
+              CASE WHEN COALESCE(u6.unit6_completed, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit6,
+              COALESCE(u7.unit7_completed, FALSE) AS unit7_completed,
+              CASE WHEN COALESCE(u7.unit7_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u7.unit7, 0)::numeric / 100.00 END AS unit7,
+              COALESCE(u8.unit8_completed, FALSE) AS unit8_completed,
+              CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u8.unit8, 0)::numeric / 100.00 END AS unit8,
+              COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
+              CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u9.unit9, 0)::numeric / 100.00 END AS unit9
        FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
-       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
-       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern
-       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
+       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
+       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
+       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
+       LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
+       LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
+       LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
+       LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
        WHERE ps.iern = $1`,
-      [iern]
+      [iern, schoolYr]
     );
     if (res.rows.length === 0) return;
 

@@ -83,6 +83,21 @@ app.use(cors({
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
+// --- GLOBAL SCHOOL YEAR LOCK GUARD ---
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const targetSchoolYr = req.body.school_yr || req.query.school_yr || req.headers['x-school-year'];
+    if (targetSchoolYr === 'SY 25-26') {
+      console.warn(`⚠️ [Lock-Guard] Blocked ${req.method} request targeting read-only SY 25-26: ${req.path}`);
+      return res.status(403).json({
+        success: false,
+        error: 'LOCKED_SCHOOL_YEAR: Modifying historical data for SY 25-26 is prohibited.'
+      });
+    }
+  }
+  next();
+});
+
 app.get('/', (req, res) => {
   res.status(200).send(`
     <div style="font-family: sans-serif; text-align: center; padding: 50px;">

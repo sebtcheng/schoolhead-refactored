@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiArrowLeft, FiCheckCircle, FiEdit2, FiCheck, FiClock, FiAlertTriangle, FiMonitor, FiRadio, FiBook, FiLayers, FiUnlock, FiSave, FiWifiOff } from "react-icons/fi";
+import { FiX, FiArrowLeft, FiCheckCircle, FiEdit2, FiCheck, FiClock, FiAlertTriangle, FiMonitor, FiRadio, FiBook, FiLayers, FiUnlock, FiSave, FiWifiOff, FiCopy } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
+
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const TOTAL_CHAPTERS = 4; // 1: Gatekeeper, 2: Grade Loop, 3: ADM, 4: Review
@@ -96,6 +99,33 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
     // ── Navigation ──────────────────────────────────────────────────────────
     // Added specific local state properly decoupled from the memoized Curriculum list
     const [filteredGrades, setFilteredGrades] = useState([]);
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit5", user, targetSchoolId);
+
+    const copyUnit5 = (d) => {
+        setHasStandardShifting(d.has_standard_shifting);
+        const prefillMap = {};
+        filteredGrades.forEach(g => {
+            prefillMap[`shift_${g.key}`] = d[`shift_${g.key}`] || "";
+            prefillMap[`mode_${g.key}`] = d[`mode_${g.key}`] || "";
+        });
+        setMapData(prefillMap);
+        setHasAdms(!!d.has_adms);
+        setAdmData({
+            adm_mdl: !!d.adm_mdl, 
+            adm_odl: !!d.adm_odl, 
+            adm_tvi: !!d.adm_tvi, 
+            adm_blended: !!d.adm_blended
+        });
+    };
+
 
     // ── Data fetch on mount ─────────────────────────────────────────────────
     useEffect(() => {
@@ -415,6 +445,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
             const finalAdm = hasAdms ? admData : { adm_mdl: false, adm_odl: false, adm_tvi: false, adm_blended: false };
 
             const payload = {
+                school_yr: "SY 26-27",
                 iern,
                 has_standard_shifting: hasStandardShifting,
                 ...mapData,
@@ -491,7 +522,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                     label: "Unit 5: Shifting & Modality",
                     url: api(`/ph_schools/unit5/${schoolId}`),
                     method: 'PUT',
-                    payload: { iern, has_standard_shifting: hasStandardShifting, ...mapData, ...finalAdm, mapData, admData: finalAdm, has_adms: hasAdms },
+                    payload: { school_yr: "SY 26-27", iern, has_standard_shifting: hasStandardShifting, ...mapData, ...finalAdm, mapData, admData: finalAdm, has_adms: hasAdms },
                     schoolId: schoolId
                 });
                 await clearUnitDraft(5, schoolId);
@@ -800,16 +831,24 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
             }} />
             {!propReadOnly && (
                 <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-4 py-3">
-                    <div className="max-w-md mx-auto flex items-center gap-3">
+                    <div className="max-w-md mx-auto flex items-center justify-between gap-3">
                         <button onClick={handleBack} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
                             <FiArrowLeft className="w-6 h-6 text-gray-400 hover:text-gray-600" />
                         </button>
                         <div className="mx-4 h-4 bg-gray-200 rounded-full overflow-hidden flex-1">
                             <motion.div className="h-full bg-indigo-500 rounded-full" animate={{ width: `${progressPercentage}%` }} transition={{ duration: 0.4 }} />
                         </div>
+                        <button
+                            onClick={handleOpenHistoryModal}
+                            title="View / Copy previous SY data"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100 shrink-0"
+                        >
+                            <FiCopy className="w-4 h-4" />
+                        </button>
                     </div>
                 </header>
             )}
+
 
             {/* Welcome Back Toast */}
             <AnimatePresence>
@@ -1144,8 +1183,17 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit5"
+                onCopy={() => handleCopyHistoricalData(copyUnit5)}
+            />
         </div>
     );
 };
+
 
 export default Unit5ShiftingModality;

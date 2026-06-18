@@ -14,9 +14,10 @@ const router = express.Router();
 router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolYr = req.query.school_yr || 'SY 26-27';
 
     // Fetch Inventory grouped by building_name
-    const invRes = await safeQuery('SELECT * FROM unit7_buildings_inventory WHERE school_id = $1', [id]);
+    const invRes = await safeQuery('SELECT * FROM unit7_buildings_inventory WHERE school_id = $1 AND school_yr = $2', [id, schoolYr]);
 
     const buildingsMap = {};
     invRes.rows.forEach(room => {
@@ -57,15 +58,16 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
           SELECT DISTINCT ON (school_id, building_name, room_name) 
                  school_id, building_name, room_name, less_than_7x9, "7x9", above_7x9
           FROM unit7_buildings_inventory
+          WHERE school_yr = $2
           ORDER BY school_id, building_name, room_name, id DESC
       ) i ON r.school_id = i.school_id 
         AND r.building_name = i.building_name 
         AND r.room_name = i.room_name
-      WHERE r.school_id = $1
-    `, [id]);
+      WHERE r.school_id = $1 AND r.school_yr = $2
+    `, [id, schoolYr]);
 
     // Fetch unit7_facilities summary (completion status + counters)
-    const facilitiesRes = await safeQuery('SELECT * FROM unit7_facilities WHERE school_id = $1', [id]);
+    const facilitiesRes = await safeQuery('SELECT * FROM unit7_facilities WHERE school_id = $1 AND school_yr = $2', [id, schoolYr]);
     const facilities = facilitiesRes.rows[0] || null;
 
     res.json({
@@ -88,9 +90,10 @@ router.get('/api/ph_schools/unit7/:id/master', async (req, res) => {
 router.get('/api/ph_schools/unit7/:id/facilities', async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolYr = req.query.school_yr || 'SY 26-27';
     const result = await safeQuery(
-      'SELECT * FROM unit7_facilities WHERE school_id = $1',
-      [id]
+      'SELECT * FROM unit7_facilities WHERE school_id = $1 AND school_yr = $2',
+      [id, schoolYr]
     );
     res.json({
       success: true,
@@ -106,7 +109,8 @@ router.get('/api/ph_schools/unit7/:id/facilities', async (req, res) => {
 router.get('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await safeQuery('SELECT * FROM unit7_school_buildable_spaces WHERE school_id = $1', [id]);
+    const schoolYr = req.query.school_yr || 'SY 26-27';
+    const result = await safeQuery('SELECT * FROM unit7_school_buildable_spaces WHERE school_id = $1 AND school_yr = $2', [id, schoolYr]);
     res.json({
       success: true,
       spaces: result.rows
@@ -121,14 +125,15 @@ router.post('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, iern } = req.body;
+    const { space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, iern, school_yr } = req.body;
+    const schoolYr = school_yr || 'SY 26-27';
 
     await client.query('BEGIN');
     const result = await client.query(
       `INSERT INTO unit7_school_buildable_spaces (
-        school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      ON CONFLICT (iern, space_name) DO UPDATE SET
+        school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, school_yr
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (iern, space_name, school_yr) DO UPDATE SET
         center_lat = EXCLUDED.center_lat,
         center_lng = EXCLUDED.center_lng,
         length_m = EXCLUDED.length_m,
@@ -136,7 +141,7 @@ router.post('/api/ph_schools/unit7/:id/spaces', async (req, res) => {
         rotation_deg = EXCLUDED.rotation_deg,
         total_area_sqm = EXCLUDED.total_area_sqm
       RETURNING id`,
-      [id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm]
+      [id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, schoolYr]
     );
     await client.query('COMMIT');
     res.json({ success: true, id: result.rows[0].id });
@@ -191,9 +196,10 @@ router.post('/api/save-physical-facilities', async (req, res) => {
       school_id: sid_snake, schoolId: sid_camel, iern, inventoryEntries, rooms, repairEntries, demolitionEntries,
       build_classrooms_total, build_classrooms_new, build_classrooms_good,
       build_classrooms_repair, build_classrooms_demolition, spaces, has_no_building,
-      u7_confirm_no_space
+      u7_confirm_no_space, school_yr
     } = req.body;
     const school_id = sid_snake || sid_camel;
+    const schoolYr = school_yr || 'SY 26-27';
 
     console.log(`🏗️ [Unit 7 Master] Processing payload for school ${school_id}...`);
 
@@ -220,12 +226,12 @@ router.post('/api/save-physical-facilities', async (req, res) => {
     );
 
     // ── Clear NEW unit7_ tables ───────────────────────────────────────────────
-    console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id} (IERN: ${iern})...`);
-    const clearQuery = (table) => `DELETE FROM ${table} WHERE school_id = $1 OR iern = $2`;
-    await client.query(clearQuery('unit7_buildings_inventory'), [school_id, iern]);
-    await client.query(clearQuery('unit7_buildings_repairs'), [school_id, iern]);
-    await client.query(clearQuery('unit7_buildings_demolition'), [school_id, iern]);
-    await client.query(clearQuery('unit7_school_buildable_spaces'), [school_id, iern]);
+    console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id} (IERN: ${iern}, school_yr: ${schoolYr})...`);
+    const clearQuery = (table) => `DELETE FROM ${table} WHERE (school_id = $1 OR iern = $2) AND school_yr = $3`;
+    await client.query(clearQuery('unit7_buildings_inventory'), [school_id, iern, schoolYr]);
+    await client.query(clearQuery('unit7_buildings_repairs'), [school_id, iern, schoolYr]);
+    await client.query(clearQuery('unit7_buildings_demolition'), [school_id, iern, schoolYr]);
+    await client.query(clearQuery('unit7_school_buildable_spaces'), [school_id, iern, schoolYr]);
 
     // ── Insert into unit7_buildings_inventory ─────────────────────────────────
     if (Array.isArray(rooms) && rooms.length > 0) {
@@ -240,8 +246,8 @@ router.post('/api/save-physical-facilities', async (req, res) => {
             `INSERT INTO unit7_buildings_inventory (
               school_id, iern, building_name, room_name, category, storey, classroom,
               year_completed, remarks, status, is_in_use, seats, grade_level,
-              less_than_7x9, "7x9", above_7x9, dimension
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+              less_than_7x9, "7x9", above_7x9, dimension, school_yr
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
             [
               school_id, iern, room.building_name, room.room_name, b.category,
               isNaN(storeyVal) ? 1 : storeyVal,
@@ -252,7 +258,8 @@ router.post('/api/save-physical-facilities', async (req, res) => {
               (room.less_than_7x9 === 1 || (room.dimension || '').toLowerCase() === 'less than 7x9' ? 1 : 0),
               (room["7x9"] === 1 || (room.dimension || '').toLowerCase() === '7x9' ? 1 : 0),
               (room.above_7x9 === 1 || (room.dimension || '').toLowerCase() === 'above 7x9' ? 1 : 0),
-              room.dimension
+              room.dimension,
+              schoolYr
             ]
           );
         } catch (roomErr) {
@@ -271,12 +278,12 @@ router.post('/api/save-physical-facilities', async (req, res) => {
           await client.query(
             `INSERT INTO unit7_buildings_repairs (
               school_id, iern, building_name, room_name, item_name, oms,
-              condition, damage_ratio, recommended_action, demo_justification, remarks
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              condition, damage_ratio, recommended_action, demo_justification, remarks, school_yr
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
               school_id, iern, rep.building_no, rep.room_no, rep.item_name, rep.oms,
               rep.condition, isNaN(damageVal) ? 0 : damageVal, rep.recommended_action,
-              rep.demo_justification, rep.remarks
+              rep.demo_justification, rep.remarks, schoolYr
             ]
           );
         } catch (repErr) {
@@ -294,8 +301,8 @@ router.post('/api/save-physical-facilities', async (req, res) => {
           await client.query(
             `INSERT INTO unit7_buildings_demolition (
               school_id, iern, building_name, room_name, age, safety, calamity, upgrade,
-              less_than_7x9, "7x9", above_7x9
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              less_than_7x9, "7x9", above_7x9, school_yr
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
               school_id, iern, demo.building_name, demo.room_name,
               demo.age === true || demo.age === 'true',
@@ -304,7 +311,8 @@ router.post('/api/save-physical-facilities', async (req, res) => {
               demo.upgrade === true || demo.upgrade === 'true',
               parseInt(demo.less_than_7x9) || 0,
               parseInt(demo["7x9"]) || 0,
-              parseInt(demo.above_7x9) || 0
+              parseInt(demo.above_7x9) || 0,
+              schoolYr
             ]
           );
         } catch (demoErr) {
@@ -328,14 +336,15 @@ router.post('/api/save-physical-facilities', async (req, res) => {
 
           await client.query(
             `INSERT INTO unit7_school_buildable_spaces (
-              school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ON CONFLICT (iern, space_name) DO NOTHING`,
+              school_id, iern, space_name, center_lat, center_lng, length_m, width_m, rotation_deg, total_area_sqm, school_yr
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (iern, space_name, school_yr) DO NOTHING`,
             [
               school_id, iern, s.space_name,
               isNaN(lat) ? 0 : lat, isNaN(lng) ? 0 : lng,
               isNaN(len) ? 0 : len, isNaN(wid) ? 0 : wid,
-              isNaN(rot) ? 0 : rot, isNaN(area) ? 0 : area
+              isNaN(rot) ? 0 : rot, isNaN(area) ? 0 : area,
+              schoolYr
             ]
           );
         } catch (spaceErr) {
@@ -361,14 +370,14 @@ router.post('/api/save-physical-facilities', async (req, res) => {
 
     await client.query(`
       INSERT INTO unit7_facilities (
-        iern, school_id,
+        iern, school_id, school_yr,
         unit7, unit7_completed, unit7_updated_at,
         unit7_no_buildings, unit7_no_rooms,
         unit7_has_buildable_space, unit7_no_buildable_space,
         unit7_no_repair_rooms, unit7_no_demolition,
         updated_at
-      ) VALUES ($1, $2, 100, TRUE, CURRENT_TIMESTAMP, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-      ON CONFLICT (iern) DO UPDATE SET
+      ) VALUES ($1, $2, $3, 100, TRUE, CURRENT_TIMESTAMP, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+      ON CONFLICT (iern, school_yr) DO UPDATE SET
         school_id = EXCLUDED.school_id,
         unit7 = 100,
         unit7_completed = TRUE,
@@ -380,11 +389,11 @@ router.post('/api/save-physical-facilities', async (req, res) => {
         unit7_no_repair_rooms = EXCLUDED.unit7_no_repair_rooms,
         unit7_no_demolition = EXCLUDED.unit7_no_demolition,
         updated_at = CURRENT_TIMESTAMP
-    `, [iern, school_id, noBuildings, noRooms, hasSpace, noSpaces, noRepairs, noDemolitions]);
+    `, [iern, school_id, schoolYr, noBuildings, noRooms, hasSpace, noSpaces, noRepairs, noDemolitions]);
 
     await client.query('COMMIT');
     console.log(`✅ [Unit 7 Master] School ${school_id} finalized and normalized successfully.`);
-    await updateSchoolTotalCompletion(iern).catch(() => { });
+    await updateSchoolTotalCompletion(iern, schoolYr).catch(() => { });
     res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');

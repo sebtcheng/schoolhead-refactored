@@ -6,7 +6,7 @@ const prodConnectionString = 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posg
 
 async function main() {
   const isProd = process.argv[2] === 'prod';
-  
+
   let pool;
   if (isProd) {
     console.log("⚠️ RUNNING IN PRODUCTION MODE (insightEd database)");

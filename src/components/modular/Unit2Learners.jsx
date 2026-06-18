@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowRight, FiCheckCircle, FiChevronLeft, FiAlertTriangle, FiUnlock, FiSave, FiArrowLeft, FiCheck, FiWifiOff, FiEdit2 } from 'react-icons/fi';
+import { FiArrowRight, FiCheckCircle, FiChevronLeft, FiAlertTriangle, FiUnlock, FiSave, FiArrowLeft, FiCheck, FiWifiOff, FiEdit2, FiCopy } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import SuccessModal from '../SuccessModal';
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from '../../db';
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
 
 // --- Shared Styles ---
 const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-2xl font-black text-gray-800 focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] transition-all shadow-sm text-center font-body";
@@ -41,10 +43,18 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [showSuccess, setShowSuccess] = useState(false);
     const [isReadOnly, setIsReadOnly] = useState(propReadOnly || false);
     const [hasSubmitted, setHasSubmitted] = useState(false);
-    const [pendingOutboxId, setPendingOutboxId] = useState(null); 
+    const [pendingOutboxId, setPendingOutboxId] = useState(null);
     const [showOfflineSuccess, setShowOfflineSuccess] = useState(false);
-
     const { user, authLoading } = useAuth();
+    // VIEW previous year data states
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit2", user, targetSchoolId || user?.school_id || localStorage.getItem('schoolId'));
     const [isReviewMode, setIsReviewMode] = useState(false); 
     const [showWelcomeBack, setShowWelcomeBack] = useState(false);
     const [showDraftModal, setShowDraftModal] = useState(false);
@@ -931,6 +941,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     url: api(`/ph_schools/unit2/${storedId}`),
                     method: 'PUT',
                     payload: { 
+                        school_yr: "SY 26-27",
                         iern,
                         unit2_simplified_enrollment: payload,
                     has_sned: hasSNED,
@@ -965,6 +976,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
+                    school_yr: "SY 26-27",
                     iern,
                     unit2_simplified_enrollment: payload,
                     has_sned: hasSNED,
@@ -1020,7 +1032,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     label: "Unit 2: Learner Profile",
                     url: api(`/ph_schools/unit2/${storedId}`),
                     method: 'PUT',
-                    payload: { iern, unit2_simplified_enrollment: payload, has_sned: hasSNED, sned_total_count: parseInt(snedSelfContainedCount) || 0, sned_program_type: snedProgramType, sned_organized_class_count: parseInt(snedOrganizedClassCount) || 0, multigrade_groupings_1: mg_1, multigrade_groupings_2: mg_2, multigrade_groupings_3: mg_3, multigrade_enrollment_1: mg_1_enrollment, multigrade_enrollment_2: mg_2_enrollment, multigrade_enrollment_3: mg_3_enrollment, gradeGenderMap },
+                    payload: { school_yr: "SY 26-27", iern, unit2_simplified_enrollment: payload, has_sned: hasSNED, sned_total_count: parseInt(snedSelfContainedCount) || 0, sned_program_type: snedProgramType, sned_organized_class_count: parseInt(snedOrganizedClassCount) || 0, multigrade_groupings_1: mg_1, multigrade_groupings_2: mg_2, multigrade_groupings_3: mg_3, multigrade_enrollment_1: mg_1_enrollment, multigrade_enrollment_2: mg_2_enrollment, multigrade_enrollment_3: mg_3_enrollment, gradeGenderMap },
                     schoolId: storedId
                 });
                 await clearUnitDraft(2, storedId);
@@ -1452,6 +1464,90 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         return true;
     })();
 
+    // --- VIEW Previous Year Data Handlers ---
+    const copyUnit2 = (d) => {
+        // Kinder
+        setKinderEnrollment((d.enroll_kinder || 0).toString());
+        // Grade totals
+        const gTotals = {};
+        for (let g = 1; g <= 12; g++) {
+            gTotals[`g${g}`] = (d[`enroll_g${g}`] || 0).toString();
+        }
+        setGradeTotals(gTotals);
+        // Gender map
+        const gGenderMap = {};
+        gGenderMap['kinder'] = {
+            male: (d.kinder_male || 0).toString(),
+            female: (d.kinder_female || 0).toString()
+        };
+        for (let g = 1; g <= 12; g++) {
+            gGenderMap[`g${g}`] = {
+                male: (d[`g${g}_male`] || 0).toString(),
+                female: (d[`g${g}_female`] || 0).toString()
+            };
+        }
+        gGenderMap['sned_self_contained'] = {
+            male: (d.self_sned_male || 0).toString(),
+            female: (d.self_sned_female || 0).toString()
+        };
+        gGenderMap['sned_mainstreamed'] = {
+            male: (d.main_sned_male || 0).toString(),
+            female: (d.main_sned_female || 0).toString()
+        };
+        setGradeGenderMap(gGenderMap);
+        // SNED
+        const hasSnedVal = (d.main_sned > 0 || d.self_sned > 0 || d.self_sned_org_class > 0);
+        setHasSNED(hasSnedVal);
+        setSnedMainstreamedCount((d.main_sned || 0).toString());
+        setSnedSelfContainedCount((d.self_sned || 0).toString());
+        let snedType = null;
+        if (d.main_sned > 0 && d.self_sned > 0) snedType = 'Both';
+        else if (d.main_sned > 0) snedType = 'Mainstreamed';
+        else if (d.self_sned > 0) snedType = 'Self-Contained';
+        setSnedProgramType(snedType);
+        setSnedOrganizedClassCount((d.self_sned_org_class || 0).toString());
+        // Multigrade
+        const parseMgString = (str) => {
+            if (!str) return [];
+            const matches = str.match(/\d+/g);
+            if (!matches) return [];
+            return matches.map(num => `g${num}`);
+        };
+        const mgCombs = [];
+        if (d.multigrade_groupings_1) {
+            mgCombs.push({ id: 'mg-comb-0', grades: parseMgString(d.multigrade_groupings_1), enrollment: d.multigrade_enrollment_1 || 0 });
+        }
+        if (d.multigrade_groupings_2) {
+            mgCombs.push({ id: 'mg-comb-1', grades: parseMgString(d.multigrade_groupings_2), enrollment: d.multigrade_enrollment_2 || 0 });
+        }
+        if (d.multigrade_groupings_3) {
+            mgCombs.push({ id: 'mg-comb-2', grades: parseMgString(d.multigrade_groupings_3), enrollment: d.multigrade_enrollment_3 || 0 });
+        }
+        setMgCombinations(mgCombs);
+        // Org type
+        let orgT = 'nano';
+        if (mgCombs.length > 0) {
+            const locked = new Set();
+            mgCombs.forEach(c => c.grades.forEach(g => locked.add(g)));
+            if (locked.size >= 6) orgT = 'pure_mg';
+            else orgT = 'mixed';
+        }
+        setOrgType(orgT);
+        // ARAL
+        setHasAralMath(!!d.has_aral_math);
+        const aMath = {};
+        for (let g = 1; g <= 6; g++) { aMath[`g${g}`] = (d[`aral_math_learners_g${g}`] || 0).toString(); }
+        setAralMath(aMath);
+        setHasAralReading(!!d.has_aral_reading);
+        const aReading = {};
+        for (let g = 1; g <= 6; g++) { aReading[`g${g}`] = (d[`aral_reading_learners_g${g}`] || 0).toString(); }
+        setAralReading(aReading);
+        setHasAralScience(!!d.has_aral_science);
+        const aScience = {};
+        for (let g = 1; g <= 6; g++) { aScience[`g${g}`] = (d[`aral_science_learners_g${g}`] || 0).toString(); }
+        setAralScience(aScience);
+    };
+
     return (
         <div className={`min-h-screen unit1-page relative pb-32`}>
             <style dangerouslySetInnerHTML={{
@@ -1533,6 +1629,13 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 </div>
                 {!effectiveReadOnly && (
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleOpenHistoryModal}
+                            title="View / Copy previous SY data"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                        >
+                            <FiCopy className="w-4 h-4" />
+                        </button>
                         <div className="w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
                             <motion.div 
                                 className="h-full bg-blue-600 rounded-full" 
@@ -1579,14 +1682,16 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     {/* STEP 1: Kindergarten (Mandatory Standalone) */}
                     {(currentStep === 1 && hasKinder) && (
                         <motion.div key="kinder" variants={pageVariants} initial="initial" animate="in" exit="out" transition={{ duration: 0.3 }}>
-                            <div className="text-center mb-10">
-                                <span className="inline-block px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-black uppercase tracking-[0.2em] mb-4 shadow-sm">
-                                    Step 1 • Early Childhood
-                                </span>
-                                <h1 className="text-4xl font-black text-slate-800 mb-2 leading-tight">
-                                    Kindergarten Enrollment
-                                </h1>
-                                <p className="text-slate-500 font-medium italic">"Every child's journey starts here."</p>
+                            <div className="relative mb-10">
+                                <div className="text-center">
+                                    <span className="inline-block px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-black uppercase tracking-[0.2em] mb-4 shadow-sm">
+                                        Step 1 • Early Childhood
+                                    </span>
+                                    <h1 className="text-4xl font-black text-slate-800 mb-2 leading-tight">
+                                        Kindergarten Enrollment
+                                    </h1>
+                                    <p className="text-slate-500 font-medium italic">"Every child's journey starts here."</p>
+                                </div>
                             </div>
 
                             {(() => {
@@ -2694,6 +2799,14 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 </div>
             )}
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit2"
+                onCopy={() => handleCopyHistoricalData(copyUnit2)}
+            />
         </div>
     );
 };

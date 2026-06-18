@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiCheckCircle, FiEdit2, FiUsers, FiChevronRight, FiChevronLeft, FiAlertTriangle, FiCheck, FiActivity, FiUnlock, FiSave, FiArrowLeft, FiWifiOff } from "react-icons/fi";
+import { FiX, FiCheckCircle, FiEdit2, FiUsers, FiChevronRight, FiChevronLeft, FiAlertTriangle, FiCheck, FiActivity, FiUnlock, FiSave, FiArrowLeft, FiWifiOff, FiCopy } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
+
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const TOTAL_CHAPTERS = 5; // 1: Gatekeeper, 2: Demo Loop, 3: Move Loop, 4: Health Check, 5: Review & Submit
@@ -106,6 +109,74 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     // ── Chapter 5 State (Review & Submit) ─────────────────────────────────
     const [isVerified, setIsVerified] = useState(false);
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit4", user, targetSchoolId);
+
+    const copyUnit4 = (d) => {
+        // Demographics Data
+        const demoObj = {};
+        DEMOGRAPHIC_CARDS.forEach(c => {
+            if (c.id === 'als') { 
+                if (d.als_total !== undefined && d.als_total !== null) demoObj['als_total'] = d.als_total.toString(); 
+            } else { 
+                dynamicGrades.forEach(g => { 
+                    const key = `${c.id}_${g.id}`; 
+                    if (d[key] !== undefined && d[key] !== null) demoObj[key] = d[key].toString(); 
+                }); 
+            }
+        });
+        setDemographicsData(demoObj);
+
+        // Selected learner groups
+        const groupsWithData = [];
+        DEMOGRAPHIC_CARDS.forEach(c => {
+            let hasData = false;
+            if (c.id === 'als') {
+                if (parseInt(d.als_total) > 0) hasData = true;
+            } else {
+                dynamicGrades.forEach(g => {
+                    if (parseInt(d[`${c.id}_${g.id}`]) > 0) hasData = true;
+                });
+            }
+            if (hasData) groupsWithData.push(c.id);
+        });
+        if (Array.isArray(d.selected_learner_groups)) {
+            setSelectedGroups([...new Set([...d.selected_learner_groups, ...groupsWithData])]);
+        } else if (groupsWithData.length > 0) {
+            setSelectedGroups(groupsWithData);
+        }
+
+        // Movement Data
+        const moveObj = {};
+        let hasAnyMove = false;
+        MOVEMENT_TYPES.forEach(m => {
+            dynamicGrades.forEach(g => { 
+                const key = `${m.id}_${g.id}`; 
+                if (d[key] !== undefined && d[key] !== null) { 
+                    moveObj[key] = d[key].toString(); 
+                    if (parseInt(d[key]) > 0) hasAnyMove = true; 
+                } 
+            });
+        });
+        setMovementData(moveObj);
+        if (hasAnyMove) setHasMovement(true);
+        else if (d.updated_at) setHasMovement(false);
+
+        // BMI Data
+        setBmiData({ 
+            severely_wasted: d.bmi_severely_wasted?.toString() || "", 
+            wasted: d.bmi_wasted?.toString() || "", 
+            overweight_obese: d.bmi_overweight_obese?.toString() || "" 
+        });
+    };
+
 
     // ── Data Fetching ─────────────────────────────────────────────────────
     useEffect(() => {
@@ -426,6 +497,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             // Payload builder
             const payload = {
+                school_yr: "SY 26-27",
                 iern,
                 selected_learner_groups: selectedGroups,
             };
@@ -997,13 +1069,21 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             {!propReadOnly && (
                 <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md shadow-sm px-4 py-4 mb-2">
-                    <div className="max-w-xl mx-auto flex items-center justify-start gap-2">
+                    <div className="max-w-xl mx-auto flex items-center justify-between">
                         <button onClick={handleBack} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
                             <FiArrowLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={handleOpenHistoryModal}
+                            title="View / Copy previous SY data"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                        >
+                            <FiCopy className="w-4 h-4" />
                         </button>
                     </div>
                 </header>
             )}
+
 
             <main className="flex-1 overflow-y-auto pb-32">
                 <div className="max-w-md w-full mx-auto mt-6 px-4">
@@ -1575,8 +1655,17 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit4"
+                onCopy={() => handleCopyHistoricalData(copyUnit4)}
+            />
         </div>
     );
 };
+
 
 export default Unit4LearnerProfile;

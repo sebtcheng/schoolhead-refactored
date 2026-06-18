@@ -13,17 +13,18 @@ const router = express.Router();
 router.get('/api/ph_schools/unit9/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolYr = req.query.school_yr || 'SY 26-27';
 
     const result = await safeQuery(
-      'SELECT * FROM unit9_safety WHERE school_id = $1', [id]
+      'SELECT * FROM unit9_safety WHERE school_id = $1 AND school_yr = $2', [id, schoolYr]
     );
     const schoolRes = await safeQuery(
       `SELECT ps.*, u1.school_name, u1.region, u1.province, u1.municipality,
               u1.barangay, u1.division, u1.district, u1.leg_district
        FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
        WHERE ps.school_id = $1 OR ps.iern = $1`,
-      [id]
+      [id, schoolYr]
     );
 
     if (schoolRes.rowCount === 0) {
@@ -53,6 +54,7 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const body = req.body;
+    const schoolYr = body.school_yr || 'SY 26-27';
 
     // Integer count fields
     const toInt = (v) => { const n = parseInt(v); return isNaN(n) ? null : n; };
@@ -157,7 +159,8 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
       toInt(body.u9_ext_cords_working),     // $56
       toInt(body.u9_ext_cords_broken),      // $57
       toInt(body.u9_ext_cords_spares),      // $58
-      toInt(body.u9_tape_quantity),         // $59
+      toInt(c.tape_quantity),               // $59
+      schoolYr                              // $60
     ];
 
     await safeQuery(
@@ -182,7 +185,7 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
         u9_covers_working, u9_covers_broken, u9_covers_spares,
         u9_breakers_working, u9_breakers_broken, u9_breakers_spares,
         u9_ext_cords_working, u9_ext_cords_broken, u9_ext_cords_spares,
-        u9_tape_quantity,
+        u9_tape_quantity, school_yr,
         unit9, unit9_completed, unit9_updated_at, updated_at
       ) VALUES (
         $1,  $2,
@@ -196,10 +199,10 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
         $46,
         $47, $48, $49, $50, $51, $52,
         $53, $54, $55, $56, $57, $58,
-        $59,
+        $59, $60,
         100, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
-      ON CONFLICT (school_id) DO UPDATE SET
+      ON CONFLICT (school_id, school_yr) DO UPDATE SET
         iern                      = EXCLUDED.iern,
         u9_main_power_source      = EXCLUDED.u9_main_power_source,
         u9_active_meters          = EXCLUDED.u9_active_meters,
@@ -271,7 +274,7 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
        WHERE school_id = $1`, [id]
     );
 
-    if (iern) await updateSchoolTotalCompletion(iern).catch(() => {});
+    if (iern) await updateSchoolTotalCompletion(iern, schoolYr).catch(() => {});
 
     res.json({ success: true, message: 'Unit 9 data saved successfully' });
   } catch (err) {

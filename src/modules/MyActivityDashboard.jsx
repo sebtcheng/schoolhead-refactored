@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell 
-} from 'recharts';
-import { 
+import {
     FiCheckCircle, FiClock, FiTrendingUp, FiPlay, FiLock, FiActivity,
     FiZap, FiAward, FiTarget, FiStar, FiShield, FiRefreshCcw, FiWifiOff, FiPrinter,
-    FiHome, FiSettings, FiBookOpen, FiLogOut
+    FiHome, FiSettings, FiBookOpen, FiLogOut, FiUsers, FiLayers, FiAlertCircle,
+    FiArrowRight, FiEdit3, FiCalendar, FiInfo,
+    FiAlertTriangle, FiCheck, FiUpload
 } from 'react-icons/fi';
 import { LuCompass } from "react-icons/lu";
-import { TbSchool, TbHeadset, TbShieldCheck, TbShieldX } from "react-icons/tb";
+import { TbSchool, TbHeadset, TbShieldCheck, TbShieldX, TbTicket } from "react-icons/tb";
 import PageTransition from '../components/PageTransition';
 import { DASHBOARD_METADATA } from '../config/dashboardMetadata';
 import { useAuth } from '../context/AuthContext';
@@ -18,48 +17,33 @@ import { getModularOutbox } from '../db';
 import { downloadPrintableReport } from '../utils/PrintableExportGenerator';
 import { api } from "../lib/api";
 
-// --- Circular Progress Ring ---
-const ProgressRing = ({ percentage = 0, validationPercentage = 0, size = 160, strokeWidth = 10 }) => {
+// ─── Circular Progress Ring ───────────────────────────────────────────────────
+const ProgressRing = ({ percentage = 0, validationPercentage = 0, size = 140, strokeWidth = 10 }) => {
     const radius = (size - strokeWidth) / 2;
     const circumference = radius * 2 * Math.PI;
     const offset = circumference - (percentage / 100) * circumference;
-    
-    // Nested validation ring
     const innerRadius = radius - strokeWidth - 4;
     const innerCircumference = innerRadius * 2 * Math.PI;
     const innerOffset = innerCircumference - (validationPercentage / 100) * innerCircumference;
-
     return (
         <div className="relative" style={{ width: size, height: size }}>
             <svg width={size} height={size} className="transform -rotate-90">
-                {/* Background track (Outer) */}
-                <circle cx={size/2} cy={size/2} r={radius} fill="none"
-                    stroke="rgba(0,0,0,0.05)" strokeWidth={strokeWidth} />
-                {/* Animated progress (Outer - Reported) */}
-                <motion.circle cx={size/2} cy={size/2} r={radius} fill="none"
-                    stroke="url(#ringGradient)" strokeWidth={strokeWidth}
-                    strokeLinecap="round"
+                <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={strokeWidth} />
+                <motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none"
+                    stroke="url(#ringGradient)" strokeWidth={strokeWidth} strokeLinecap="round"
                     strokeDasharray={circumference}
                     initial={{ strokeDashoffset: circumference }}
                     animate={{ strokeDashoffset: offset }}
                     transition={{ duration: 1.5, ease: "easeOut" }}
-                    className="drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                 />
-                
-                {/* Background track (Inner) */}
-                <circle cx={size/2} cy={size/2} r={innerRadius} fill="none"
-                    stroke="rgba(0,0,0,0.03)" strokeWidth={strokeWidth - 2} />
-                {/* Animated progress (Inner - Validated) */}
-                <motion.circle cx={size/2} cy={size/2} r={innerRadius} fill="none"
-                    stroke="#10b981" strokeWidth={strokeWidth - 2}
-                    strokeLinecap="round"
+                <circle cx={size / 2} cy={size / 2} r={innerRadius} fill="none" stroke="rgba(0,0,0,0.04)" strokeWidth={strokeWidth - 2} />
+                <motion.circle cx={size / 2} cy={size / 2} r={innerRadius} fill="none"
+                    stroke="#10b981" strokeWidth={strokeWidth - 2} strokeLinecap="round"
                     strokeDasharray={innerCircumference}
                     initial={{ strokeDashoffset: innerCircumference }}
                     animate={{ strokeDashoffset: innerOffset }}
                     transition={{ duration: 1.8, ease: "easeOut", delay: 0.3 }}
-                    className="drop-shadow-[0_0_5px_rgba(16,185,129,0.2)]"
                 />
-
                 <defs>
                     <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#10b981" />
@@ -68,26 +52,22 @@ const ProgressRing = ({ percentage = 0, validationPercentage = 0, size = 160, st
                     </linearGradient>
                 </defs>
             </svg>
-            {/* Center Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <motion.span 
-                    className="text-4xl font-black text-slate-800"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.5, type: "spring", bounce: 0.5 }}
-                >
+                <motion.span className="text-3xl font-black text-slate-800"
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                    transition={{ delay: 0.5, type: "spring", bounce: 0.5 }}>
                     {Math.round(percentage)}%
                 </motion.span>
-                <div className="flex flex-col items-center -mt-1">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reported</span>
-                    <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-tighter mt-0.5">{Math.round(validationPercentage)}% Validated</span>
+                <div className="flex flex-col items-center -mt-0.5">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Reported</span>
+                    <span className="text-[7px] font-bold text-emerald-500 uppercase tracking-tighter mt-0.5">{Math.round(validationPercentage)}% Validated</span>
                 </div>
             </div>
         </div>
     );
 };
 
-// --- XP calculation helper ---
+// ─── XP Helpers ───────────────────────────────────────────────────────────────
 const getXPForUnits = (unitsArray, flags) => {
     if (flags && Object.keys(flags).length > 0) {
         return DASHBOARD_METADATA.units.reduce((total, unit) => {
@@ -108,40 +88,223 @@ const getLevelFromXP = (xp, maxXP) => {
     if (xp >= maxXP - 50) return { level: 9, title: '🏆 STRIDE Master', color: 'from-yellow-400 to-amber-500' };
     if (xp >= 1800) return { level: 7, title: '⭐ Elite Runner', color: 'from-purple-400 to-indigo-500' };
     if (xp >= 1200) return { level: 6, title: '🔥 Trailblazer', color: 'from-red-400 to-orange-500' };
-    if (xp >= 800)  return { level: 5, title: '💎 Data Champion', color: 'from-cyan-400 to-blue-500' };
-    if (xp >= 500)  return { level: 4, title: '🚀 Pathfinder', color: 'from-emerald-400 to-teal-500' };
-    if (xp >= 250)  return { level: 3, title: '🛡️ Builder', color: 'from-blue-400 to-indigo-500' };
-    if (xp >= 100)  return { level: 2, title: '📝 Explorer', color: 'from-green-400 to-emerald-500' };
+    if (xp >= 800) return { level: 5, title: '💎 Data Champion', color: 'from-cyan-400 to-blue-500' };
+    if (xp >= 500) return { level: 4, title: '🚀 Pathfinder', color: 'from-emerald-400 to-teal-500' };
+    if (xp >= 250) return { level: 3, title: '🛡️ Builder', color: 'from-blue-400 to-indigo-500' };
+    if (xp >= 100) return { level: 2, title: '📝 Explorer', color: 'from-green-400 to-emerald-500' };
     return { level: 1, title: '🌱 Rookie', color: 'from-slate-400 to-slate-500' };
 };
 
+// ─── Unit State Helper ────────────────────────────────────────────────────────
+const getUnitState = (unit, data) => {
+    const flags = data?.progress?.flags || {};
+    const validationFlags = data?.progress?.validationFlags || {};
+    const completedArr = data?.progress?.completedUnits || [];
+
+    const isCompleted = Array.isArray(completedArr)
+        ? completedArr.includes(unit.id)
+        : !!flags[`unit${unit.id}`];
+
+    const isValidated = !!validationFlags[`unit${unit.id}`];
+    const hasRemarks = !!data?.progress?.remarks?.[`unit${unit.id}`];
+    const lastUpdated = data?.progress?.lastUpdated?.[`unit${unit.id}`] || null;
+
+    if (hasRemarks) return { state: 'remarks', isCompleted, isValidated, lastUpdated };
+    if (isValidated) return { state: 'validated', isCompleted, isValidated, lastUpdated };
+    if (isCompleted) return { state: 'completed', isCompleted, isValidated, lastUpdated };
+    return { state: 'pending', isCompleted: false, isValidated: false, lastUpdated };
+};
+
+// ─── Confetti / Celebration ───────────────────────────────────────────────────
+const CelebrationBanner = () => (
+    <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mx-6 md:mx-8 mt-6 rounded-3xl overflow-hidden relative"
+        style={{
+            background: 'linear-gradient(135deg, #08315F, #0284C7, #10b981)',
+            padding: '28px 32px',
+        }}
+    >
+        <div className="absolute inset-0 opacity-10"
+            style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+        />
+        <div className="relative z-10 flex items-center gap-6">
+            <motion.div
+                animate={{ rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.2, 1.2, 1.2, 1.2, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 3 }}
+                className="text-5xl"
+            >🏆</motion.div>
+            <div>
+                <h2 className="text-white font-black text-2xl" style={{ fontFamily: 'var(--font-heading)' }}>
+                    All Units Completed! 🎉
+                </h2>
+                <p className="text-white/80 font-bold text-sm mt-1">
+                    Congratulations! You've submitted all 9 reporting units for STRIDE. Outstanding work, School Head!
+                </p>
+            </div>
+        </div>
+    </motion.div>
+);
+
+// ─── Hero "Next Up" Card ──────────────────────────────────────────────────────
+const NextUpCard = ({ unit, onGo, impersonatedUid }) => {
+    if (!unit) return null;
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="relative overflow-hidden rounded-3xl"
+            style={{
+                background: 'linear-gradient(135deg, #08315F 0%, #0369A1 55%, #0284C7 100%)',
+                padding: '24px 28px',
+                boxShadow: '0 8px 32px rgba(8,49,95,0.28)',
+            }}
+        >
+            {/* Decorative glow */}
+            <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+            <div className="absolute right-20 bottom-0 w-24 h-24 rounded-full bg-amber-400/10 blur-xl pointer-events-none" />
+
+            <div className="relative z-10 flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center text-3xl shrink-0 border border-white/20">
+                        {unit.icon}
+                    </div>
+                    <div>
+                        <span className="text-amber-300 text-[9px] font-black uppercase tracking-[0.2em] block">👉 Your Next Mission</span>
+                        <h2 className="text-white font-black text-xl mt-0.5" style={{ fontFamily: 'var(--font-heading)' }}>
+                            Unit {unit.id}: {unit.name}
+                        </h2>
+                        <p className="text-white/60 font-bold text-[11px] mt-0.5">+{unit.xp} XP upon completion</p>
+                    </div>
+                </div>
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => onGo(unit)}
+                    className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl bg-amber-400 text-[#08315F] font-black text-sm uppercase tracking-wide shadow-lg shadow-amber-400/30 hover:bg-amber-300 transition-colors"
+                >
+                    <FiPlay size={14} className="fill-[#08315F]" /> Continue
+                </motion.button>
+            </div>
+        </motion.div>
+    );
+};
+
+// ─── Unit Mission Card ────────────────────────────────────────────────────────
+const UnitCard = ({ unit, stateInfo, onGo, impersonatedUid, index }) => {
+    const { state, isValidated, lastUpdated } = stateInfo;
+
+    const config = {
+        completed: {
+            border: 'border-emerald-200',
+            bg: 'bg-gradient-to-br from-emerald-50/60 to-white',
+            badge: 'bg-emerald-100 text-emerald-700',
+            badgeText: '✅ Submitted',
+            iconBg: 'bg-emerald-50',
+            btnLabel: 'View / Edit',
+            btnClass: 'bg-white text-emerald-700 border-2 border-emerald-200 hover:bg-emerald-50',
+        },
+        validated: {
+            border: 'border-emerald-400',
+            bg: 'bg-gradient-to-br from-emerald-50/80 to-white',
+            badge: 'bg-emerald-500 text-white',
+            badgeText: '🛡️ Validated',
+            iconBg: 'bg-emerald-100',
+            btnLabel: 'View',
+            btnClass: 'bg-white text-emerald-700 border-2 border-emerald-300 hover:bg-emerald-50',
+        },
+        remarks: {
+            border: 'border-amber-300',
+            bg: 'bg-gradient-to-br from-amber-50/60 to-white',
+            badge: 'bg-amber-100 text-amber-700',
+            badgeText: '⚠️ Has Remarks',
+            iconBg: 'bg-amber-50',
+            btnLabel: 'Review Remarks',
+            btnClass: 'bg-amber-500 text-white border-2 border-amber-500 hover:bg-amber-600',
+        },
+        pending: {
+            border: 'border-slate-150',
+            bg: 'bg-white',
+            badge: 'bg-slate-100 text-slate-500',
+            badgeText: '🔴 Pending',
+            iconBg: 'bg-slate-50',
+            btnLabel: 'Start Now',
+            btnClass: 'bg-[#08315F] text-white border-2 border-[#08315F] hover:bg-[#075985]',
+        },
+    };
+
+    const c = config[state];
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.04 * index }}
+            className={`rounded-2xl border-2 ${c.border} ${c.bg} p-4 flex items-center gap-4 transition-all hover:-translate-y-0.5 hover:shadow-md cursor-default`}
+        >
+            {/* Icon */}
+            <div className={`w-11 h-11 rounded-xl ${c.iconBg} flex items-center justify-center text-2xl shrink-0`}>
+                {unit.icon}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-[12px] font-black text-slate-800" style={{ fontFamily: 'var(--font-heading)' }}>
+                        Unit {unit.id}: {unit.name}
+                    </h4>
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${c.badge}`}>
+                        {c.badgeText}
+                    </span>
+                </div>
+                {lastUpdated ? (
+                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+                        <FiCalendar size={7} className="inline mr-1" />
+                        Last updated: {new Date(lastUpdated).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                ) : (
+                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">+{unit.xp} XP • Not yet submitted</p>
+                )}
+            </div>
+
+            {/* Action Button */}
+            <button
+                onClick={() => onGo(unit)}
+                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide transition-all active:scale-95 ${c.btnClass}`}
+            >
+                {state === 'pending' ? <FiArrowRight size={12} /> : <FiEdit3 size={11} />}
+                {c.btnLabel}
+            </button>
+        </motion.div>
+    );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const MyActivityDashboard = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, confirmLogout } = useAuth();
-    
-    // Parse UID from query params for Super User impersonation
+
     const queryParams = new URLSearchParams(location.search);
     const impersonatedUid = queryParams.get('uid');
-    
+
     const [data, setData] = useState(() => {
         if (!impersonatedUid) {
             const cached = localStorage.getItem('activity_data');
-            try {
-                return cached && cached !== 'undefined' ? JSON.parse(cached) : null;
-            } catch (e) {
-                console.error('Failed to parse cached activity_data', e);
-                return null;
-            }
+            try { return cached && cached !== 'undefined' ? JSON.parse(cached) : null; }
+            catch (e) { return null; }
         }
         return null;
     });
-    
+
     const [loading, setLoading] = useState(true);
     const [targetSchoolId, setTargetSchoolId] = useState(null);
     const [pendingCount, setPendingCount] = useState(0);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [exporting, setExporting] = useState(false);
+    const [schoolDetails, setSchoolDetails] = useState(null);
 
     const unitMap = useMemo(() => DASHBOARD_METADATA.units.map(u => ({
         id: u.id,
@@ -149,14 +312,14 @@ const MyActivityDashboard = () => {
         name: u.title,
         path: u.path,
         xp: u.xp,
-        icon: u.emoji
+        icon: u.emoji,
     })), []);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 let schoolId = localStorage.getItem('schoolId');
-                
+
                 if (user?.role === 'Super User' && impersonatedUid) {
                     const profileRes = await fetch(api(`/school-by-user/${impersonatedUid}`));
                     const profileJson = await profileRes.json();
@@ -165,11 +328,7 @@ const MyActivityDashboard = () => {
                     }
                 }
 
-                if (!schoolId) { 
-                    setLoading(false); 
-                    return; 
-                }
-                
+                if (!schoolId) { setLoading(false); return; }
                 setTargetSchoolId(schoolId);
 
                 const response = await fetch(api(`/ph_schools/progress/${schoolId}`));
@@ -177,10 +336,14 @@ const MyActivityDashboard = () => {
                     const json = await response.json();
                     if (json.data) {
                         setData(json.data);
-                        if (!impersonatedUid) {
-                            localStorage.setItem('activity_data', JSON.stringify(json.data));
-                        }
+                        if (!impersonatedUid) localStorage.setItem('activity_data', JSON.stringify(json.data));
                     }
+                }
+
+                const detailsResponse = await fetch(api(`/ph_schools/${schoolId}`));
+                if (detailsResponse.ok) {
+                    const detJson = await detailsResponse.json();
+                    if (detJson.exists && detJson.data) setSchoolDetails(detJson.data);
                 }
             } catch (err) {
                 console.error('Fetch Error:', err);
@@ -190,13 +353,13 @@ const MyActivityDashboard = () => {
         };
 
         const handleStatus = () => {
-             const status = navigator.onLine;
-             setIsOnline(status);
-             if (status) fetchData();
+            const status = navigator.onLine;
+            setIsOnline(status);
+            if (status) fetchData();
         };
         window.addEventListener('online', handleStatus);
         window.addEventListener('offline', handleStatus);
-        
+
         if (user) {
             fetchData();
             getModularOutbox().then(items => setPendingCount(items.length));
@@ -214,27 +377,17 @@ const MyActivityDashboard = () => {
         try {
             const phRes = await fetch(api(`/ph_schools/${targetSchoolId}`));
             const phJson = await phRes.json();
-            
             const u7Res = await fetch(api(`/ph_schools/unit7/${targetSchoolId}/master`));
             const u7Json = await u7Res.json();
-            
             const u8Res = await fetch(api(`/school-location/${targetSchoolId}`));
             const u8Json = await u8Res.json();
-
             if (phJson.exists && phJson.data) {
-                downloadPrintableReport(
-                    phJson, 
-                    u7Json.data?.inventory || [], 
-                    u8Json.data,
-                    user?.role,
-                    u7Json.data?.repairs || []
-                );
+                downloadPrintableReport(phJson, u7Json.data?.inventory || [], u8Json.data, user?.role, u7Json.data?.repairs || []);
             } else {
                 alert("Failed to retrieve school data for export.");
             }
         } catch (err) {
             console.error('Export Error:', err);
-            alert("An error occurred while generating the printable report.");
         } finally {
             setExporting(false);
         }
@@ -250,11 +403,18 @@ const MyActivityDashboard = () => {
     const levelInfo = useMemo(() => getLevelFromXP(xp, maxXP), [xp, maxXP]);
 
     const displayPercentage = useMemo(() => {
-        return data?.progress?.percentage || 0;
-    }, [data]);
+        if (data?.progress?.percentage !== undefined && data?.progress?.percentage !== null) return data.progress.percentage;
+        const total = DASHBOARD_METADATA.units.length;
+        if (!total) return 0;
+        return Math.round((filteredCompletedUnits.length / total) * 100);
+    }, [data, filteredCompletedUnits]);
 
     const displayValidationPercentage = useMemo(() => {
-        return data?.progress?.validation_percentage || 0;
+        if (data?.progress?.validation_percentage !== undefined && data?.progress?.validation_percentage !== null) return data.progress.validation_percentage;
+        const total = DASHBOARD_METADATA.units.length;
+        if (!total) return 0;
+        const validatedCount = Object.values(data?.progress?.validationFlags || {}).filter(v => v === true).length;
+        return Math.round((validatedCount / total) * 100);
     }, [data]);
 
     const nextUnit = useMemo(() => {
@@ -262,53 +422,41 @@ const MyActivityDashboard = () => {
         return unitMap.find(u => !data.progress.flags[`unit${u.flagId}`]) || null;
     }, [data, unitMap]);
 
-    const achievements = useMemo(() => {
-        const completedArr = data?.progress?.completedUnits || [];
-        const completedCount = Array.isArray(completedArr) ? completedArr.length : (typeof completedArr === 'number' ? completedArr : 0);
-        const totalUnits = DASHBOARD_METADATA.units.length;
-        const halfway = Math.floor(totalUnits / 2);
+    const isAllDone = useMemo(() => filteredCompletedUnits.length >= DASHBOARD_METADATA.units.length, [filteredCompletedUnits]);
 
-        return [
-            { id: 'first', name: 'First Steps', desc: 'Complete your first unit', earned: completedCount >= 1, icon: '🎯' },
-            { id: 'half', name: 'STRIDE Miler', desc: `Complete ${halfway} units`, earned: completedCount >= halfway, icon: '⚡' },
-            { id: 'sprint', name: 'STRIDE Sprinter', desc: 'Log a fastest sprint', earned: !!data?.gamification?.fastest_sprint, icon: '🏃' },
-            { id: 'master', name: 'STRIDE Hero', desc: `Complete all ${totalUnits} units`, earned: completedCount >= totalUnits, icon: '👑' },
-        ];
-    }, [data]);
+    const handleGo = (unit) => {
+        const targetPath = impersonatedUid ? `${unit.path}?uid=${impersonatedUid}` : unit.path;
+        navigate(targetPath);
+    };
 
-    const comparativeData = useMemo(() => {
-        if (data?.comparative && data.comparative.length > 0) return data.comparative;
-        
-        const myScore = data?.progress?.percentage || 0;
-        return [
-            { name: 'Division Avg', completed: 42 },
-            { name: 'District Avg', completed: 58 },
-            { name: 'My School', completed: myScore },
-            { name: 'Top Performer', completed: 92 },
-        ];
-    }, [data]);
+    // Sort units: pending/remarks first, then completed
+    const sortedUnits = useMemo(() => {
+        return [...unitMap].sort((a, b) => {
+            const stateOrder = { remarks: 0, pending: 1, completed: 2, validated: 3 };
+            const sa = getUnitState(a, data).state;
+            const sb = getUnitState(b, data).state;
+            if (stateOrder[sa] !== stateOrder[sb]) return stateOrder[sa] - stateOrder[sb];
+            return a.id - b.id;
+        });
+    }, [unitMap, data]);
 
     if (loading) return (
-        <div className="min-h-screen bg-white flex items-center justify-center">
-            <div className="flex flex-col items-center">
-                <motion.div 
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                    className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full"
-                />
-                <p className="mt-4 text-sky-600 font-bold text-sm uppercase tracking-widest">Loading quest data...</p>
+        <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    className="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full" />
+                <p className="text-sky-600 font-black text-sm uppercase tracking-widest">Loading Mission Board...</p>
             </div>
         </div>
     );
 
     return (
         <PageTransition>
-            <div className="nodes-app-layout">
-                {/* Scope-specific Stylesheets for exact visual guidelines */}
+            <div className="ab-layout">
                 <style dangerouslySetInnerHTML={{
                     __html: `
                     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
-                    
+
                     :root {
                       --navy: #08315F;
                       --blue: #075985;
@@ -324,86 +472,100 @@ const MyActivityDashboard = () => {
                       --text: #0F172A;
                       --muted: #64748B;
                       --line: #BAE6FD;
-                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                      --font-heading: Quicksand, ui-sans-serif, system-ui, sans-serif;
+                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, sans-serif;
                       --radius: 22px;
                     }
 
-                    .nodes-app-layout {
+                    /* ── Main layout: sidebar | content ── */
+                    .ab-layout {
                       display: grid;
-                      grid-template-columns: 260px 1fr;
+                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
                       font-family: var(--font-body);
                       color: var(--text);
                       background-color: var(--blue-50);
                       background-attachment: fixed;
                       background-image:
-                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.30) 0 34%, transparent 78%),
-                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.42) 0 36%, transparent 80%),
-                        radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.30) 0 34%, transparent 78%),
-                        radial-gradient(45% 52.5% at 8% 92%, rgba(217, 119, 6, 0.26) 0 28%, rgba(251, 191, 36, 0.18) 42%, transparent 80%);
+                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.28) 0 34%, transparent 78%),
+                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.36) 0 36%, transparent 80%),
+                        radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.28) 0 34%, transparent 78%);
                     }
 
+                    /* ── Sidebar ── */
                     .nodes-sidebar {
+                      display: flex;
+                      width: 80px;
                       position: relative;
                       color: white;
-                      padding: 24px;
-                      display: flex;
+                      padding: 24px 8px;
                       flex-direction: column;
+                      align-items: center;
                       gap: 28px;
                       background: linear-gradient(180deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--blue) 72%, var(--navy) 28%));
                       border-right: 1px solid rgba(255, 255, 255, 0.24);
                       box-shadow: 18px 0 42px rgba(11, 31, 77, 0.16);
                       overflow: hidden;
+                      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), align-items 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                      z-index: 50;
+                    }
+
+                    .nodes-sidebar:hover {
+                      width: 260px;
+                      padding: 24px 16px;
+                      align-items: flex-start;
                     }
 
                     .nodes-brand {
-                      background: transparent;
-                      padding: 8px 0px;
                       display: flex;
-                      align-items: center;
                       justify-content: center;
-                      gap: 8px;
+                      width: 100%;
+                      margin-bottom: 8px;
+                      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), justify-content 0.3s ease, padding 0.3s ease;
                     }
+                    .nodes-brand:hover { transform: scale(1.08); }
+                    .nodes-sidebar:hover .nodes-brand { justify-content: flex-start; padding-left: 8px; }
 
-                    .nodes-brand img {
-                      filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 2px 4px rgba(0,0,0,0.15));
-                    }
+                    .logo-collapsed { display: block !important; }
+                    .logo-expanded { display: none !important; }
+                    .nodes-sidebar:hover .logo-collapsed { display: none !important; }
+                    .nodes-sidebar:hover .logo-expanded { display: block !important; max-width: 170px; height: auto; }
+                    .nodes-brand img { filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 2px 4px rgba(0,0,0,0.15)); }
 
                     .nodes-nav {
                       display: flex;
                       flex-direction: column;
-                      gap: 8px;
+                      align-items: center;
+                      gap: 16px;
+                      width: 100%;
+                      transition: align-items 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     }
-
+                    .nodes-sidebar:hover .nodes-nav { align-items: flex-start; }
                     .nodes-nav a {
                       display: flex;
                       align-items: center;
-                      gap: 12px;
-                      padding: 12px 14px;
+                      justify-content: center;
+                      width: 44px;
+                      height: 44px;
                       border-radius: 14px;
                       color: rgba(255, 255, 255, 0.78);
-                      font-size: 14px;
-                      font-weight: 700;
-                      text-decoration: none;
-                      transition: all 0.2s ease;
+                      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                       border: 1px solid transparent;
+                      gap: 12px;
+                      text-decoration: none;
                     }
-
-                    .nodes-nav a:hover {
-                      color: white;
-                      background: rgba(255, 255, 255, 0.08);
-                    }
-
+                    .nodes-sidebar:hover .nodes-nav a { justify-content: flex-start; width: 100%; padding: 12px 14px; height: auto; }
+                    .nodes-nav a span { display: none; opacity: 0; transition: opacity 0.3s ease; white-space: nowrap; }
+                    .nodes-sidebar:hover .nodes-nav a span { display: inline-block; opacity: 1; }
+                    .nodes-nav a:hover { color: white; background: rgba(255, 255, 255, 0.08); transform: translateY(-2px); }
                     .nodes-nav a.active {
                       background: rgba(255, 255, 255, 0.16);
                       color: white;
                       border-color: rgba(255, 255, 255, 0.28);
-                      box-shadow:
-                        inset 0 -3px 0 var(--gold),
-                        0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
+                      box-shadow: inset 0 -3px 0 var(--gold), 0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
                     }
 
+                    /* ── Topbar ── */
                     .nodes-topbar {
                       position: relative;
                       isolation: isolate;
@@ -411,253 +573,162 @@ const MyActivityDashboard = () => {
                       justify-content: space-between;
                       align-items: center;
                       gap: 25px;
-                      min-height: 110px;
-                      padding: 16px 32px;
+                      min-height: 120px;
+                      padding: 20px 36px;
                       border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
                       background: linear-gradient(135deg, var(--blue-50), white);
                       box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
                       overflow: hidden;
+                      border-radius: var(--radius);
+                      margin: 24px 24px 0 24px;
                     }
-
                     .nodes-topbar::before {
                       content: "";
                       position: absolute;
-                      left: 0;
-                      top: 0;
-                      bottom: 0;
+                      left: 0; top: 0; bottom: 0;
                       width: 76%;
-                      background:
-                        radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%),
-                        linear-gradient(135deg, var(--navy), var(--blue));
+                      background: radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%), linear-gradient(135deg, var(--navy), var(--blue));
                       clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
                       z-index: 0;
                     }
-
                     .nodes-topbar::after {
                       content: "";
                       position: absolute;
-                      width: 112px;
-                      height: 112px;
+                      width: 100px;
+                      height: 100px;
                       right: 18px;
                       top: 50%;
                       transform: translateY(-50%);
                       border-radius: 999px;
-                      background:
-                        radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
-                      box-shadow:
-                        0 0 0 12px color-mix(in srgb, var(--gold) 8%, transparent),
-                        0 0 28px color-mix(in srgb, var(--gold) 24%, transparent);
+                      background: radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
                       z-index: 0;
                     }
-
-                    .nodes-topbar > * {
-                      position: relative;
-                      z-index: 1;
-                    }
-
+                    .nodes-topbar > * { position: relative; z-index: 1; }
                     .nodes-topbar h1 {
                       margin: 0;
                       font-family: var(--font-heading);
                       font-size: 28px;
                       line-height: 1.12;
                       font-weight: 900;
-                      letter-spacing: 0.01em;
-                      color: var(--blue);
-                      -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
-                      paint-order: stroke fill;
-                      text-shadow:
-                        -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-                        1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-                        -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-                        1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-                        0 4px 10px rgba(11, 31, 77, 0.34),
-                        0 12px 28px rgba(15, 23, 42, 0.26);
+                      letter-spacing: -0.01em;
+                      color: #ffffff;
                     }
-
                     .nodes-topbar .eyebrow {
                       color: var(--gold);
-                      font-size: 11px;
+                      font-size: 10px;
                       font-weight: 900;
-                      letter-spacing: 0.2em;
+                      letter-spacing: 0.15em;
                       text-transform: uppercase;
                       font-family: var(--font-heading);
                     }
 
+                    /* ── nodes-card ── */
                     .nodes-card {
                       background: var(--card);
-                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+                      border: 2px solid color-mix(in srgb, var(--blue) 40%, transparent 60%);
                       border-radius: var(--radius);
-                      box-shadow: none;
                       transition: all 0.2s ease;
                     }
 
-                    .nodes-card:hover {
-                      transform: translateY(-2px);
+                    /* ── XP Bar ── */
+                    .ab-xp-bar {
+                      background: white;
+                      border-radius: 18px;
+                      padding: 14px 20px;
+                      border: 2px solid color-mix(in srgb, var(--blue) 20%, transparent 80%);
+                    }
+
+                    /* ── Responsive ── */
+                    @media (max-width: 1024px) {
+                      .ab-layout {
+                        grid-template-columns: 80px 1fr;
+                      }
+                      .ab-layout:has(.nodes-sidebar:hover) {
+                        grid-template-columns: 260px 1fr;
+                      }
                     }
 
                     @media (max-width: 768px) {
-                      .nodes-app-layout {
+                      .ab-layout {
                         grid-template-columns: 1fr;
                         padding-bottom: 82px;
                       }
-
                       .nodes-sidebar {
                         position: fixed;
-                        left: 0;
-                        right: 0;
-                        bottom: 0;
-                        top: auto;
+                        left: 0; right: 0; bottom: 0; top: auto;
                         z-index: 40;
                         display: block;
                         padding: 8px 10px max(8px, env(safe-area-inset-bottom));
                         border: 0;
                         border-top: 1px solid rgba(255, 255, 255, 0.46);
-                        background:
-                          radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 48%),
-                          radial-gradient(ellipse at 84% 0%, color-mix(in srgb, var(--red) 10%, transparent), transparent 46%),
-                          linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
-                        box-shadow:
-                          0 -18px 44px rgba(11, 31, 77, 0.26),
-                          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+                        background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
+                        box-shadow: 0 -18px 44px rgba(11, 31, 77, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.18);
                         overflow: hidden;
                       }
-
-                      .nodes-brand {
-                        display: none;
-                      }
-
-                      .nodes-nav {
-                        display: grid;
-                        grid-template-columns: repeat(5, 1fr);
-                        gap: 4px;
-                        width: min(760px, 100%);
-                        margin: 0 auto;
-                      }
-
+                      .nodes-brand { display: none; }
+                      .nodes-nav { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; width: min(760px, 100%); margin: 0 auto; }
                       .nodes-nav a {
-                        display: grid;
-                        place-items: center;
-                        gap: 2px;
-                        min-height: 48px;
-                        padding: 6px 2px;
-                        border-radius: 16px;
-                        color: rgba(255, 255, 255, 0.82);
-                        font-size: 8px;
-                        line-height: 1;
-                        text-align: center;
-                        border: 1px solid transparent;
-                        background: transparent;
-                        text-decoration: none;
+                        display: grid; place-items: center; gap: 2px;
+                        min-height: 48px; padding: 6px 2px; border-radius: 16px;
+                        color: rgba(255,255,255,0.82); font-size: 8px; line-height: 1;
+                        text-align: center; border: 1px solid transparent; background: transparent; text-decoration: none;
                       }
-
+                      .nodes-nav a span { display: block !important; }
                       .nodes-nav a.active {
-                        background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
-                        color: white;
-                        border-color: rgba(255, 255, 255, 0.28);
-                        box-shadow:
-                          inset 0 -3px 0 var(--gold),
-                          0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
+                        background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.10));
+                        color: white; border-color: rgba(255,255,255,0.28);
+                        box-shadow: inset 0 -3px 0 var(--gold), 0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
                       }
-
-                      .nodes-topbar {
-                        min-height: 90px;
-                        padding: 10px 16px;
-                      }
-
-                      .nodes-topbar h1 {
-                        font-size: clamp(18px, 5.5vw, 22px);
-                      }
-
-                      .nodes-topbar::before {
-                        width: 85%;
-                      }
-
-                      .nodes-card {
-                        border-width: 2px;
-                        border-radius: 14px;
-                      }
+                      .nodes-topbar { min-height: 80px; padding: 14px 16px; margin: 10px 10px 0 10px; border-radius: 14px; }
+                      .nodes-topbar h1 { font-size: clamp(16px, 5.5vw, 20px); }
+                      .nodes-topbar::before { width: 85%; }
                     }
                     `
                 }} />
 
-                {/* Left Sidebar on Desktop / Bottom Bar on Mobile */}
+                {/* ── Sidebar ── */}
                 <div className="nodes-sidebar">
                     <div className="nodes-brand">
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="object-contain"
-                            style={{ width: '16rem', height: '9rem' }}
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
-                            }}
-                        />
+                        <img src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`}
+                            alt="InsightED Logo" className="logo-collapsed object-contain w-10 h-10"
+                            onError={(e) => { e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png"; }} />
+                        <img src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`}
+                            alt="InsightED Logo" className="logo-expanded object-contain" style={{ width: '10rem', height: '6rem' }}
+                            onError={(e) => { e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png"; }} />
                     </div>
-
                     <div className="nodes-nav">
-                        <a href="#/nodes-dashboard">
-                            <FiHome size={18} />
-                            <span>Home</span>
-                        </a>
-                        <a href="#/my-activity" className="active">
-                            <FiBookOpen size={18} />
-                            <span>CLOUD</span>
-                        </a>
-                        <a href="#/modular-dashboard">
-                            <LuCompass size={18} />
-                            <span>Units</span>
-                        </a>
-                        <a href="#/guide/school-head">
-                            <TbSchool size={18} />
-                            <span>Guide</span>
-                        </a>
-                        <a href="#/profile">
-                            <FiSettings size={18} />
-                            <span>Settings</span>
-                        </a>
+                        <a href="#/nodes-dashboard"><FiHome size={18} /><span>Home</span></a>
+                        <a href="#/my-activity" className="active"><FiBookOpen size={18} /><span>CLOUD</span></a>
+                        <a href="#/modular-dashboard"><LuCompass size={18} /><span>Units</span></a>
+                        <a href="#/guide/school-head"><TbSchool size={18} /><span>Guide</span></a>
+                        <a href="#/profile"><FiSettings size={18} /><span>Settings</span></a>
                     </div>
                 </div>
 
-                {/* Main Content Area */}
-                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
-                    
-                    {/* Header / Topbar */}
+                {/* ── Main Content ── */}
+                <div className="flex flex-col min-h-screen overflow-y-auto pb-10">
+
+                    {/* Topbar */}
                     <div className="nodes-topbar">
-                        <div className="flex flex-col">
-                            <span className="eyebrow">
-                                LVL {levelInfo.level} • {levelInfo.title}
-                            </span>
-                            <h1 className="flex items-center gap-2">
-                                <span className="text-white">CLOUD • {data?.schoolInfo?.school_name || 'Loading School...'}</span>
-                            </h1>
-                            <p className="text-[10px] font-bold text-[#E0F2FE] uppercase tracking-[0.2em] mt-0.5 relative z-10">
-                                School ID: {data?.schoolInfo?.school_id || targetSchoolId || '------'} • Head: {user?.first_name || user?.firstName || 'User'} {user?.last_name || user?.lastName || ''}
+                        <div className="flex flex-col flex-grow select-none pr-6">
+                            <span className="eyebrow">DepEd BHROD | STRIDE Action Board</span>
+                            <h1>Mission Control</h1>
+                            <p className="text-[10px] font-bold text-white/70 mt-1.5 leading-relaxed">
+                                School: <span className="font-black text-white">{data?.schoolInfo?.school_name || 'Loading...'}</span>
+                                {' '}(ID: <span className="font-black text-white">{data?.schoolInfo?.school_id || targetSchoolId || '---'}</span>)
+                                {' '}• <span className="text-amber-300 font-black">{user?.first_name || 'User'} {user?.last_name || ''}</span>
+                                {' '}• Lv.{levelInfo.level} {levelInfo.title}
                             </p>
                         </div>
-
-                        {/* Topbar Actions */}
-                        <div className="flex items-center gap-2.5 relative z-10">
-                            {/* Export / Print */}
-                            <button
-                                onClick={handleExportPrintable}
-                                disabled={exporting}
-                                className={`p-2 bg-white/95 rounded-xl text-indigo-600 hover:text-blue-600 transition-all active:scale-95 shadow-md border border-slate-100 relative ${exporting ? 'opacity-50' : ''}`}
-                                title="Export Report"
-                            >
+                        <div className="flex items-center gap-2 relative z-10">
+                            <button onClick={handleExportPrintable} disabled={exporting}
+                                className="p-2 bg-white/90 rounded-xl text-indigo-600 hover:text-blue-600 transition-all active:scale-95 shadow-md border border-white/30 relative"
+                                title="Export Report">
                                 <FiPrinter size={15} className={exporting ? 'animate-pulse' : ''} />
-                                {exporting && (
-                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                                        ...
-                                    </span>
-                                )}
                             </button>
-
-                            {/* Sync Center */}
-                            <button
-                                onClick={() => navigate('/sync-center')}
-                                className="p-2 bg-white/95 rounded-xl text-emerald-500 hover:text-blue-600 transition-all active:scale-95 shadow-md border border-slate-100 relative group"
-                                title="Sync Center"
-                            >
+                            <button onClick={() => navigate('/sync-center')}
+                                className="p-2 bg-white/90 rounded-xl text-emerald-500 hover:text-blue-600 transition-all active:scale-95 shadow-md border border-white/30 relative group"
+                                title="Sync Center">
                                 <FiRefreshCcw size={15} className={`transition-transform duration-700 ${pendingCount > 0 ? 'animate-spin-slow' : 'group-hover:rotate-180'}`} />
                                 {pendingCount > 0 && (
                                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
@@ -665,59 +736,56 @@ const MyActivityDashboard = () => {
                                     </span>
                                 )}
                             </button>
-
-                            {/* Technical Support */}
-                            <div className="relative group">
-                                <button
-                                    onClick={() => window.location.href = 'mailto:support.stride@deped.gov.ph'}
-                                    className="p-2 bg-white/95 rounded-xl text-[#08315F] hover:text-blue-600 transition-all shadow-md border border-slate-100"
-                                    title="Technical Support"
-                                >
-                                    <TbHeadset size={15} />
-                                </button>
-                                <div className="absolute -top-2 -right-2 bg-[#B91C1C] text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm border border-white uppercase tracking-tighter">
-                                    NEW!
-                                </div>
-                            </div>
-
-                            {/* Logout */}
-                            <button
-                                onClick={confirmLogout}
-                                className="p-2 bg-white/95 rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all active:scale-95 shadow-md border border-slate-100"
-                                title="Logout"
-                            >
+                            <button onClick={confirmLogout}
+                                className="p-2 bg-white/90 rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all active:scale-95 shadow-md border border-white/30"
+                                title="Logout">
                                 <FiLogOut size={15} />
                             </button>
                         </div>
                     </div>
 
-                    {/* Offline Indicator Alert */}
+                    {/* Offline Banner */}
                     <AnimatePresence>
                         {!isOnline && (
-                            <motion.div 
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="bg-rose-500 text-white px-6 py-2 flex items-center justify-center gap-2 overflow-hidden z-[100]"
-                            >
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                className="bg-rose-500 text-white px-6 py-2 flex items-center justify-center gap-2 mx-6 mt-3 rounded-2xl overflow-hidden">
                                 <FiWifiOff className="w-4 h-4" />
                                 <span className="text-[10px] font-black uppercase tracking-widest italic">Offline Mode Active • Progress will save to Sync Center</span>
                             </motion.div>
                         )}
                     </AnimatePresence>
 
-                    {/* XP Progress Bar Box */}
-                    <div className="px-6 md:px-8 mt-6">
-                        <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="nodes-card bg-white rounded-3xl p-5"
-                        >
+                    {/* Pending Sync Alert */}
+                    <AnimatePresence>
+                        {pendingCount > 0 && isOnline && (
+                            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                className="mx-6 md:mx-8 mt-3 bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-2.5 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <FiUpload size={14} className="text-amber-600" />
+                                    <span className="text-[11px] font-black text-amber-800">
+                                        {pendingCount} item{pendingCount > 1 ? 's' : ''} waiting to sync
+                                    </span>
+                                </div>
+                                <button onClick={() => navigate('/sync-center')}
+                                    className="text-[10px] font-black text-amber-700 bg-amber-100 px-3 py-1.5 rounded-xl hover:bg-amber-200 transition-colors flex items-center gap-1">
+                                    Sync Now <FiArrowRight size={10} />
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Celebration Banner */}
+                    {isAllDone && <CelebrationBanner />}
+
+                    {/* XP Bar + Progress Ring + Support Row */}
+                    <div className="px-6 md:px-8 mt-5 grid grid-cols-1 md:grid-cols-[1fr_160px_220px] lg:grid-cols-[1fr_180px_280px] xl:grid-cols-[1fr_180px_320px] gap-4 items-stretch">
+                        {/* XP Bar */}
+                        <div className="ab-xp-bar flex flex-col justify-between">
                             <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center gap-2">
-                                    <FiZap className="text-yellow-500" size={16} />
+                                    <FiZap className="text-amber-400" size={16} />
                                     <span className="text-slate-700 font-black text-sm">{xp.toLocaleString()} XP Earned</span>
+                                    <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">{levelInfo.title}</span>
                                 </div>
                                 <span className="text-slate-400 text-[10px] font-bold">{maxXP.toLocaleString()} XP MAX</span>
                             </div>
@@ -726,328 +794,239 @@ const MyActivityDashboard = () => {
                                     initial={{ width: 0 }}
                                     animate={{ width: `${Math.min((xp / maxXP) * 100, 100)}%` }}
                                     transition={{ duration: 1.2, ease: "easeOut" }}
-                                    className="h-full rounded-full bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-500 shadow-sm shadow-orange-200"
+                                    className="h-full rounded-full bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-500"
                                 />
                             </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Quest Notification / CTAs */}
-                    <div className="px-6 md:px-8 space-y-4 mt-4">
-                        {/* Unit 9 Announcement Box */}
-                        {data?.progress && !data.progress.flags?.unit9 && (
-                            <motion.div 
-                                initial={{ opacity: 0, y: 15 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.35, type: "spring", stiffness: 100 }}
-                                onClick={() => navigate('/modular/unit-9')}
-                                className="bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 rounded-2xl p-4 shadow-xl shadow-blue-200/50 cursor-pointer overflow-hidden relative group border-2 border-indigo-400"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                
-                                <div className="flex items-center justify-between relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative">
-                                            <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center">
-                                                <FiZap className="text-white fill-white" size={20} />
-                                            </div>
-                                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500 border-2 border-white"></span>
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <h4 className="text-white font-black text-sm tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>NEW QUEST: UNIT 9</h4>
-                                            <p className="text-white/80 text-[10px] font-bold uppercase tracking-wider">Infrastructure & Safety is Live!</p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white/20 px-3 py-1.5 rounded-lg backdrop-blur-md border border-white/20">
-                                        <span className="text-white text-[10px] font-black tracking-widest uppercase">Go Now →</span>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Data Integrity Audit Alert */}
-                        {data?.progress && Object.entries(data.progress.flags || {}).some(([k, v]) => v && !data.progress.validationFlags?.[k]) && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="p-4 rounded-2xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-red-200 shadow-lg shadow-red-100/50"
-                            >
-                                <div className="flex items-start gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-red-500 flex items-center justify-center text-white shadow-md animate-pulse">
-                                        <FiShield size={24} />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="text-red-900 font-black text-sm uppercase tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>Audit Review Required</h4>
-                                        <p className="text-red-800/70 text-[10px] font-bold mt-0.5 leading-relaxed">
-                                            Some reported data units require your review to meet high-integrity standards.
-                                        </p>
-                                        <button 
-                                            onClick={() => navigate('/modular-dashboard')}
-                                            className="mt-3 w-full py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md shadow-red-600/20 active:scale-95 transition-all"
-                                        >
-                                            Revisit & Validate →
-                                        </button>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </div>
-
-                    {/* Main Quest Information */}
-                    <div className="px-6 md:px-8 mt-6 grid grid-cols-1 gap-6">
-                        
-                        {/* Progress Circular Ring & Continue CTA */}
-                        <motion.div 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                            className="nodes-card bg-white rounded-3xl p-6"
-                        >
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                                <div className="flex-1 text-center sm:text-left">
-                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-2" style={{ fontFamily: 'var(--font-heading)' }}>Mission Progress</p>
-                                    <h2 className="text-3xl font-black text-[#08315F] mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
-                                        {filteredCompletedUnits.length} <span className="text-slate-300 text-lg">/ {DASHBOARD_METADATA.units.length}</span>
-                                    </h2>
-                                    <div className="flex flex-col gap-0.5">
-                                        <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-wide">Reported Units</p>
-                                        <p className="text-blue-500 text-[9px] font-black uppercase tracking-widest">
-                                            {Object.values(data?.progress?.validationFlags || {}).filter(v => v === true).length} Validated
-                                        </p>
-                                    </div>
-                                    
-                                    {/* Mini stats */}
-                                    <div className="mt-4 flex flex-col gap-2 items-center sm:items-start">
-                                        <div className="flex items-center gap-2">
-                                            <FiClock size={12} className="text-amber-500" />
-                                            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                                                {data?.gamification?.fastest_sprint?.time_text || 'No sprints yet'}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <FiTrendingUp size={12} className="text-cyan-500" />
-                                            <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                                                {data?.gamification?.fastest_sprint ? `Best: Unit ${data.gamification.fastest_sprint.unit}` : 'Start a unit!'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex justify-center shrink-0">
-                                    <ProgressRing percentage={displayPercentage} validationPercentage={displayValidationPercentage} />
-                                </div>
-                            </div>
-
-                            {/* Continue Button */}
-                            {nextUnit && (
-                                <motion.div 
-                                    onClick={() => navigate(nextUnit.path)}
-                                    whileTap={{ scale: 0.97 }}
-                                    className="mt-6 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-2xl p-4 flex items-center justify-between cursor-pointer group relative overflow-hidden border border-emerald-400 shadow-md"
-                                >
-                                    <div className="absolute inset-0 bg-white opacity-0 group-active:opacity-10 transition-opacity" />
-                                    <div className="flex items-center gap-4 relative z-10">
-                                        <div className="bg-white/20 p-2.5 rounded-xl">
-                                            <FiPlay className="text-white fill-white" size={18} />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="text-white text-sm font-black" style={{ fontFamily: 'var(--font-heading)' }}>Continue Quest</p>
-                                            <p className="text-white/80 text-[10px] font-bold uppercase tracking-wider">
-                                                {nextUnit.icon} {nextUnit.name} • +{nextUnit.xp} XP
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-white/20 w-8 h-8 rounded-full flex items-center justify-center">
-                                        <span className="text-white font-black">→</span>
-                                    </div>
-                                </motion.div>
-                            )}
-                            {!nextUnit && (
-                                <div className="mt-6 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 rounded-2xl p-4 border border-yellow-500/20 text-center">
-                                    <p className="text-yellow-400 font-black text-sm" style={{ fontFamily: 'var(--font-heading)' }}>🎉 All Quests Complete!</p>
-                                    <p className="text-yellow-400/50 text-[10px] font-bold mt-1">You are a STRIDE Master</p>
-                                </div>
-                            )}
-                        </motion.div>
-                    </div>
-
-                    {/* Achievements & Leaderboard Snapshot Grid */}
-                    <div className="px-6 md:px-8 mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Achievements */}
-                        <div>
-                            <h3 className="text-[#08315F] text-xs font-black uppercase tracking-wider mb-3 flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
-                                <FiAward size={14} className="text-amber-500" /> Achievements
-                            </h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                {achievements.map((ach, i) => (
-                                    <motion.div
-                                        key={ach.id}
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: 0.15 * i }}
-                                        className={`p-4 rounded-2xl border-2 transition-all ${
-                                            ach.earned 
-                                                ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-amber-400 shadow-sm shadow-amber-100' 
-                                                : 'bg-white border-slate-100 opacity-60'
-                                        }`}
-                                    >
-                                        <span className="text-2xl">{ach.icon}</span>
-                                        <p className={`text-[11px] font-black mt-2 ${ach.earned ? 'text-[#08315F]' : 'text-slate-400'}`} style={{ fontFamily: 'var(--font-heading)' }}>
-                                            {ach.name}
-                                        </p>
-                                        <p className={`text-[9px] font-bold mt-0.5 ${ach.earned ? 'text-amber-800' : 'text-slate-300'}`}>
-                                            {ach.desc}
-                                        </p>
-                                    </motion.div>
-                                ))}
+                            <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-50">
+                                <span className="text-[10px] text-slate-500 font-bold">{filteredCompletedUnits.length}/{DASHBOARD_METADATA.units.length} units submitted</span>
+                                <span className="text-[10px] text-emerald-600 font-bold">{displayValidationPercentage}% validated by division</span>
                             </div>
                         </div>
 
-                        {/* Leaderboard Snapshot */}
+                        {/* Progress Ring */}
+                        <div className="ab-xp-bar flex flex-col items-center justify-center gap-2">
+                            <ProgressRing percentage={displayPercentage} validationPercentage={displayValidationPercentage} size={120} strokeWidth={9} />
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Overall Progress</span>
+                        </div>
+
+                        {/* Support Card */}
+                        <div className="ab-xp-bar flex flex-col items-center justify-center gap-3 text-center">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Technical Support</span>
+                            <div className="w-16 h-16 rounded-full bg-sky-50 text-sky-500 flex items-center justify-center border-4 border-sky-100/50 mb-1">
+                                <TbHeadset size={28} />
+                            </div>
+                            <a
+                                href="https://stride.deped.gov.ph/insighted-ticketing/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full mt-1 px-4 py-2.5 bg-[#08315F] text-white rounded-xl text-[10px] font-black uppercase tracking-wide hover:bg-[#075985] active:scale-95 transition-all flex justify-center items-center gap-2"
+                            >
+                                <TbTicket size={14} /> Open Ticket
+                            </a>
+                        </div>
+                    </div>
+
+                    {/* Bottom Area: Units (Left) + Announcements (Right) */}
+                    <div className="px-6 md:px-8 mt-5 grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
+                        {/* Left Column: Next Up + Units List */}
                         <div className="flex flex-col">
-                            <h3 className="text-[#08315F] text-xs font-black uppercase tracking-wider mb-3 flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
-                                <FiTarget size={14} className="text-sky-500" /> Leaderboard Snapshot
-                            </h3>
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.4 }}
-                                className="nodes-card bg-white rounded-3xl p-5 flex-grow"
-                            >
-                                <div className="h-44 w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={comparativeData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                                            <XAxis 
-                                                dataKey="name" axisLine={false} tickLine={false} 
-                                                tick={{ fill: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: 700 }}
-                                                dy={8}
-                                            />
-                                            <YAxis hide />
-                                            <Tooltip 
-                                                cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                                                content={({ active, payload }) => {
-                                                    if (active && payload && payload.length) {
-                                                        const payloadValue = payload[0].value;
-                                                        const itemName = payload[0].payload.name;
-                                                        return (
-                                                            <div className="bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-xl">
-                                                                <p className="text-slate-400 text-[9px] font-black uppercase">{itemName}</p>
-                                                                <p className="text-emerald-500 text-xs font-black">{payloadValue}%</p>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return null;
-                                                }}
-                                            />
-                                            <Bar dataKey="completed" radius={[10, 10, 10, 10]} barSize={36}>
-                                                {comparativeData.map((entry, index) => (
-                                                    <Cell 
-                                                        key={`cell-${index}`} 
-                                                        fill={entry.name === 'My School' ? 'url(#gamifiedGradient)' : 'rgba(0,0,0,0.05)'} 
-                                                    />
-                                                ))}
-                                            </Bar>
-                                            <defs>
-                                                <linearGradient id="gamifiedGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="#34d399" />
-                                                    <stop offset="100%" stopColor="#06b6d4" />
-                                                </linearGradient>
-                                            </defs>
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                            {/* Next Up Hero Card */}
+                            {!isAllDone && nextUnit && (
+                                <div className="mb-6">
+                                    <NextUpCard unit={nextUnit} onGo={handleGo} impersonatedUid={impersonatedUid} />
                                 </div>
-                            </motion.div>
+                            )}
+
+                            {/* Units Grid — Section Label */}
+                            <div className="mb-3 flex items-center gap-3">
+                                <h3 className="text-[#08315F] text-xs font-black uppercase tracking-wider flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
+                                    <FiTarget size={14} className="text-amber-500" /> All Reporting Units
+                                </h3>
+                                <div className="h-px flex-1 bg-slate-200/60" />
+                                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{filteredCompletedUnits.length}/{DASHBOARD_METADATA.units.length} done</span>
+                            </div>
+
+                            {/* Units List */}
+                            <div className="flex flex-col gap-3">
+                                {sortedUnits.map((unit, i) => {
+                                    const stateInfo = getUnitState(unit, data);
+                                    return (
+                                        <UnitCard
+                                            key={unit.id}
+                                            unit={unit}
+                                            stateInfo={stateInfo}
+                                            onGo={handleGo}
+                                            impersonatedUid={impersonatedUid}
+                                            index={i}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Right Column: Announcements & Widgets */}
+                        <div className="flex flex-col gap-6">
+                            <AnnouncementPanel />
+                            <SchoolCalendarCard />
+                            <RecentActivityFeedCard />
                         </div>
                     </div>
 
-                    {/* Quest Log / Mission Checklist */}
-                    <div className="px-6 md:px-8 mt-6 pb-6">
-                        <h3 className="text-[#08315F] text-xs font-black uppercase tracking-wider mb-3 flex items-center gap-2" style={{ fontFamily: 'var(--font-heading)' }}>
-                            <FiStar size={14} className="text-yellow-500" /> Quest Log
-                        </h3>
-                        
-                        <div className="space-y-2.5">
-                            {unitMap.filter(u => {
-                                const completedArr = data?.progress?.completedUnits || [];
-                                return Array.isArray(completedArr) ? !completedArr.includes(u.id) : !data?.progress?.flags?.[`unit${u.flagId}`];
-                            }).length === 0 ? (
-                                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-8 text-center shadow-sm">
-                                    <div className="text-4xl mb-3">🏆</div>
-                                    <h4 className="text-emerald-800 font-black text-sm" style={{ fontFamily: 'var(--font-heading)' }}>All Quests Completed!</h4>
-                                    <p className="text-emerald-600/70 text-[10px] font-bold mt-1 uppercase tracking-wider">You are a STRIDE Master</p>
-                                </div>
-                            ) : (
-                                unitMap
-                                    .filter(unit => {
-                                        const completedArr = data?.progress?.completedUnits || [];
-                                        return Array.isArray(completedArr) ? !completedArr.includes(unit.id) : !data?.progress?.flags?.[`unit${unit.flagId}`];
-                                    })
-                                    .map((unit, i) => {
-                                        const isNext = nextUnit?.id === unit.id;
-                                        return (
-                                            <motion.div 
-                                                key={unit.id}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: 0.05 * i }}
-                                                onClick={() => {
-                                                    const targetPath = impersonatedUid ? `${unit.path}?uid=${impersonatedUid}` : unit.path;
-                                                    navigate(targetPath);
-                                                }}
-                                                className={`p-4 rounded-2xl flex items-center justify-between border-2 cursor-pointer active:scale-[0.98] transition-all ${
-                                                    isNext 
-                                                        ? 'bg-white border-sky-300 shadow-md shadow-sky-100/50' 
-                                                        : 'bg-white border-slate-100 opacity-60'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-3.5">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
-                                                        isNext ? 'bg-sky-50' : 'bg-slate-50'
-                                                    }`}>
-                                                        {unit.icon}
-                                                    </div>
-                                                    <div className="text-left">
-                                                        <h4 className={`text-[11px] font-black ${
-                                                            isNext ? 'text-sky-700' : 'text-slate-500'
-                                                        }`} style={{ fontFamily: 'var(--font-heading)' }}>
-                                                            {unit.name}
-                                                        </h4>
-                                                        <p className={`text-[9px] font-bold mt-0.5 ${
-                                                            isNext ? 'text-sky-500/70' : 'text-slate-300'
-                                                        }`}>
-                                                            {data?.progress?.incompleteUnits?.includes(unit.id) ? (
-                                                                <span className="text-amber-500 font-black">⚠️ INCOMPLETE</span>
-                                                            ) : data?.progress?.validationFlags?.[`unit${unit.id}`] ? (
-                                                                <span className="text-emerald-500 font-black">✅ VALIDATED</span>
-                                                            ) : isNext ? (
-                                                                '⚡ ACTIVE QUEST'
-                                                            ) : (
-                                                                `+${unit.xp} XP Reward`
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                                                    isNext ? 'bg-sky-50' : 'bg-slate-50'
-                                                }`}>
-                                                    {isNext 
-                                                        ? <FiPlay size={12} className="text-sky-500 fill-sky-500" />
-                                                        : <FiLock size={12} className="text-slate-300" />
-                                                    }
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })
-                            )}
+                    {/* Bottom info */}
+                    <div className="px-6 md:px-8 mt-6 mb-2">
+                        <div className="bg-sky-50/70 border border-sky-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                            <FiInfo size={14} className="text-sky-500 shrink-0" />
+                            <p className="text-[10px] text-sky-700 font-bold leading-relaxed">
+                                Units are sorted by priority — pending and flagged units appear first. Completed units remain accessible for viewing and editing. All changes are synced automatically.
+                            </p>
                         </div>
                     </div>
 
                 </div>
+
             </div>
         </PageTransition>
+    );
+};
+const AnnouncementPanel = () => {
+    const [announcement, setAnnouncement] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchLatest = async () => {
+            try {
+                const res = await fetch(api('/api/announcements/latest'));
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.success && json.data) {
+                        setAnnouncement(json.data.content);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch latest announcement:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchLatest();
+    }, []);
+
+    if (!announcement && !loading) return null;
+
+    return (
+        <div className="bg-gradient-to-br from-[#08315F] to-[#075985] rounded-2xl p-6 text-white shadow-xl flex flex-col relative overflow-hidden border-2 border-[#075985]/30">
+            {/* Subtle glow effect */}
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <div className="relative z-10 flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-4">
+                    <FiActivity className="w-5 h-5 text-amber-400" />
+                    <h3 className="text-sm font-black uppercase tracking-wider text-amber-400">Latest Announcement</h3>
+                </div>
+                {loading ? (
+                    <div className="animate-pulse flex flex-col gap-2">
+                        <div className="h-4 bg-white/20 rounded w-full"></div>
+                        <div className="h-4 bg-white/20 rounded w-5/6"></div>
+                        <div className="h-4 bg-white/20 rounded w-4/6"></div>
+                    </div>
+                ) : (
+                    <div className="text-sm leading-relaxed font-medium opacity-90" style={{ fontFamily: 'var(--font-body)' }}>
+                        {announcement}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const SchoolCalendarCard = () => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const currentDate = today.getDate();
+
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+    const blanks = Array.from({ length: firstDay }, (_, i) => i);
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    return (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-slate-100 flex flex-col relative overflow-hidden">
+            <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                    <FiCalendar className="w-5 h-5 text-sky-500" />
+                    <h3 className="text-sm font-black uppercase tracking-wider text-[#08315F]">
+                        {monthNames[currentMonth]} {currentYear}
+                    </h3>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                {dayNames.map(day => (
+                    <div key={day} className="text-[10px] font-black text-slate-400 uppercase tracking-widest py-1">
+                        {day}
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center">
+                {blanks.map(blank => (
+                    <div key={`blank-${blank}`} className="p-2"></div>
+                ))}
+                {days.map(day => {
+                    const isToday = day === currentDate;
+                    return (
+                        <div key={day} className="flex justify-center items-center p-1">
+                            <span 
+                                className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded-full transition-all ${
+                                    isToday 
+                                        ? 'bg-sky-500 text-white shadow-md ring-4 ring-sky-50 font-black' 
+                                        : 'text-slate-600 hover:bg-slate-50'
+                                }`}
+                            >
+                                {day}
+                            </span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const RecentActivityFeedCard = () => {
+    return (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-slate-100 flex flex-col relative overflow-hidden">
+            <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                    <FiClock className="w-5 h-5 text-emerald-500" />
+                    <h3 className="text-sm font-black uppercase tracking-wider text-[#08315F]">Recent Activity</h3>
+                </div>
+            </div>
+            
+            <div className="relative border-l-2 border-slate-100 ml-3 pl-5 flex flex-col gap-6 py-2 mt-2">
+                <div className="relative">
+                    <div className="absolute -left-[27px] top-0.5 w-3 h-3 rounded-full bg-emerald-400 ring-4 ring-white" />
+                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">Unit 3 Validated</h4>
+                    <p className="text-[10px] font-bold text-slate-500 mt-1">Division verified Organized Classes.</p>
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block mt-1.5">2 hours ago</span>
+                </div>
+                <div className="relative">
+                    <div className="absolute -left-[27px] top-0.5 w-3 h-3 rounded-full bg-sky-400 ring-4 ring-white" />
+                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">Learner Profile Saved</h4>
+                    <p className="text-[10px] font-bold text-slate-500 mt-1">Draft saved for Unit 4.</p>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mt-1.5">Yesterday</span>
+                </div>
+                <div className="relative">
+                    <div className="absolute -left-[27px] top-0.5 w-3 h-3 rounded-full bg-amber-400 ring-4 ring-white" />
+                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wide">Help Ticket Opened</h4>
+                    <p className="text-[10px] font-bold text-slate-500 mt-1">Issue reported regarding LRN format.</p>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mt-1.5">2 days ago</span>
+                </div>
+            </div>
+        </div>
     );
 };
 

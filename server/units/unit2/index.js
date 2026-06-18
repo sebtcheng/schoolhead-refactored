@@ -191,21 +191,23 @@ router.put('/api/ph_schools/unit2/:id', async (req, res) => {
             unit_2_updated_at: new Date()
         };
 
+        const school_yr = data.school_yr || 'SY 26-27';
+
         const keys = Object.keys(updateFields);
-        const columnsStr = ['iern', 'school_id', ...keys].map(c => `"${c}"`).join(', ');
-        const placeholders = ['iern', 'school_id', ...keys].map((_, idx) => `$${idx + 1}`).join(', ');
+        const columnsStr = ['iern', 'school_id', 'school_yr', ...keys].map(c => `"${c}"`).join(', ');
+        const placeholders = ['iern', 'school_id', 'school_yr', ...keys].map((_, idx) => `$${idx + 1}`).join(', ');
         const updateClause = keys.map(f => `"${f}" = EXCLUDED."${f}"`).join(', ');
 
         const query = `
             INSERT INTO unit2_school_learners (${columnsStr})
             VALUES (${placeholders})
-            ON CONFLICT (iern) DO UPDATE SET
+            ON CONFLICT (iern, school_yr) DO UPDATE SET
                 ${updateClause},
                 updated_at = CURRENT_TIMESTAMP
             RETURNING *
         `;
 
-        const values = [resolvedIern, resolvedSchoolId, ...keys.map(k => updateFields[k])];
+        const values = [resolvedIern, resolvedSchoolId, school_yr, ...keys.map(k => updateFields[k])];
         const result = await safeQuery(query, values);
 
         // Keep ph_schools metadata flags synced for backward compatibility

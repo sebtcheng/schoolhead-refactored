@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiCheckCircle, FiCheck, FiChevronRight, FiChevronLeft, FiLayers, FiUsers, FiUnlock, FiSave, FiArrowLeft, FiAlertTriangle, FiWifiOff } from "react-icons/fi";
+import { FiX, FiCheckCircle, FiCheck, FiChevronRight, FiChevronLeft, FiLayers, FiUsers, FiUnlock, FiSave, FiArrowLeft, FiAlertTriangle, FiWifiOff, FiCopy } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { api } from "../../lib/api";
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
+
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const chunkyInput = "w-full p-4 mt-2 bg-white border-2 border-[#BAE6FD] rounded-3xl text-xl font-black text-slate-800 text-center focus:outline-none focus:border-[#0284C7] focus:ring-4 focus:ring-[#E0F2FE] hover:border-slate-300 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-100 font-body";
@@ -144,6 +147,46 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
     // Summary & Enrollment State
     const [isReadOnly, setIsReadOnly] = useState(propReadOnly || false);
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit3", user, targetSchoolId);
+
+    const copyUnit3 = (d) => {
+        setSectionData(prev => {
+            const updated = { ...prev };
+            availableGrades.forEach(ac => {
+                let summaryStr = null;
+                if (ac.id === "kinder") {
+                    summaryStr = d.grade_kinder_size;
+                } else if (ac.id.startsWith("g")) {
+                    const num = ac.id.replace('g', '');
+                    summaryStr = d[`grade_${num}_size`];
+                } else if (ac.id.startsWith("mg_")) {
+                    const idx = ac.id.split("_")[1];
+                    summaryStr = d[`multigrade_size_${idx}`];
+                }
+                const parsed = parseSummaryString(summaryStr, ac.label);
+                if (updated[ac.id]) {
+                    updated[ac.id] = {
+                        ...updated[ac.id],
+                        total_sections: parsed.total_sections,
+                        col_below: parsed.col_below,
+                        col_within: parsed.col_within,
+                        col_above: parsed.col_above,
+                        selectedSize: parsed.total_sections > 0 ? summaryStr : null
+                    };
+                }
+            });
+            return updated;
+        });
+    };
+
     
     useEffect(() => {
         if (propReadOnly !== undefined) {
@@ -497,6 +540,10 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
             setMgSubStep('overview');
             return;
         }
+        if (currentStep === 1) {
+            navigate("/modular-dashboard");
+            return;
+        }
         if (canGoBack) setCurrentStep(prev => prev - 1);
     };
 
@@ -523,6 +570,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
         try {
             const payload = {
+                school_yr: "SY 26-27",
                 iern,
                 has_multigrade: availableGrades.some(g => g.id.startsWith("mg_")),
                 multigrade_sections_count: 0,
@@ -900,6 +948,13 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 </div>
                 {!effectiveReadOnly && (
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleOpenHistoryModal}
+                            title="View / Copy previous SY data"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                        >
+                            <FiCopy className="w-4 h-4" />
+                        </button>
                         <div className="w-[120px] h-1.5 bg-gray-200 rounded-full overflow-hidden">
                             <motion.div 
                                 className="h-full bg-blue-600 rounded-full" 
@@ -913,6 +968,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                         </span>
                     </div>
                 )}
+
             </header>
 
             <main className={effectiveReadOnly ? "max-w-7xl mx-auto px-4 md:px-8 w-full mt-4" : "max-w-md mx-auto p-5 pb-10 mt-4"}>
@@ -1312,8 +1368,17 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                     </div>
                 </div>
             )}
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit3"
+                onCopy={() => handleCopyHistoricalData(copyUnit3)}
+            />
         </div>
     );
 };
+
 
 export default Unit3OrganizedClasses;

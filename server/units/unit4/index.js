@@ -51,18 +51,20 @@ router.put('/api/ph_schools/unit4/:id', async (req, res) => {
             return data[f] !== undefined ? data[f] : null;
         });
 
-        const colList = ['iern', 'school_id', ...fields].join(', ');
-        const valPlaceholders = ['iern', 'school_id', ...fields].map((_, i) => `$${i + 1}`).join(', ');
-        const updateClause = fields.map((f, i) => `${f} = $${i + 3}`).join(', ');
+        const school_yr = data.school_yr || 'SY 26-27';
+
+        const colList = ['iern', 'school_id', 'school_yr', ...fields].join(', ');
+        const valPlaceholders = ['iern', 'school_id', 'school_yr', ...fields].map((_, i) => `$${i + 1}`).join(', ');
+        const updateClause = fields.map((f, i) => `${f} = $${i + 4}`).join(', ');
 
         const query = `
             INSERT INTO unit4_learner_profile (${colList})
             VALUES (${valPlaceholders})
-            ON CONFLICT (iern) DO UPDATE SET ${updateClause}
+            ON CONFLICT (iern, school_yr) DO UPDATE SET ${updateClause}
             RETURNING *
         `;
 
-        const result = await safeQuery(query, [iern, school_id, ...values]);
+        const result = await safeQuery(query, [iern, school_id, school_yr, ...values]);
         res.json({ success: true, data: result.rows[0] });
     } catch (err) {
         console.error("❌ [API] Unit 4 Update Error:", {

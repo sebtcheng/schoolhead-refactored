@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiMapPin, FiActivity, FiShield, FiCloudRain, FiTruck, FiNavigation, FiZap, FiAlertTriangle, FiCheck, FiSave, FiUnlock, FiWifiOff } from 'react-icons/fi';
+import { FiArrowLeft, FiMapPin, FiActivity, FiShield, FiCloudRain, FiTruck, FiNavigation, FiZap, FiAlertTriangle, FiCheck, FiSave, FiUnlock, FiWifiOff, FiCopy } from 'react-icons/fi';
 import { FaBus, FaCarSide, FaWalking, FaWater, FaMountain, FaClinicMedical, FaSignal, FaMapMarkerAlt } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import SuccessModal from '../SuccessModal';
@@ -8,6 +8,10 @@ import { saveUnitDraft, getUnitDraft, clearUnitDraft, getModularOutbox } from ".
 import { useAuth } from "../../context/AuthContext";
 import UnitRemarkAlert from "./UnitRemarkAlert";
 import { api } from "../../lib/api";
+import SchoolLocation from '../../forms/SchoolLocation';
+import { useHistoricalData } from "../../hooks/useHistoricalData";
+import { HistoricalDataModal } from "./HistoricalDataModal";
+
 
 const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const navigate = useNavigate();
@@ -25,6 +29,23 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     const { user, authLoading } = useAuth();
     const schoolId = targetSchoolId || user?.school_id || localStorage.getItem('schoolId');
+
+    const {
+        showHistoryModal,
+        setShowHistoryModal,
+        historicalData,
+        historicalLoading,
+        handleOpenHistoryModal,
+        handleCopyHistoricalData,
+    } = useHistoricalData("unit8", user, schoolId);
+
+    const copyUnit8 = (d) => {
+        setLocationData(d);
+        if (formRef.current?.copyData) {
+            formRef.current.copyData(d);
+        }
+    };
+
 
     useEffect(() => {
         if (propReadOnly !== undefined) {
@@ -522,10 +543,20 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 <h1 className="text-sm font-black text-gray-800 uppercase tracking-tight">School Terrain</h1>
                             </div>
                             {!propReadOnly && (
-                                <button onClick={() => setShowDraftModal(true)} className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
-                                    <FiSave className="w-5 h-5" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handleOpenHistoryModal}
+                                        title="View / Copy previous SY data"
+                                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-700 transition-all active:scale-90 border border-indigo-100"
+                                    >
+                                        <FiCopy className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => setShowDraftModal(true)} className="p-2 -mr-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors">
+                                        <FiSave className="w-5 h-5" />
+                                    </button>
+                                </div>
                             )}
+
                         </>
                     )}
                 </div>
@@ -639,6 +670,14 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     </div>
                 )}
             </AnimatePresence>
+            <HistoricalDataModal
+                show={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                loading={historicalLoading}
+                data={historicalData}
+                unitKey="unit8"
+                onCopy={() => handleCopyHistoricalData(copyUnit8)}
+            />
         </motion.div>
     );
 };

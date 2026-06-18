@@ -7,6 +7,17 @@ const router = express.Router();
 // [QUEST] DASHBOARD & ANALYTICS
 // ─────────────────────────────────────────────────────────────────────────────
 
+router.get('/api/announcements/latest', async (req, res) => {
+  try {
+    const result = await safeQuery("SELECT content, created_at FROM ticket_announcements WHERE is_deleted = false ORDER BY created_at DESC LIMIT 1");
+    if (result.rows.length === 0) return res.json({ success: true, data: null });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Fetch latest announcement error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 router.patch('/api/schools/:school_id/units/:unit_number/complete', async (req, res) => {
   const { school_id, unit_number } = req.params;
   const unitNum = parseInt(unit_number, 10);
@@ -185,6 +196,7 @@ router.get('/api/schools_iern/:id', async (req, res) => {
 router.get('/api/ph_schools/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolYr = req.query.school_yr || 'SY 26-27';
     let result;
     const query = `
       SELECT ps.*, 
@@ -279,12 +291,14 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              u3.grade_4_size, u3.grade_5_size, u3.grade_6_size, u3.grade_7_size,
              u3.grade_8_size, u3.grade_9_size, u3.grade_10_size, u3.grade_11_size,
              u3.grade_12_size, u3.multigrade_size_1, u3.multigrade_size_2, u3.multigrade_size_3,
-             -- Unit2: count as completed if the unit2 table row exists OR if ps.unit2 is completed
-             (u2.iern IS NOT NULL OR ps.unit2_completed = TRUE) AS unit2_completed,
-             CASE WHEN u2.iern IS NOT NULL AND u2.unit2 = TRUE THEN 100 
-                  WHEN ps.unit2_completed = TRUE THEN 100
-                  ELSE 0 END AS unit2,
-             (u2.iern IS NOT NULL OR ps.unit2_completed = TRUE) AS unit2_has_data,
+             -- Unit1: only count as completed if the unit1 table row exists
+             COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
+             CASE WHEN u1.unit1_completed = TRUE THEN 100 ELSE COALESCE(u1.unit1, 0) END AS unit1,
+             COALESCE(u1.unit1_completed, FALSE) AS unit1_has_data,
+             -- Unit2: only count as completed if the unit2 table row exists
+             COALESCE(u2.unit2_completed = 100.00, FALSE) AS unit2_completed,
+             CASE WHEN COALESCE(u2.unit2_completed = 100.00, FALSE) = TRUE THEN 100 ELSE 0 END AS unit2,
+             (u2.iern IS NOT NULL) AS unit2_has_data,
              -- Unit3: only count as completed if the unit3 table row actually exists
              (u3.iern IS NOT NULL AND u3.unit3 = TRUE) AS unit3_completed,
              CASE WHEN u3.iern IS NOT NULL AND u3.unit3 = TRUE THEN 100 ELSE 0 END AS unit3,
@@ -357,22 +371,42 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              COALESCE(u5.mode_mg_1, ps.mode_mg_1) AS mode_mg_1,
              COALESCE(u5.mode_mg_2, ps.mode_mg_2) AS mode_mg_2,
              COALESCE(u5.mode_mg_3, ps.mode_mg_3) AS mode_mg_3,
-             COALESCE(u5.unit5_completed, ps.unit5_completed) AS unit5_completed,
-             CASE WHEN COALESCE(u5.unit5_completed, ps.unit5_completed) = TRUE THEN 100 ELSE 0 END AS unit5,
-             (u5.iern IS NOT NULL) AS unit5_has_data
+             COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
+             CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit5,
+             (u5.iern IS NOT NULL) AS unit5_has_data,
+             -- Unit6: only count as completed if the unit6 table row actually exists
+             COALESCE(u6.unit6_completed, FALSE) AS unit6_completed,
+             CASE WHEN COALESCE(u6.unit6_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit6,
+             (u6.school_id IS NOT NULL) AS unit6_has_data,
+             -- Unit7: only count as completed if the unit7 table row actually exists
+             COALESCE(u7.unit7_completed, FALSE) AS unit7_completed,
+             CASE WHEN COALESCE(u7.unit7_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit7,
+             (u7.school_id IS NOT NULL) AS unit7_has_data,
+             -- Unit8: only count as completed if the unit8 table row actually exists
+             COALESCE(u8.unit8_completed, FALSE) AS unit8_completed,
+             CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit8,
+             (u8.school_id IS NOT NULL) AS unit8_has_data,
+             -- Unit9: only count as completed if the unit9 table row actually exists
+             COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
+             CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit9,
+             (u9.school_id IS NOT NULL) AS unit9_has_data
       FROM ph_schools ps
-      LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
-      LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern
-      LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
-      LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern
-      LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern
-      WHERE ps.school_id = $1
+      LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+      LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
+      LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
+      LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
+      LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
+      LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
+      LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
+      LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
+      LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
+      WHERE ps.school_id = $1 OR ps.iern = $1
     `;
     try {
-      result = await safeQuery(query, [id]);
+      result = await safeQuery(query, [id, schoolYr]);
     } catch (err) {
       if (err.message.includes('terminated unexpectedly')) {
-        result = await safeQuery(query, [id]);
+        result = await safeQuery(query, [id, schoolYr]);
       } else {
         throw err;
       }
@@ -384,12 +418,12 @@ router.get('/api/ph_schools/:id', async (req, res) => {
 
       if (iern) {
         // Fetch Unit 6 resources flat row
-        const resRow = await safeQuery('SELECT * FROM unit6_school_resources WHERE iern = $1', [iern]);
+        const resRow = await safeQuery('SELECT * FROM unit6_school_resources WHERE iern = $1 AND school_yr = $2', [iern, schoolYr]);
         if (resRow.rows.length > 0) {
           const r = resRow.rows[0];
 
           // 1. Rebuild unit7_furniture
-          const gradesRows = await safeQuery('SELECT * FROM unit6_furniture_grades WHERE iern = $1', [iern]);
+          const gradesRows = await safeQuery('SELECT * FROM unit6_furniture_grades WHERE iern = $1 AND school_yr = $2', [iern, schoolYr]);
           const grades = gradesRows.rows.map(g => ({
             id: g.grade_level,
             grade_level: g.grade_level === 'kinder' ? 'Kinder' : 
@@ -472,7 +506,7 @@ router.get('/api/ph_schools/:id', async (req, res) => {
 
           // 3. Rebuild unit7_has_ecart and unit7_ecarts
           schoolData.unit7_has_ecart = r.unit7_has_ecart;
-          const ecartRows = await safeQuery('SELECT * FROM unit6_ecart_batches WHERE iern = $1', [iern]);
+          const ecartRows = await safeQuery('SELECT * FROM unit6_ecart_batches WHERE iern = $1 AND school_yr = $2', [iern, schoolYr]);
           schoolData.unit7_ecarts = ecartRows.rows.map(c => ({
             batches_name: c.batches_name || "",
             year_received: String(c.year_received || 0),
@@ -629,44 +663,54 @@ router.get('/api/schools/:id/activity', async (req, res) => {
 router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
   try {
     const { schoolId } = req.params;
+    const schoolYr = req.query.school_yr || 'SY 26-27';
 
     const schoolRes = await safeQuery(
       `SELECT ps.school_id, ps.school_name, ps.region, ps.division, ps.unit_completion, ps.is_esf7_opened,
-       COALESCE(u5.unit5_completed, ps.unit5_completed) AS unit5_completed,
-       CASE WHEN COALESCE(u5.unit5_completed, ps.unit5_completed) = TRUE THEN 100 ELSE COALESCE(ps.unit5, 0) END AS unit5,
-       COALESCE(u5.unit5_updated_at, ps.unit5_updated_at) AS unit5_updated_at,
-       ps.unit6, ps.unit7, ps.unit8,
-       ps.unit6_completed, ps.unit7_completed, ps.unit8_completed,
-       ps.unit6_updated_at, ps.unit7_updated_at, ps.unit8_updated_at,
-       COALESCE(u9.unit9, ps.unit9) AS unit9,
-       COALESCE(u9.unit9_completed, ps.unit9_completed) AS unit9_completed,
-       COALESCE(u9.unit9_updated_at, ps.unit9_updated_at) AS unit9_updated_at,
+       COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
+       CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u5.unit5, 0) END AS unit5,
+       u5.unit5_updated_at AS unit5_updated_at,
+       COALESCE(u6.unit6_completed, FALSE) AS unit6_completed,
+       CASE WHEN COALESCE(u6.unit6_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit6,
+       u6.unit6_updated_at AS unit6_updated_at,
+       COALESCE(u7.unit7_completed, FALSE) AS unit7_completed,
+       CASE WHEN COALESCE(u7.unit7_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u7.unit7, 0) END AS unit7,
+       u7.unit7_updated_at AS unit7_updated_at,
+       COALESCE(u8.unit8_completed, FALSE) AS unit8_completed,
+       CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u8.unit8, 0) END AS unit8,
+       u8.unit8_updated_at AS unit8_updated_at,
+       COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
+       CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u9.unit9, 0) END AS unit9,
+       u9.unit9_updated_at AS unit9_updated_at,
        COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
        CASE WHEN u1.unit1_completed = TRUE THEN 100 ELSE COALESCE(u1.unit1, 0) END AS unit1,
        u1.unit1_updated_at AS unit1_updated_at,
        COALESCE(u2.unit2_completed = 100.00, FALSE) AS unit2_completed,
-       CASE WHEN u2.unit2 = TRUE THEN 100 ELSE 0 END AS unit2,
+       CASE WHEN COALESCE(u2.unit2_completed = 100.00, FALSE) = TRUE THEN 100 ELSE 0 END AS unit2,
        u2.updated_at AS unit2_updated_at,
        COALESCE(u3.unit3_completed = 100.00, FALSE) AS unit3_completed,
-       CASE WHEN u3.unit3 = TRUE THEN 100 ELSE 0 END AS unit3,
+       CASE WHEN COALESCE(u3.unit3_completed = 100.00, FALSE) = TRUE THEN 100 ELSE 0 END AS unit3,
        u3.updated_at AS unit3_updated_at,
        COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
-       CASE WHEN u4.unit4 = TRUE THEN 100 ELSE 0 END AS unit4,
+       CASE WHEN COALESCE(u4.unit4_completed = 100.00, FALSE) = TRUE THEN 100 ELSE 0 END AS unit4,
        u4.updated_at AS unit4_updated_at,
        COALESCE(u1.unit1_completed, FALSE) AS unit1_validated,
        v.unit2_validated, v.unit3_validated, v.unit4_validated, v.unit5_validated,
        v.unit6_validated, v.unit7_validated, v.unit8_validated, v.unit9_validated,
        v.validation_percentage
        FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
-       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
-       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern
-       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern
-       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern
-       LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
+       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
+       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
+       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
+       LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
+       LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
+       LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
+       LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
        LEFT JOIN ph_schools_validate v ON ps.school_id = v.school_id
        WHERE ps.school_id = $1`,
-      [schoolId]
+      [schoolId, schoolYr]
     );
     
     if (schoolRes.rowCount === 0) return res.status(404).json({ error: 'School not found' });
@@ -675,17 +719,25 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
     const completedUnits = [];
     const flags = {};
     const validationFlags = {};
+    let completedCount = 0;
     for (let i = 1; i <= 9; i++) {
       const isCompleted = school[`unit${i}_completed`] === true || String(school[`unit${i}_completed`]) === 'true';
-      const isHundred = Math.round(Number(school[`unit${i}`]) || 0) === 100;
+      const val = parseFloat(school[`unit${i}`]) || 0;
+      const isHundred = Math.round(val) === 100;
       
+      let unitProgress = 0;
       if (isCompleted || isHundred) {
         completedUnits.push(i);
         flags[`unit${i}`] = true;
+        unitProgress = 100;
+      } else if (val > 0) {
+        unitProgress = val;
       }
-      
+      completedCount += (unitProgress / 100);
       validationFlags[`unit${i}`] = school[`unit${i}_validated`] === true;
     }
+    const dynamicPercentage = parseFloat(((completedCount / 9) * 100).toFixed(2));
+
 
     const completionRes = await safeQuery('SELECT * FROM ph_school_completion WHERE school_id = $1', [schoolId]);
 
@@ -714,7 +766,7 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
           is_esf7_opened: school.is_esf7_opened === true || String(school.is_esf7_opened) === 'true'
         },
         progress: {
-          percentage: school.unit_completion ? parseFloat(school.unit_completion) : 0,
+          percentage: dynamicPercentage,
           validation_percentage: school.validation_percentage ? parseFloat(school.validation_percentage) : 0,
           esf7_progress: esf7Progress,
           completedUnits: completedUnits,

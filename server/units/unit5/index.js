@@ -33,8 +33,10 @@ router.put('/api/ph_schools/unit5/:id', async (req, res) => {
         }
         const { iern, school_id } = schoolRes.rows[0];
 
+        const school_yr = data.school_yr || 'SY 26-27';
+
         const insertFields = [
-            'iern', 'school_id',
+            'iern', 'school_id', 'school_yr',
             'has_standard_shifting', 'has_adms', 'adm_mdl', 'adm_odl', 'adm_tvi', 'adm_blended', 'shifting_modality',
             'shift_kinder', 'shift_g1', 'shift_g2', 'shift_g3', 'shift_g4', 'shift_g5', 'shift_g6', 'shift_g7', 'shift_g8', 'shift_g9', 'shift_g10', 'shift_g11', 'shift_g12', 'shift_mg_1', 'shift_mg_2', 'shift_mg_3',
             'mode_kinder', 'mode_g1', 'mode_g2', 'mode_g3', 'mode_g4', 'mode_g5', 'mode_g6', 'mode_g7', 'mode_g8', 'mode_g9', 'mode_g10', 'mode_g11', 'mode_g12', 'mode_mg_1', 'mode_mg_2', 'mode_mg_3',
@@ -44,6 +46,7 @@ router.put('/api/ph_schools/unit5/:id', async (req, res) => {
         const values = insertFields.map(f => {
             if (f === 'iern') return iern;
             if (f === 'school_id') return school_id;
+            if (f === 'school_yr') return school_yr;
             if (f === 'unit5') return 100;
             if (f === 'unit5_completed') return true;
             if (f === 'unit5_updated_at') return new Date();
@@ -60,20 +63,20 @@ router.put('/api/ph_schools/unit5/:id', async (req, res) => {
         });
 
         const placeholders = insertFields.map((_, i) => `$${i + 1}`).join(', ');
-        const updateFields = insertFields.filter(f => f !== 'iern' && f !== 'school_id');
+        const updateFields = insertFields.filter(f => f !== 'iern' && f !== 'school_id' && f !== 'school_yr');
         const updateClause = updateFields.map((f, i) => `${f} = $${insertFields.indexOf(f) + 1}`).join(', ');
 
         const upsertQuery = `
             INSERT INTO unit5_shifting_modality (${insertFields.join(', ')})
             VALUES (${placeholders})
-            ON CONFLICT (iern) DO UPDATE SET ${updateClause}
+            ON CONFLICT (iern, school_yr) DO UPDATE SET ${updateClause}
             RETURNING *
         `;
 
         const result = await safeQuery(upsertQuery, values);
 
         // Update total completion
-        await updateSchoolTotalCompletion(iern).catch(() => {});
+        await updateSchoolTotalCompletion(iern, school_yr).catch(() => {});
 
         res.json({ success: true, data: result.rows[0] });
     } catch (err) {
