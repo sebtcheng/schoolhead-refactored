@@ -991,6 +991,7 @@
 .siif-table td {
     color: #1E293B;
     font-weight: 700;
+    text-align: center;
 }
 
 .siif-status {
