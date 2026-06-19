@@ -2,7 +2,8 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TbLayoutDashboard, TbClipboardList, TbChartBar } from 'react-icons/tb';
 import { FiSettings, FiGrid } from 'react-icons/fi';
-import { TbBook } from 'react-icons/tb';
+import insightedLogo from '../../../assets/insightedlogo.png';
+import insightedLogoCollapsed from '../../../assets/insightedlogo2.png';
 
 const BottomNav = () => {
     const navigate = useNavigate();
@@ -21,11 +22,16 @@ const BottomNav = () => {
         <aside className="siif-sidebar z-[1000]">
             {/* Desktop Brand Block */}
             <div className="siif-brand">
-                <TbBook size={24} className="text-siif-blue" />
-                <span className="siif-brand-text">
-                    <span className="siif-brand-insight">Insight</span>
-                    <span className="siif-brand-ed">ED</span>
-                </span>
+                <img
+                    src={insightedLogo}
+                    alt="InsightEd Logo"
+                    className="siif-brand-logo"
+                />
+                <img
+                    src={insightedLogoCollapsed}
+                    alt="InsightEd Logo Icon"
+                    className="siif-brand-logo-collapsed"
+                />
             </div>
 
             <nav className="siif-nav">
@@ -41,6 +47,7 @@ const BottomNav = () => {
                                 className="siif-mobile-fab"
                                 onClick={(e) => {
                                     e.preventDefault();
+                                    e.currentTarget.blur();
                                     navigate(item.path);
                                 }}
                             >
@@ -59,6 +66,7 @@ const BottomNav = () => {
                             className={isActive ? 'active' : ''}
                             onClick={(e) => {
                                 e.preventDefault();
+                                e.currentTarget.blur();
                                 navigate(item.path);
                             }}
                         >

@@ -78,6 +78,14 @@ const NodesDashboard = () => {
         loadCommonData();
     }, [user]);
 
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const container = document.getElementById('nexus-scroll-container');
+        if (container) {
+            container.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [activeView]);
+
     const handleCardClick = (route, id) => {
         if (id === 'other-services') {
             setActiveView('services');
@@ -571,7 +579,7 @@ const NodesDashboard = () => {
                 </div>
 
                 {/* Main Content Area */}
-                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
+                <div id="nexus-scroll-container" className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
 
                     {/* Header / Topbar (School Card Style) */}
                     <div className="nodes-topbar">
