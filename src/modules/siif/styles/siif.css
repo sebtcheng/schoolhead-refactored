@@ -1128,3 +1128,10 @@
         align-items: flex-start;
     }
 }
+
+/* Force hide Bottom Nav during print */
+@media print {
+    .siif-sidebar {
+        display: none !important;
+    }
+}
