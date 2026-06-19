@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     TbHistory, TbChevronRight, TbArrowLeft, TbWallet, TbBulb, TbChecklist, TbUsers, TbCheck, TbX, TbPrinter
@@ -67,6 +67,30 @@ const SIIFDashboard = ({ user, token }) => {
     const spentPercent = allocation.allocation_amount > 0
         ? Math.round((parseFloat(allocation.spent_amount) / parseFloat(allocation.allocation_amount)) * 100)
         : 0;
+
+    // Flagged Items Computation
+    const flaggedCount = useMemo(() => {
+        if (!submission?.interventions || submission.interventions.length === 0) return 0;
+        let flags = 0;
+        submission.interventions.forEach(intId => {
+            const budget = parseFloat(submission.budgetEstimates?.[intId]) || 0;
+            const intData = submission.interventionData?.[intId] || {};
+            
+            // Check Beneficiaries
+            const beneficiariesCount = Object.values(intData.beneficiaryCounts || {}).reduce((s, v) => s + (parseInt(v) || 0), 0);
+            
+            // Check Activities
+            const selectedActivities = intData.selectedActivities || {};
+            const activitiesCount = Object.values(selectedActivities).flat().filter(Boolean).length;
+            const otherAct = intData.otherActivity || '';
+            const hasActivity = activitiesCount > 0 || otherAct.trim().length > 0;
+
+            if (budget <= 0 || beneficiariesCount <= 0 || !hasActivity) {
+                flags += 1;
+            }
+        });
+        return flags;
+    }, [submission]);
 
     if (loading) {
         return (
@@ -137,7 +161,7 @@ const SIIFDashboard = ({ user, token }) => {
                             <div className="siif-card-header">
                                 <div>
                                     <h2>School Allocation Overview</h2>
-                                    <p className="siif-card-subtitle">Main resource snapshot for utilization, remaining balance, and pending approval.</p>
+                                    <p className="siif-card-subtitle">Main resource snapshot for school allocation, utilization, and remaining balance.</p>
                                 </div>
                                 <span className="siif-fy-pill">FY {allocation.fiscal_year}</span>
                             </div>
@@ -269,11 +293,29 @@ const SIIFDashboard = ({ user, token }) => {
                                         <strong className="text-siif-blue">›</strong>
                                     </button>
 
-                                    <button className="siif-action-btn" onClick={() => navigate('/siif/forms')}>
-                                        <div className="siif-action-icon">✓</div>
-                                        <div className="text-left">
-                                            <b>Review Flagged Items</b>
-                                            <span>Fix missing details and validation issues</span>
+                                    <button className={`siif-action-btn ${flaggedCount > 0 ? 'border-red-100 hover:border-red-200 bg-red-50/30' : ''}`} onClick={() => navigate('/siif/forms')}>
+                                        <div className="siif-action-icon" style={flaggedCount > 0 ? { backgroundColor: '#fee2e2', color: '#dc2626' } : {}}>
+                                            {flaggedCount > 0 ? '⚠️' : '✓'}
+                                        </div>
+                                        <div className="text-left flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <b className={flaggedCount > 0 ? "text-red-700" : ""}>Review Flagged Items</b>
+                                                {flaggedCount > 0 && (
+                                                    <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm shrink-0 flex items-center gap-1 animate-pulse">
+                                                        {flaggedCount} Action{flaggedCount !== 1 ? 's' : ''} Needed
+                                                    </span>
+                                                )}
+                                                {flaggedCount === 0 && submission?.interventions?.length > 0 && (
+                                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded-full font-black border border-emerald-200">
+                                                        0 Flags
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className={flaggedCount > 0 ? "text-red-600/80 font-semibold" : ""}>
+                                                {flaggedCount > 0 
+                                                    ? 'Incomplete beneficiaries, budget, or activities' 
+                                                    : 'Fix missing details and validation issues'}
+                                            </span>
                                         </div>
                                         <strong className="text-siif-blue">›</strong>
                                     </button>

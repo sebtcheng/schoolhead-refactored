@@ -19,7 +19,7 @@ const BottomNav = () => {
     ];
 
     return (
-        <aside className="siif-sidebar z-[1000]">
+        <aside className="siif-sidebar z-[1000] print:hidden">
             {/* Desktop Brand Block */}
             <div className="siif-brand">
                 <img

@@ -373,6 +373,34 @@ const SIIFFormsHub = ({ user, token }) => {
         return null;
     };
 
+    // ─── Missing Data Check ───────────────────────────────────────────────────
+    const isMissingData = (cardId) => {
+        if (selectedInterventions.length === 0) return false;
+        
+        if (cardId === 'beneficiaries') {
+            return selectedInterventions.some(intId => {
+                const counts = beneficiaries?.[intId]?.beneficiaryCounts || {};
+                const total = Object.values(counts).reduce((s, v) => s + (parseInt(v) || 0), 0);
+                return total <= 0;
+            });
+        }
+        if (cardId === 'activities') {
+            return selectedInterventions.some(intId => {
+                const selectedAct = activities?.[intId]?.selectedActivities || {};
+                const count = Object.values(selectedAct).flat().filter(Boolean).length;
+                const other = activities?.[intId]?.otherActivity || '';
+                return count === 0 && other.trim().length === 0;
+            });
+        }
+        if (cardId === 'budget') {
+            return selectedInterventions.some(intId => {
+                const b = parseFloat(budgets?.[intId]) || 0;
+                return b <= 0;
+            });
+        }
+        return false;
+    };
+
     // ─── Render ───────────────────────────────────────────────────────────────
     if (loading) {
         return (
@@ -536,7 +564,9 @@ const SIIFFormsHub = ({ user, token }) => {
                 {CARDS.map((card, idx) => {
                     const status = getCardStatus(card.id);
                     const locked = status === 'locked';
-                    const done = status === 'confirmed';
+                    const isMissing = isMissingData(card.id);
+                    const done = status === 'confirmed' && !isMissing;
+                    const missing = !locked && !done && isMissing;
                     const summary = getCardSummary(card.id);
                     const Icon = card.icon;
 
@@ -554,12 +584,14 @@ const SIIFFormsHub = ({ user, token }) => {
                                     ? 'bg-slate-100 border-slate-100 opacity-60 cursor-not-allowed'
                                     : done
                                         ? 'bg-white border-slate-100 shadow-md border-b-slate-200'
-                                        : 'bg-white border-blue-50 border-b-blue-500 shadow-lg shadow-blue-500/10 hover:border-blue-100'
+                                        : missing
+                                            ? 'bg-red-50/50 border-red-100 shadow-lg shadow-red-500/10 hover:border-red-200 border-b-red-400'
+                                            : 'bg-white border-blue-50 border-b-blue-500 shadow-lg shadow-blue-500/10 hover:border-blue-100'
                                     }`}
                             >
                                 {/* Status strip */}
                                 {!locked && (
-                                    <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${done ? 'bg-emerald-400' : 'bg-orange-400 animate-pulse'}`} />
+                                    <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${done ? 'bg-emerald-400' : missing ? 'bg-red-500 animate-pulse' : 'bg-orange-400 animate-pulse'}`} />
                                 )}
 
                                 {/* Icon */}
@@ -585,7 +617,13 @@ const SIIFFormsHub = ({ user, token }) => {
                                             <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">Done</span>
                                         )}
                                         {!done && !locked && (
-                                            <FiAlertCircle className="text-orange-400 text-xs animate-pulse" />
+                                            missing ? (
+                                                <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full border border-red-200 uppercase tracking-widest flex items-center gap-1 animate-pulse shadow-sm">
+                                                    Needs Input
+                                                </span>
+                                            ) : (
+                                                <FiAlertCircle className="text-orange-400 text-xs animate-pulse" />
+                                            )
                                         )}
                                         {locked && (
                                             <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase tracking-widest">Locked</span>
@@ -791,18 +829,18 @@ const SIIFFormsHub = ({ user, token }) => {
                                                             {INTERVENTION_ICONS[intId] || <TbTarget size={20} />}
                                                         </div>
                                                         <div>
-                                                            <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">{info?.label || intId}</h4>
-                                                            <span className="text-[8px] font-black bg-blue-50 text-siif-blue px-2 py-0.5 rounded-md uppercase tracking-wider">Intervention #{idx + 1}</span>
+                                                            <h4 className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{info?.label || intId}</h4>
+                                                            <span className="text-[11px] font-black bg-blue-50 text-siif-blue px-2 py-0.5 rounded-md uppercase tracking-wider">Intervention #{idx + 1}</span>
                                                         </div>
                                                     </div>
-                                                    <p className="text-xs font-black text-emerald-600 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
+                                                    <p className="text-[15px] font-black text-emerald-600 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
                                                         ₱{(parseFloat(budget) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                                                     </p>
                                                 </div>
 
                                                 {/* Beneficiaries Section - Grouped by Key Stage */}
                                                 <div className="space-y-1.5">
-                                                    <p className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest">Target Beneficiaries (Key Stages)</p>
+                                                    <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Target Beneficiaries (Key Stages)</p>
                                                     {grades.length > 0 ? (
                                                         <div className="grid grid-cols-1 gap-2 pl-1">
                                                             {KEY_STAGES.map(ks => {
@@ -810,14 +848,14 @@ const SIIFFormsHub = ({ user, token }) => {
                                                                 if (activeGradesInKs.length === 0) return null;
                                                                 const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts?.[g]) || 0), 0);
                                                                 return (
-                                                                    <div key={ks.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-1">
-                                                                        <div className="flex justify-between items-center text-[8.5px] font-black text-slate-500 uppercase">
+                                                                    <div key={ks.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-2">
+                                                                        <div className="flex justify-between items-center text-[15px] font-black text-slate-500 uppercase">
                                                                             <span>{ks.label}</span>
-                                                                            <span className="text-siif-blue bg-siif-blue/5 px-2 py-0.5 rounded-md">Total: {ksTotal.toLocaleString()}</span>
+                                                                            <span className="text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md">Total: {ksTotal.toLocaleString()}</span>
                                                                         </div>
-                                                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                                                        <div className="flex flex-wrap gap-2 mt-0.5">
                                                                             {activeGradesInKs.map(g => (
-                                                                                <span key={g} className="text-[8px] font-black bg-white text-slate-600 px-2 py-0.5 rounded-lg border border-slate-100">
+                                                                                <span key={g} className="text-[15px] font-black bg-white text-slate-600 px-3 py-1.5 rounded-lg border border-slate-100">
                                                                                     {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts?.[g] || 0}</span>
                                                                                 </span>
                                                                             ))}
@@ -827,29 +865,29 @@ const SIIFFormsHub = ({ user, token }) => {
                                                             })}
                                                         </div>
                                                     ) : (
-                                                        <p className="text-[10px] text-slate-400 italic pl-1">No beneficiaries configured.</p>
+                                                        <p className="text-[15px] text-slate-400 italic pl-1">No beneficiaries configured.</p>
                                                     )}
                                                 </div>
 
                                                 {/* Activities Section - Grouped by Category */}
                                                 <div className="space-y-1.5">
-                                                    <p className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest">Planned Activities</p>
+                                                    <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Planned Activities</p>
                                                     <div className="pl-1 space-y-2">
                                                         {categories.map(cat => {
                                                             const items = Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : [];
                                                             if (items.length === 0) return null;
                                                             return (
-                                                                <div key={cat.key} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider mb-1">{cat.label}</p>
-                                                                    <div className="space-y-1">
+                                                                <div key={cat.key} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                                    <p className="text-[15px] font-black text-slate-500 uppercase tracking-wider mb-2">{cat.label}</p>
+                                                                    <div className="space-y-2">
                                                                         {items.map((act, i) => {
                                                                             const display = act === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : act;
                                                                             return (
-                                                                                <div key={i} className="flex items-start gap-2 bg-white px-2 py-1 rounded-lg border border-slate-100">
-                                                                                    <div className="w-3.5 h-3.5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                                                        <TbCheck size={8} />
+                                                                                <div key={i} className="flex items-start gap-3 bg-white px-3 py-2 rounded-lg border border-slate-100">
+                                                                                    <div className="w-5 h-5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                                                        <TbCheck size={12} />
                                                                                     </div>
-                                                                                    <p className="text-[9px] text-slate-600 font-bold leading-snug">{display}</p>
+                                                                                    <p className="text-[15px] text-slate-600 font-bold leading-snug">{display}</p>
                                                                                 </div>
                                                                             );
                                                                         })}
