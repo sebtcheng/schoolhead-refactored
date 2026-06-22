@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/AuthContext';
 import { motion } from 'framer-motion';
 import { TbUser, TbBell, TbLock, TbLogout, TbHelp, TbLayoutDashboard } from 'react-icons/tb';
 
@@ -7,6 +8,7 @@ const DEPED_BLUE = '#0038A8';
 
 const SIIFSettings = ({ user }) => {
     const navigate = useNavigate();
+    const { confirmLogout } = useAuth();
 
     return (
         <div className="pb-32">
@@ -48,13 +50,20 @@ const SIIFSettings = ({ user }) => {
                     ))}
                 </div>
 
-                <button 
+                <button
                     onClick={() => {
                         navigate('/nodes-dashboard');
                     }}
-                    className="w-full p-5 bg-blue-50 text-deped-blue rounded-3xl font-bold flex items-center justify-center gap-2 border border-blue-100"
+                    className="w-full p-5 bg-blue-50 text-[#0038A8] rounded-3xl font-bold flex items-center justify-center gap-2 border border-blue-100"
                 >
                     <TbLayoutDashboard size={18} /> Back to Nexus
+                </button>
+
+                <button
+                    onClick={confirmLogout}
+                    className="w-full p-5 bg-red-50 text-red-600 rounded-3xl font-bold flex items-center justify-center gap-2 border border-red-100 mt-4"
+                >
+                    <TbLogout size={18} /> Logout
                 </button>
             </div>
         </div>

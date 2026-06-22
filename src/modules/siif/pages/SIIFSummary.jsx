@@ -249,9 +249,8 @@ const SIIFSummary = ({ user, token }) => {
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Financial Summary</p>
                             <p className="text-xs text-slate-500 font-bold mt-0.5">Total plan budget compared to school allocation</p>
                         </div>
-                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider border ${
-                            totalBudget <= allocAmt ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
-                        }`}>
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider border ${totalBudget <= allocAmt ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
+                            }`}>
                             {totalBudget <= allocAmt ? 'Within Limit ✓' : 'Over Limit ⛔'}
                         </span>
                     </div>
@@ -262,9 +261,8 @@ const SIIFSummary = ({ user, token }) => {
                                 initial={{ width: 0 }}
                                 animate={{ width: `${progressPct}%` }}
                                 transition={{ duration: 0.8 }}
-                                className={`h-full rounded-full ${
-                                    totalBudget <= allocAmt ? 'bg-emerald-500' : 'bg-red-500'
-                                }`}
+                                className={`h-full rounded-full ${totalBudget <= allocAmt ? 'bg-emerald-500' : 'bg-red-500'
+                                    }`}
                             />
                         </div>
                         <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -328,72 +326,72 @@ const SIIFSummary = ({ user, token }) => {
                                         {INTERVENTION_ICONS[intId] || <TbBook size={24} />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Intervention details</p>
+                                        <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Intervention details</p>
                                         <h3 className="font-black text-sm text-slate-800 uppercase tracking-tight truncate">{info?.label}</h3>
                                     </div>
                                     <div className="text-right shrink-0">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Est. Budget</p>
+                                        <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Est. Budget</p>
                                         <p className="text-base font-black text-emerald-600">₱{(parseFloat(budgetVal) || 0).toLocaleString()}</p>
                                     </div>
                                 </div>
 
                                 {/* Details Grid */}
-                                <div className="space-y-4 text-xs">
+                                <div className="space-y-4 text-sm">
                                     {/* Grade Beneficiaries */}
                                     <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Grade Beneficiaries</p>
+                                        <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest mb-2">Grade Beneficiaries</p>
                                         <div className="flex flex-wrap gap-2">
                                             {benData.selectedGrades.map(g => (
-                                                <div key={g} className="bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-100 flex items-center gap-1.5">
-                                                    <span className="text-[10px] font-black text-slate-600 uppercase">{GRADE_LABELS[g]}</span>
+                                                <div key={g} className="bg-slate-50 px-3 py-1.5 rounded-2xl border border-slate-100 flex items-center gap-2">
+                                                    <span className="text-[15px] font-black text-slate-600 uppercase">{GRADE_LABELS[g]}</span>
                                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                                                    <span className="text-[10px] font-bold text-slate-500">{benData.beneficiaryCounts[g] || 0} Learners</span>
+                                                    <span className="text-[15px] font-bold text-slate-500">{benData.beneficiaryCounts[g] || 0} Learners</span>
                                                 </div>
                                             ))}
                                             {benData.selectedGrades.length === 0 && (
-                                                <p className="text-[10px] font-bold text-slate-400 italic">No grades selected</p>
+                                                <p className="text-[15px] font-bold text-slate-400 italic">No grades selected</p>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Activities */}
                                     <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Planned Activities</p>
+                                        <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest mb-2">Planned Activities</p>
                                         <div className="space-y-2">
                                             {/* SIP/AIP */}
                                             {(actData.selectedActivities?.sip_aip || []).map((act, i) => (
-                                                <div key={i} className="flex items-start gap-2.5 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/50">
-                                                    <div className="w-4 h-4 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                        <TbCheck size={10} />
+                                                <div key={i} className="flex items-start gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                                                    <div className="w-5 h-5 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                        <TbCheck size={12} />
                                                     </div>
-                                                    <p className="text-[10px] text-slate-600 font-bold leading-relaxed">{act}</p>
+                                                    <p className="text-[15px] text-slate-600 font-bold leading-relaxed">{act}</p>
                                                 </div>
                                             ))}
                                             {/* Action Research */}
                                             {(actData.selectedActivities?.action_research || []).map((act, i) => (
-                                                <div key={i} className="flex items-start gap-2.5 bg-emerald-50/30 p-2.5 rounded-2xl border border-emerald-100/30">
-                                                    <div className="w-4 h-4 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                        <TbCheck size={10} />
+                                                <div key={i} className="flex items-start gap-3 bg-emerald-50/30 p-3 rounded-2xl border border-emerald-100/30">
+                                                    <div className="w-5 h-5 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                        <TbCheck size={12} />
                                                     </div>
-                                                    <p className="text-[10px] text-emerald-800 font-bold leading-relaxed">{act}</p>
+                                                    <p className="text-[15px] text-emerald-800 font-bold leading-relaxed">{act}</p>
                                                 </div>
                                             ))}
                                             {/* Remaining */}
                                             {(actData.selectedActivities?.remaining || []).map((act, i) => (
-                                                <div key={i} className="flex items-start gap-2.5 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100/50">
-                                                    <div className="w-4 h-4 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                        <TbCheck size={10} />
+                                                <div key={i} className="flex items-start gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                                                    <div className="w-5 h-5 rounded bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                        <TbCheck size={12} />
                                                     </div>
-                                                    <p className="text-[10px] text-slate-600 font-bold leading-relaxed">{act}</p>
+                                                    <p className="text-[15px] text-slate-600 font-bold leading-relaxed">{act}</p>
                                                 </div>
                                             ))}
                                             {/* Other Activity */}
                                             {actData.otherActivity && (
-                                                <div className="flex items-start gap-2.5 bg-blue-50/30 p-2.5 rounded-2xl border border-blue-100/30">
-                                                    <div className="w-4 h-4 rounded bg-blue-500 text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                        <TbCheck size={10} />
+                                                <div className="flex items-start gap-3 bg-blue-50/30 p-3 rounded-2xl border border-blue-100/30">
+                                                    <div className="w-5 h-5 rounded bg-blue-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                        <TbCheck size={12} />
                                                     </div>
-                                                    <p className="text-[10px] text-blue-800 font-black leading-relaxed">Other: {actData.otherActivity}</p>
+                                                    <p className="text-[15px] text-blue-800 font-black leading-relaxed">Other: {actData.otherActivity}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -438,11 +436,10 @@ const SIIFSummary = ({ user, token }) => {
                             value={confirmText}
                             onChange={e => setConfirmText(e.target.value)}
                             disabled={submitting}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${
-                                confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-emerald-500 focus:bg-white'
-                            }`}
+                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
+                                ? 'border-red-400 bg-red-50 text-red-600'
+                                : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-emerald-500 focus:bg-white'
+                                }`}
                         />
                         {confirmError && (
                             <p className="text-center text-[9px] text-red-500 font-black animate-bounce uppercase tracking-widest">
