@@ -7,7 +7,7 @@ import {
 import { INTERVENTIONS, INTERVENTION_ICONS, KEY_STAGES, GRADE_LABELS } from './siifConstants.jsx';
 
 const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApplyConfig, onConfirm, onClose, readOnly }) => {
-    const [screen, setScreen]           = useState('form');
+    const [screen, setScreen] = useState('form');
     const [activeModalInt, setActiveModalInt] = useState(null);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
@@ -24,7 +24,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
         const current = value[intId] || {};
         const selectedGrades = Array.isArray(current.selectedGrades) ? current.selectedGrades : [];
         const beneficiaryCounts = current.beneficiaryCounts || {};
-        
+
         const isSelected = selectedGrades.includes(grade);
         const newGrades = isSelected
             ? selectedGrades.filter(g => g !== grade)
@@ -55,7 +55,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
         const aralCounts = current.aralCounts || {};
         const gradeAral = aralCounts[grade] || {};
         const newGradeAral = { ...gradeAral, [subject]: val };
-        
+
         const total = Object.values(newGradeAral).reduce((sum, v) => sum + (parseInt(v) || 0), 0);
         const beneficiaryCounts = current.beneficiaryCounts || {};
 
@@ -95,13 +95,13 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
             const selectedGrades = Array.isArray(data.selectedGrades) ? data.selectedGrades : [];
             const beneficiaryCounts = data.beneficiaryCounts || {};
             const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
-            
+
             if (selectedGrades.length === 0) {
                 alert(`Please select at least one grade level for the intervention "${label}".`);
                 setActiveModalInt(intId);
                 return;
             }
-            
+
             for (const g of selectedGrades) {
                 const count = parseInt(beneficiaryCounts[g]) || 0;
                 if (count <= 0) {
@@ -155,9 +155,8 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                     <div
                         key={intId}
                         onClick={() => !readOnly && setActiveModalInt(intId)}
-                        className={`siif-card p-4 sm:p-5 flex flex-col gap-3 transition-all duration-300 ${
-                            !readOnly ? 'cursor-pointer hover:border-siif-blue hover:shadow-lg' : ''
-                        }`}
+                        className={`siif-card p-4 sm:p-5 flex flex-col gap-3 transition-all duration-300 ${!readOnly ? 'cursor-pointer hover:border-siif-blue hover:shadow-lg' : ''
+                            }`}
                     >
                         <div className="flex items-center gap-3 sm:gap-4 w-full">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
@@ -178,7 +177,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                 </button>
                             )}
                         </div>
-                        
+
                         <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50">
                             {gradeCount > 0 ? (
                                 KEY_STAGES.map(ks => {
@@ -188,12 +187,12 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                     return (
                                         <div key={ks.id} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
                                             <div className="flex justify-between items-center mb-1.5">
-                                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{ks.label}</span>
-                                                <span className="text-[9px] font-black text-siif-blue bg-siif-blue/5 px-2 py-0.5 rounded-md border border-siif-blue/10">Total: {ksTotal.toLocaleString()}</span>
+                                                <span className="text-[15px] font-black text-slate-500 uppercase tracking-wider">{ks.label}</span>
+                                                <span className="text-[15px] font-black text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md border border-siif-blue/10">Total: {ksTotal.toLocaleString()}</span>
                                             </div>
-                                            <div className="flex flex-wrap gap-1">
+                                            <div className="flex flex-wrap gap-1.5 mt-1">
                                                 {activeGradesInKs.map(g => (
-                                                    <span key={g} className="text-[8px] font-black bg-slate-50 text-slate-600 px-2 py-0.5 rounded-lg border border-slate-100">
+                                                    <span key={g} className="text-[11px] font-black bg-slate-50 text-slate-600 px-3 py-1 rounded-lg border border-slate-100">
                                                         {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts[g] || 0}</span>
                                                     </span>
                                                 ))}
@@ -238,172 +237,171 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
         const canNext = currentSlideIndex < validInterventions.length - 1;
 
         return (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
-            <div className="siif-card p-6 space-y-5">
-                <div>
-                    <div className="flex items-center justify-between mb-4">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Summary — Target Beneficiaries</p>
-                        <p className="text-[9px] font-black text-siif-blue bg-siif-blue/10 px-2 py-0.5 rounded-full">Card {currentSlideIndex + 1} of {validInterventions.length}</p>
-                    </div>
-                    
-                    <div className="overflow-hidden relative">
-                        <AnimatePresence mode="wait">
-                            {activeIntId && (() => {
-                                const intId = activeIntId;
-                                const info = INTERVENTIONS.find(i => i.id === intId);
-                                const data = value[intId] || {};
-                                const selectedGrades = Array.isArray(data.selectedGrades) ? data.selectedGrades : [];
-                                const beneficiaryCounts = data.beneficiaryCounts || {};
-                                const aralCounts = data.aralCounts || {};
-                                const grades = selectedGrades.filter(g => (parseInt(beneficiaryCounts[g]) || 0) > 0);
-                                
-                                return (
-                                    <motion.div
-                                        key={intId}
-                                        initial={{ opacity: 0, x: 20 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -20 }}
-                                        transition={{ duration: 0.15 }}
-                                        className="space-y-3 min-h-[14rem]"
-                                    >
-                                        <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
-                                            <div className="w-1.5 h-4 bg-siif-blue rounded-full" />
-                                            <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
-                                        </div>
-                                        <div className="pl-3.5 space-y-2">
-                                            {KEY_STAGES.map(ks => {
-                                                const activeGradesInKs = ks.grades.filter(g => grades.includes(g));
-                                                if (activeGradesInKs.length === 0) return null;
-                                                const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts?.[g]) || 0), 0);
-                                                return (
-                                                    <div key={ks.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-1">
-                                                        <div className="flex justify-between items-center text-[8.5px] font-black text-slate-500 uppercase">
-                                                            <span>{ks.label}</span>
-                                                            <span className="text-siif-blue bg-siif-blue/5 px-2 py-0.5 rounded-md">Total: {ksTotal.toLocaleString()}</span>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1 mt-0.5">
-                                                            {activeGradesInKs.map(g => {
-                                                                const gradeAral = aralCounts[g] || {};
-                                                                const aralStrings = Object.entries(gradeAral)
-                                                                    .filter(([_, cnt]) => parseInt(cnt) > 0)
-                                                                    .map(([subj, cnt]) => `${subj}: ${cnt}`);
-
-                                                                return (
-                                                                    <div key={g} className="flex flex-col gap-1">
-                                                                        <span className="text-[8px] font-black bg-white text-slate-600 px-2 py-0.5 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
-                                                                            <span>{GRADE_LABELS[g] || g}</span>
-                                                                            <span className="text-siif-blue">{beneficiaryCounts?.[g] || 0} Learners</span>
-                                                                        </span>
-                                                                        {aralStrings.length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1 pl-2">
-                                                                                {aralStrings.map((s, i) => (
-                                                                                    <span key={i} className="text-[7.5px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md border border-amber-100 whitespace-nowrap">{s}</span>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </motion.div>
-                                );
-                            })()}
-                        </AnimatePresence>
-                    </div>
-                    
-                    <div className="flex justify-between items-center mt-6">
-                        <button
-                            onClick={() => canPrev && setCurrentSlideIndex(p => p - 1)}
-                            disabled={!canPrev}
-                            className={`p-2.5 rounded-full transition-all ${canPrev ? 'bg-siif-blue/10 text-siif-blue hover:bg-siif-blue hover:text-white active:scale-90' : 'bg-slate-50 text-slate-300'}`}
-                        >
-                            <TbChevronLeft size={20} />
-                        </button>
-                        <div className="flex gap-1.5">
-                            {validInterventions.map((_, idx) => (
-                                <div key={idx} className={`w-1.5 h-1.5 rounded-full transition-all ${idx === currentSlideIndex ? 'bg-siif-blue scale-125' : 'bg-slate-200'}`} />
-                            ))}
+            <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+                <div className="siif-card p-6 space-y-5">
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Summary — Target Beneficiaries</p>
+                            <p className="text-[11px] font-black text-siif-blue bg-siif-blue/10 px-3 py-1 rounded-full">Card {currentSlideIndex + 1} of {validInterventions.length}</p>
                         </div>
-                        <button
-                            onClick={() => canNext && setCurrentSlideIndex(p => p + 1)}
-                            disabled={!canNext}
-                            className={`p-2.5 rounded-full transition-all ${canNext ? 'bg-siif-blue/10 text-siif-blue hover:bg-siif-blue hover:text-white active:scale-90' : 'bg-slate-50 text-slate-300'}`}
-                        >
-                            <TbChevronRight size={20} />
-                        </button>
-                    </div>
-                </div>
 
-                <div className="pt-5 border-t border-slate-100 flex justify-between items-center text-xs">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Learners Across Plan</p>
-                    <p className="text-sm font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-                        {totalLearners.toLocaleString()}
-                    </p>
-                </div>
-            </div>
+                        <div className="overflow-hidden relative">
+                            <AnimatePresence mode="wait">
+                                {activeIntId && (() => {
+                                    const intId = activeIntId;
+                                    const info = INTERVENTIONS.find(i => i.id === intId);
+                                    const data = value[intId] || {};
+                                    const selectedGrades = Array.isArray(data.selectedGrades) ? data.selectedGrades : [];
+                                    const beneficiaryCounts = data.beneficiaryCounts || {};
+                                    const aralCounts = data.aralCounts || {};
+                                    const grades = selectedGrades.filter(g => (parseInt(beneficiaryCounts[g]) || 0) > 0);
 
+                                    return (
+                                        <motion.div
+                                            key={intId}
+                                            initial={{ opacity: 0, x: 20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: -20 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="space-y-3 min-h-[14rem]"
+                                        >
+                                            <div className="flex items-center gap-2 mb-1 border-b border-slate-50 pb-2">
+                                                <div className="w-1.5 h-4 bg-siif-blue rounded-full" />
+                                                <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
+                                            </div>
+                                            <div className="pl-3.5 space-y-3">
+                                                {KEY_STAGES.map(ks => {
+                                                    const activeGradesInKs = ks.grades.filter(g => grades.includes(g));
+                                                    if (activeGradesInKs.length === 0) return null;
+                                                    const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts?.[g]) || 0), 0);
+                                                    return (
+                                                        <div key={ks.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
+                                                            <div className="flex justify-between items-center text-[11px] font-black text-slate-500 uppercase">
+                                                                <span>{ks.label}</span>
+                                                                <span className="text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md">Total: {ksTotal.toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2 mt-0.5">
+                                                                {activeGradesInKs.map(g => {
+                                                                    const gradeAral = aralCounts[g] || {};
+                                                                    const aralStrings = Object.entries(gradeAral)
+                                                                        .filter(([_, cnt]) => parseInt(cnt) > 0)
+                                                                        .map(([subj, cnt]) => `${subj}: ${cnt}`);
 
-            {/* Navigation / Edit */}
-            {!readOnly && (
-                <button
-                    onClick={() => setScreen('form')}
-                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-200 transition-colors"
-                >
-                    ← Edit Target Beneficiaries
-                </button>
-            )}
+                                                                    return (
+                                                                        <div key={g} className="flex flex-col gap-1.5 w-full">
+                                                                            <span className="text-[11px] font-black bg-white text-slate-600 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
+                                                                                <span>{GRADE_LABELS[g] || g}</span>
+                                                                                <span className="text-siif-blue">{beneficiaryCounts?.[g] || 0} Learners</span>
+                                                                            </span>
+                                                                            {aralStrings.length > 0 && (
+                                                                                <div className="flex flex-wrap gap-1.5 pl-2">
+                                                                                    {aralStrings.map((s, i) => (
+                                                                                        <span key={i} className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-100 whitespace-nowrap">{s}</span>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })()}
+                            </AnimatePresence>
+                        </div>
 
-            <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
-                {readOnly ? (
-                    <div className="space-y-4">
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
-                            This section is now read-only as the plan is submitted.
-                        </p>
-                        <button
-                            onClick={onClose}
-                            className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"
-                        >
-                            Close View
-                        </button>
-                    </div>
-                ) : (
-                    <>
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
-                            Please confirm the beneficiary counts above are accurate.
-                        </p>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                            Type <span className="text-siif-blue font-black">CONFIRM</span> to save
-                        </p>
-                        <input
-                            type="text"
-                            placeholder="Type CONFIRM here..."
-                            value={confirmText}
-                            onChange={e => setConfirmText(e.target.value)}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${
-                                confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
-                            }`}
-                        />
-                        {confirmError && (
-                            <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
-                        )}
-                        <div className="mt-3">
+                        <div className="flex justify-between items-center mt-6">
                             <button
-                                onClick={handleSave}
-                                className="w-full py-5 bg-siif-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform"
+                                onClick={() => canPrev && setCurrentSlideIndex(p => p - 1)}
+                                disabled={!canPrev}
+                                className={`p-2.5 rounded-full transition-all ${canPrev ? 'bg-siif-blue/10 text-siif-blue hover:bg-siif-blue hover:text-white active:scale-90' : 'bg-slate-50 text-slate-300'}`}
                             >
-                                Save Beneficiaries ✓
+                                <TbChevronLeft size={20} />
+                            </button>
+                            <div className="flex gap-1.5">
+                                {validInterventions.map((_, idx) => (
+                                    <div key={idx} className={`w-1.5 h-1.5 rounded-full transition-all ${idx === currentSlideIndex ? 'bg-siif-blue scale-125' : 'bg-slate-200'}`} />
+                                ))}
+                            </div>
+                            <button
+                                onClick={() => canNext && setCurrentSlideIndex(p => p + 1)}
+                                disabled={!canNext}
+                                className={`p-2.5 rounded-full transition-all ${canNext ? 'bg-siif-blue/10 text-siif-blue hover:bg-siif-blue hover:text-white active:scale-90' : 'bg-slate-50 text-slate-300'}`}
+                            >
+                                <TbChevronRight size={20} />
                             </button>
                         </div>
-                    </>
+                    </div>
+
+                    <div className="pt-5 border-t border-slate-100 flex justify-between items-center text-xs">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Learners Across Plan</p>
+                        <p className="text-sm font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                            {totalLearners.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+
+
+                {/* Navigation / Edit */}
+                {!readOnly && (
+                    <button
+                        onClick={() => setScreen('form')}
+                        className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-200 transition-colors"
+                    >
+                        ← Edit Target Beneficiaries
+                    </button>
                 )}
+
+                <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
+                    {readOnly ? (
+                        <div className="space-y-4">
+                            <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
+                                This section is now read-only as the plan is submitted.
+                            </p>
+                            <button
+                                onClick={onClose}
+                                className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"
+                            >
+                                Close View
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
+                                Please confirm the beneficiary counts above are accurate.
+                            </p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                Type <span className="text-siif-blue font-black">CONFIRM</span> to save
+                            </p>
+                            <input
+                                type="text"
+                                placeholder="Type CONFIRM here..."
+                                value={confirmText}
+                                onChange={e => setConfirmText(e.target.value)}
+                                className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
+                                    ? 'border-red-400 bg-red-50 text-red-600'
+                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
+                                    }`}
+                            />
+                            {confirmError && (
+                                <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
+                            )}
+                            <div className="mt-3">
+                                <button
+                                    onClick={handleSave}
+                                    className="w-full py-5 bg-siif-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform"
+                                >
+                                    Save Beneficiaries ✓
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
-        </div>
         );
     };
 
@@ -462,7 +460,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                     const data = value[intId] || {};
                     const selectedGrades = Array.isArray(data.selectedGrades) ? data.selectedGrades : [];
                     const beneficiaryCounts = data.beneficiaryCounts || {};
-                    
+
                     return (
                         <motion.div
                             initial={{ opacity: 0 }}
@@ -495,7 +493,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                         <TbX size={16} />
                                     </button>
                                 </div>
-                                
+
                                 {/* Modal Body */}
                                 <div className="p-6 overflow-y-auto space-y-5 flex-1">
                                     {KEY_STAGES.map(ks => {
@@ -511,9 +509,8 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                                                 key={g}
                                                                 disabled={readOnly}
                                                                 onClick={() => toggleGrade(intId, g)}
-                                                                className={`px-3.5 py-2 rounded-xl text-[9px] font-black uppercase transition-all duration-200 ${
-                                                                    active ? 'bg-siif-blue text-white shadow-sm border border-siif-blue' : 'bg-slate-50 text-slate-500 border border-slate-100'
-                                                                }`}
+                                                                className={`px-3.5 py-2 rounded-xl text-[9px] font-black uppercase transition-all duration-200 ${active ? 'bg-siif-blue text-white shadow-sm border border-siif-blue' : 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                                    }`}
                                                             >{GRADE_LABELS[g] || g}</button>
                                                         );
                                                     })}
@@ -523,44 +520,44 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                                         const showAral = intId === 'remediation' && aral?.planned;
                                                         const isAralActive = showAral && aral?.subjects?.length > 0;
                                                         return (
-                                                        <div key={g} className="flex flex-col gap-2 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
-                                                            <div className="flex items-center justify-between">
-                                                                <span className="text-[10px] font-black text-slate-600 uppercase">{GRADE_LABELS[g] || g}</span>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[9px] text-slate-400 font-bold">Total Learners:</span>
-                                                                    <input
-                                                                        type="number"
-                                                                        min="0"
-                                                                        placeholder="0"
-                                                                        readOnly={readOnly || isAralActive}
-                                                                        value={beneficiaryCounts[g] || ''}
-                                                                        onChange={e => updateCount(intId, g, e.target.value)}
-                                                                        className={`w-20 border border-slate-200 rounded-lg px-2.5 py-1 text-right text-xs font-black focus:outline-none ${readOnly || isAralActive ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-800 focus:ring-2 focus:ring-siif-blue/20'}`}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            {isAralActive && (
-                                                                <div className="pt-2 border-t border-slate-200 mt-1">
-                                                                    <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest mb-2">ARAL Subjects</p>
-                                                                    <div className="grid grid-cols-2 gap-2">
-                                                                        {aral.subjects.map(subj => (
-                                                                            <div key={subj} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
-                                                                                <span className="text-[9px] font-bold text-slate-600 truncate mr-2">{subj}</span>
-                                                                                <input
-                                                                                    type="number"
-                                                                                    min="0"
-                                                                                    placeholder="0"
-                                                                                    readOnly={readOnly}
-                                                                                    value={(!data.aralCounts?.[g]?.[subj] || data.aralCounts?.[g]?.[subj] === '0' || data.aralCounts?.[g]?.[subj] === 0) ? '' : data.aralCounts[g][subj]}
-                                                                                    onChange={e => updateAralCount(intId, g, subj, e.target.value)}
-                                                                                    className="w-14 bg-slate-50 border border-slate-200 rounded-md px-1.5 py-1 text-right text-[10px] font-black text-slate-800 focus:ring-1 focus:ring-siif-blue/20 focus:outline-none placeholder-slate-300"
-                                                                                />
-                                                                            </div>
-                                                                        ))}
+                                                            <div key={g} className="flex flex-col gap-2 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[10px] font-black text-slate-600 uppercase">{GRADE_LABELS[g] || g}</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[9px] text-slate-400 font-bold">Total Learners:</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            placeholder="0"
+                                                                            readOnly={readOnly || isAralActive}
+                                                                            value={beneficiaryCounts[g] || ''}
+                                                                            onChange={e => updateCount(intId, g, e.target.value)}
+                                                                            className={`w-20 border border-slate-200 rounded-lg px-2.5 py-1 text-right text-xs font-black focus:outline-none ${readOnly || isAralActive ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-800 focus:ring-2 focus:ring-siif-blue/20'}`}
+                                                                        />
                                                                     </div>
                                                                 </div>
-                                                            )}
-                                                        </div>
+                                                                {isAralActive && (
+                                                                    <div className="pt-2 border-t border-slate-200 mt-1">
+                                                                        <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest mb-2">ARAL Subjects</p>
+                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                            {aral.subjects.map(subj => (
+                                                                                <div key={subj} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
+                                                                                    <span className="text-[9px] font-bold text-slate-600 truncate mr-2">{subj}</span>
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        min="0"
+                                                                                        placeholder="0"
+                                                                                        readOnly={readOnly}
+                                                                                        value={(!data.aralCounts?.[g]?.[subj] || data.aralCounts?.[g]?.[subj] === '0' || data.aralCounts?.[g]?.[subj] === 0) ? '' : data.aralCounts[g][subj]}
+                                                                                        onChange={e => updateAralCount(intId, g, subj, e.target.value)}
+                                                                                        className="w-14 bg-slate-50 border border-slate-200 rounded-md px-1.5 py-1 text-right text-[10px] font-black text-slate-800 focus:ring-1 focus:ring-siif-blue/20 focus:outline-none placeholder-slate-300"
+                                                                                    />
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>
@@ -569,7 +566,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                     })}
                                 </div>
 
-                                 <div className="p-5 border-t border-slate-50 shrink-0">
+                                <div className="p-5 border-t border-slate-50 shrink-0">
                                     <button
                                         onClick={() => {
                                             for (const g of selectedGrades) {

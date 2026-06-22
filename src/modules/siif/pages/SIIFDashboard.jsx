@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     TbHistory, TbChevronRight, TbArrowLeft, TbWallet, TbBulb, TbChecklist, TbUsers, TbCheck, TbX, TbPrinter
@@ -68,6 +68,30 @@ const SIIFDashboard = ({ user, token }) => {
         ? Math.round((parseFloat(allocation.spent_amount) / parseFloat(allocation.allocation_amount)) * 100)
         : 0;
 
+    // Flagged Items Computation
+    const flaggedCount = useMemo(() => {
+        if (!submission?.interventions || submission.interventions.length === 0) return 0;
+        let flags = 0;
+        submission.interventions.forEach(intId => {
+            const budget = parseFloat(submission.budgetEstimates?.[intId]) || 0;
+            const intData = submission.interventionData?.[intId] || {};
+            
+            // Check Beneficiaries
+            const beneficiariesCount = Object.values(intData.beneficiaryCounts || {}).reduce((s, v) => s + (parseInt(v) || 0), 0);
+            
+            // Check Activities
+            const selectedActivities = intData.selectedActivities || {};
+            const activitiesCount = Object.values(selectedActivities).flat().filter(Boolean).length;
+            const otherAct = intData.otherActivity || '';
+            const hasActivity = activitiesCount > 0 || otherAct.trim().length > 0;
+
+            if (budget <= 0 || beneficiariesCount <= 0 || !hasActivity) {
+                flags += 1;
+            }
+        });
+        return flags;
+    }, [submission]);
+
     if (loading) {
         return (
             <div className="flex items-center justify-center flex-col gap-4 min-h-screen">
@@ -80,75 +104,12 @@ const SIIFDashboard = ({ user, token }) => {
     return (
         <div className="font-sans text-lg print:bg-white print:m-0 print:p-0 pb-32">
 
-            {/* ── Dashboard Header (Compact & Premium) ─────────────────────────────────── */}
-            <div className="siif-topbar siif-topbar-flush print:hidden flex-col items-stretch !items-start !justify-start gap-3 sm:gap-6 pb-4 sm:pb-8">
-                <div className="flex justify-between items-start w-full z-10 gap-2">
-                    <div className="flex-1 min-w-0">
-                        <p className="eyebrow truncate">National Education Command Center</p>
-                        <h1 className="leading-tight"><span style={{color: 'var(--blue)'}}>Insight</span><span style={{color: 'var(--red)'}}>ED</span><span style={{color: 'var(--blue)'}}> Resource Dashboard</span></h1>
-                    </div>
-                    <div className="text-right flex flex-col items-end gap-2 shrink-0 max-w-[45%] sm:max-w-[50%] min-w-0">
-                        <button
-                            onClick={() => navigate('/nodes-dashboard')}
-                            className="p-2 bg-white/50 rounded-xl hover:bg-white/80 transition-all text-slate-800 border border-slate-300 flex items-center gap-1.5 shadow-sm"
-                        >
-                            <TbArrowLeft size={16} />
-                            <span className="text-[9px] font-bold uppercase tracking-widest hidden md:block">Nexus</span>
-                        </button>
-                        <div className="mt-1 sm:mt-2 w-full">
-                            <h2 className="text-sm sm:text-xl font-black italic uppercase tracking-tight text-slate-800 leading-tight truncate mb-0.5 sm:mb-1" title={allocation.school_name || user.school_name || 'Your School'}>
-                                {allocation.school_name || user.school_name || 'Your School'}
-                            </h2>
-                            <p className="text-[8px] sm:text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] sm:tracking-[0.3em] opacity-85 truncate">
-                                School ID: {user?.school_id || '------'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Glassmorphic Unified Finance Card (Inside Header as requested) */}
-                <div className="siif-card bg-white/90 backdrop-blur-xl p-4 sm:p-6 w-full z-10 border-white shadow-xl">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em]">Total School Allocation</p>
-                        <span className="text-[8px] sm:text-[9px] font-black bg-siif-blue/10 text-siif-blue px-2 py-0.5 sm:px-2.5 rounded-lg shadow-sm">FY {allocation.fiscal_year}</span>
-                    </div>
-                    <div className="flex items-baseline gap-2 mb-3 sm:mb-4">
-                        <h3 className="text-2xl sm:text-3xl font-black tracking-tight italic text-slate-800">
-                            {formatCurrency(allocation.allocation_amount)}
-                        </h3>
-                    </div>
-
-                    <div className="space-y-2.5 sm:space-y-3">
-                        <div className="h-2.5 sm:h-3 bg-slate-100 rounded-full overflow-hidden p-[2px]">
-                            <motion.div
-                                className="h-full rounded-full bg-siif-blue shadow-[0_0_15px_rgba(7,89,133,0.5)]"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${spentPercent}%` }}
-                                transition={{ duration: 1.2, ease: 'easeOut' }}
-                            />
-                        </div>
-                        <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
-                            <div className="flex items-center gap-1 sm:gap-1.5">
-                                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-siif-blue shadow-[0_0_6px_rgba(7,89,133,0.5)]" />
-                                <span className="text-slate-600">Utilized: {formatCurrency(allocation.spent_amount)}</span>
-                            </div>
-                            <div className="flex items-center gap-1 sm:gap-1.5">
-                                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
-                                <span className="text-slate-600">Remaining: {formatCurrency(allocation.remaining_balance)}</span>
-                            </div>
-                            <span className="text-siif-blue font-black">{spentPercent}%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-
-            {/* ── SDO Disapproval Banner (Nexus Premium Style) ── */}
+            {/* ── SDO Disapproval Banner ── */}
             {submission && submission.status?.toLowerCase() === 'disapproved' && (
                 <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mx-5 mt-6 p-6 rounded-[2rem] border-2 border-red-500/30 bg-red-500/10 backdrop-blur-xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 print:hidden"
+                    className="mx-auto mt-6 max-w-[1500px] w-[calc(100%-56px)] p-6 rounded-[2rem] border-2 border-red-500/30 bg-red-500/10 backdrop-blur-xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 print:hidden"
                 >
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-red-500/20 text-red-600 rounded-xl flex items-center justify-center shrink-0 border border-red-500/20">
@@ -175,39 +136,208 @@ const SIIFDashboard = ({ user, token }) => {
                 </motion.div>
             )}
 
-            {/* ── Quick Actions ──────────────────────────────────────── */}
-            <div className="px-5 mt-6 print:hidden">
-                <button
-                    onClick={() => navigate('/siif/forms')}
-                    className="siif-card p-5 flex items-center justify-between group active:scale-[0.98] transition-all w-full text-left"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-50 text-siif-blue rounded-xl flex items-center justify-center group-hover:bg-siif-blue group-hover:text-white transition-colors shadow-inner shrink-0">
-                            <TbChecklist size={24} />
-                        </div>
-                        <div className="text-left">
-                            <p className="font-black text-slate-800 text-sm italic uppercase tracking-tighter">Plan Interventions</p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Start or edit your school proposal</p>
-                        </div>
+            <main className="siif-new-content pb-7 print:hidden">
+                <header className="siif-new-topbar">
+                    <div className="siif-page-title">
+                        <p className="siif-eyebrow">National Education Command Center</p>
+                        <h1>Insight<span>ED</span> Resource Dashboard</h1>
+                        <p>School-level allocation, intervention planning, and resource action queue.</p>
                     </div>
-                    <TbChevronRight className="text-slate-400 group-hover:translate-x-1.5 transition-transform" size={20} />
-                </button>
-            </div>
+
+                    <div className="siif-topbar-actions">
+                        <section className="siif-school-pill">
+                            <small>Your school</small>
+                            <strong title={allocation.school_name || user.school_name || 'Your School'}>
+                                {allocation.school_name || user.school_name || 'Your School'}
+                            </strong>
+                            <span>School ID: {user?.school_id || '------'} · FY {allocation.fiscal_year}</span>
+                        </section>
+                    </div>
+                </header>
+
+                <section className="siif-grid mt-6">
+                    <article className="siif-card siif-progress-highlight">
+                        <div className="siif-card-inner">
+                            <div className="siif-card-header">
+                                <div>
+                                    <h2>School Allocation Overview</h2>
+                                    <p className="siif-card-subtitle">Main resource snapshot for school allocation, utilization, and remaining balance.</p>
+                                </div>
+                                <span className="siif-fy-pill">FY {allocation.fiscal_year}</span>
+                            </div>
+
+                            <div className="siif-allocation-summary">
+                                <div>
+                                    <p className="siif-card-subtitle">Total school allocation</p>
+                                    <h3 className="siif-big-number">{formatCurrency(allocation.allocation_amount)}</h3>
+                                </div>
+                                <div>
+                                    <span className="siif-status ok">{spentPercent}% Utilized</span>
+                                </div>
+                            </div>
+
+                            <div className="siif-progress-track">
+                                <motion.div
+                                    className="siif-progress-fill"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${spentPercent}%` }}
+                                    transition={{ duration: 1.2, ease: 'easeOut' }}
+                                >
+                                    {spentPercent}%
+                                </motion.div>
+                            </div>
+
+                            <div className="siif-legend-row">
+                                <span><i className="siif-dot sky"></i>Utilized · {formatCurrency(allocation.spent_amount)}</span>
+                                <span><i className="siif-dot green"></i>Remaining · {formatCurrency(allocation.remaining_balance)}</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <section className="siif-action-layout">
+                        <article className="siif-card">
+                            <div className="siif-card-inner">
+                                <div className="siif-card-header">
+                                    <div>
+                                        <h2>Action Queue</h2>
+                                        <p className="siif-card-subtitle">Track the submission of your school's proposed interventions, beneficiaries, activities, and estimated budget.</p>
+                                    </div>
+
+                                    <div className="siif-queue-summary" aria-label="Queue summary">
+                                        <span className="siif-summary-pill"><strong>{innovationsCount}</strong> active items</span>
+                                        {submission?.status?.toLowerCase() === 'disapproved' && (
+                                            <span className="siif-summary-pill bg-red-100 text-red-800"><strong className="text-red-900">Action</strong> required</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="siif-table-wrap">
+                                    <table className="siif-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Intervention</th>
+                                                <th>Est. Budget</th>
+                                                <th>Target Learners</th>
+                                                <th>Details</th>
+                                                <th>Next Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {submission?.interventions && submission.interventions.length > 0 ? (
+                                                submission.interventions.map((intId, idx) => {
+                                                    const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
+                                                    const budget = submission.budgetEstimates?.[intId] || 0;
+                                                    const intData = submission.interventionData?.[intId] || {};
+                                                    const learners = Object.values(intData.beneficiaryCounts || {}).reduce((s, v) => s + (parseInt(v) || 0), 0);
+
+                                                    let actionBtn = "View";
+                                                    if (submission.status?.toLowerCase() === 'disapproved') {
+                                                        actionBtn = "Fix";
+                                                    } else if (submission.status?.toLowerCase() === 'draft') {
+                                                        actionBtn = "Edit";
+                                                    } else if (submission.status?.toLowerCase() === 'approved') {
+                                                        actionBtn = "View";
+                                                    }
+
+                                                    return (
+                                                        <tr key={intId}>
+                                                            <td>{label}</td>
+                                                            <td>{formatCurrency(budget)}</td>
+                                                            <td>{learners.toLocaleString()} learners</td>
+                                                            <td><button onClick={() => setSelectedModalIntervention(intId)} className="text-siif-blue hover:underline text-xs font-bold">View specifics</button></td>
+                                                            <td><button className="siif-row-action" onClick={() => navigate('/siif/forms')}>{actionBtn}</button></td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="5" className="text-center py-8 text-slate-400 italic font-bold">No interventions planned yet.</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="siif-table-footer">
+                                    <span>Showing {innovationsCount} entries.</span>
+                                    <div className="siif-page-controls">
+                                        <select className="siif-select" disabled>
+                                            <option>10 / page</option>
+                                            <option>25 / page</option>
+                                            <option>50 / page</option>
+                                            <option>100 / page</option>
+                                        </select>
+                                        <button className="siif-page-btn disabled" disabled>Prev</button>
+                                        <button className="siif-page-btn active">1</button>
+                                        <button className="siif-page-btn disabled" disabled>Next</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+
+                        <aside className="siif-card">
+                            <div className="siif-card-inner">
+                                <div className="siif-card-header">
+                                    <div>
+                                        <h2>Quick Actions</h2>
+                                        <p className="siif-card-subtitle">Direct shortcuts for common school-level tasks.</p>
+                                    </div>
+                                </div>
+
+                                <div className="siif-quick-actions">
+                                    <button className="siif-action-btn" onClick={() => navigate('/siif/forms')}>
+                                        <div className="siif-action-icon">＋</div>
+                                        <div className="text-left">
+                                            <b>Plan Intervention</b>
+                                            <span>Start or edit your school proposal</span>
+                                        </div>
+                                        <strong className="text-siif-blue">›</strong>
+                                    </button>
+
+                                    <button className={`siif-action-btn ${flaggedCount > 0 ? 'border-red-100 hover:border-red-200 bg-red-50/30' : ''}`} onClick={() => navigate('/siif/forms')}>
+                                        <div className="siif-action-icon" style={flaggedCount > 0 ? { backgroundColor: '#fee2e2', color: '#dc2626' } : {}}>
+                                            {flaggedCount > 0 ? '⚠️' : '✓'}
+                                        </div>
+                                        <div className="text-left flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <b className={flaggedCount > 0 ? "text-red-700" : ""}>Review Flagged Items</b>
+                                                {flaggedCount > 0 && (
+                                                    <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm shrink-0 flex items-center gap-1 animate-pulse">
+                                                        {flaggedCount} Action{flaggedCount !== 1 ? 's' : ''} Needed
+                                                    </span>
+                                                )}
+                                                {flaggedCount === 0 && submission?.interventions?.length > 0 && (
+                                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded-full font-black border border-emerald-200">
+                                                        0 Flags
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className={flaggedCount > 0 ? "text-red-600/80 font-semibold" : ""}>
+                                                {flaggedCount > 0 
+                                                    ? 'Incomplete beneficiaries, budget, or activities' 
+                                                    : 'Fix missing details and validation issues'}
+                                            </span>
+                                        </div>
+                                        <strong className="text-siif-blue">›</strong>
+                                    </button>
+
+                                    <button className="siif-action-btn" onClick={() => window.print()}>
+                                        <div className="siif-action-icon">⇩</div>
+                                        <div className="text-left">
+                                            <b>Export Report</b>
+                                            <span>Download the school allocation summary</span>
+                                        </div>
+                                        <strong className="text-siif-blue">›</strong>
+                                    </button>
+                                </div>
+                            </div>
+                        </aside>
+                    </section>
+                </section>
+            </main>
 
             {/* ── Plan Summary Grid (Replacing Massive Scroller) ─────────────────────── */}
             {submission && (
-                <div className="px-5 mt-8 pb-10 print:mt-0 print:p-0">
-                    {/* Header removed as it is handled by the new PDS layout below */}
-
-                    <div className="flex items-center justify-between mb-5 px-1 print:hidden">
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-2 h-6 bg-siif-blue rounded-full shadow-[0_0_8px_rgba(14,131,189,0.3)]" />
-                            <div>
-                                <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight italic">Planned Interventions</h4>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Select and view your planned interventions</p>
-                            </div>
-                        </div>
-                    </div>
+                <div className="px-5 print:mt-0 print:p-0">
 
                     {/* Print-Only Expanded Details (Clean Document Layout) */}
                     <div className="hidden print:block text-xs font-sans text-black">
@@ -308,100 +438,7 @@ const SIIFDashboard = ({ user, token }) => {
                         })}
                     </div>
 
-                    {/* Master Card Container (Replacing Web-Only Card Grid & Grand Total Bar) */}
-                    <div className="print:hidden">
-                        {(() => {
-                            const total_allocation = parseFloat(allocation.allocation_amount) || 0;
-                            const alloc_pct = total_allocation > 0 ? (totalBudgetEstimate / total_allocation) * 100 : 0;
-                            const isOverBudget = alloc_pct > 100;
-                            
-                            return (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 15 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="siif-card p-6 md:p-8 relative overflow-hidden flex flex-col md:flex-row gap-8"
-                                >
-                                    {/* Percentage Badge */}
-                                    <div className="absolute top-6 right-6 md:top-8 md:right-8 z-20 text-right">
-                                        <div className={`inline-flex flex-col items-end`}>
-                                            <span className={`text-2xl md:text-3xl font-black leading-none ${isOverBudget ? 'text-rose-500' : 'text-siif-blue'}`}>
-                                                {alloc_pct.toFixed(1)}%
-                                            </span>
-                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
-                                                of Total Allocation
-                                            </span>
-                                        </div>
-                                    </div>
 
-                                    {/* Left Sub-card: Summary Metrics */}
-                                    <div className="flex-1 border-b md:border-b-0 md:border-r border-slate-200 pb-6 md:pb-0 md:pr-8 flex flex-col justify-center relative z-10 pt-16 md:pt-0">
-                                        <div className="mb-6">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-siif-blue flex items-center justify-center shrink-0 border border-blue-100/50">
-                                                    <TbUsers size={20} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Total Learners</p>
-                                                    <h3 className="text-2xl font-black text-slate-900 leading-none">{totalBeneficiaries.toLocaleString()}</h3>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100/50">
-                                                    <TbWallet size={20} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">Combined Budget</p>
-                                                    <h3 className="text-2xl font-black text-emerald-600 leading-none">{formatCurrency(totalBudgetEstimate)}</h3>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-8 flex gap-3">
-                                            <button
-                                                onClick={() => navigate('/siif/forms')}
-                                                className="flex-1 py-3.5 bg-[var(--navy)] hover:bg-[var(--blue)] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-[0.98]"
-                                            >
-                                                Modify Hub
-                                            </button>
-                                            <button
-                                                onClick={() => window.print()}
-                                                className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center"
-                                                title="Print Details"
-                                            >
-                                                <TbPrinter size={18} />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Right Sub-card: Intervention Types List */}
-                                    <div className="flex-1 relative z-10 flex flex-col justify-center">
-                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Planned Interventions</p>
-                                        <div className="flex flex-wrap gap-2.5">
-                                            {(submission.interventions || []).length === 0 && (
-                                                <p className="text-xs font-bold text-slate-400 italic">No interventions planned.</p>
-                                            )}
-                                            {(submission.interventions || []).map((intId, idx) => {
-                                                const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
-                                                return (
-                                                    <button
-                                                        key={intId}
-                                                        onClick={() => setSelectedModalIntervention(intId)}
-                                                        className="px-4 py-3 bg-slate-50 hover:bg-siif-blue hover:text-white border border-slate-200 hover:border-siif-blue text-slate-700 rounded-2xl text-xs font-black transition-all active:scale-[0.97] flex items-center gap-2 group shadow-sm hover:shadow-md"
-                                                    >
-                                                        <span className="w-2 h-2 rounded-full bg-slate-300 group-hover:bg-white transition-colors" />
-                                                        {label}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            );
-                        })()}
-                    </div>
                 </div>
             )}
 
