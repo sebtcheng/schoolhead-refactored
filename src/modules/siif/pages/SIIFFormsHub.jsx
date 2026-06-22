@@ -108,8 +108,36 @@ const SIIFFormsHub = ({ user, token }) => {
         return () => clearTimeout(timer);
     }, [selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen]);
 
+    // ─── Missing Data Check ───────────────────────────────────────────────────
+    const isMissingData = (cardId) => {
+        if (selectedInterventions.length === 0) return false;
+        
+        if (cardId === 'beneficiaries') {
+            return selectedInterventions.some(intId => {
+                const counts = beneficiaries?.[intId]?.beneficiaryCounts || {};
+                const total = Object.values(counts).reduce((s, v) => s + (parseInt(v) || 0), 0);
+                return total <= 0;
+            });
+        }
+        if (cardId === 'activities') {
+            return selectedInterventions.some(intId => {
+                const selectedAct = activities?.[intId]?.selectedActivities || {};
+                const count = Object.values(selectedAct).flat().filter(Boolean).length;
+                const other = activities?.[intId]?.otherActivity || '';
+                return count === 0 && other.trim().length === 0;
+            });
+        }
+        if (cardId === 'budget') {
+            return selectedInterventions.some(intId => {
+                const b = parseFloat(budgets?.[intId]) || 0;
+                return b <= 0;
+            });
+        }
+        return false;
+    };
+
     // ─── Derived ──────────────────────────────────────────────────────────────
-    const confirmedCount = Object.values(confirmed).filter(Boolean).length;
+    const confirmedCount = CARDS.filter(card => confirmed[card.id] && !isMissingData(card.id)).length;
     const progressPct = Math.round((confirmedCount / TOTAL_STEPS) * 100);
     const allConfirmed = confirmedCount === TOTAL_STEPS;
     const totalBudget = Object.values(budgets || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0);
@@ -373,34 +401,6 @@ const SIIFFormsHub = ({ user, token }) => {
         return null;
     };
 
-    // ─── Missing Data Check ───────────────────────────────────────────────────
-    const isMissingData = (cardId) => {
-        if (selectedInterventions.length === 0) return false;
-        
-        if (cardId === 'beneficiaries') {
-            return selectedInterventions.some(intId => {
-                const counts = beneficiaries?.[intId]?.beneficiaryCounts || {};
-                const total = Object.values(counts).reduce((s, v) => s + (parseInt(v) || 0), 0);
-                return total <= 0;
-            });
-        }
-        if (cardId === 'activities') {
-            return selectedInterventions.some(intId => {
-                const selectedAct = activities?.[intId]?.selectedActivities || {};
-                const count = Object.values(selectedAct).flat().filter(Boolean).length;
-                const other = activities?.[intId]?.otherActivity || '';
-                return count === 0 && other.trim().length === 0;
-            });
-        }
-        if (cardId === 'budget') {
-            return selectedInterventions.some(intId => {
-                const b = parseFloat(budgets?.[intId]) || 0;
-                return b <= 0;
-            });
-        }
-        return false;
-    };
-
     // ─── Render ───────────────────────────────────────────────────────────────
     if (loading) {
         return (
@@ -447,7 +447,7 @@ const SIIFFormsHub = ({ user, token }) => {
                         </button>
                         <div>
                             <h1 className="text-xl font-black italic tracking-tight uppercase leading-none text-slate-800">Planning Hub</h1>
-                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                            <p className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1">
                                 {deadline ? `Deadline: ${new Date(deadline).toLocaleDateString()} @ ${new Date(deadline).toLocaleTimeString()}` : 'No Deadline Set'}
                             </p>
                         </div>
@@ -475,7 +475,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                 fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="4" />
                             <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" stroke="var(--blue)" strokeWidth="4"
+                                fill="none" stroke={progressPct === 100 ? '#10b981' : progressPct > 0 ? '#f59e0b' : 'var(--blue)'} strokeWidth="4"
                                 strokeDasharray={`${progressPct}, 100`}
                                 style={{ transition: 'stroke-dasharray 0.6s ease' }}
                             />
@@ -486,16 +486,16 @@ const SIIFFormsHub = ({ user, token }) => {
                         <p className="text-xl font-black italic leading-tight text-slate-800">
                             {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
                         </p>
-                        <p className="text-slate-500 text-[11px] font-bold mt-1">
+                        <p className="text-[11px] font-bold mt-1">
                             {isExpired
-                                ? (deadline ? `Window closed on ${new Date(deadline).toLocaleString()}.` : 'Submission window is closed.')
+                                ? <span className="text-red-500">{deadline ? `Window closed on ${new Date(deadline).toLocaleString()}.` : 'Submission window is closed.'}</span>
                                 : isNotYetOpen
-                                    ? `Opening on ${new Date(openDate).toLocaleString()}.`
+                                    ? <span className="text-slate-500">{`Opening on ${new Date(openDate).toLocaleString()}.`}</span>
                                     : syncStatus === 'saving'
-                                        ? '🔄 Syncing changes...'
+                                        ? <span className="text-amber-500">🔄 Syncing changes...</span>
                                         : isLocked
-                                            ? `✅ Submitted (Editable until ${deadline ? new Date(deadline).toLocaleString([], { dateStyle: 'long', timeStyle: 'short' }) : 'deadline'})`
-                                            : `${TOTAL_STEPS - confirmedCount} section${TOTAL_STEPS - confirmedCount !== 1 ? 's' : ''} remaining`}
+                                            ? <span className="text-emerald-500">{`✅ Submitted (Editable until ${deadline ? new Date(deadline).toLocaleString([], { dateStyle: 'long', timeStyle: 'short' }) : 'deadline'})`}</span>
+                                            : <span className="text-slate-500">{`${TOTAL_STEPS - confirmedCount} section${TOTAL_STEPS - confirmedCount !== 1 ? 's' : ''} remaining`}</span>}
                         </p>
                     </div>
                 </div>
