@@ -2,306 +2,293 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    FiArrowRight,
-    FiBookOpen,
-    FiAward,
-    FiMoreVertical,
-    FiLogOut,
-    FiLock,
-    FiGrid,
-    FiArrowLeft,
-    FiMapPin,
-    FiLayers,
-    FiBarChart2,
-    FiHome,
-    FiSettings
+  FiArrowRight,
+  FiBookOpen,
+  FiAward,
+  FiMoreVertical,
+  FiLogOut,
+  FiLock,
+  FiGrid,
+  FiArrowLeft,
+  FiMapPin,
+  FiLayers,
+  FiBarChart2,
+  FiHome,
+  FiSettings
 } from 'react-icons/fi';
 import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase, TbHeadset, TbSchool } from "react-icons/tb";
 import { LuCompass } from "react-icons/lu";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
+import SharedNexusSidebar from '../components/SharedNexusSidebar';
 import { api } from "../lib/api";
 
-
 const NodesDashboard = () => {
-    const navigate = useNavigate();
-    const { user, logout, confirmLogout } = useAuth();
-    const [questProgress, setQuestProgress] = useState({ completedUnits: [], xp: 0, validation_percentage: 0 });
-    const [loading, setLoading] = useState(true);
-    const [isNavigating, setIsNavigating] = useState(false);
-    const [showEdWelcome, setShowEdWelcome] = useState(false);
-    const [dynamicLocks, setDynamicLocks] = useState({});
-    const [activeView, setActiveView] = useState('main'); // 'main' or 'services'
+  const navigate = useNavigate();
+  const { user, logout, confirmLogout } = useAuth();
+  const [questProgress, setQuestProgress] = useState({ completedUnits: [], xp: 0, validation_percentage: 0 });
+  const [loading, setLoading] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [showEdWelcome, setShowEdWelcome] = useState(false);
+  const [dynamicLocks, setDynamicLocks] = useState({});
+  const [activeView, setActiveView] = useState('main'); // 'main' or 'services'
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [activeTab, setActiveTab] = useState('Home');
 
+  useEffect(() => {
+    const loadCommonData = async () => {
+      const isNew = localStorage.getItem('isNewUser');
+      if (isNew === 'true') {
+        setShowEdWelcome(true);
+      }
 
-    useEffect(() => {
-        const loadCommonData = async () => {
-            const isNew = localStorage.getItem('isNewUser');
-            if (isNew === 'true') {
-                setShowEdWelcome(true);
+      const schoolId = localStorage.getItem('schoolId') || user?.school_id;
+      if (schoolId) {
+        try {
+          const res = await fetch(api(`/ph_schools/progress/${schoolId}`));
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data) {
+              setQuestProgress({
+                ...json.data.progress,
+                schoolId: schoolId,
+                school_name: json.data.schoolInfo?.school_name,
+                is_esf7_opened: json.data.schoolInfo?.is_esf7_opened
+              });
             }
+          }
 
-            const schoolId = localStorage.getItem('schoolId') || user?.school_id;
-            if (schoolId) {
-                try {
-                    const res = await fetch(api(`/ph_schools/progress/${schoolId}`));
-                    if (res.ok) {
-                        const json = await res.json();
-                        if (json.success && json.data) {
-                            setQuestProgress({
-                                ...json.data.progress,
-                                schoolId: schoolId,
-                                school_name: json.data.schoolInfo?.school_name,
-                                is_esf7_opened: json.data.schoolInfo?.is_esf7_opened
-                            });
-                        }
-                    }
-
-                    const locksRes = await fetch(api(`/settings/nexus_module_locks`));
-                    if (locksRes.ok) {
-                        const locksData = await locksRes.json();
-                        if (locksData && locksData.value) {
-                            try {
-                                setDynamicLocks(JSON.parse(locksData.value));
-                            } catch (e) {
-                                console.error("Failed to parse nexus locks", e);
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.error("Failed to sync progress", err);
-                }
+          const locksRes = await fetch(api(`/settings/nexus_module_locks`));
+          if (locksRes.ok) {
+            const locksData = await locksRes.json();
+            if (locksData && locksData.value) {
+              try {
+                setDynamicLocks(JSON.parse(locksData.value));
+              } catch (e) {
+                console.error("Failed to parse nexus locks", e);
+              }
             }
-            setLoading(false);
-        };
-        loadCommonData();
-    }, [user]);
-
-    const handleCardClick = (route, id) => {
-        if (id === 'other-services') {
-            setActiveView('services');
-            return;
+          }
+        } catch (err) {
+          console.error("Failed to sync progress", err);
         }
-
-        if (route.startsWith('http')) {
-            const token = user?.token || localStorage.getItem('token');
-            const targetUrl = new URL(route);
-            targetUrl.searchParams.set('token', token);
-            window.location.href = targetUrl.toString();
-        } else {
-            navigate(route);
-        }
+      }
+      setLoading(false);
     };
+    loadCommonData();
+  }, [user]);
 
-    const calculateProgress = (unitIds) => {
-        if (!questProgress.completedUnits) return 0;
-        const completedCount = unitIds.filter(id => questProgress.completedUnits.includes(id)).length;
-        return Math.round((completedCount / unitIds.length) * 100);
-    };
-
-    if (loading || isNavigating) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-                <div className="w-32 h-32 flex items-center justify-center">
-                    <img src={loadingLogo} className="w-full h-full object-contain drop-shadow-xl" alt="InsightED Loading" />
-                </div>
-                {isNavigating && (
-                    <motion.p
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mt-6 italic"
-                    >
-                        Loading...
-                    </motion.p>
-                )}
-            </div>
-        );
+  const handleCardClick = (route, id) => {
+    if (id === 'other-services') {
+      setActiveView('services');
+      return;
     }
 
-    const modules = [
-        {
-            id: 'school-info',
-            title: 'CLOUD',
-            subtitle: (
-                <div className="flex flex-col gap-0.5 mt-1 font-bold">
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] text-[#075985] font-black w-3">C</span>
-                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">onsole for</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] text-[#075985] font-black w-3">L</span>
-                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">earning and</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] text-[#075985] font-black w-3">O</span>
-                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">peration in</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] text-[#075985] font-black w-3">U</span>
-                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">nified</span>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] text-[#075985] font-black w-3">D</span>
-                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">atabase</span>
-                    </div>
-                </div>
-            ),
-            emoji: '🏛️',
-            icon: <FiBookOpen className="w-8 h-8" />,
-            color: 'from-blue-500 to-blue-700',
-            textColor: 'text-blue-600',
-            bgLight: 'bg-blue-50',
-            progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
-            route: '/my-activity',
-            description: 'CLOUD will look into getting to know more about a school.',
-            isLocked: dynamicLocks['school-info'] || false,
-            hideProgress: true,
-        },
-        {
-            id: 'esf7',
-            title: 'eSF7 Hub',
-            subtitle: 'Inventory',
-            emoji: '☁️',
-            icon: <TbCloudSearch className="w-8 h-8" />,
-            color: 'from-blue-500 to-indigo-600',
-            textColor: 'text-blue-600',
-            bgLight: 'bg-blue-50',
-            progress: questProgress.esf7_progress || 0,
-            route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
-            badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
-            description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
-            isLocked: !questProgress.is_esf7_opened,
-        },
-        {
-            id: 'nspp',
-            title: 'NSPP Path',
-            subtitle: 'Assessment',
-            emoji: '⚡',
-            icon: <TbTarget className="w-8 h-8" />,
-            color: 'from-amber-500 to-orange-600',
-            textColor: 'text-amber-600',
-            bgLight: 'bg-amber-50',
-            progress: 0,
-            route: '/draft/nspp',
-            badge: 'COMING SOON',
-            description: 'NSPP deployment will monitor the deployment of administrative staff in schools.',
-            isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true,
-        },
-        {
-            id: 'other-services',
-            title: 'OTHER SERVICES',
-            subtitle: 'Supplemental',
-            emoji: '📦',
-            icon: <FiGrid className="w-8 h-8" />,
-            color: 'from-slate-600 to-slate-800',
-            textColor: 'text-slate-700',
-            bgLight: 'bg-slate-50',
-            progress: 0,
-            route: '#',
-            description: 'Access supplemental microservices and specialized school management tools.',
-            isLocked: false,
-            badge: 'EXPANDING'
-        }
-    ];
+    if (route.startsWith('http')) {
+      const token = user?.token || localStorage.getItem('token');
+      const targetUrl = new URL(route);
+      targetUrl.searchParams.set('token', token);
+      window.location.href = targetUrl.toString();
+    } else {
+      navigate(route);
+    }
+  };
 
-    const SIIF_URL = import.meta.env.VITE_SIIF_URL || 'http://localhost:5174';
+  const calculateProgress = (unitIds) => {
+    if (!questProgress.completedUnits) return 0;
+    const completedCount = unitIds.filter(id => questProgress.completedUnits.includes(id)).length;
+    return Math.round((completedCount / unitIds.length) * 100);
+  };
 
-    const otherServicesModules = [
-        {
-            id: 'siif',
-            title: 'SIIF HUB',
-            subtitle: 'Innovation Fund',
-            emoji: '💰',
-            icon: <FiAward className="w-8 h-8" />,
-            color: 'from-blue-600 to-blue-800',
-            textColor: 'text-blue-700',
-            bgLight: 'bg-blue-50',
-            progress: 0,
-            route: '/siif',
-            description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-            isLocked: false,
-        },
-        {
-            id: 'soss',
-            title: 'SOSS HUB',
-            subtitle: 'Social Services',
-            emoji: '🤝',
-            icon: <TbUsers className="w-8 h-8" />,
-            color: 'from-emerald-600 to-emerald-800',
-            textColor: 'text-emerald-700',
-            bgLight: 'bg-emerald-50',
-            progress: 0,
-            route: '#',
-            description: 'Integrated platform for tracking school-based social service programs.',
-            isLocked: true,
-            badge: 'PLACEHOLDER'
-        },
-        {
-            id: 'sgc',
-            title: 'SGC HUB',
-            subtitle: 'Governance',
-            emoji: '🏛️',
-            icon: <TbBriefcase className="w-8 h-8" />,
-            color: 'from-indigo-600 to-indigo-800',
-            textColor: 'text-indigo-700',
-            bgLight: 'bg-indigo-50',
-            progress: 0,
-            route: '#',
-            description: 'School Governance Council management and compliance tracking.',
-            isLocked: true,
-            badge: 'PLACEHOLDER'
-        }
-    ];
-
+  if (loading || isNavigating) {
     return (
-        <PageTransition>
-            <div className="nodes-app-layout">
-                {/* Scope-specific Stylesheets for exact visual guidelines */}
-                <style dangerouslySetInnerHTML={{
-                    __html: `
-                    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <div className="w-32 h-32 flex items-center justify-center">
+          <img src={loadingLogo} className="w-full h-full object-contain drop-shadow-xl" alt="InsightED Loading" />
+        </div>
+        {isNavigating && (
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mt-6 italic font-sans"
+          >
+            Initializing Command Center Hub...
+          </motion.p>
+        )}
+      </div>
+    );
+  }
+
+  const modules = [
+    {
+      id: 'school-info',
+      title: 'CLOUD Hub',
+      subtitle: 'Monitoring & Analysis',
+      icon: <TbCloudSearch className="w-6 h-6 md:w-8 h-8" />,
+      progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      route: '/my-activity',
+      description: 'Console for Learning and Operation in Unified Database. Access to school data.',
+      isLocked: dynamicLocks['school-info'] || false,
+      hideProgress: true,
+      cardClass: 'support' // Emerald/Cyan theme
+    },
+    {
+      id: 'esf7',
+      title: 'eSF7 Hub',
+      subtitle: 'Inventory',
+      icon: <TbReportAnalytics className="w-6 h-6 md:w-8 h-8" />,
+      progress: questProgress.esf7_progress || 0,
+      route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
+      badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
+      description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
+      isLocked: !questProgress.is_esf7_opened,
+      cardClass: '' // Default Blue
+    },
+    {
+      id: 'nspp',
+      title: 'NSPP Path',
+      subtitle: 'Assessment Audit',
+      icon: <TbTarget className="w-6 h-6 md:w-8 h-8" />,
+      progress: 0,
+      route: '/draft/nspp',
+      badge: 'COMING SOON',
+      description: 'Registry monitoring for the deployment of administrative staff in schools.',
+      isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true,
+      cardClass: 'reports' // Red theme
+    },
+    {
+      id: 'other-services',
+      title: 'Other Services',
+      subtitle: 'Extensions',
+      icon: <FiGrid className="w-6 h-6 md:w-8 h-8" />,
+      progress: 0,
+      route: '#',
+      description: 'Access supplemental microservices and specialized school management tools.',
+      isLocked: false,
+      badge: 'EXPANDING',
+      cardClass: 'admin' // Gold theme
+    }
+  ];
+
+  const otherServicesModules = [
+    {
+      id: 'back',
+      title: 'Back to Nexus',
+      subtitle: 'Return',
+      icon: <FiArrowLeft className="w-6 h-6 md:w-8 h-8" />,
+      route: '#',
+      description: 'Return to the main SchoolHead Nexus Dashboard.',
+      isLocked: false,
+      cardClass: '',
+      onClick: () => setActiveView('main')
+    },
+    {
+      id: 'siif',
+      title: 'SIIF HUB',
+      subtitle: 'Innovation Fund',
+      icon: <FiAward className="w-6 h-6 md:w-8 h-8" />,
+      progress: 0,
+      route: '/siif',
+      description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
+      isLocked: false,
+      cardClass: 'support' // Emerald
+    },
+    {
+      id: 'soss',
+      title: 'SOSS HUB',
+      subtitle: 'Social Services',
+      icon: <TbUsers className="w-6 h-6 md:w-8 h-8" />,
+      progress: 0,
+      route: '#',
+      description: 'Integrated platform for tracking school-based social service programs.',
+      isLocked: true,
+      badge: 'PLACEHOLDER',
+      cardClass: 'admin' // Gold
+    },
+    {
+      id: 'sgc',
+      title: 'SGC HUB',
+      subtitle: 'Governance',
+      icon: <TbBriefcase className="w-6 h-6 md:w-8 h-8" />,
+      progress: 0,
+      route: '#',
+      description: 'School Governance Council management and compliance tracking.',
+      isLocked: true,
+      badge: 'PLACEHOLDER',
+      cardClass: '' // Default Blue
+    }
+  ];
+
+  const currentModules = activeView === 'main' ? modules : otherServicesModules;
+
+  const navItems = [
+    { label: 'Home', icon: <FiHome size={18} />, path: '/nodes-dashboard' },
+    { label: 'CLOUD', icon: <TbCloudSearch size={18} />, path: '/my-activity' },
+    { label: 'Units', icon: <LuCompass size={18} />, path: '/modular-dashboard' },
+    { label: 'Guide', icon: <TbSchool size={18} />, path: '/guide/school-head' },
+    { label: 'Settings', icon: <FiSettings size={18} />, path: '/profile' }
+  ];
+
+  return (
+    <PageTransition>
+      <div className="min-h-screen bg-[#EAF6FB] font-['IBM_Plex_Sans'] text-[#082B4C] relative selection:bg-sky-200">
+        <style dangerouslySetInnerHTML={{
+          __html: `
+                    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700;800;900&display=swap');
                     
                     :root {
-                      --navy: #08315F;
-                      --blue: #075985;
-                      --blue-600: #0284C7;
-                      --blue-400: #7DD3FC;
-                      --blue-100: #E0F2FE;
-                      --blue-50: #F0F9FF;
-                      --gold: #FBBF24;
-                      --amber: #D97706;
-                      --red: #B91C1C;
-                      --bg: #F0F9FF;
-                      --card: #FFFFFF;
-                      --text: #0F172A;
-                      --muted: #64748B;
-                      --line: #BAE6FD;
-                      --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                      --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                      --radius: 22px;
+                        --navy: #06345F;
+                        --navy-2: #05233F;
+                        --blue: #0A6FA6;
+                        --blue-deep: #04557F;
+                        --sky: #BFE6F5;
+                        --sky-soft: #EAF7FC;
+                        --cream: #FFF2C6;
+                        --gold: #FDBA22;
+                        --gold-deep: #D99100;
+                        --ink: #082B4C;
+                        --muted: #667A91;
+                        --card: #FFFFFF;
+                        --radius: 24px;
+
+                        --split-a: #05233F;
+                        --split-b: #06345F;
+                        --split-c: #0A6FA6;
+                        --hero-accent: #FDBA22;
+                        --hero-copy: #DFF2FB;
+                        --hero-title: #FFFFFF;
+                        --card-glass-a: rgba(255, 255, 255, 0.68);
+                        --card-glass-b: rgba(255, 255, 255, 0.38);
+                        --card-border: rgba(255, 255, 255, 0.78);
+                        --card-shadow: rgba(8, 43, 76, 0.16);
+                        --bg-1: #EAF7FC;
+                        --bg-2: #F8FCFF;
+                        --bg-3: #FFF2C6;
+                        --orb-warm: rgba(253, 186, 34, 0.30);
+                        --orb-cool: rgba(10, 111, 166, 0.18);
+
+                        --font-heading: "Quicksand", "IBM Plex Sans", system-ui, sans-serif;
+                        --font-body: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                     }
 
+                    /* Custom Collapsible Sidebar Styles matching SchoolHead */
                     .nodes-app-layout {
-                      display: grid;
-                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
-                      font-family: var(--font-body);
-                      color: var(--text);
-                      background-color: var(--blue-50);
-                      background-attachment: fixed;
-                      background-image:
-                        radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.30) 0 34%, transparent 78%),
-                        radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.42) 0 36%, transparent 80%),
-                        radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.30) 0 34%, transparent 78%),
-                        radial-gradient(45% 52.5% at 8% 92%, rgba(217, 119, 6, 0.26) 0 28%, rgba(251, 191, 36, 0.18) 42%, transparent 80%);
+                      width: 100vw;
+                      max-width: 100%;
+                      overflow-x: hidden;
                       transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                      position: relative;
+                      z-index: 10;
                     }
 
                     .nodes-sidebar {
-                      display: flex;
                       width: 80px;
-                      position: relative;
+                      position: fixed;
+                      top: 0;
+                      bottom: 0;
+                      left: 0;
                       color: white;
                       padding: 24px 8px;
                       flex-direction: column;
@@ -312,11 +299,11 @@ const NodesDashboard = () => {
                       box-shadow: 18px 0 42px rgba(11, 31, 77, 0.16);
                       overflow: hidden;
                       transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), align-items 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                      z-index: 50;
+                      z-index: 100 !important;
                     }
 
-                    .nodes-sidebar:hover {
-                      width: 260px;
+                    .nodes-sidebar:hover, .nodes-sidebar.sidebar-expanded {
+                      width: 260px !important;
                       padding: 24px 16px;
                       align-items: flex-start;
                     }
@@ -333,7 +320,7 @@ const NodesDashboard = () => {
                       transform: scale(1.08);
                     }
 
-                    .nodes-sidebar:hover .nodes-brand {
+                    .nodes-sidebar:hover .nodes-brand, .nodes-sidebar.sidebar-expanded .nodes-brand {
                       justify-content: flex-start;
                       padding-left: 8px;
                     }
@@ -345,10 +332,10 @@ const NodesDashboard = () => {
                       display: none !important;
                     }
 
-                    .nodes-sidebar:hover .logo-collapsed {
+                    .nodes-sidebar:hover .logo-collapsed, .nodes-sidebar.sidebar-expanded .logo-collapsed {
                       display: none !important;
                     }
-                    .nodes-sidebar:hover .logo-expanded {
+                    .nodes-sidebar:hover .logo-expanded, .nodes-sidebar.sidebar-expanded .logo-expanded {
                       display: block !important;
                       max-width: 170px;
                       height: auto;
@@ -367,11 +354,11 @@ const NodesDashboard = () => {
                       transition: align-items 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     }
 
-                    .nodes-sidebar:hover .nodes-nav {
+                    .nodes-sidebar:hover .nodes-nav, .nodes-sidebar.sidebar-expanded .nodes-nav {
                       align-items: flex-start;
                     }
 
-                    .nodes-nav a {
+                    .nodes-nav button {
                       display: flex;
                       align-items: center;
                       justify-content: center;
@@ -382,567 +369,721 @@ const NodesDashboard = () => {
                       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                       border: 1px solid transparent;
                       gap: 12px;
+                      background: transparent;
                     }
 
-                    .nodes-sidebar:hover .nodes-nav a {
+                    .nodes-sidebar:hover .nodes-nav button, .nodes-sidebar.sidebar-expanded .nodes-nav button {
                       justify-content: flex-start;
                       width: 100%;
                       padding: 12px 14px;
                       height: auto;
                     }
 
-                    .nodes-nav a span {
+                    .nodes-nav button:hover {
+                      color: white;
+                      background: rgba(255, 255, 255, 0.08);
+                      transform: translateY(-2px);
+                    }
+
+                    .nodes-nav button.active {
+                      background: rgba(255, 255, 255, 0.16) !important;
+                      color: white !important;
+                      border-color: rgba(255, 255, 255, 0.28) !important;
+                      box-shadow:
+                        inset 0 -3px 0 var(--gold),
+                        0 0 18px color-mix(in srgb, var(--blue) 26%, transparent) !important;
+                    }
+
+                    .sidebar-text-label {
                       display: none;
                       opacity: 0;
                       transition: opacity 0.3s ease;
                       white-space: nowrap;
                     }
 
-                    .nodes-sidebar:hover .nodes-nav a span {
-                      display: inline-block;
+                    .nodes-sidebar:hover .sidebar-text-label, .nodes-sidebar.sidebar-expanded .sidebar-text-label {
+                      display: inline-block !important;
                       opacity: 1;
                     }
 
-                    .nodes-nav a:hover {
-                      color: white;
-                      background: rgba(255, 255, 255, 0.08);
-                      transform: translateY(-2px);
-                    }
-
-                    .nodes-nav a.active {
-                      background: rgba(255, 255, 255, 0.16);
-                      color: white;
-                      border-color: rgba(255, 255, 255, 0.28);
-                      box-shadow:
-                        inset 0 -3px 0 var(--gold),
-                        0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
-                    }
-
-                    .nodes-topbar {
+                    /* NEW NEXUS DESIGN CSS */
+                    .nexus-preview {
                       position: relative;
-                      isolation: isolate;
+                      width: 100%;
+                      min-height: 100vh;
+                      overflow-x: hidden;
                       display: flex;
-                      justify-content: space-between;
-                      align-items: center;
-                      gap: 25px;
-                      min-height: 130px;
-                      padding: 24px 44px;
-                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
-                      background: linear-gradient(135deg, var(--blue-50), white);
-                      box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
-                      overflow: hidden;
-                      border-radius: var(--radius);
-                      margin: 24px 24px 0 24px;
+                      flex-direction: column;
                     }
 
-                    .nodes-topbar::before {
-                      content: "";
-                      position: absolute;
-                      left: 0;
-                      top: 0;
-                      bottom: 0;
-                      width: 76%;
+                    .preview-bg{
+                      position:fixed;
+                      inset:0;
+                      z-index:-1;
                       background:
-                        radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%),
-                        linear-gradient(135deg, var(--navy), var(--blue));
-                      clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
-                      z-index: 0;
+                        radial-gradient(circle at 78% 14%,var(--orb-warm),transparent 32%),
+                        radial-gradient(circle at 70% 86%,var(--orb-cool),transparent 34%),
+                        linear-gradient(135deg,var(--bg-1) 0%,var(--bg-2) 52%,var(--bg-3) 100%);
                     }
 
-                    .nodes-topbar::after {
-                      content: "";
-                      position: absolute;
-                      width: 112px;
-                      height: 112px;
-                      right: 18px;
-                      top: 50%;
-                      transform: translateY(-50%);
-                      border-radius: 999px;
+                    @media (min-width: 1000px) {
+                        .nexus-preview {
+                          height: 100vh;
+                          overflow-y: hidden;
+                        }
+                        .nexus-preview::before{
+                          content:"";
+                          position:fixed;
+                          z-index:-1;
+                          left:-18%;
+                          top:-18%;
+                          width:68%;
+                          height:136%;
+                          border-radius:0;
+                          background:
+                            radial-gradient(circle at 18% 18%,rgba(255,255,255,.18),transparent 30%),
+                            linear-gradient(160deg,var(--split-a) 0%,var(--split-b) 58%,var(--split-c) 100%);
+                          clip-path:polygon(0 0,78% 0,100% 50%,78% 100%,0 100%);
+                          box-shadow:34px 0 80px rgba(6,52,95,.20);
+                          pointer-events:none;
+                        }
+                    }
+
+                    .bg-orb{
+                      position:fixed;
+                      z-index:-1;
+                      border-radius:999px;
+                      opacity:.68;
+                      pointer-events:none;
+                      animation:floatOrb 13s ease-in-out infinite alternate;
+                    }
+
+                    .orb-a{
+                      width:310px;
+                      height:310px;
+                      left:4%;
+                      top:6%;
+                      background:radial-gradient(circle,rgba(10,111,166,.24),transparent 68%);
+                    }
+
+                    .orb-b{
+                      width:370px;
+                      height:370px;
+                      right:-8%;
+                      top:-10%;
+                      background:radial-gradient(circle,rgba(253,186,34,.34),transparent 68%);
+                      animation-delay:.5s;
+                    }
+
+                    .orb-c{
+                      width:280px;
+                      height:280px;
+                      right:14%;
+                      bottom:-12%;
+                      background:radial-gradient(circle,rgba(191,230,245,.34),transparent 68%);
+                      animation-delay:1s;
+                    }
+
+                    .landing-stage{
+                      position:relative;
+                      z-index:3;
+                      min-height:100vh;
+                      width: 100%;
+                      max-width: 1400px;
+                      margin: 0 auto;
+                      padding:clamp(20px,3.2vw,46px);
+                      display:grid;
+                      grid-template-columns:minmax(320px,.82fr) minmax(400px,1.18fr);
+                      align-items:center;
+                      gap:clamp(22px,3.5vw,50px);
+                    }
+
+                    .hero{
+                      display:grid;
+                      justify-items:start;
+                      text-align:left;
+                      gap:9px;
+                      align-self:center;
+                      margin-block:auto;
+                    }
+
+                    .logo-icon{
+                      width:62px;
+                      height:62px;
+                      display:grid;
+                      place-items:center;
+                      border-radius:21px;
+                      background:rgba(255,255,255,.95);
+                      color:var(--navy);
+                      border:1px solid rgba(6,52,95,.18);
+                      box-shadow:0 16px 38px rgba(8,43,76,.14);
+                      font-family:var(--font-heading);
+                      font-weight:800;
+                      letter-spacing:-.08em;
+                      backdrop-filter:blur(14px);
+                      animation:fadeDown .5s ease both;
+                    }
+
+                    .eyebrow{
+                      margin:0;
+                      color:var(--hero-accent);
+                      font-size:11px;
+                      font-weight:800;
+                      letter-spacing:.22em;
+                      text-transform:uppercase;
+                      animation:fadeUp .55s ease .04s both;
+                    }
+
+                    .hero h1{
+                      margin:0;
+                      color:var(--hero-title);
+                      font-family:var(--font-heading);
+                      font-size:clamp(34px,4.35vw,58px);
+                      font-weight:800;
+                      letter-spacing:-.052em;
+                      line-height:.96;
+                      animation:fadeUp .55s ease .08s both;
+                    }
+
+                    .hero h1 span{
+                      color:var(--hero-title);
+                      font-style:italic;
+                    }
+
+                    .hero h1 .ed-red{
+                      color:#E53935!important;
+                    }
+
+                    .hero p{
+                      max-width:480px;
+                      margin:0;
+                      color:var(--hero-copy);
+                      font-size:13px;
+                      font-weight:700;
+                      line-height:1.42;
+                      animation:fadeUp .55s ease .12s both;
+                    }
+
+                    .portal-grid{
+                      width:min(760px,88%);
+                      max-height:calc(100vh - 72px);
+                      justify-self:center;
+                      align-self:center;
+                      display:grid;
+                      grid-template-columns:1fr;
+                      gap:8px;
+                    }
+
+                    .portal-card{
+                      position:relative;
+                      min-height:0;
+                      height:clamp(128px,20vh,145px);
+                      padding:12px 18px 10px;
+                      display:flex;
+                      flex-direction:column;
+                      overflow:hidden;
+                      border-radius:22px;
+                      color:var(--ink);
+                      border:1.7px solid var(--card-border);
+                      background:linear-gradient(135deg,var(--card-glass-a),var(--card-glass-b));
+                      backdrop-filter:blur(20px);
+                      box-shadow:0 28px 82px var(--card-shadow);
+                      transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+                      animation:cardIn .6s ease both;
+                      cursor:pointer;
+                    }
+
+                    .portal-card.locked {
+                      filter: grayscale(1);
+                      opacity: 0.6;
+                      cursor: not-allowed;
+                    }
+
+                    .portal-card:nth-child(2){ animation-delay:.08s; }
+                    .portal-card:nth-child(3){ animation-delay:.16s; }
+                    .portal-card:nth-child(4){ animation-delay:.24s; }
+                    .portal-card:nth-child(5){ animation-delay:.32s; }
+
+                    .portal-card:hover:not(.locked){
+                      transform:translateY(-6px) scale(1.025);
+                      box-shadow:0 34px 90px rgba(8,43,76,.20);
+                    }
+
+                    .portal-card::before,
+                    .portal-card::after{
+                      content:"";
+                      position:absolute;
+                      pointer-events:none;
+                      transition:transform .24s ease, opacity .24s ease;
+                    }
+
+                    .portal-card::before{
+                      inset:0;
                       background:
-                        radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
-                      box-shadow:
-                        0 0 0 12px color-mix(in srgb, var(--gold) 8%, transparent),
-                        0 0 28px color-mix(in srgb, var(--gold) 24%, transparent);
-                      z-index: 0;
+                        linear-gradient(135deg,rgba(255,255,255,.42),transparent 38%),
+                        linear-gradient(90deg,var(--accent,var(--blue)) 0 6px,transparent 6px),
+                        repeating-linear-gradient(135deg,rgba(255,255,255,.18) 0 1px,transparent 1px 12px);
+                      opacity:.95;
                     }
 
-                    .nodes-topbar > * {
-                      position: relative;
-                      z-index: 1;
+                    .portal-card::after{
+                      width:154px;
+                      height:154px;
+                      right:-62px;
+                      bottom:-76px;
+                      border-radius:999px;
+                      background:
+                        radial-gradient(circle at 34% 34%,rgba(255,255,255,.72),transparent 30%),
+                        rgba(10,111,166,.10);
                     }
 
-                    .nodes-topbar h1 {
-                      margin: 0;
-                      font-family: var(--font-heading);
-                      font-size: 36px;
-                      line-height: 1.12;
-                      font-weight: 900;
-                      letter-spacing: -0.01em;
-                      color: #ffffff;
+                    .portal-card:hover:not(.locked)::after{
+                      transform:scale(1.16);
                     }
 
-                    .nodes-topbar .eyebrow {
-                      color: var(--gold);
-                      font-size: 11px;
-                      font-weight: 900;
-                      letter-spacing: 0.15em;
-                      text-transform: uppercase;
-                      font-family: var(--font-heading);
+                    .portal-card.admin{ --accent:var(--gold); }
+                    .portal-card.support{ --accent:#10B981; }
+                    .portal-card.reports{ --accent:#EF4444; }
+
+                    .card-top{
+                      position:relative;
+                      z-index:1;
+                      display:flex;
+                      align-items:center;
+                      gap:10px;
+                      margin-bottom:6px;
                     }
 
-                    .nodes-card {
-                      background: var(--card);
-                      border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
-                      border-radius: var(--radius);
-                      box-shadow: none;
-                      transition: all 0.2s ease;
+                    .portal-icon{
+                      width:36px;
+                      height:36px;
+                      display:grid;
+                      place-items:center;
+                      flex:0 0 auto;
+                      border-radius:12px;
+                      color:white;
+                      background:linear-gradient(135deg,var(--blue),var(--blue-deep));
+                      box-shadow:0 14px 28px rgba(10,111,166,.20);
                     }
 
-                    .nodes-card:hover {
-                      transform: translateY(-2px);
+                    .admin .portal-icon{
+                      background:linear-gradient(135deg,var(--gold),var(--gold-deep));
+                    }
+                    .support .portal-icon{
+                      background:linear-gradient(135deg,#34D399,#059669);
+                    }
+                    .reports .portal-icon{
+                      background:linear-gradient(135deg,#F87171,#DC2626);
                     }
 
-                    @media (max-width: 768px) {
-                      .nodes-app-layout {
-                        grid-template-columns: 1fr;
-                        padding-bottom: 82px;
-                      }
+                    .card-label{
+                      position:relative;
+                      z-index:1;
+                      margin:0;
+                      color:var(--accent,var(--blue));
+                      font-size:9px;
+                      font-weight:800;
+                      letter-spacing:.14em;
+                      text-transform:uppercase;
+                    }
 
-                      .nodes-sidebar {
-                        position: fixed;
-                        left: 0;
-                        right: 0;
-                        bottom: 0;
-                        top: auto;
-                        z-index: 40;
-                        display: block;
-                        padding: 8px 10px max(8px, env(safe-area-inset-bottom));
-                        width: 100%;
-                        border: 0;
-                        border-top: 1px solid rgba(255, 255, 255, 0.46);
-                        background:
-                          radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 48%),
-                          radial-gradient(ellipse at 84% 0%, color-mix(in srgb, var(--red) 10%, transparent), transparent 46%),
-                          linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
-                        box-shadow:
-                          0 -18px 44px rgba(11, 31, 77, 0.26),
-                          inset 0 1px 0 rgba(255, 255, 255, 0.18);
-                        overflow: hidden;
-                      }
+                    .portal-card h2{
+                      position:relative;
+                      z-index:1;
+                      margin:0 0 5px;
+                      color:var(--navy);
+                      font-family:var(--font-heading);
+                      font-size:clamp(18px,1.72vw,24px);
+                      font-style:italic;
+                      font-weight:800;
+                      letter-spacing:-.038em;
+                      line-height:1.02;
+                    }
 
-                      .nodes-brand {
-                        display: none;
-                      }
+                    .portal-card p{
+                      position:relative;
+                      z-index:1;
+                      max-width:640px;
+                      margin:0;
+                      color:var(--muted);
+                      font-size:10px;
+                      font-weight:600;
+                      line-height:1.32;
+                      display:-webkit-box;
+                      -webkit-line-clamp:2;
+                      -webkit-box-orient:vertical;
+                      overflow:hidden;
+                    }
 
-                      .nodes-nav {
-                        display: grid;
-                        grid-template-columns: repeat(5, 1fr);
-                        gap: 4px;
-                        width: min(760px, 100%);
-                        margin: 0 auto;
-                      }
+                    .portal-link{
+                      position:relative;
+                      z-index:1;
+                      min-height:20px;
+                      margin-top:6px;
+                      display:inline-flex;
+                      align-items:center;
+                      gap:8px;
+                      align-self:flex-start;
+                      color:var(--accent,var(--blue));
+                      font-size:8.8px;
+                      font-weight:800;
+                      letter-spacing:.12em;
+                      text-transform:uppercase;
+                    }
 
-                      .nodes-nav a {
-                        display: grid;
-                        place-items: center;
-                        gap: 2px;
-                        width: auto;
-                        height: auto;
-                        padding: 6px 2px;
-                        border-radius: 16px;
-                        color: rgba(255, 255, 255, 0.82);
-                        font-size: 8px;
-                        line-height: 1;
-                        text-align: center;
-                        border: 1px solid transparent;
-                        background: transparent;
-                        text-decoration: none;
-                      }
+                    .portal-link span{
+                      transition:transform .2s ease;
+                    }
 
-                      .nodes-nav a span {
-                        display: block !important;
-                      }
+                    .portal-card:hover:not(.locked) .portal-link span{
+                      transform:translateX(5px);
+                    }
 
-                      .nodes-nav a.active {
-                        background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
-                        color: white;
-                        border-color: rgba(255, 255, 255, 0.28);
-                        box-shadow:
-                          inset 0 -3px 0 var(--gold),
-                          0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
-                      }
+                    .footer-note{
+                      position:absolute;
+                      left:clamp(24px,4vw,62px);
+                      bottom:18px;
+                      margin:0;
+                      color:var(--muted);
+                      font-size:9px;
+                      font-weight:600;
+                    }
 
-                      .nodes-topbar {
-                        min-height: 90px;
-                        padding: 16px;
-                        margin: 12px 12px 0 12px;
-                        border-radius: 14px;
-                      }
+                    .footer-note strong{
+                      color:var(--navy);
+                    }
 
-                      .nodes-topbar h1 {
-                        font-size: clamp(18px, 5.5vw, 22px);
-                      }
+                    @keyframes fadeDown{
+                      from{opacity:0;transform:translateY(-12px)}
+                      to{opacity:1;transform:translateY(0)}
+                    }
 
-                      .nodes-topbar::before {
-                        width: 85%;
-                      }
+                    @keyframes fadeUp{
+                      from{opacity:0;transform:translateY(12px)}
+                      to{opacity:1;transform:translateY(0)}
+                    }
 
-                      .nodes-card {
-                        border-width: 2px;
-                        border-radius: 14px;
+                    @keyframes cardIn{
+                      from{opacity:0;transform:translateY(18px) scale(.98)}
+                      to{opacity:1;transform:translateY(0) scale(1)}
+                    }
+
+                    @keyframes floatOrb{
+                      from{transform:translate3d(0,0,0) scale(1)}
+                      to{transform:translate3d(18px,-16px,0) scale(1.05)}
+                    }
+
+                    /* Mobile optimization */
+                    @media(max-width:1000px){
+                      .landing-stage{
+                        padding:22px 16px 28px;
+                        grid-template-columns:1fr;
+                        align-content:start;
+                        gap:18px;
+                        padding-bottom: 92px;
+                      }
+                      .hero{
+                        position:relative;
+                        overflow:hidden;
+                        justify-items:center;
+                        text-align:center;
+                        gap:8px;
+                        padding:18px 14px 20px;
+                        border-radius:28px;
+                        background:linear-gradient(135deg,var(--split-a),var(--split-b) 58%,var(--split-c));
+                        box-shadow:0 22px 56px rgba(8,43,76,.18);
+                      }
+                      .hero::after{
+                        content:"";
+                        position:absolute;
+                        right:-54px;
+                        bottom:-64px;
+                        width:170px;
+                        height:170px;
+                        background:rgba(255,255,255,.16);
+                        clip-path:polygon(0 0,100% 50%,0 100%);
+                        pointer-events:none;
+                      }
+                      .logo-icon{
+                        width:56px;
+                        height:56px;
+                        border-radius:18px;
+                        font-size:13px;
+                      }
+                      .eyebrow{
+                        max-width:100%;
+                        font-size:9px;
+                        letter-spacing:.18em;
+                      }
+                      .hero h1{
+                        font-size:clamp(26px,10vw,42px);
+                        line-height:.96;
+                        letter-spacing:-.05em;
+                      }
+                      .hero p{
+                        max-width:320px;
+                        font-size:10px;
+                        line-height:1.36;
+                      }
+                      .portal-grid{
+                        width:100%;
+                        max-width:500px;
+                        justify-self:center;
+                        gap:12px;
+                        max-height: unset;
+                      }
+                      .portal-card{
+                        min-height:auto;
+                        padding:16px 16px 15px;
+                        border-radius:20px;
+                        box-shadow:0 18px 44px var(--card-shadow);
+                      }
+                      .portal-card:hover:not(.locked){
+                        transform:none;
+                      }
+                      .card-top{
+                        gap:10px;
+                        margin-bottom:10px;
+                      }
+                      .portal-icon{
+                        width:42px;
+                        height:42px;
+                        border-radius:14px;
+                      }
+                      .portal-icon svg{
+                        width:22px;
+                        height:22px;
+                      }
+                      .card-label{
+                        font-size:9px;
+                        letter-spacing:.13em;
+                      }
+                      .portal-card h2{
+                        font-size:clamp(20px,6vw,26px);
+                        margin-bottom:6px;
+                      }
+                      .portal-card p{
+                        font-size:10px;
+                        line-height:1.34;
+                      }
+                      .portal-link{
+                        min-height:34px;
+                        margin-top:7px;
+                        font-size:9px;
+                      }
+                      .footer-note{
+                        position:static;
+                        max-width:320px;
+                        justify-self:center;
+                        text-align:center;
+                        font-size:10px;
+                        line-height:1.35;
                       }
                     }
-                ` }} />
 
-                {/* Left Sidebar on Desktop / Bottom Bar on Mobile */}
-                <div className="nodes-sidebar">
-                    <div className="nodes-brand">
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-collapsed object-contain w-10 h-10"
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png";
-                            }}
-                        />
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-expanded object-contain"
-                            style={{ width: '10rem', height: '6rem' }}
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
-                            }}
-                        />
+                    @media(max-width:520px){
+                      .landing-stage{
+                        padding:16px 12px 24px;
+                        gap:14px;
+                      }
+                      .hero{
+                        padding:16px 12px 18px;
+                        border-radius:24px;
+                      }
+                      .hero h1{
+                        font-size:clamp(26px,11vw,38px);
+                      }
+                      .hero p{
+                        font-size:10px;
+                      }
+                      .portal-card{
+                        padding:14px;
+                        border-radius:18px;
+                      }
+                      .portal-card h2{
+                        font-size:21px;
+                      }
+                      .portal-card p{
+                        font-size:10px;
+                      }
+                    }
+
+                    @media(prefers-reduced-motion:reduce){
+                      *,
+                      *::before,
+                      *::after{
+                        animation-duration:.001ms!important;
+                        animation-iteration-count:1!important;
+                        transition-duration:.001ms!important;
+                      }
+                    }
+
+                    @media (hover:hover) and (pointer:fine){
+                      .portal-card{
+                        transform-origin:center center;
+                        will-change:transform;
+                      }
+                      .portal-card:hover:not(.locked),
+                      .portal-card:focus-within:not(.locked){
+                        animation:none;
+                        transform:translateY(-10px) scale(1.06)!important;
+                        box-shadow:0 42px 110px rgba(8,43,76,.26)!important;
+                        z-index:10;
+                      }
+                      .portal-card:hover:not(.locked)::after,
+                      .portal-card:focus-within:not(.locked)::after{
+                        transform:scale(1.2);
+                      }
+                    }
+
+                    @keyframes cardIn{
+                      from{opacity:0;filter:blur(2px)}
+                      to{opacity:1;filter:blur(0)}
+                    }
+                    `
+        }} />
+
+        <div className="preview-bg" aria-hidden="true"></div>
+        <div className="bg-orb orb-a" aria-hidden="true"></div>
+        <div className="bg-orb orb-b" aria-hidden="true"></div>
+        <div className="bg-orb orb-c" aria-hidden="true"></div>
+
+        <div className="nodes-app-layout min-h-screen grid grid-cols-1 lg:grid-cols-[80px_1fr] transition-all duration-300 ease-in-out">
+            <SharedNexusSidebar activeTab="Home" />{/* Main Workspace Frame (New Design Integration) */}
+          <main className="nexus-preview lg:col-start-2">
+            <section className="landing-stage">
+              <section className="hero" aria-labelledby="page-title">
+                <div className="logo-icon" aria-label="InsightED">IE</div>
+
+                <p className="eyebrow">Specialized Portals Gateway</p>
+
+                <h1 id="page-title">
+                  {activeView === 'services' ? (
+                    <>Supplemental<br /><span>Insight<span className="ed-red">ED</span> Services</span></>
+                  ) : (
+                    <>Welcome to the<br /><span>Insight<span className="ed-red">ED</span> Nexus</span></>
+                  )}
+                </h1>
+
+                <p>
+                  Choose the portal that matches your role, authorized workflow, and official access level.
+                </p>
+              </section>
+
+              <section className="portal-grid" aria-label="Available portals">
+                {currentModules.map((mod, idx) => (
+                  <article
+                    key={mod.id}
+                    className={`portal-card ${mod.cardClass || ''} ${mod.isLocked ? 'locked' : ''}`}
+                    onClick={() => {
+                      if (mod.onClick) return mod.onClick();
+                      if (!mod.isLocked) handleCardClick(mod.route, mod.id);
+                    }}
+                  >
+                    <div className="card-top">
+                      <div className="portal-icon" aria-hidden="true">
+                        {mod.icon}
+                      </div>
+                      <p className="card-label">{mod.subtitle}</p>
                     </div>
 
-                    <div className="nodes-nav">
-                        <a href="#/nodes-dashboard" className="active" title="Home">
-                            <FiHome size={20} />
-                            <span>Home</span>
-                        </a>
-                        <a href="#/my-activity" title="CLOUD">
-                            <FiBookOpen size={20} />
-                            <span>CLOUD</span>
-                        </a>
-                        <a href="#/modular-dashboard" title="Units">
-                            <LuCompass size={20} />
-                            <span>Units</span>
-                        </a>
-                        <a href="#/guide/school-head" title="Guide">
-                            <TbSchool size={20} />
-                            <span>Guide</span>
-                        </a>
-                        <a href="#/profile" title="Settings">
-                            <FiSettings size={20} />
-                            <span>Settings</span>
-                        </a>
-                    </div>
-                </div>
+                    <h2>{mod.title}</h2>
+                    <p>{mod.description}</p>
 
-                {/* Main Content Area */}
-                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
+                    {mod.isLocked ? (
+                      <a className="portal-link" style={{ color: '#9CA3AF' }} aria-label={`Locked: ${mod.title}`}>
+                        Access Restricted <FiLock className="ml-1" aria-hidden="true" />
+                      </a>
+                    ) : mod.id === 'back' ? (
+                      <a className="portal-link" aria-label={`Go back to Nexus`}>
+                        Return <span aria-hidden="true">→</span>
+                      </a>
+                    ) : (
+                      <a className="portal-link" aria-label={`Enter ${mod.title} portal`}>
+                        Enter portal <span aria-hidden="true">→</span>
+                      </a>
+                    )}
+                  </article>
+                ))}
+              </section>
 
-                    {/* Header / Topbar */}
-                    <div className="nodes-topbar animate-fade-in">
-                        <div className="flex flex-col flex-grow select-none pr-8">
-                            <span className="eyebrow">
-                                DEPARTMENT OF EDUCATION | BUREAU OF HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT
-                            </span>
-                            <h1>
-                                {activeView === 'services' ? "SchoolHead Supplemental Services" : "SchoolHead Nexus Dashboard"}
-                            </h1>
-                            <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-2 relative z-10 leading-relaxed font-sans max-w-[90%]">
-                                Interactive dashboard for mapping school units, district needs, staffing, enrollment, classrooms, MOOE, and related indicators.
-                            </p>
-                            <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-1 relative z-10 leading-relaxed font-sans max-w-[90%]">
-                                Active School: <span className="font-bold text-white">{questProgress.school_name || 'Loading School...'}</span> (ID: <span className="font-bold text-white">{questProgress.schoolId || "------"}</span>) | School Head: <span className="font-bold text-white">{user?.first_name || user?.firstName || 'User'} {user?.last_name || user?.lastName || ''}</span>
-                            </p>
-                        </div>
+              <p className="footer-note hidden lg:block">
+                Use your <strong>official credentials</strong>. Contact your administrator if your portal access is unavailable.
+              </p>
+            </section>
+          </main>
+        </div>
 
-                        {/* Topbar Actions */}
-                        <div className="flex items-center gap-2.5 relative z-10">
-                            {activeView === 'services' && (
-                                <button
-                                    onClick={() => setActiveView('main')}
-                                    className="p-2 bg-white/95 rounded-xl text-slate-700 hover:text-blue-600 transition-colors shadow-md border border-slate-100"
-                                >
-                                    <FiArrowLeft size={15} />
-                                </button>
-                            )}
+      </div>
 
-                            {/* Technical Support */}
-                            <div className="relative group">
-                                <button
-                                    onClick={() => window.location.href = 'mailto:support.stride@deped.gov.ph'}
-                                    className="p-2 bg-white/95 rounded-xl text-[#08315F] hover:text-blue-600 transition-all shadow-md border border-slate-100"
-                                    title="Technical Support"
-                                >
-                                    <TbHeadset size={15} />
-                                </button>
-                                <div className="absolute -top-2 -right-2 bg-[#B91C1C] text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm border border-white uppercase tracking-tighter">
-                                    NEW!
-                                </div>
-                            </div>
-
-                            {/* Logout */}
-                            <button
-                                onClick={confirmLogout}
-                                className="p-2 bg-white/95 rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all active:scale-95 shadow-md border border-slate-100"
-                                title="Logout"
-                            >
-                                <FiLogOut size={15} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Dynamic Modules Grid */}
-                    <div className="p-6 md:p-8 flex-grow">
-                        <AnimatePresence mode="wait">
-                            {activeView === 'main' ? (
-                                <motion.div
-                                    key="main-grid"
-                                    initial={{ opacity: 0, y: 15 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -15 }}
-                                    className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                                >
-                                    {modules.map((mod, idx) => (
-                                        <ModuleCard key={mod.id} mod={mod} idx={idx} onClick={handleCardClick} isPrimary={mod.id === 'esf7'} questProgress={questProgress} />
-                                    ))}
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="services-grid"
-                                    initial={{ opacity: 0, y: 15 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -15 }}
-                                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                                >
-                                    {otherServicesModules.map((mod, idx) => (
-                                        <ModuleCard key={mod.id} mod={mod} idx={idx} onClick={handleCardClick} questProgress={questProgress} />
-                                    ))}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                </div>
-            </div>
-
-            {/* --- ED WELCOME OVERLAY --- */}
-            <AnimatePresence>
-                {showEdWelcome && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 backdrop-blur-[2px] p-6 pb-20"
-                    >
-                        <motion.div
-                            initial={{ y: 100, scale: 0.9 }}
-                            animate={{ y: 0, scale: 1 }}
-                            exit={{ y: 100, scale: 0.9, opacity: 0 }}
-                            className="relative bg-white rounded-[22px] p-8 shadow-2xl border-4 border-blue-500/20 max-w-sm w-full"
-                            style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                            {/* Mascot Entry */}
-                            <div className="absolute -top-20 left-1/2 -translate-x-1/2 text-center">
-                                <motion.div
-                                    className="text-7xl drop-shadow-2xl"
-                                    animate={{ y: [0, -10, 0] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                >
-                                    🦁
-                                </motion.div>
-                            </div>
-
-                            <div className="mt-8 space-y-4 text-center">
-                                <div className="inline-flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 mb-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                    <p className="text-blue-700 text-[10px] font-black uppercase tracking-widest">Incoming Message</p>
-                                </div>
-
-                                <h2 className="text-2xl font-black text-slate-800 italic uppercase leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
-                                    Hi there! <span className="text-blue-600">Magandang Araw</span> sa iyo!
-                                </h2>
-
-                                <div className="space-y-3">
-                                    <p className="text-sm font-bold text-slate-600 leading-relaxed">
-                                        Welcome to the <span className="text-[#004A99]">InsightED Nodes</span>.
-                                        Great job on finishing your registration!
-                                    </p>
-                                    <p className="text-[13px] font-medium text-slate-500 leading-relaxed italic">
-                                        "I’m **Ed**, and I’ll be helping you navigate through our school management tools.
-                                        This is your command center—manage our **School Info**, check the **SHA**, or draft your **ESF7** and **NSPP** reports."
-                                    </p>
-                                    <p className="text-sm font-black text-slate-800">
-                                        Everything is organized. Tayo na?
-                                    </p>
-                                </div>
-
-                                <motion.button
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => {
-                                        localStorage.removeItem('isNewUser');
-                                        setShowEdWelcome(false);
-                                    }}
-                                    className="w-full py-4 bg-[#004A99] text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 group transition-all hover:bg-blue-800"
-                                >
-                                    <span>TAYO NA!</span>
-                                    <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
-                                </motion.button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </PageTransition>
-    );
-};
-
-// --- EXTRACTED COMPONENT FOR DESIGN CONSISTENCY ---
-const ModuleCard = ({ mod, idx, onClick, isPrimary, questProgress }) => {
-
-    // Dynamic color coding for the left accent bar
-    const getAccentColor = (id) => {
-        switch (id) {
-            case 'school-info': return 'var(--blue)';
-            case 'esf7': return 'var(--gold)';
-            case 'nspp': return 'var(--blue)';
-            case 'other-services': return 'var(--red)';
-            case 'siif': return 'var(--blue)';
-            case 'soss': return 'var(--gold)';
-            case 'sgc': return 'var(--navy)';
-            default: return 'var(--blue)';
-        }
-    };
-
-    // Dynamic progress bar styling matching the design document
-    const getProgressGradient = (id) => {
-        if (id === 'esf7') return 'linear-gradient(90deg, var(--gold), var(--amber))';
-        if (id === 'other-services' || id === 'soss' || id === 'sgc') return 'linear-gradient(90deg, var(--red), #EF4444)';
-        return 'linear-gradient(90deg, var(--blue), var(--blue-600))';
-    };
-
-    const accentColor = getAccentColor(mod.id);
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05 }}
-            onClick={() => !mod.isLocked && onClick(mod.route, mod.id)}
-            className={`
-                nodes-card flex flex-col p-6 cursor-pointer relative overflow-hidden
-                ${mod.isLocked ? 'grayscale opacity-60 pointer-events-none' : ''}
-            `}
-            style={{
-                borderLeft: `6px solid ${accentColor}`,
-                fontFamily: 'var(--font-body)'
-            }}
-        >
-            <div className="flex justify-between items-start mb-6">
-                <div className="flex flex-col">
-                    <h4 className="text-xl font-black leading-tight mb-1 text-[#08315F]" style={{ fontFamily: 'var(--font-heading)' }}>
-                        {mod.title}
-                    </h4>
-                    <div className="text-[10px] font-black uppercase tracking-[0.15em] leading-tight text-slate-400">
-                        {mod.subtitle}
-                    </div>
-                </div>
-
-                {mod.isLocked ? (
-                    <div className="p-2 rounded-xl bg-slate-100 text-slate-400">
-                        <FiLock size={16} />
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2">
-                        {mod.id === 'school-info' && (
-                            <motion.span
-                                initial={{ scale: 0.5, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className={`px-2.5 py-1 rounded text-[8px] font-black tracking-widest flex items-center gap-1 shadow-sm border 
-                                    ${questProgress.validation_percentage === 100
-                                        ? 'bg-emerald-600 text-white border-emerald-400'
-                                        : 'bg-red-600 text-white border-red-500 animate-pulse'}
-                                `}
-                            >
-                                {questProgress.validation_percentage === 100 ? (
-                                    <>
-                                        <TbShieldCheck size={9} /> VALIDATED
-                                    </>
-                                ) : (
-                                    <>
-                                        <TbShieldX size={9} /> NEEDS VALIDATION
-                                    </>
-                                )}
-                            </motion.span>
-                        )}
-
-                        {mod.id === 'esf7' && mod.progress === 100 && (
-                            <motion.span
-                                initial={{ scale: 0.5, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className="px-2.5 py-1 rounded text-[8px] font-black tracking-widest bg-emerald-500 text-white shadow-sm border border-emerald-400 flex items-center gap-1"
-                            >
-                                <FiAward size={9} /> COMPLETED
-                            </motion.span>
-                        )}
-                        <FiMoreVertical className="text-slate-300" />
-                    </div>
-                )}
-            </div>
-
-            <div className="flex items-center gap-4 mb-6">
+      {/* --- ED WELCOME OVERLAY --- */}
+      <AnimatePresence>
+        {showEdWelcome && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 backdrop-blur-[2px] p-6 pb-20"
+          >
+            <motion.div
+              initial={{ y: 100, scale: 0.9 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 100, scale: 0.9, opacity: 0 }}
+              className="relative bg-white rounded-[22px] p-8 shadow-2xl border-4 border-blue-500/20 max-w-sm w-full"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <div className="absolute -top-20 left-1/2 -translate-x-1/2 text-center">
                 <motion.div
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm bg-sky-50/50 border border-sky-100 text-[#075985]"
+                  className="text-7xl drop-shadow-2xl"
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
                 >
-                    {React.cloneElement(mod.icon, { className: "w-7 h-7" })}
+                  🦁
                 </motion.div>
+              </div>
 
-                <div className="flex-1">
-                    <p className="text-xs font-bold leading-relaxed text-slate-500">
-                        {mod.description}
-                    </p>
+              <div className="mt-8 space-y-4 text-center">
+                <div className="inline-flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-full border border-blue-100 mb-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  <p className="text-blue-700 text-[10px] font-black uppercase tracking-widest">Incoming Message</p>
                 </div>
-            </div>
 
-            {!mod.hideProgress && (
-                <div className="mt-auto">
-                    <div className="flex justify-between items-end mb-2">
-                        <div className="flex flex-col">
-                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">
-                                {mod.id === 'other-services' || mod.isLocked ? "Status" : "Completion Percentage"}
-                            </span>
-                            <span className="text-lg font-black text-[#08315F]">
-                                {mod.isLocked ? "LOCKED" : `${mod.progress || 0}%`}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {mod.badge && (
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest ${mod.isLocked ? 'bg-slate-800 text-white' : 'bg-[#08315F] text-white'}`}>
-                                    {mod.badge}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="h-2 w-full rounded-full overflow-hidden bg-slate-100">
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${mod.isLocked ? 0 : (mod.progress || 0)}%` }}
-                            transition={{ duration: 1.2, ease: "easeOut", delay: idx * 0.05 }}
-                            className="h-full rounded-full"
-                            style={{ background: getProgressGradient(mod.id) }}
-                        />
-                    </div>
+                <h2 className="text-2xl font-black text-slate-800 italic uppercase leading-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+                  Hi there! <span className="text-blue-600">Magandang Araw</span> sa iyo!
+                </h2>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-bold text-slate-600 leading-relaxed">
+                    Welcome to the <span className="text-[#004A99]">InsightED Nodes</span>.
+                    Great job on finishing your registration!
+                  </p>
+                  <p className="text-[13px] font-medium text-slate-500 leading-relaxed italic">
+                    "I’m **Ed**, and I’ll be helping you navigate through our school management tools.
+                    This is your command center—manage our **School Info**, check the **SHA**, or draft your **ESF7** and **NSPP** reports."
+                  </p>
+                  <p className="text-sm font-black text-slate-800">
+                    Everything is organized. Tayo na?
+                  </p>
                 </div>
-            )}
-        </motion.div>
-    );
+
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    localStorage.removeItem('isNewUser');
+                    setShowEdWelcome(false);
+                  }}
+                  className="w-full py-4 bg-[#004A99] text-white font-black rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 group transition-all hover:bg-blue-800"
+                >
+                  <span>TAYO NA!</span>
+                  <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </PageTransition>
+  );
 };
 
 export default NodesDashboard;
-

@@ -11,6 +11,7 @@ import {
 import { LuCompass } from "react-icons/lu";
 import { TbSchool, TbHeadset, TbShieldCheck, TbShieldX, TbTicket } from "react-icons/tb";
 import PageTransition from '../components/PageTransition';
+import SharedNexusSidebar from '../components/SharedNexusSidebar';
 import { DASHBOARD_METADATA } from '../config/dashboardMetadata';
 import { useAuth } from '../context/AuthContext';
 import { getModularOutbox } from '../db';
@@ -452,7 +453,7 @@ const MyActivityDashboard = () => {
 
     return (
         <PageTransition>
-            <div className="ab-layout">
+            <div className="ab-layout lg:pl-[80px]">
                 <style dangerouslySetInnerHTML={{
                     __html: `
                     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
@@ -479,8 +480,6 @@ const MyActivityDashboard = () => {
 
                     /* ── Main layout: sidebar | content ── */
                     .ab-layout {
-                      display: grid;
-                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
                       font-family: var(--font-body);
                       color: var(--text);
@@ -651,7 +650,7 @@ const MyActivityDashboard = () => {
                     @media (max-width: 768px) {
                       .ab-layout {
                         grid-template-columns: 1fr;
-                        padding-bottom: 82px;
+                        padding-bottom: 120px;
                       }
                       .nodes-sidebar {
                         position: fixed;
@@ -687,26 +686,10 @@ const MyActivityDashboard = () => {
                 }} />
 
                 {/* ── Sidebar ── */}
-                <div className="nodes-sidebar">
-                    <div className="nodes-brand">
-                        <img src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`}
-                            alt="InsightED Logo" className="logo-collapsed object-contain w-10 h-10"
-                            onError={(e) => { e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png"; }} />
-                        <img src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`}
-                            alt="InsightED Logo" className="logo-expanded object-contain" style={{ width: '10rem', height: '6rem' }}
-                            onError={(e) => { e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png"; }} />
-                    </div>
-                    <div className="nodes-nav">
-                        <a href="#/nodes-dashboard"><FiHome size={18} /><span>Home</span></a>
-                        <a href="#/my-activity" className="active"><FiBookOpen size={18} /><span>CLOUD</span></a>
-                        <a href="#/modular-dashboard"><LuCompass size={18} /><span>Units</span></a>
-                        <a href="#/guide/school-head"><TbSchool size={18} /><span>Guide</span></a>
-                        <a href="#/profile"><FiSettings size={18} /><span>Settings</span></a>
-                    </div>
-                </div>
+                <SharedNexusSidebar activeTab="CLOUD" />
 
                 {/* ── Main Content ── */}
-                <div className="flex flex-col min-h-screen overflow-y-auto pb-10">
+                <div className="flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10">
 
                     {/* Topbar */}
                     <div className="nodes-topbar">

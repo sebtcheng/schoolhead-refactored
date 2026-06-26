@@ -3,11 +3,13 @@ import PageTransition from '../components/PageTransition';
 import { FiHome, FiSettings, FiBookOpen } from "react-icons/fi";
 import { LuCompass } from "react-icons/lu";
 import { TbSchool } from "react-icons/tb";
+import SharedNexusSidebar from '../components/SharedNexusSidebar';
+import SchoolHeadGuide from '../components/SchoolHeadGuide';
 
 const LegacyGuideWrapper = () => {
     return (
         <PageTransition>
-            <div className="nodes-app-layout">
+            <div className="nodes-app-layout lg:pl-[80px]">
                 <style dangerouslySetInnerHTML={{
                     __html: `
                     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
@@ -33,8 +35,6 @@ const LegacyGuideWrapper = () => {
                     }
 
                     .nodes-app-layout {
-                      display: grid;
-                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
                       font-family: var(--font-body);
                       color: var(--text);
@@ -243,7 +243,7 @@ const LegacyGuideWrapper = () => {
                     @media (max-width: 768px) {
                       .nodes-app-layout {
                         grid-template-columns: 1fr;
-                        padding-bottom: 82px;
+                        padding-bottom: 120px;
                       }
 
                       .nodes-sidebar {
@@ -326,54 +326,10 @@ const LegacyGuideWrapper = () => {
                     `
                 }} />
 
-                {/* Left Sidebar on Desktop / Bottom Bar on Mobile */}
-                <div className="nodes-sidebar">
-                    <div className="nodes-brand">
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-collapsed object-contain w-10 h-10"
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png";
-                            }}
-                        />
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-expanded object-contain"
-                            style={{ width: '10rem', height: '6rem' }}
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
-                            }}
-                        />
-                    </div>
-
-                    <div className="nodes-nav">
-                        <a href="#/nodes-dashboard" title="Home">
-                            <FiHome size={20} />
-                            <span>Home</span>
-                        </a>
-                        <a href="#/my-activity" title="CLOUD">
-                            <FiBookOpen size={20} />
-                            <span>CLOUD</span>
-                        </a>
-                        <a href="#/modular-dashboard" title="Units">
-                            <LuCompass size={20} />
-                            <span>Units</span>
-                        </a>
-                        <a href="#/guide/school-head" className="active" title="Guide">
-                            <TbSchool size={20} />
-                            <span>Guide</span>
-                        </a>
-                        <a href="#/profile" title="Settings">
-                            <FiSettings size={20} />
-                            <span>Settings</span>
-                        </a>
-                    </div>
-                </div>
+                <SharedNexusSidebar activeTab="Guide" />
 
                 {/* Main Content Area */}
-                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
+                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10">
                     
                     {/* Header / Topbar */}
                     <div className="nodes-topbar animate-fade-in">
@@ -394,12 +350,8 @@ const LegacyGuideWrapper = () => {
                     </div>
 
                     {/* CONTENT AREA */}
-                    <div className="flex-1 w-full h-[calc(100vh-110px)] relative">
-                        <iframe 
-                            src={`${import.meta.env.BASE_URL}mobile-guides/school-head.html`} 
-                            className="absolute inset-0 w-full h-full border-none"
-                            title="School Head Operational Guide"
-                        />
+                    <div className="flex-1 w-full relative">
+                        <SchoolHeadGuide />
                     </div>
                 </div>
             </div>

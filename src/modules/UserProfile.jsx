@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageTransition from '../components/PageTransition';
+import SharedNexusSidebar from '../components/SharedNexusSidebar';
 import { useTheme } from '../context/ThemeContext'; // Import Hook
 import { useServiceWorker } from '../context/ServiceWorkerContext'; // Import SW Hook
 
@@ -67,7 +68,7 @@ const getInitials = (first, last) => {
     return `${first?.charAt(0) || ''}${last?.charAt(0) || ''}`.toUpperCase();
 };
 
-const UserProfile = () => {
+const UserProfile = ({ hideSidebar = false }) => {
     const navigate = useNavigate();
     const auth = useAuth();
     const { user, authLoading, setIsPasscodeSetupOpen } = useAuth();
@@ -1158,7 +1159,7 @@ const UserProfile = () => {
     return (
         <PageTransition>
             <>
-                <div className="nodes-app-layout">
+                <div className={`nodes-app-layout ${hideSidebar ? 'lg:pl-0' : 'lg:pl-[80px]'}`}>
                 <style dangerouslySetInnerHTML={{
                     __html: `
                     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
@@ -1184,8 +1185,6 @@ const UserProfile = () => {
                     }
 
                     .nodes-app-layout {
-                      display: grid;
-                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
                       font-family: var(--font-body);
                       color: var(--text);
@@ -1456,7 +1455,7 @@ const UserProfile = () => {
                     @media (max-width: 768px) {
                       .nodes-app-layout {
                         grid-template-columns: 1fr;
-                        padding-bottom: 82px;
+                        padding-bottom: 120px;
                       }
 
                       .nodes-sidebar {
@@ -1539,54 +1538,10 @@ const UserProfile = () => {
                     `
                 }} />
 
-                {/* Left Sidebar on Desktop / Bottom Bar on Mobile */}
-                <div className="nodes-sidebar">
-                    <div className="nodes-brand">
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-collapsed object-contain w-10 h-10"
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png";
-                            }}
-                        />
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-expanded object-contain"
-                            style={{ width: '10rem', height: '6rem' }}
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
-                            }}
-                        />
-                    </div>
-
-                    <div className="nodes-nav">
-                        <a href="#/nodes-dashboard" title="Home">
-                            <FiHome size={20} />
-                            <span>Home</span>
-                        </a>
-                        <a href="#/my-activity" title="CLOUD">
-                            <FiBookOpen size={20} />
-                            <span>CLOUD</span>
-                        </a>
-                        <a href="#/modular-dashboard" title="Units">
-                            <LuCompass size={20} />
-                            <span>Units</span>
-                        </a>
-                        <a href="#/guide/school-head" title="Guide">
-                            <TbSchool size={20} />
-                            <span>Guide</span>
-                        </a>
-                        <a href="#/profile" className="active" title="Settings">
-                            <FiSettings size={20} />
-                            <span>Settings</span>
-                        </a>
-                    </div>
-                </div>
+                {!hideSidebar && <SharedNexusSidebar activeTab="Settings" />}
 
                 {/* Main Content Area */}
-                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
+                <div className={`flex-grow flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10 ${hideSidebar ? 'pl-0' : ''}`}>
                     
                     {/* Header / Topbar */}
                     <div className="nodes-topbar animate-fade-in">
