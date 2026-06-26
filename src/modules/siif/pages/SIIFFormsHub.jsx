@@ -401,33 +401,7 @@ const SIIFFormsHub = ({ user, token }) => {
         return null;
     };
 
-    // ─── Missing Data Check ───────────────────────────────────────────────────
-    const isMissingData = (cardId) => {
-        if (selectedInterventions.length === 0) return false;
-        
-        if (cardId === 'beneficiaries') {
-            return selectedInterventions.some(intId => {
-                const counts = beneficiaries?.[intId]?.beneficiaryCounts || {};
-                const total = Object.values(counts).reduce((s, v) => s + (parseInt(v) || 0), 0);
-                return total <= 0;
-            });
-        }
-        if (cardId === 'activities') {
-            return selectedInterventions.some(intId => {
-                const selectedAct = activities?.[intId]?.selectedActivities || {};
-                const count = Object.values(selectedAct).flat().filter(Boolean).length;
-                const other = activities?.[intId]?.otherActivity || '';
-                return count === 0 && other.trim().length === 0;
-            });
-        }
-        if (cardId === 'budget') {
-            return selectedInterventions.some(intId => {
-                const b = parseFloat(budgets?.[intId]) || 0;
-                return b <= 0;
-            });
-        }
-        return false;
-    };
+
 
     // ─── Render ───────────────────────────────────────────────────────────────
     if (loading) {
