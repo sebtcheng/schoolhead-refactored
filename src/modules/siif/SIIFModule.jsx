@@ -11,8 +11,7 @@ import SIIFSettings from './pages/SIIFSettings';
 // Components
 import BottomNav from './components/BottomNav';
 
-// Contexts (Local to SIIF module if needed, or using portal versions)
-import { ThemeProvider } from './context/ThemeContext';
+// Use the global ServiceWorkerContext only — ThemeContext is handled globally by App.jsx
 import { ServiceWorkerProvider } from './context/ServiceWorkerContext';
 
 import './styles/siif.css';
@@ -45,10 +44,8 @@ const SIIFModuleContent = () => {
 
 export default function SIIFModule() {
     return (
-        <ThemeProvider>
-            <ServiceWorkerProvider>
-                <SIIFModuleContent />
-            </ServiceWorkerProvider>
-        </ThemeProvider>
+        <ServiceWorkerProvider>
+            <SIIFModuleContent />
+        </ServiceWorkerProvider>
     );
 }

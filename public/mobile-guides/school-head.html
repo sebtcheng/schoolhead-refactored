@@ -41,7 +41,7 @@
             background-color: var(--slate-body); 
             scroll-behavior: smooth;
             -webkit-font-smoothing: antialiased;
-            font-size: 75%;
+            font-size: 100%;
             width: 100%;
             max-width: 100vw;
             overflow-x: hidden;
@@ -79,7 +79,7 @@
         /* Essential Mobile Overrides (Samsung S8+ / Small Screens) */
         @media (max-width: 480px) {
             body { 
-                font-size: 70%; 
+                font-size: 90%; 
             }
             .unit-card {
                 padding: 1.25rem;
@@ -280,9 +280,8 @@
         .alert-tip { background-color: #f0fdf4; border: 1px solid #dcfce7; color: #166534; }
         .alert-warning { background-color: #fffbeb; border: 1px solid #fef3c7; color: #92400e; }
 
-        /* Additional Mobile Adjustments */
         @media (max-width: 480px) {
-            body { font-size: 70%; }
+            body { font-size: 90%; }
             .unit-card {
                 padding: 1rem;
                 margin-bottom: 2rem;
@@ -385,7 +384,7 @@
 
     <!-- Top Navigation (Floating Glassmorphism) -->
     <div class="fixed top-4 left-0 right-0 z-50 px-6 pointer-events-none">
-        <nav class="max-w-7xl mx-auto bg-white/70 backdrop-blur-2xl border border-white/40 shadow-[0_20px_50px_rgba(0,0,0,0.05)] rounded-[2rem] pointer-events-auto overflow-hidden">
+        <nav class="max-w-[1600px] w-full mx-auto bg-white/70 backdrop-blur-2xl border border-white/40 shadow-[0_20px_50px_rgba(0,0,0,0.05)] rounded-[2rem] pointer-events-auto overflow-hidden">
             <div class="px-4 md:px-8 h-16 md:h-20 flex items-center justify-between">
                 <div class="flex items-center gap-6">
                     <div class="relative group cursor-pointer">
@@ -412,7 +411,7 @@
     </div>
     <div class="h-20 md:h-28"></div> <!-- Spacer for fixed nav -->
 
-    <div class="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row gap-12">
+    <div class="max-w-[1600px] w-full mx-auto px-6 py-12 flex flex-col md:flex-row gap-12">
         <!-- Table of Contents Sidebar (Desktop) -->
         <aside class="md:w-52 flex-shrink-0 hidden md:block">
             <div class="sticky top-28 bg-white/50 backdrop-blur-xl p-6 rounded-[2rem] border border-slate-100 shadow-sm">

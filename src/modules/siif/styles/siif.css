@@ -1135,3 +1135,230 @@
         display: none !important;
     }
 }
+
+/* ================================================================
+   🌙  SIIF DARK MODE
+   Triggered when Tailwind adds class="dark" to <html>
+   ================================================================ */
+html.dark .siif-module-root {
+  --bg:   #0F172A;
+  --card: #1E293B;
+  --text: #E2E8F0;
+  --muted: #94A3B8;
+  --line: #334155;
+  --navy: #1E3A5F;
+  --blue-50: #0F172A;
+  --blue-100: #1E293B;
+  --blue-400: #60A5FA;
+  --blue-600: #3B82F6;
+
+  background-color: #0F172A;
+  background-image:
+    radial-gradient(43.5% 49.5% at 10% 12%, rgba(30, 58, 138, 0.35) 0 34%, transparent 78%),
+    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.20) 0 36%, transparent 80%),
+    radial-gradient(40.5% 48% at 84% 92%, rgba(56, 189, 248, 0.14) 0 34%, transparent 78%),
+    radial-gradient(45% 52.5% at 8% 92%, rgba(180, 83, 9, 0.18) 0 28%, rgba(251, 191, 36, 0.10) 42%, transparent 80%);
+  color: var(--text);
+}
+
+/* Cards */
+html.dark .siif-card {
+  background: #1E293B;
+  border-color: #334155;
+}
+
+html.dark .siif-card h2 {
+  color: #E2E8F0;
+}
+
+html.dark .siif-card-subtitle {
+  color: #94A3B8;
+}
+
+/* Topbar (new-style) */
+html.dark .siif-new-topbar {
+  border-color: #334155;
+}
+
+/* School pill */
+html.dark .siif-school-pill {
+  background: rgba(30, 41, 59, 0.92);
+  border-color: #334155;
+  color: #E2E8F0;
+}
+html.dark .siif-school-pill small,
+html.dark .siif-school-pill span {
+  color: #94A3B8;
+}
+html.dark .siif-school-pill strong {
+  color: #F1F5F9;
+}
+
+/* Big number / allocation */
+html.dark .siif-big-number {
+  color: #93C5FD;
+}
+
+/* Progress track */
+html.dark .siif-progress-track {
+  background: #334155;
+  border-color: #475569;
+}
+
+/* Legend */
+html.dark .siif-legend-row {
+  color: #94A3B8;
+}
+
+/* FY / Summary pills */
+html.dark .siif-fy-pill,
+html.dark .siif-summary-pill {
+  background: #1E293B;
+  border-color: #334155;
+  color: #93C5FD;
+}
+html.dark .siif-summary-pill strong {
+  color: #E2E8F0;
+}
+
+/* Action buttons */
+html.dark .siif-action-btn {
+  background: #1E293B;
+  border-color: #334155;
+}
+html.dark .siif-action-btn:hover {
+  background: #263548;
+  border-color: #3B82F6;
+}
+html.dark .siif-action-btn b {
+  color: #E2E8F0;
+}
+html.dark .siif-action-btn span {
+  color: #94A3B8;
+}
+html.dark .siif-action-icon {
+  background: #263548;
+  color: #60A5FA;
+}
+
+/* Table */
+html.dark .siif-table-wrap {
+  border-color: #334155;
+}
+html.dark .siif-table th {
+  background: #1A2744;
+  color: #94A3B8;
+}
+html.dark .siif-table th,
+html.dark .siif-table td {
+  border-bottom-color: #334155;
+}
+html.dark .siif-table td {
+  color: #CBD5E1;
+}
+
+/* Status badges */
+html.dark .siif-status.ok   { background: #14532D; color: #86EFAC; }
+html.dark .siif-status.warn { background: #78350F; color: #FDE68A; }
+html.dark .siif-status.risk { background: #7F1D1D; color: #FCA5A5; }
+html.dark .siif-status.info { background: #1E3A8A; color: #93C5FD; }
+
+/* Row action button */
+html.dark .siif-row-action {
+  background: #2563EB;
+}
+html.dark .siif-row-action:hover {
+  background: #1D4ED8;
+}
+
+/* Page controls */
+html.dark .siif-select {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+html.dark .siif-page-btn {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+html.dark .siif-page-btn.active {
+  background: #2563EB;
+  color: white;
+}
+
+/* Table footer */
+html.dark .siif-table-footer {
+  color: #94A3B8;
+}
+
+/* Main area background */
+html.dark .siif-main-area {
+  background: transparent;
+}
+
+/* ================================================================
+   🌙  SIIF DARK MODE — TAILWIND TEXT COLOR OVERRIDES
+   Forces readable light text for all hardcoded Tailwind dark text
+   classes used inside SIIF JSX files.
+   ================================================================ */
+
+/* Dark text → Light text */
+html.dark .siif-module-root .text-slate-900,
+html.dark .siif-module-root .text-slate-800,
+html.dark .siif-module-root .text-slate-700,
+html.dark .siif-module-root .text-gray-900,
+html.dark .siif-module-root .text-gray-800,
+html.dark .siif-module-root .text-gray-700,
+html.dark .siif-module-root .text-zinc-900,
+html.dark .siif-module-root .text-zinc-800,
+html.dark .siif-module-root .text-neutral-900,
+html.dark .siif-module-root .text-neutral-800,
+html.dark .siif-module-root .text-black {
+  color: #E2E8F0 !important;
+}
+
+/* Medium text → Dimmed light */
+html.dark .siif-module-root .text-slate-600,
+html.dark .siif-module-root .text-slate-500,
+html.dark .siif-module-root .text-gray-600,
+html.dark .siif-module-root .text-gray-500,
+html.dark .siif-module-root .text-zinc-600,
+html.dark .siif-module-root .text-zinc-500 {
+  color: #94A3B8 !important;
+}
+
+/* White backgrounds used in inline card panels (cards inside forms) */
+html.dark .siif-module-root .bg-white {
+  background-color: #1E293B !important;
+}
+html.dark .siif-module-root .bg-slate-50,
+html.dark .siif-module-root .bg-gray-50 {
+  background-color: #172032 !important;
+}
+html.dark .siif-module-root .bg-slate-100,
+html.dark .siif-module-root .bg-gray-100 {
+  background-color: #1A2744 !important;
+}
+
+/* Borders */
+html.dark .siif-module-root .border-slate-100,
+html.dark .siif-module-root .border-slate-200,
+html.dark .siif-module-root .border-gray-100,
+html.dark .siif-module-root .border-gray-200 {
+  border-color: #334155 !important;
+}
+
+/* Input / textarea fields */
+html.dark .siif-module-root input:not([type="checkbox"]):not([type="radio"]),
+html.dark .siif-module-root textarea,
+html.dark .siif-module-root select {
+  background-color: #1E293B !important;
+  color: #E2E8F0 !important;
+  border-color: #334155 !important;
+}
+html.dark .siif-module-root input::placeholder,
+html.dark .siif-module-root textarea::placeholder {
+  color: #64748B !important;
+}
+

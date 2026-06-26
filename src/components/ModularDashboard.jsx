@@ -9,6 +9,7 @@ import { getUnitDraft } from "../db";
 import { DASHBOARD_METADATA } from "../config/dashboardMetadata";
 import { useAuth } from "../context/AuthContext";
 import PageTransition from "./PageTransition";
+import SharedNexusSidebar from "./SharedNexusSidebar";
 import { api } from "../lib/api";
 
 const getRank = (xp) => {
@@ -208,7 +209,7 @@ const ModularDashboard = () => {
 
     return (
         <PageTransition>
-            <div className="nodes-app-layout">
+            <div className="nodes-app-layout lg:pl-[80px]">
                 {/* Scope-specific Stylesheets for exact visual guidelines */}
                 <style dangerouslySetInnerHTML={{
                     __html: `
@@ -235,8 +236,6 @@ const ModularDashboard = () => {
                     }
 
                     .nodes-app-layout {
-                      display: grid;
-                      grid-template-columns: 80px 1fr;
                       min-height: 100vh;
                       font-family: var(--font-body);
                       color: var(--text);
@@ -457,7 +456,7 @@ const ModularDashboard = () => {
                     @media (max-width: 768px) {
                       .nodes-app-layout {
                         grid-template-columns: 1fr;
-                        padding-bottom: 82px;
+                        padding-bottom: 120px;
                       }
 
                       .nodes-sidebar {
@@ -545,54 +544,10 @@ const ModularDashboard = () => {
                     `
                 }} />
 
-                {/* Left Sidebar on Desktop / Bottom Bar on Mobile */}
-                <div className="nodes-sidebar">
-                    <div className="nodes-brand">
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-collapsed object-contain w-10 h-10"
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png";
-                            }}
-                        />
-                        <img 
-                            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`} 
-                            alt="InsightED Logo" 
-                            className="logo-expanded object-contain"
-                            style={{ width: '10rem', height: '6rem' }}
-                            onError={(e) => {
-                                e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png";
-                            }}
-                        />
-                    </div>
-
-                    <div className="nodes-nav">
-                        <a href="#/nodes-dashboard" title="Home">
-                            <FiHome size={20} />
-                            <span>Home</span>
-                        </a>
-                        <a href="#/my-activity" title="CLOUD">
-                            <FiBookOpen size={20} />
-                            <span>CLOUD</span>
-                        </a>
-                        <a href="#/modular-dashboard" className="active" title="Units">
-                            <LuCompass size={20} />
-                            <span>Units</span>
-                        </a>
-                        <a href="#/guide/school-head" title="Guide">
-                            <TbSchool size={20} />
-                            <span>Guide</span>
-                        </a>
-                        <a href="#/profile" title="Settings">
-                            <FiSettings size={20} />
-                            <span>Settings</span>
-                        </a>
-                    </div>
-                </div>
+                <SharedNexusSidebar activeTab="Units" />
 
                 {/* Main Content Area */}
-                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-10">
+                <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10">
                     
 
                     {/* Developer Info Modal */}
