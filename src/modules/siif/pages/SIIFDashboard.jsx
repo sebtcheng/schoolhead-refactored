@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    TbHistory, TbChevronRight, TbArrowLeft, TbWallet, TbBulb, TbChecklist, TbUsers, TbCheck, TbX, TbPrinter
+    TbHistory, TbChevronRight, TbArrowLeft, TbWallet, TbBulb, TbChecklist, TbUsers, TbCheck, TbX, TbPrinter, TbCircleCheck, TbClock
 } from 'react-icons/tb';
 import { motion, AnimatePresence } from 'framer-motion';
 import { logger } from '../../../utils/logger';
@@ -104,37 +104,7 @@ const SIIFDashboard = ({ user, token }) => {
     return (
         <div className="font-sans text-lg print:bg-white print:m-0 print:p-0 pb-32">
 
-            {/* ── SDO Disapproval Banner ── */}
-            {submission && submission.status?.toLowerCase() === 'disapproved' && (
-                <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mx-auto mt-6 max-w-[1500px] w-[calc(100%-56px)] p-6 rounded-[2rem] border-2 border-red-500/30 bg-red-500/10 backdrop-blur-xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 print:hidden"
-                >
-                    <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-red-500/20 text-red-600 rounded-xl flex items-center justify-center shrink-0 border border-red-500/20">
-                            <TbX size={24} className="animate-pulse" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-black text-red-600 uppercase tracking-wide flex items-center gap-1.5">
-                                ❌ Plan Disapproved by Division Office
-                            </h4>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">
-                                SDO Comments / Correction Instructions:
-                            </p>
-                            <p className="text-xs text-slate-700 font-extrabold italic mt-1.5 bg-red-500/5 p-3.5 rounded-xl border border-red-500/10 leading-relaxed">
-                                "{submission.rejection_reason || submission.rejectionReason || 'No remarks provided.'}"
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => navigate('/siif/forms')}
-                        className="py-3 px-5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shrink-0 shadow-md transition-all active:scale-[0.98] w-full md:w-auto"
-                    >
-                        Revise Proposal
-                    </button>
-                </motion.div>
-            )}
+
 
             <main className="siif-new-content pb-7 print:hidden">
                 <header className="siif-new-topbar">
@@ -203,13 +173,81 @@ const SIIFDashboard = ({ user, token }) => {
                                         <p className="siif-card-subtitle">Track the submission of your school's proposed interventions, beneficiaries, activities, and estimated budget.</p>
                                     </div>
 
-                                    <div className="siif-queue-summary" aria-label="Queue summary">
+                                    <div className="siif-queue-summary flex items-center gap-2" aria-label="Queue summary">
                                         <span className="siif-summary-pill"><strong>{innovationsCount}</strong> active items</span>
-                                        {submission?.status?.toLowerCase() === 'disapproved' && (
-                                            <span className="siif-summary-pill bg-red-100 text-red-800"><strong className="text-red-900">Action</strong> required</span>
-                                        )}
                                     </div>
                                 </div>
+
+                                {/* Visually Appealing Status Banner */}
+                                {submission?.status?.toLowerCase() === 'disapproved' && (
+                                    <div className="mx-6 mb-4 p-4 rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                                        <div className="flex items-start gap-3 flex-1">
+                                            <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center shrink-0">
+                                                <TbX size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-red-700 flex items-center gap-1.5">
+                                                    Action Required: Disapproved
+                                                </h4>
+                                                <p className="text-xs text-red-600/80 mt-0.5">
+                                                    <strong>Remarks:</strong> {submission.remarks || 'Please revise your proposal.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => navigate('/siif/forms')} 
+                                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap"
+                                        >
+                                            Revise Proposal
+                                        </button>
+                                    </div>
+                                )}
+                                {submission?.status?.toLowerCase() === 'approved' && (
+                                    <div className="mx-6 mb-4 p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                                        <div className="flex items-start gap-3 flex-1">
+                                            <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
+                                                <TbCircleCheck size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
+                                                    Approved by SDO
+                                                </h4>
+                                                <p className="text-xs text-emerald-600/80 mt-0.5">
+                                                    <strong>Remarks:</strong> {submission.remarks || 'Ready for implementation.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => navigate('/siif/utilization')} 
+                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap"
+                                        >
+                                            Proceed to Utilization
+                                        </button>
+                                    </div>
+                                )}
+                                {submission?.status?.toLowerCase() === 'submitted' && (
+                                    <div className="mx-6 mb-4 p-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                                        <div className="flex items-start gap-3 flex-1">
+                                            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
+                                                <TbClock size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-amber-700 flex items-center gap-1.5">
+                                                    Pending Approval
+                                                </h4>
+                                                <p className="text-xs text-amber-600/80 mt-0.5">
+                                                    Your submission is currently being reviewed by the Division Office.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => navigate('/siif/forms')} 
+                                            className="px-4 py-2 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 whitespace-nowrap"
+                                        >
+                                            View Submission
+                                        </button>
+                                    </div>
+                                )}
 
                                 <div className="siif-table-wrap">
                                     <table className="siif-table">

@@ -31,7 +31,7 @@ const SIIFSummary = ({ user, token }) => {
         allocation: null,
         deadline: null,
         status: null,
-        rejectionReason: null
+        remarks: null
     });
 
     useEffect(() => {
@@ -52,7 +52,7 @@ const SIIFSummary = ({ user, token }) => {
                 allocation: location.state.allocation || null,
                 deadline: location.state.deadline || null,
                 status: location.state.status || null,
-                rejectionReason: location.state.rejectionReason || null
+                remarks: location.state.remarks || null
             });
             setLoading(false);
         } else {
@@ -77,7 +77,7 @@ const SIIFSummary = ({ user, token }) => {
                             allocation: allocationData,
                             deadline: deadlineVal,
                             status: subData.status || null,
-                            rejectionReason: subData.rejectionReason || subData.rejection_reason || null
+                            remarks: subData.remarks || subData.rejectionReason || subData.rejection_reason || null
                         });
                     } else {
                         // No draft found, redirect to form
@@ -236,7 +236,7 @@ const SIIFSummary = ({ user, token }) => {
                         </div>
                     </div>
                     <p className="text-xs font-extrabold italic text-slate-700 bg-white/50 p-3.5 rounded-2xl border border-red-500/10 leading-relaxed w-full">
-                        "{draftData.rejectionReason || 'No remarks provided.'}"
+                        "{draftData.remarks || 'No remarks provided.'}"
                     </p>
                 </div>
             )}

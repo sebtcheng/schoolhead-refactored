@@ -120,9 +120,10 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             division: submission.division,
             fiscalYear: submission.fiscal_year,
             totalBudget: submission.total_budget_estimate,
-            status: submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
-            rejection_reason: submission.rejection_reason || null,
-            rejectionReason: submission.rejection_reason || null,
+            status: submission.submission_status || submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
+            remarks: submission.remarks || submission.rejection_reason || null,
+            rejection_reason: submission.remarks || submission.rejection_reason || null,
+            rejectionReason: submission.remarks || submission.rejection_reason || null,
             interventions,
             budgetEstimates,
             interventionData,
@@ -130,6 +131,8 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             aral,
             allocation,
         };
+
+        console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB submission_status: ${submission.submission_status} | DB status: ${submission.status}`);
 
         res.json({ success: true, ...submissionResponse, submission: submissionResponse });
         console.log(`📦 [SIIF-API] Sent JSON with ${interventions.length} interventions and interventionData keys:`, Object.keys(interventionData));
@@ -245,10 +248,17 @@ router.post('/submit', async (req, res) => {
         // Authorized deletion for re-submission
         await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
+        let existingSubmissionStatus = null;
+        let existingRemarks = null;
+
         // Clear previous submission for this school/year
-        const oldSubRes = await client.query('SELECT siif_sub_id FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+        const oldSubRes = await client.query('SELECT siif_sub_id, submission_status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
         if (oldSubRes.rows.length > 0) {
-            const oldSubId = oldSubRes.rows[0].siif_sub_id;
+            const oldSub = oldSubRes.rows[0];
+            const oldSubId = oldSub.siif_sub_id;
+            existingSubmissionStatus = oldSub.submission_status;
+            existingRemarks = oldSub.remarks;
+
             const oldIntRes = await client.query('SELECT siif_int_id FROM siif_interventions WHERE siif_sub_id = $1', [oldSubId]);
             const oldIntIds = oldIntRes.rows.map(r => r.siif_int_id);
             
@@ -261,11 +271,17 @@ router.post('/submit', async (req, res) => {
         }
         console.log('✅ [SIIF-API] Old records cleared');
 
+        // If explicit submit, update submission_status to submitted
+        let finalSubmissionStatus = existingSubmissionStatus;
+        if (status === 'submitted') {
+            finalSubmissionStatus = 'submitted';
+        }
+
         // Insert submission header
         const submissionResult = await client.query(
             `INSERT INTO siif_submissions
-             (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              RETURNING siif_sub_id`,
             [
                 finalSchoolId,
@@ -277,6 +293,8 @@ router.post('/submit', async (req, res) => {
                 isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                 submittedAt,
                 status || 'draft',
+                finalSubmissionStatus,
+                existingRemarks
             ]
         );
         const submissionId = submissionResult.rows[0].siif_sub_id;

@@ -80,7 +80,7 @@ const SIIFFormsHub = ({ user, token }) => {
     const {
         loading, error,
         deadline, openDate, isExpired, isNotYetOpen,
-        submissionId, isLocked, isDisapproved, rejectionReason, allocation,
+        submissionId, isLocked, isApproved, isDisapproved, remarks, allocation,
         selectedInterventions, setSelectedInterventions,
         aral, setAral,
         beneficiaries, setBeneficiaries,
@@ -93,7 +93,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
-        if (isExpired || isNotYetOpen || selectedInterventions.length === 0) return;
+        if (isExpired || isNotYetOpen || isLocked || selectedInterventions.length === 0) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
@@ -106,7 +106,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen]);
+    }, [selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
@@ -171,7 +171,7 @@ const SIIFFormsHub = ({ user, token }) => {
     // ─── Lock chain: interventions → beneficiaries → activities → budget ──────
     const isCardLocked = (cardId) => {
         // 1. [TEMPORAL LOCK] If deadline expired or not yet open, unlock for READ-ONLY viewing
-        if (isExpired || isNotYetOpen) return false;
+        if (isExpired || isNotYetOpen || isLocked) return false;
 
         // 2. [ARCHITECTURAL BYPASS] If submission exists in DB, unlock ALL cards
         // This allows users to jump directly to any section when re-editing.
@@ -198,7 +198,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     const handleCardClick = (cardId) => {
         const locked = isCardLocked(cardId);
-        const readOnlyMode = isExpired || isNotYetOpen;
+        const readOnlyMode = isExpired || isNotYetOpen || isLocked;
 
         console.log('🛡️ [SIIF_HUB_DIAGNOSTIC]', {
             cardId,
@@ -225,7 +225,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Confirm handlers ─────────────────────────────────────────────────────
     const confirm = (cardId) => {
-        if (isExpired || isNotYetOpen) {
+        if (isExpired || isNotYetOpen || isLocked) {
             setActiveCard(null);
             return;
         }
@@ -281,8 +281,8 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Save Draft ───────────────────────────────────────────────────────────
     const handleSaveDraft = async (silent = false) => {
-        if (selectedInterventions.length === 0) {
-            console.warn('⚠️ [SIIFFormsHub] No interventions to draft.');
+        if (selectedInterventions.length === 0 || isLocked) {
+            console.warn('⚠️ [SIIFFormsHub] No interventions to draft or plan is locked.');
             return;
         }
         if (!silent) setSaving(true);
@@ -304,7 +304,9 @@ const SIIFFormsHub = ({ user, token }) => {
 
     const proceedToSummary = async () => {
         setSaving(true);
-        await handleSaveDraft(true);
+        if (!isLocked) {
+            await handleSaveDraft(true);
+        }
         setSaving(false);
         navigate('/siif/summary', {
             state: {
@@ -315,8 +317,8 @@ const SIIFFormsHub = ({ user, token }) => {
                 budgets,
                 allocation,
                 deadline,
-                status: isDisapproved ? 'Disapproved' : (isLocked ? 'submitted' : 'draft'),
-                rejectionReason: rejectionReason
+                status: isApproved ? 'Approved' : (isDisapproved ? 'Disapproved' : (isLocked ? 'submitted' : 'draft')),
+                remarks: remarks
             }
         });
     };
@@ -355,12 +357,8 @@ const SIIFFormsHub = ({ user, token }) => {
             const data = await submitPlan(payload, token);
             console.log('📬 [SIIFFormsHub] Submit response:', data);
             console.log('✅ [SIIFFormsHub] Submitted. ID:', data.submissionId);
-            if (isLocked) {
-                alert(`✅ Plan Updated Successfully!\n\nIMPORTANT: Your latest updates have been submitted and are For Review of Division. You can still make changes and submit updates until the deadline (${deadline ? new Date(deadline).toLocaleString() : 'N/A'}).`);
-            } else {
-                alert(`✅ Plan Submitted Successfully!\n\nIMPORTANT: Your plan has been submitted and is now For Review of Division. You can still edit and submit updates until the deadline (${deadline ? new Date(deadline).toLocaleString() : 'N/A'}).\n\nOnce submitted, you can also start updating your fund utilization in the main dashboard.`);
-            }
-            navigate('/siif');
+            alert(`✅ Plan Submitted Successfully!\n\nIMPORTANT: Your plan has been submitted and is now For Review of Division. Please wait for the SDO to approve your plan.`);
+            window.location.reload();
         } catch (err) {
             console.error('🔥 [SIIFFormsHub] Submit failed:', err);
             alert(`Error submitting: ${err.message}`);
@@ -456,7 +454,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </div>
                     <button
                         onClick={handleSaveDraft}
-                        disabled={saving || selectedInterventions.length === 0 || isExpired || isNotYetOpen}
+                        disabled={saving || selectedInterventions.length === 0 || isExpired || isNotYetOpen || isLocked}
                         className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl disabled:opacity-40 relative text-slate-600"
                         title="Save Draft"
                     >
@@ -464,7 +462,7 @@ const SIIFFormsHub = ({ user, token }) => {
                         {syncStatus === 'saving' && (
                             <span className="absolute -top-1 -right-1 w-3 h-3 bg-siif-yellow rounded-full border-2 border-white animate-pulse" />
                         )}
-                        {syncStatus === 'saved' && selectedInterventions.length > 0 && (
+                        {syncStatus === 'saved' && selectedInterventions.length > 0 && !isLocked && (
                             <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white" />
                         )}
                     </button>
@@ -486,7 +484,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </div>
                     <div>
                         <p className="text-xl font-black italic leading-tight text-slate-800">
-                            {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
+                            {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : isApproved ? 'Approved by SDO' : isLocked ? 'Pending Approval' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
                         </p>
                         <p className="text-[11px] font-bold mt-1">
                             {isExpired
@@ -495,9 +493,11 @@ const SIIFFormsHub = ({ user, token }) => {
                                     ? <span className="text-slate-500">{`Opening on ${new Date(openDate).toLocaleString()}.`}</span>
                                     : syncStatus === 'saving'
                                         ? <span className="text-amber-500">🔄 Syncing changes...</span>
-                                        : isLocked
-                                            ? <span className="text-emerald-500">{`✅ Submitted (Editable until ${deadline ? new Date(deadline).toLocaleString([], { dateStyle: 'long', timeStyle: 'short' }) : 'deadline'})`}</span>
-                                            : <span className="text-slate-500">{`${TOTAL_STEPS - confirmedCount} section${TOTAL_STEPS - confirmedCount !== 1 ? 's' : ''} remaining`}</span>}
+                                        : isApproved
+                                            ? <span className="text-emerald-500">{`✅ Approved (Read-only)`}</span>
+                                            : isLocked
+                                                ? <span className="text-amber-500">{`⏳ Submitted & For Review`}</span>
+                                                : <span className="text-slate-500">{`${TOTAL_STEPS - confirmedCount} section${TOTAL_STEPS - confirmedCount !== 1 ? 's' : ''} remaining`}</span>}
                         </p>
                     </div>
                 </div>
@@ -538,7 +538,39 @@ const SIIFFormsHub = ({ user, token }) => {
                         </motion.div>
                     )}
 
-                    {isDisapproved && !isExpired && !isNotYetOpen && (
+                    {isApproved && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-4 bg-emerald-500 text-white rounded-3xl border border-emerald-400 flex items-center gap-4 shadow-xl"
+                        >
+                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                                <TbCircleCheck size={20} className="text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100">Plan Approved</p>
+                                <p className="text-[11px] font-bold leading-tight">Your submission has been approved by the SDO. You can proceed to utilization tracking once the submission deadline has passed.</p>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {isLocked && !isApproved && !isDisapproved && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="p-4 bg-amber-500 text-white rounded-3xl border border-amber-400 flex items-center gap-4 shadow-xl"
+                        >
+                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                                <TbClock size={20} className="text-white animate-pulse" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-100">Pending Approval</p>
+                                <p className="text-[11px] font-bold leading-tight">Your plan has been submitted and is waiting for SDO approval. It is currently read-only.</p>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {isDisapproved && (
                         <motion.div
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -552,7 +584,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                     <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Plan Disapproved by Division Office</p>
                                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Remarks / Correction Instructions:</p>
                                     <p className="text-xs text-slate-700 font-extrabold italic mt-1.5 bg-red-500/5 p-3.5 rounded-xl border border-red-500/10 leading-relaxed">
-                                        "{rejectionReason || 'No remarks provided.'}"
+                                        "{remarks || 'No remarks provided.'}"
                                     </p>
                                 </div>
                             </div>
@@ -673,7 +705,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             onAralChange={setAral}
                             onConfirm={() => confirm('interventions')}
                             onClose={() => closeCard('interventions')}
-                            readOnly={isExpired || isNotYetOpen}
+                            readOnly={isExpired || isNotYetOpen || isLocked}
                         />
                     </motion.div>
                 )}
@@ -686,7 +718,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             onChange={setBeneficiaries}
                             onConfirm={() => confirm('beneficiaries')}
                             onClose={() => closeCard('beneficiaries')}
-                            readOnly={isExpired || isNotYetOpen}
+                            readOnly={isExpired || isNotYetOpen || isLocked}
                         />
                     </motion.div>
                 )}
@@ -698,7 +730,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             onChange={setActivities}
                             onConfirm={() => confirm('activities')}
                             onClose={() => closeCard('activities')}
-                            readOnly={isExpired || isNotYetOpen}
+                            readOnly={isExpired || isNotYetOpen || isLocked}
                         />
                     </motion.div>
                 )}
@@ -712,7 +744,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             beneficiaries={beneficiaries}
                             onConfirm={() => confirm('budget')}
                             onClose={() => closeCard('budget')}
-                            isLocked={isExpired || isNotYetOpen}
+                            isLocked={isExpired || isNotYetOpen || isLocked}
                             allocation={allocation}
                         />
                     </motion.div>
@@ -946,7 +978,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                                     </div>
                                                 </div>
                                                 <p className="text-xs font-extrabold italic text-slate-700 bg-white p-3 rounded-xl border border-slate-100 mt-1 leading-relaxed">
-                                                    "{rejectionReason || 'No remarks provided.'}"
+                                                    "{remarks || 'No remarks provided.'}"
                                                 </p>
                                             </div>
                                         )}

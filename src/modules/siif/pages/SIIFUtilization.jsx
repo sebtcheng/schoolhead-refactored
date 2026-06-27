@@ -98,7 +98,7 @@ const SIIFUtilization = ({ user, token }) => {
         );
     }
 
-    // PHASE 2 LOCK: Deadline over but NO submission found
+    // PHASE 2 LOCK: Deadline over but NO submission found or still draft
     if (!isSubmitted) {
         return (
             <div className="min-h-screen bg-slate-50 p-6 pb-24">
@@ -117,6 +117,59 @@ const SIIFUtilization = ({ user, token }) => {
                         className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
                     >
                         View Archived Forms
+                        <TbChevronRight size={18} />
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // PHASE 3 LOCK: Plan is submitted but Pending Approval
+    const statusVal = submission.status?.toLowerCase() || '';
+    if (statusVal === 'submitted') {
+        return (
+            <div className="min-h-screen bg-slate-50 p-6 pb-24">
+                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
+                    <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <TbClock size={40} className="text-amber-500 animate-pulse" />
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Pending SDO Approval</h1>
+                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+                        Your submitted plan is currently waiting for approval from the Division Office. 
+                        <br/><br/>
+                        You can begin tracking your quarterly utilization once your baseline plan has been officially approved.
+                    </p>
+                    <button
+                        onClick={() => navigate('/siif/forms')}
+                        className="w-full py-4 bg-[#0038A8] text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#002d86] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+                    >
+                        View Read-Only Plan
+                        <TbChevronRight size={18} />
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // PHASE 4 LOCK: Plan is disapproved
+    if (statusVal === 'disapproved') {
+        return (
+            <div className="min-h-screen bg-slate-50 p-6 pb-24">
+                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
+                    <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                        <TbAlertCircle size={40} className="text-red-500" />
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Plan Disapproved</h1>
+                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+                        Your plan was disapproved by the Division Office and the submission deadline has passed. 
+                        <br/><br/>
+                        Utilization tracking cannot proceed without an approved baseline.
+                    </p>
+                    <button
+                        onClick={() => navigate('/siif/forms')}
+                        className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
+                    >
+                        View Rejection Details
                         <TbChevronRight size={18} />
                     </button>
                 </div>
