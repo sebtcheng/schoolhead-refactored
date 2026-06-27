@@ -23,8 +23,9 @@ export function useSIIFSubmission(user, token) {
     const [allocation, setAllocation]               = useState(null);
     const [submissionId, setSubmissionId]           = useState(null);
     const [isLocked, setIsLocked]                   = useState(false);
+    const [isApproved, setIsApproved]               = useState(false);
     const [isDisapproved, setIsDisapproved]         = useState(false);
-    const [rejectionReason, setRejectionReason]     = useState(null);
+    const [remarks, setRemarks]     = useState(null);
     const [selectedInterventions, setSelectedInterventions] = useState([]);
     const [aral, setAral]                           = useState({ planned: null, subjects: [] });
     const [beneficiaries, setBeneficiaries]         = useState({});
@@ -77,9 +78,13 @@ export function useSIIFSubmission(user, token) {
                 if (subData?.success) {
                     const ints = subData.interventions || [];
                     setSubmissionId(subData.submissionId || subData.siif_sub_id || null);
-                    setIsLocked(subData.status === 'submitted');
-                    setIsDisapproved(subData.status?.toLowerCase() === 'disapproved');
-                    setRejectionReason(subData.rejection_reason || subData.rejectionReason || null);
+                    
+                    const statusVal = subData.status?.toLowerCase() || '';
+                    setIsLocked(statusVal === 'submitted' || statusVal === 'approved');
+                    setIsApproved(statusVal === 'approved');
+                    setIsDisapproved(statusVal === 'disapproved');
+                    
+                    setRemarks(subData.remarks || subData.rejection_reason || subData.rejectionReason || null);
                     setSelectedInterventions(ints);
                     setAral(subData.aral || { planned: null, subjects: [] });
                     setBudgets(subData.budgetEstimates || {});
@@ -100,7 +105,7 @@ export function useSIIFSubmission(user, token) {
                         activities:    ints.some(id => Object.values(acts[id]?.selectedActivities || {}).flat().length > 0),
                         budget:        ints.some(id => parseFloat(subData.budgetEstimates?.[id]) > 0),
                     };
-                    if (subData.status === 'submitted' || subData.status?.toLowerCase() === 'disapproved') {
+                    if (statusVal === 'submitted' || statusVal === 'approved' || statusVal === 'disapproved') {
                         Object.keys(nextConfirmed).forEach(k => (nextConfirmed[k] = true));
                     }
                     setConfirmed(nextConfirmed);
@@ -121,7 +126,7 @@ export function useSIIFSubmission(user, token) {
         // Deadline
         deadline, openDate, isExpired, isNotYetOpen,
         // Submission meta
-        loading, error, submissionId, isLocked, isDisapproved, rejectionReason, allocation,
+        loading, error, submissionId, isLocked, isApproved, isDisapproved, remarks, allocation,
         // Form state
         selectedInterventions, setSelectedInterventions,
         aral, setAral,
