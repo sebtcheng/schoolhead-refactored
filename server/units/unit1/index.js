@@ -82,14 +82,7 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
         const result = await safeQuery(query, [resolvedIern, school_id, school_yr, ...values]);
         if (result.rowCount === 0) return res.status(404).json({ error: "Failed to save unit 1 data" });
 
-        // Update ph_schools progress metadata to remain in sync
-        await safeQuery(`
-            UPDATE ph_schools
-            SET unit1 = 100,
-                unit1_completed = TRUE,
-                unit1_updated_at = CURRENT_TIMESTAMP
-            WHERE iern = $1 OR school_id = $2
-        `, [resolvedIern, school_id]);
+
 
         const ownershipDocId = data.ownership_doc_id || null;
 

@@ -30,15 +30,22 @@ customRouter.get('/api/settings/:key', async (req, res) => {
 
 customRouter.get('/api/reference/building-types', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM reference_building_types ORDER BY name ASC');
-    res.json({ success: true, data: result.rows });
+    const result = await pool.query(`
+      SELECT DISTINCT building_type 
+      FROM nsbi_24_25_buildings 
+      WHERE building_type IS NOT NULL AND building_type <> '' 
+      ORDER BY building_type ASC
+    `);
+    const types = result.rows.map(r => r.building_type);
+    res.json(types);
   } catch (err) {
-    res.json({ success: true, data: [
-        { id: 1, name: "Gabo Type" },
-        { id: 2, name: "Marcos Type" },
-        { id: 3, name: "Bagong Lipunan" },
-        { id: 4, name: "DepEd Standard" }
-    ] });
+    res.json([
+        "Gabaldon School Building",
+        "Bagong Lipunan School Building (BLSB) Type I",
+        "Bagong Lipunan School Building (BLSB) Type II",
+        "Bagong Lipunan School Building (BLSB) Type III",
+        "DepED Standard School Building"
+    ]);
   }
 });
 

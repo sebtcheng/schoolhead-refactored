@@ -206,24 +206,7 @@ router.post('/api/save-physical-facilities', async (req, res) => {
     await client.query('BEGIN');
     await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
-    // Keep ph_schools JSONB snapshot for backward compatibility
-    await client.query(
-      `UPDATE ph_schools SET
-       unit7_data = $1, unit7_rooms = $2, unit7_repair = $3, unit7_demolition = $4,
-       unit7_spaces = $5, has_no_building = $6,
-       build_classrooms_total = $7, build_classrooms_new = $8, build_classrooms_good = $9,
-       build_classrooms_repair = $10, build_classrooms_demolition = $11,
-       u7_confirm_no_space = $12,
-       unit7 = 100, unit7_completed = TRUE, unit7_updated_at = CURRENT_TIMESTAMP
-       WHERE school_id = $13`,
-      [
-        JSON.stringify(inventoryEntries), JSON.stringify(rooms), JSON.stringify(repairEntries),
-        JSON.stringify(demolitionEntries), JSON.stringify(spaces), has_no_building,
-        build_classrooms_total, build_classrooms_new, build_classrooms_good,
-        build_classrooms_repair, build_classrooms_demolition, u7_confirm_no_space === true,
-        school_id
-      ]
-    );
+
 
     // ── Clear NEW unit7_ tables ───────────────────────────────────────────────
     console.log(`🧹 [Unit 7 Master] Clearing old records for school ${school_id} (IERN: ${iern}, school_yr: ${schoolYr})...`);
@@ -393,7 +376,7 @@ router.post('/api/save-physical-facilities', async (req, res) => {
 
     await client.query('COMMIT');
     console.log(`✅ [Unit 7 Master] School ${school_id} finalized and normalized successfully.`);
-    await updateSchoolTotalCompletion(iern, schoolYr).catch(() => { });
+
     res.json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');

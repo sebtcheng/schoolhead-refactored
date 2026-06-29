@@ -70,77 +70,128 @@ router.put('/api/ph_schools/:id', async (req, res) => {
          updated_at
        )
        VALUES (
-         $1, $2, $1, $3, CURRENT_TIMESTAMP, $4,
-         $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-         $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44,
-         $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66,
-         $67, $68, $69, $70, $71, $72, $73, $74, $75, $76, $77,
-         $78, $79, $80,
-         CURRENT_TIMESTAMP
-       )
-       ON CONFLICT (school_id, school_yr) DO UPDATE SET
-         iern = EXCLUDED.iern, iern_val = EXCLUDED.iern,
-         unit6_completed = EXCLUDED.unit6_completed, unit6_updated_at = CURRENT_TIMESTAMP,
-         has_general_rooms = EXCLUDED.has_general_rooms, general_rooms_count = EXCLUDED.general_rooms_count,
-         armchair_wood_func = EXCLUDED.armchair_wood_func, armchair_wood_broken = EXCLUDED.armchair_wood_broken,
-         armchair_plastic_func = EXCLUDED.armchair_plastic_func, armchair_plastic_broken = EXCLUDED.armchair_plastic_broken,
-         armchair_plastic_steel_func = EXCLUDED.armchair_plastic_steel_func, armchair_plastic_steel_broken = EXCLUDED.armchair_plastic_steel_broken,
-         individual_table_chair_func = EXCLUDED.individual_table_chair_func, individual_table_chair_broken = EXCLUDED.individual_table_chair_broken,
-         two_seater_wood_func = EXCLUDED.two_seater_wood_func, two_seater_wood_broken = EXCLUDED.two_seater_wood_broken,
-         two_seater_wood_steel_func = EXCLUDED.two_seater_wood_steel_func, two_seater_wood_steel_broken = EXCLUDED.two_seater_wood_steel_broken,
-         wooden_chair_only_func = EXCLUDED.wooden_chair_only_func, wooden_chair_only_broken = EXCLUDED.wooden_chair_only_broken,
-         plastic_chair_only_func = EXCLUDED.plastic_chair_only_func, plastic_chair_only_broken = EXCLUDED.plastic_chair_only_broken,
-         has_teacher_desk = EXCLUDED.has_teacher_desk,
-         laptops_total = EXCLUDED.laptops_total, laptops_func = EXCLUDED.laptops_func, laptops_teaching = EXCLUDED.laptops_teaching, laptops_working = EXCLUDED.laptops_working,
-         tablets_total = EXCLUDED.tablets_total, tablets_func = EXCLUDED.tablets_func, tablets_teaching = EXCLUDED.tablets_teaching, tablets_working = EXCLUDED.tablets_working,
-         desktops_total = EXCLUDED.desktops_total, desktops_func = EXCLUDED.desktops_func, desktops_teaching = EXCLUDED.desktops_teaching, desktops_working = EXCLUDED.desktops_working,
-         laptops_students = EXCLUDED.laptops_students, tablets_students = EXCLUDED.tablets_students, desktops_students = EXCLUDED.desktops_students,
-         smart_tvs_total = EXCLUDED.smart_tvs_total, smart_tvs_func = EXCLUDED.smart_tvs_func, smart_tvs_cond = EXCLUDED.smart_tvs_cond,
-         projectors_total = EXCLUDED.projectors_total, projectors_func = EXCLUDED.projectors_func, projectors_cond = EXCLUDED.projectors_cond,
-         printers_total = EXCLUDED.printers_total, printers_func = EXCLUDED.printers_func, printers_cond = EXCLUDED.printers_cond,
-         unit7_has_ecart = EXCLUDED.unit7_has_ecart,
-         male_seats_total = EXCLUDED.male_seats_total, male_seats_func = EXCLUDED.male_seats_func, male_seats_cond = EXCLUDED.male_seats_cond,
-         male_urinals_total = EXCLUDED.male_urinals_total, male_urinals_func = EXCLUDED.male_urinals_func,
-         female_seats_total = EXCLUDED.female_seats_total, female_seats_func = EXCLUDED.female_seats_func, female_seats_cond = EXCLUDED.female_seats_cond,
-         common_seats_total = EXCLUDED.common_seats_total, common_seats_func = EXCLUDED.common_seats_func, common_seats_cond = EXCLUDED.common_seats_cond,
-         pwd_seats_total = EXCLUDED.pwd_seats_total, pwd_seats_func = EXCLUDED.pwd_seats_func, pwd_seats_cond = EXCLUDED.pwd_seats_cond,
-         faucets_total = EXCLUDED.faucets_total, faucets_func = EXCLUDED.faucets_func, faucets_cond = EXCLUDED.faucets_cond,
-         water_source = EXCLUDED.water_source, confirm_no_piped = EXCLUDED.confirm_no_piped, confirm_no_piped_text = EXCLUDED.confirm_no_piped_text, confirm_zero_wash_text = EXCLUDED.confirm_zero_wash_text,
-         attached_cr_classrooms = EXCLUDED.attached_cr_classrooms, attached_cr_seats = EXCLUDED.attached_cr_seats, attached_cr_included_in_main = EXCLUDED.attached_cr_included_in_main,
-         utility_electricity = EXCLUDED.utility_electricity, confirm_no_grid = EXCLUDED.confirm_no_grid, confirm_no_grid_text = EXCLUDED.confirm_no_grid_text, has_solar_or_gen = EXCLUDED.has_solar_or_gen,
-         utility_internet_yesno = EXCLUDED.utility_internet_yesno, utility_internet_type = EXCLUDED.utility_internet_type, confirm_no_wired = EXCLUDED.confirm_no_wired, confirm_no_wired_text = EXCLUDED.confirm_no_wired_text, utility_internet_funder = EXCLUDED.utility_internet_funder,
-         updated_at = CURRENT_TIMESTAMP`,
+          $1, $2, $3, $4, CURRENT_TIMESTAMP, $5,
+          $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
+          $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46,
+          $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79,
+          $80, $81, $82,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (school_id, school_yr) DO UPDATE SET
+          iern = EXCLUDED.iern, iern_val = EXCLUDED.iern,
+          unit6_completed = EXCLUDED.unit6_completed, unit6_updated_at = CURRENT_TIMESTAMP,
+          has_general_rooms = EXCLUDED.has_general_rooms, general_rooms_count = EXCLUDED.general_rooms_count,
+          armchair_wood_func = EXCLUDED.armchair_wood_func, armchair_wood_broken = EXCLUDED.armchair_wood_broken,
+          armchair_plastic_func = EXCLUDED.armchair_plastic_func, armchair_plastic_broken = EXCLUDED.armchair_plastic_broken,
+          armchair_plastic_steel_func = EXCLUDED.armchair_plastic_steel_func, armchair_plastic_steel_broken = EXCLUDED.armchair_plastic_steel_broken,
+          individual_table_chair_func = EXCLUDED.individual_table_chair_func, individual_table_chair_broken = EXCLUDED.individual_table_chair_broken,
+          two_seater_wood_func = EXCLUDED.two_seater_wood_func, two_seater_wood_broken = EXCLUDED.two_seater_wood_broken,
+          two_seater_wood_steel_func = EXCLUDED.two_seater_wood_steel_func, two_seater_wood_steel_broken = EXCLUDED.two_seater_wood_steel_broken,
+          wooden_chair_only_func = EXCLUDED.wooden_chair_only_func, wooden_chair_only_broken = EXCLUDED.wooden_chair_only_broken,
+          plastic_chair_only_func = EXCLUDED.plastic_chair_only_func, plastic_chair_only_broken = EXCLUDED.plastic_chair_only_broken,
+          has_teacher_desk = EXCLUDED.has_teacher_desk,
+          laptops_total = EXCLUDED.laptops_total, laptops_func = EXCLUDED.laptops_func, laptops_teaching = EXCLUDED.laptops_teaching, laptops_working = EXCLUDED.laptops_working,
+          tablets_total = EXCLUDED.tablets_total, tablets_func = EXCLUDED.tablets_func, tablets_teaching = EXCLUDED.tablets_teaching, tablets_working = EXCLUDED.tablets_working,
+          desktops_total = EXCLUDED.desktops_total, desktops_func = EXCLUDED.desktops_func, desktops_teaching = EXCLUDED.desktops_teaching, desktops_working = EXCLUDED.desktops_working,
+          laptops_students = EXCLUDED.laptops_students, tablets_students = EXCLUDED.tablets_students, desktops_students = EXCLUDED.desktops_students,
+          smart_tvs_total = EXCLUDED.smart_tvs_total, smart_tvs_func = EXCLUDED.smart_tvs_func, smart_tvs_cond = EXCLUDED.smart_tvs_cond,
+          projectors_total = EXCLUDED.projectors_total, projectors_func = EXCLUDED.projectors_func, projectors_cond = EXCLUDED.projectors_cond,
+          printers_total = EXCLUDED.printers_total, printers_func = EXCLUDED.printers_func, printers_cond = EXCLUDED.printers_cond,
+          unit7_has_ecart = EXCLUDED.unit7_has_ecart,
+          male_seats_total = EXCLUDED.male_seats_total, male_seats_func = EXCLUDED.male_seats_func, male_seats_cond = EXCLUDED.male_seats_cond,
+          male_urinals_total = EXCLUDED.male_urinals_total, male_urinals_func = EXCLUDED.male_urinals_func,
+          female_seats_total = EXCLUDED.female_seats_total, female_seats_func = EXCLUDED.female_seats_func, female_seats_cond = EXCLUDED.female_seats_cond,
+          common_seats_total = EXCLUDED.common_seats_total, common_seats_func = EXCLUDED.common_seats_func, common_seats_cond = EXCLUDED.common_seats_cond,
+          pwd_seats_total = EXCLUDED.pwd_seats_total, pwd_seats_func = EXCLUDED.pwd_seats_func, pwd_seats_cond = EXCLUDED.pwd_seats_cond,
+          faucets_total = EXCLUDED.faucets_total, faucets_func = EXCLUDED.faucets_func, faucets_cond = EXCLUDED.faucets_cond,
+          water_source = EXCLUDED.water_source, confirm_no_piped = EXCLUDED.confirm_no_piped, confirm_no_piped_text = EXCLUDED.confirm_no_piped_text, confirm_zero_wash_text = EXCLUDED.confirm_zero_wash_text,
+          attached_cr_classrooms = EXCLUDED.attached_cr_classrooms, attached_cr_seats = EXCLUDED.attached_cr_seats, attached_cr_included_in_main = EXCLUDED.attached_cr_included_in_main,
+          utility_electricity = EXCLUDED.utility_electricity, confirm_no_grid = EXCLUDED.confirm_no_grid, confirm_no_grid_text = EXCLUDED.confirm_no_grid_text, has_solar_or_gen = EXCLUDED.has_solar_or_gen,
+          utility_internet_yesno = EXCLUDED.utility_internet_yesno, utility_internet_type = EXCLUDED.utility_internet_type, confirm_no_wired = EXCLUDED.confirm_no_wired, confirm_no_wired_text = EXCLUDED.confirm_no_wired_text, utility_internet_funder = EXCLUDED.utility_internet_funder,
+          updated_at = CURRENT_TIMESTAMP`,
       [
-        iern, id, unit6_completed,
-        general.has_general_rooms, parseInt(general.general_rooms_count) || 0,
-        parseInt(general.armchair_wood_func) || 0, parseInt(general.armchair_wood_broken) || 0,
-        parseInt(general.armchair_plastic_func) || 0, parseInt(general.armchair_plastic_broken) || 0,
-        parseInt(general.armchair_plastic_steel_func) || 0, parseInt(general.armchair_plastic_steel_broken) || 0,
-        parseInt(general.individual_table_chair_func) || 0, parseInt(general.individual_table_chair_broken) || 0,
-        parseInt(general.two_seater_wood_func) || 0, parseInt(general.two_seater_wood_broken) || 0,
-        parseInt(general.two_seater_wood_steel_func) || 0, parseInt(general.two_seater_wood_steel_broken) || 0,
-        parseInt(general.wooden_chair_only_func) || 0, parseInt(general.wooden_chair_only_broken) || 0,
-        parseInt(general.plastic_chair_only_func) || 0, parseInt(general.plastic_chair_only_broken) || 0,
-        general.has_teacher_desk,
-        parseInt(ict.laptops_total) || 0, parseInt(ict.laptops_func) || 0, parseInt(ict.laptops_teaching) || 0, parseInt(ict.laptops_working) || 0,
-        parseInt(ict.tablets_total) || 0, parseInt(ict.tablets_func) || 0, parseInt(ict.tablets_teaching) || 0, parseInt(ict.tablets_working) || 0,
-        parseInt(ict.desktops_total) || 0, parseInt(ict.desktops_func) || 0, parseInt(ict.desktops_teaching) || 0, parseInt(ict.desktops_working) || 0,
-        parseInt(ict.smart_tvs_total) || 0, parseInt(ict.smart_tvs_func) || 0, ict.smart_tvs_cond,
-        parseInt(ict.projectors_total) || 0, parseInt(ict.projectors_func) || 0, ict.projectors_cond,
-        parseInt(ict.printers_total) || 0, parseInt(ict.printers_func) || 0, ict.printers_cond,
-        unit7_has_ecart,
-        parseInt(wash.male_seats_total) || 0, parseInt(wash.male_seats_func) || 0, wash.male_seats_cond,
-        parseInt(wash.male_urinals_total) || 0, parseInt(wash.male_urinals_func) || 0,
-        parseInt(wash.female_seats_total) || 0, parseInt(wash.female_seats_func) || 0, wash.female_seats_cond,
-        parseInt(wash.common_seats_total) || 0, parseInt(wash.common_seats_func) || 0, wash.common_seats_cond,
-        parseInt(wash.pwd_seats_total) || 0, parseInt(wash.pwd_seats_func) || 0, wash.pwd_seats_cond,
-        parseInt(wash.faucets_total) || 0, parseInt(wash.faucets_func) || 0, wash.faucets_cond,
-        wash.water_source, wash.confirm_no_piped, wash.confirm_no_piped_text, wash.confirm_zero_wash_text,
-        parseInt(wash.attached_cr_classrooms) || 0, parseInt(wash.attached_cr_seats) || 0, wash.attached_cr_included_in_main,
-        utilities.utility_electricity, utilities.confirm_no_grid, utilities.confirm_no_grid_text, utilities.has_solar_or_gen,
-        utilities.utility_internet_yesno, utilities.utility_internet_type, utilities.confirm_no_wired, utilities.confirm_no_wired_text, utilities.utility_internet_funder,
-        parseInt(ict.laptops_students) || 0, parseInt(ict.tablets_students) || 0, parseInt(ict.desktops_students) || 0,
-        school_yr
+        iern, // $1
+        id, // $2
+        iern, // $3 (for iern_val)
+        unit6_completed, // $4
+        school_yr, // $5
+        general.has_general_rooms, // $6
+        parseInt(general.general_rooms_count) || 0, // $7
+        parseInt(general.armchair_wood_func) || 0, // $8
+        parseInt(general.armchair_wood_broken) || 0, // $9
+        parseInt(general.armchair_plastic_func) || 0, // $10
+        parseInt(general.armchair_plastic_broken) || 0, // $11
+        parseInt(general.armchair_plastic_steel_func) || 0, // $12
+        parseInt(general.armchair_plastic_steel_broken) || 0, // $13
+        parseInt(general.individual_table_chair_func) || 0, // $14
+        parseInt(general.individual_table_chair_broken) || 0, // $15
+        parseInt(general.two_seater_wood_func) || 0, // $16
+        parseInt(general.two_seater_wood_broken) || 0, // $17
+        parseInt(general.two_seater_wood_steel_func) || 0, // $18
+        parseInt(general.two_seater_wood_steel_broken) || 0, // $19
+        parseInt(general.wooden_chair_only_func) || 0, // $20
+        parseInt(general.wooden_chair_only_broken) || 0, // $21
+        parseInt(general.plastic_chair_only_func) || 0, // $22
+        parseInt(general.plastic_chair_only_broken) || 0, // $23
+        general.has_teacher_desk, // $24
+        parseInt(ict.laptops_total) || 0, // $25
+        parseInt(ict.laptops_func) || 0, // $26
+        parseInt(ict.laptops_teaching) || 0, // $27
+        parseInt(ict.laptops_working) || 0, // $28
+        parseInt(ict.tablets_total) || 0, // $29
+        parseInt(ict.tablets_func) || 0, // $30
+        parseInt(ict.tablets_teaching) || 0, // $31
+        parseInt(ict.tablets_working) || 0, // $32
+        parseInt(ict.desktops_total) || 0, // $33
+        parseInt(ict.desktops_func) || 0, // $34
+        parseInt(ict.desktops_teaching) || 0, // $35
+        parseInt(ict.desktops_working) || 0, // $36
+        parseInt(ict.smart_tvs_total) || 0, // $37
+        parseInt(ict.smart_tvs_func) || 0, // $38
+        ict.smart_tvs_cond, // $39
+        parseInt(ict.projectors_total) || 0, // $40
+        parseInt(ict.projectors_func) || 0, // $41
+        ict.projectors_cond, // $42
+        parseInt(ict.printers_total) || 0, // $43
+        parseInt(ict.printers_func) || 0, // $44
+        ict.printers_cond, // $45
+        unit7_has_ecart, // $46
+        parseInt(wash.male_seats_total) || 0, // $47
+        parseInt(wash.male_seats_func) || 0, // $48
+        wash.male_seats_cond, // $49
+        parseInt(wash.male_urinals_total) || 0, // $50
+        parseInt(wash.male_urinals_func) || 0, // $51
+        parseInt(wash.female_seats_total) || 0, // $52
+        parseInt(wash.female_seats_func) || 0, // $53
+        wash.female_seats_cond, // $54
+        parseInt(wash.common_seats_total) || 0, // $55
+        parseInt(wash.common_seats_func) || 0, // $56
+        wash.common_seats_cond, // $57
+        parseInt(wash.pwd_seats_total) || 0, // $58
+        parseInt(wash.pwd_seats_func) || 0, // $59
+        wash.pwd_seats_cond, // $60
+        parseInt(wash.faucets_total) || 0, // $61
+        parseInt(wash.faucets_func) || 0, // $62
+        wash.faucets_cond, // $63
+        wash.water_source, // $64
+        wash.confirm_no_piped, // $65
+        wash.confirm_no_piped_text, // $66
+        wash.confirm_zero_wash_text, // $67
+        parseInt(wash.attached_cr_classrooms) || 0, // $68
+        parseInt(wash.attached_cr_seats) || 0, // $69
+        wash.attached_cr_included_in_main, // $70
+        utilities.utility_electricity, // $71
+        utilities.confirm_no_grid, // $72
+        utilities.confirm_no_grid_text, // $73
+        utilities.has_solar_or_gen, // $74
+        utilities.utility_internet_yesno, // $75
+        utilities.utility_internet_type, // $76
+        utilities.confirm_no_wired, // $77
+        utilities.confirm_no_wired_text, // $78
+        utilities.utility_internet_funder, // $79
+        parseInt(ict.laptops_students) || 0, // $80
+        parseInt(ict.tablets_students) || 0, // $81
+        parseInt(ict.desktops_students) || 0 // $82
       ]
     );
 
@@ -207,15 +258,7 @@ router.put('/api/ph_schools/:id', async (req, res) => {
       [unit6_completed, id, school_yr]
     );
 
-    // Sync metadata flags to ph_schools for dashboard progress compatibility
-    await client.query(
-      `UPDATE ph_schools SET
-       unit6 = CASE WHEN $1 = TRUE THEN 100 ELSE 0 END,
-       unit6_completed = $1,
-       unit6_updated_at = CURRENT_TIMESTAMP
-       WHERE school_id = $2 OR iern = $3`,
-      [unit6_completed, id, iern]
-    );
+
 
     await client.query('COMMIT');
     res.json({ success: true, message: 'Unit 6 resources updated' });

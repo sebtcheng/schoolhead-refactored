@@ -6,7 +6,7 @@ import {
     FaShieldAlt, FaMapMarkerAlt, FaClinicMedical, FaSignal, FaCloudRain,
     FaHorse, FaBicycle, FaMotorcycle
 } from 'react-icons/fa';
-import { FiSave, FiClock, FiMapPin, FiArrowLeft, FiCheckCircle } from 'react-icons/fi';
+import { FiSave, FiClock, FiMapPin, FiArrowLeft, FiCheckCircle, FiCheck } from 'react-icons/fi';
 import PageTransition from '../components/PageTransition';
 import SuccessModal from '../components/SuccessModal';
 import { addModularToOutbox } from "../db";

@@ -210,14 +210,7 @@ router.put('/api/ph_schools/unit2/:id', async (req, res) => {
         const values = [resolvedIern, resolvedSchoolId, school_yr, ...keys.map(k => updateFields[k])];
         const result = await safeQuery(query, values);
 
-        // Keep ph_schools metadata flags synced for backward compatibility
-        await safeQuery(`
-            UPDATE ph_schools
-            SET unit2 = 100,
-                unit2_completed = TRUE,
-                unit2_updated_at = CURRENT_TIMESTAMP
-            WHERE iern = $1 OR school_id = $2
-        `, [resolvedIern, resolvedSchoolId]);
+
 
         res.json({ success: true, data: result.rows[0] });
     } catch (err) {

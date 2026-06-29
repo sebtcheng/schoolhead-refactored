@@ -92,21 +92,7 @@ router.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), as
 
     const savedRow = dbRes.rows[0];
 
-    await safeQuery(
-      `UPDATE ph_schools 
-       SET ownership_doc_id = $1,
-           ownership_document_path = $2,
-           local_file_path = $2,
-           local_file_name = $4,
-           local_file_size = $5,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE iern = $6 OR school_id = $6`,
-      [
-        savedRow.id, finalDocValue, 
-        (storedSize < originalSizeFound) ? storedSize : null,
-        req.file.originalname, originalSizeFound, iern
-      ]
-    ).catch(err => console.error("⚠️ [SchoolDocStore] ph_schools sync error:", err.message));
+
 
     res.status(200).json({ 
       success: true, 
@@ -210,16 +196,7 @@ router.delete('/api/schools/:iern/ownership-docs/:id', async (req, res) => {
       client.release();
     }
 
-    await safeQuery(`
-      UPDATE ph_schools 
-      SET local_file_path = NULL, 
-          local_file_name = NULL, 
-          local_file_size = NULL, 
-          ownership_document_path = NULL,
-          ownership_doc_id = NULL,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE iern = $1 OR school_id = $1
-    `, [iern]).catch(err => console.error("⚠️ [SchoolDocStore] ph_schools Sync Delete Error:", err.message));
+
 
     res.json({ success: true, message: 'Document deleted successfully' });
   } catch (err) {

@@ -268,13 +268,7 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
       values
     );
 
-    await pool.query(
-      `UPDATE ph_schools SET
-       unit9 = 100, unit9_completed = TRUE, unit9_updated_at = CURRENT_TIMESTAMP
-       WHERE school_id = $1`, [id]
-    );
 
-    if (iern) await updateSchoolTotalCompletion(iern, schoolYr).catch(() => {});
 
     res.json({ success: true, message: 'Unit 9 data saved successfully' });
   } catch (err) {

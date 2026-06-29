@@ -154,7 +154,7 @@ router.post('/api/register-beta', async (req, res) => {
           school_id, iern, school_name, region, division, province, municipality, barangay, district, leg_district, curricular_offering, latitude, longitude, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
-        ON CONFLICT (iern) DO UPDATE SET 
+        ON CONFLICT (iern, school_yr) DO UPDATE SET 
           school_id = EXCLUDED.school_id,
           school_name = EXCLUDED.school_name,
           region = EXCLUDED.region,

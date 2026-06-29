@@ -2791,7 +2791,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                                     }
                                     // Validate Total Seats (skip condemned rooms which auto-set to "0")
                                     const activeBuilding = buildings.find(b => b.id === activeBuildingId);
-                                    const isBldgCondemned = activeBuilding?.status === "For Condemnation";
+                                    const bldgStatusLower = (activeBuilding?.status || "").toLowerCase();
+                                    const isBldgCondemned = bldgStatusLower === "for condemnation" || bldgStatusLower === "condemned";
                                     if (!isBldgCondemned) {
                                         const missingSeats = bRooms.find(r => {
                                             const isNonInstructional = (r.grade_level || "").includes("Non-Instructional");

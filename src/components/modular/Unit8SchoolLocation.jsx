@@ -30,6 +30,11 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const { user, authLoading } = useAuth();
     const schoolId = targetSchoolId || user?.school_id || localStorage.getItem('schoolId');
 
+    const storedProgress = localStorage.getItem('quest_progress');
+    const progress = storedProgress ? JSON.parse(storedProgress) : null;
+    const isUnitCompleted = progress?.completedUnits?.includes(8);
+    const effectiveReadOnly = propReadOnly || isReadOnly || isUnitCompleted || (!!pendingUnit8);
+
     const {
         showHistoryModal,
         setShowHistoryModal,

@@ -75,8 +75,7 @@ router.put('/api/ph_schools/unit5/:id', async (req, res) => {
 
         const result = await safeQuery(upsertQuery, values);
 
-        // Update total completion
-        await updateSchoolTotalCompletion(iern, school_yr).catch(() => {});
+
 
         res.json({ success: true, data: result.rows[0] });
     } catch (err) {

@@ -131,14 +131,7 @@ router.post('/api/school-location', async (req, res) => {
     ];
 
     const result = await safeQuery(query, values);
-    
-    await pool.query(
-      `UPDATE ph_schools SET
-       unit8 = 100, unit8_completed = TRUE, unit8_updated_at = CURRENT_TIMESTAMP
-       WHERE school_id = $1`, [school_id]
-    );
 
-    await updateSchoolTotalCompletion(iern, school_yr).catch(() => {});
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error("❌ [API] POST /api/school-location ERROR:", err.message);

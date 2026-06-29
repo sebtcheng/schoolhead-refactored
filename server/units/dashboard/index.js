@@ -330,6 +330,8 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              -- ph_schools may have nulls if not synced after Unit 1 submission.
              COALESCE(NULLIF(u1.school_type, ''), ps.school_type) AS school_type,
              COALESCE(NULLIF(u1.curricular_offering, ''), ps.curricular_offering) AS curricular_offering,
+             COALESCE(NULLIF(u1.latitude, ''), ps.latitude) AS latitude,
+             COALESCE(NULLIF(u1.longitude, ''), ps.longitude) AS longitude,
              
              -- Unit 5 Shifting & Modality
              COALESCE(u5.has_standard_shifting, ps.has_standard_shifting) AS has_standard_shifting,
