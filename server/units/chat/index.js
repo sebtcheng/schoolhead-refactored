@@ -29,20 +29,20 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
 
     if (self.role === 'School Head' || self.role === 'school_head') {
       const sdoQuery = `
-        SELECT uid, first_name, last_name, role 
+        SELECT uid, first_name, last_name, role, position 
         FROM users 
         WHERE (role = 'School Division Office' OR role = 'Regional Division Office' OR role = 'RO/SDO' OR role = 'Ro/sdo')
           AND division = $1 AND disabled = false 
-        LIMIT 1
+        ORDER BY last_name ASC, first_name ASC
       `;
       const hrmoQuery = `
-        SELECT uid, first_name, last_name, role 
+        SELECT uid, first_name, last_name, role, position 
         FROM users 
         WHERE (role = 'HRMO' OR role = 'Personnel') AND disabled = false 
         LIMIT 1
       `;
       const adminQuery = `
-        SELECT uid, first_name, last_name, role 
+        SELECT uid, first_name, last_name, role, position 
         FROM users 
         WHERE (school_id = '999009' OR school_id = '999202' OR role = 'Admin' OR role = 'Super Admin') AND disabled = false 
         LIMIT 1
@@ -57,7 +57,7 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
       return res.json({
         success: true,
         contacts: {
-          SDO: sdoRes.rows[0] || null,
+          SDOs: sdoRes.rows,
           HRMO: hrmoRes.rows[0] || null,
           ADMIN: adminRes.rows[0] || null
         }
@@ -251,7 +251,8 @@ router.get('/api/chat/rooms/:roomId/messages', authMiddleware, async (req, res) 
         m.created_at,
         u.first_name,
         u.last_name,
-        u.role AS sender_role
+        u.role AS sender_role,
+        u.position AS sender_position
       FROM chat_messages m
       JOIN users u ON m.sender_uid = u.uid
       WHERE m.room_id = $1
