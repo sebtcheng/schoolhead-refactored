@@ -4,8 +4,8 @@ import { HashRouter as Router, Routes, Route, useLocation, Navigate, useNavigate
 
 import { AnimatePresence } from 'framer-motion'; // <--- IMPORT THIS
 import SuperUserFloatingSwitch from './components/SuperUserFloatingSwitch'; // Super User Switch
-// import ChatWidget from './components/ChatWidget'; // Chatbot Widget Removed
 import { useState, useEffect } from 'react'; // Ensure React hooks are imported
+import SchoolHeadChatWidget from './components/SchoolHeadChatWidget'; // School Head Chat Prototype
 
 // Auth
 import Login from './Login';
@@ -308,6 +308,7 @@ const AppContent = () => {
       <SuperUserFloatingSwitch />
       {/* <ChatWidget showFloatingButton={showChatFloating} /> */}
       <PasscodeSetupPrompt />
+      <SchoolHeadChatWidget />
       <AnimatedRoutes />
     </>
   );

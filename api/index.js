@@ -31,6 +31,8 @@ import dashboardRouter from '../server/units/dashboard/index.js';
 import locationRouter from '../server/units/location/index.js';
 import settingsRouter from '../server/units/settings/index.js';
 import siifRouter from '../server/modules/siif/index.js';
+import chatRouter from '../server/units/chat/index.js'; // Chat Backend Unit
+import { autoCleanOldChats } from '../server/services/chatCleanup.js';
 
 console.log("📌 >>> RUNNING: [ROOT]/api/index.js (Modular) <<< 📌");
 
@@ -204,6 +206,7 @@ app.use(dashboardRouter);
 app.use(locationRouter);
 app.use(settingsRouter);
 app.use('/api/siif', siifRouter);
+app.use(chatRouter);
 
 // --- COMPREHENSIVE SERVER STARTUP ---
 const startServer = async () => {
@@ -237,6 +240,17 @@ const startServer = async () => {
             const PORT = process.env.PORT || 3000;
             app.listen(PORT, () => {
                 console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
+                
+                // Run cleanup on startup (delay 10s to let server stabilize)
+                setTimeout(() => {
+                    autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
+                }, 10000);
+                
+                // Run cleanup every 24 hours
+                setInterval(() => {
+                    autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
+                }, 24 * 60 * 60 * 1000);
+
                 if (process.send) {
                     process.send('ready');
                 }
