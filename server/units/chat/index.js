@@ -32,7 +32,7 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
         SELECT uid, first_name, last_name, role, position 
         FROM users 
         WHERE (role = 'School Division Office' OR role = 'Regional Division Office' OR role = 'RO/SDO' OR role = 'Ro/sdo')
-          AND division = $1 AND disabled = false 
+          AND LOWER(TRIM(division)) = LOWER(TRIM($1)) AND disabled = false 
         ORDER BY last_name ASC, first_name ASC
       `;
       const hrmoQuery = `

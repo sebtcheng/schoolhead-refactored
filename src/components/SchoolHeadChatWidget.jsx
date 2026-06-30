@@ -6,7 +6,8 @@ const SchoolHeadChatWidget = () => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activeBubble, setActiveBubble] = useState('SDO'); // 'SDO' | 'HRMO' | 'ADMIN'
-  const [selectedSdoContact, setSelectedSdoContact] = useState(null); // Selected SDO user object for chat
+  const [selectedRoomId, setSelectedRoomId] = useState(null); // Active room ID
+  const [showNewChatSelector, setShowNewChatSelector] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
@@ -14,7 +15,7 @@ const SchoolHeadChatWidget = () => {
 
   // API Backend States
   const [contacts, setContacts] = useState({ SDOs: [], HRMO: null, ADMIN: null });
-  const [rooms, setRooms] = useState({ SDO: null, HRMO: null, ADMIN: null });
+  const [rooms, setRooms] = useState([]); // List of active rooms from backend
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -23,12 +24,25 @@ const SchoolHeadChatWidget = () => {
   const userRole = localStorage.getItem('userRole') || (user && user.role);
   const isSchoolHead = userRole === 'School Head' || userRole === 'school_head';
 
-  // 1. Fetch UIDs of relevant contact roles on mount
+  // 1. Fetch active rooms & contacts on open
   useEffect(() => {
-    if (!isSchoolHead) return;
+    if (!isSchoolHead || !isOpen) return;
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // Load active rooms
+    fetch(api('/api/chat/rooms'), {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        setRooms(data.rooms || []);
+      }
+    })
+    .catch(err => console.error('[SH CHAT] Load rooms error:', err));
+
+    // Load contacts list
     fetch(api('/api/chat/contacts'), {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -42,29 +56,43 @@ const SchoolHeadChatWidget = () => {
         });
       }
     })
-    .catch(err => console.error('[CHAT WIDGET] Fetch contacts error:', err));
-  }, [isSchoolHead]);
+    .catch(err => console.error('[SH CHAT] Fetch contacts error:', err));
+  }, [isSchoolHead, isOpen]);
 
-  // 2. Fetch or create Room ID when active tab switches / SDO contact is chosen, then load message history
+  // 2. Fetch messages for active room
   useEffect(() => {
-    if (!isOpen || !isSchoolHead) return;
-
-    // Resolve target contact based on active bubble
-    let contact = null;
-    if (activeBubble === 'SDO') {
-      contact = selectedSdoContact;
-    } else {
-      contact = contacts[activeBubble];
-    }
-
-    if (!contact) {
-      setMessages([]);
-      return;
-    }
-
+    if (!selectedRoomId || !isOpen) return;
     const token = localStorage.getItem('token');
     setLoading(true);
 
+    fetch(api(`/api/chat/rooms/${selectedRoomId}/messages`), {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        setMessages(data.messages || []);
+      }
+    })
+    .catch(err => {
+      console.error('[SH CHAT] Load messages error:', err);
+      setMessages([]);
+    })
+    .finally(() => setLoading(false));
+  }, [selectedRoomId, isOpen]);
+
+  // 3. Auto-scroll to bottom of chat
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isOpen, loading, uploading]);
+
+  if (!isSchoolHead) return null;
+
+  // Start new chat with target SDO, HRMO, or Admin
+  const handleStartNewChat = (contact) => {
+    const token = localStorage.getItem('token');
     fetch(api('/api/chat/room'), {
       method: 'POST',
       headers: {
@@ -76,45 +104,62 @@ const SchoolHeadChatWidget = () => {
     .then(res => res.json())
     .then(roomData => {
       if (roomData.success) {
-        const roomId = roomData.room_id;
-        setRooms(prev => ({ ...prev, [activeBubble]: roomId }));
-        
-        // Fetch messages for this room
-        return fetch(api(`/api/chat/rooms/${roomId}/messages`), {
+        setSelectedRoomId(roomData.room_id);
+        setShowNewChatSelector(false);
+
+        // Refresh rooms list
+        return fetch(api('/api/chat/rooms'), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
       } else {
-        throw new Error(roomData.error || 'Failed to get room');
+        throw new Error(roomData.error || 'Failed to initialize room');
       }
     })
     .then(res => res && res.json())
-    .then(msgData => {
-      if (msgData && msgData.success) {
-        setMessages(msgData.messages || []);
+    .then(data => {
+      if (data && data.success) {
+        setRooms(data.rooms || []);
       }
     })
-    .catch(err => {
-      console.error('[CHAT WIDGET] Load thread error:', err);
-      setMessages([]);
-    })
-    .finally(() => setLoading(false));
-  }, [activeBubble, contacts, selectedSdoContact, isOpen]);
+    .catch(err => console.error('[SH CHAT] Start new chat error:', err));
+  };
 
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isOpen, loading, uploading]);
-
-  if (!isSchoolHead) return null;
-
-  // Handle standard text messaging
   const handleSendMessage = (e) => {
     e.preventDefault();
-    const roomId = rooms[activeBubble];
-    if (!inputMessage.trim() || !roomId) return;
+    let roomId = selectedRoomId;
 
+    // For HRMO / ADMIN tabs, if no room is selected yet, we auto-create/find it on send
+    if ((activeBubble === 'HRMO' || activeBubble === 'ADMIN') && !roomId) {
+      const contact = contacts[activeBubble];
+      if (!contact) return;
+
+      const token = localStorage.getItem('token');
+      fetch(api('/api/chat/room'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ target_uid: contact.uid })
+      })
+      .then(res => res.json())
+      .then(roomData => {
+        if (roomData.success) {
+          setSelectedRoomId(roomData.room_id);
+          postMessageToBackend(roomData.room_id);
+        }
+      })
+      .catch(err => console.error('[SH CHAT] Auto room create error:', err));
+      return;
+    }
+
+    if (roomId) {
+      postMessageToBackend(roomId);
+    }
+  };
+
+  const postMessageToBackend = (roomId) => {
+    if (!inputMessage.trim()) return;
     const token = localStorage.getItem('token');
     const body = {
       room_id: roomId,
@@ -145,12 +190,12 @@ const SchoolHeadChatWidget = () => {
         }]);
       }
     })
-    .catch(err => console.error('[CHAT WIDGET] Send message error:', err));
+    .catch(err => console.error('[SH CHAT] Send message error:', err));
   };
 
   // Upload file buffer to backend (Azure storage / local fallback)
   const uploadImageFile = (file) => {
-    const roomId = rooms[activeBubble];
+    const roomId = selectedRoomId;
     if (!roomId) return;
 
     setUploading(true);
@@ -200,7 +245,7 @@ const SchoolHeadChatWidget = () => {
       }
     })
     .catch(err => {
-      console.error('[CHAT WIDGET] Upload attachment failed:', err);
+      console.error('[SH CHAT] Upload attachment failed:', err);
       alert('Failed to send image attachment.');
     })
     .finally(() => setUploading(false));
@@ -227,9 +272,18 @@ const SchoolHeadChatWidget = () => {
     }
   };
 
-  // Determine SDO active panel state
-  const isSdoActive = activeBubble === 'SDO';
-  const showSdoDirectory = isSdoActive && !selectedSdoContact;
+  // Filter rooms based on active tab bubble
+  const displayedRooms = rooms.filter(room => {
+    if (activeBubble === 'SDO') {
+      return room.participant_role === 'School Division Office' || room.participant_role === 'Regional Division Office' || room.participant_role === 'RO/SDO' || room.participant_role === 'Ro/sdo';
+    } else if (activeBubble === 'HRMO') {
+      return room.participant_role === 'HRMO' || room.participant_role === 'Personnel';
+    } else {
+      return room.participant_role === 'Admin' || room.participant_role === 'Super Admin';
+    }
+  });
+
+  const activeRoom = rooms.find(r => r.room_id === selectedRoomId);
 
   return (
     <>
@@ -333,7 +387,8 @@ const SchoolHeadChatWidget = () => {
                   key={bubble.id}
                   onClick={() => {
                     setActiveBubble(bubble.id);
-                    setSelectedSdoContact(null); // Reset SDO sub-chat back to directory
+                    setSelectedRoomId(null);
+                    setShowNewChatSelector(false);
                   }}
                   style={{
                     flex: 1,
@@ -392,27 +447,92 @@ const SchoolHeadChatWidget = () => {
             flexDirection: 'column',
             overflow: 'hidden'
           }}>
-            {showSdoDirectory ? (
-              /* SDO DIRECTORY LIST */
+            {!selectedRoomId ? (
+              /* HISTORY DIRECTORY & CONTACTS SELECTOR */
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', overflowY: 'auto' }}>
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '10px', display: 'block' }}>
-                  SDO Representatives in your Division ({contacts.SDOs.length})
-                </span>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {contacts.SDOs.map(sdo => (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>
+                    {activeBubble === 'SDO' ? 'Active SDO Discussions' : `${activeBubble} Channel`}
+                  </span>
+
+                  {activeBubble === 'SDO' && (
                     <button
-                      key={sdo.uid}
-                      onClick={() => setSelectedSdoContact(sdo)}
+                      onClick={() => setShowNewChatSelector(!showNewChatSelector)}
                       style={{
-                        width: '100%',
-                        textAlign: 'left',
+                        padding: '6px 12px',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '16px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                      }}
+                    >
+                      <span>+ New Message</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* SDO Directory dropdown selector */}
+                {showNewChatSelector && activeBubble === 'SDO' && (
+                  <div style={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    marginBottom: '12px',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+                  }}>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+                      Select SDO Representative:
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                      {contacts.SDOs.map(sdo => (
+                        <button
+                          key={sdo.uid}
+                          onClick={() => handleStartNewChat(sdo)}
+                          style={{
+                            textAlign: 'left',
+                            padding: '8px',
+                            backgroundColor: '#f1f5f9',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseOver={e => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                          onMouseOut={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                        >
+                          <span style={{ display: 'block', fontWeight: '700' }}>{sdo.first_name} {sdo.last_name}</span>
+                          <span style={{ fontSize: '9px', color: '#64748b' }}>{sdo.role} {sdo.position ? `(${sdo.position})` : ''}</span>
+                        </button>
+                      ))}
+                      {contacts.SDOs.length === 0 && (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
+                          No division SDOs found
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Active chat rooms listing */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {displayedRooms.map((room) => (
+                    <div
+                      key={room.room_id}
+                      onClick={() => setSelectedRoomId(room.room_id)}
+                      style={{
                         padding: '12px',
                         backgroundColor: '#ffffff',
-                        border: '1px solid #e2e8f0',
                         borderRadius: '10px',
+                        border: '1px solid #e2e8f0',
                         cursor: 'pointer',
-                        transition: 'all 0.2s',
+                        transition: 'transform 0.2s, box-shadow 0.2s',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '2px'
@@ -426,59 +546,93 @@ const SchoolHeadChatWidget = () => {
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
-                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e293b' }}>
-                        {sdo.first_name} {sdo.last_name}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: '600' }}>
-                        {sdo.role}
-                      </span>
-                      {sdo.position && (
-                        <span style={{ fontSize: '10px', color: '#64748b', fontStyle: 'italic' }}>
-                          Position: {sdo.position}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}>
+                          {room.first_name} {room.last_name}
                         </span>
-                      )}
-                    </button>
+                        <span style={{ fontSize: '9px', color: '#94a3b8' }}>
+                          {room.last_message_time ? new Date(room.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>
+                        {room.participant_role}
+                      </span>
+                      <span style={{
+                        fontSize: '11px',
+                        color: '#94a3b8',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginTop: '4px'
+                      }}>
+                        {room.last_message ? room.last_message : 'Click to start conversation.'}
+                      </span>
+                    </div>
                   ))}
-                  {contacts.SDOs.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8', fontSize: '12px' }}>
-                      No active SDO representatives found for your division.
+                  {displayedRooms.length === 0 && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', padding: '24px 0' }}>
+                      <span style={{ fontSize: '12px' }}>No active discussions found.</span>
+                      {activeBubble !== 'SDO' && contacts[activeBubble] && (
+                        <button
+                          onClick={() => handleStartNewChat(contacts[activeBubble])}
+                          style={{
+                            marginTop: '10px',
+                            padding: '6px 12px',
+                            backgroundColor: '#1d4ed8',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Start Support Chat
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              /* ACTIVE CHAT THREAD */
+              /* ACTIVE CHAT WINDOW */
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* SDO back bar */}
-                {activeBubble === 'SDO' && (
-                  <div style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    backgroundColor: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <button
-                      onClick={() => setSelectedSdoContact(null)}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        color: '#1d4ed8',
-                        border: '1px solid #1d4ed8',
-                        borderRadius: '6px',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      &larr; Contacts
-                    </button>
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {selectedSdoContact?.first_name} {selectedSdoContact?.last_name} ({selectedSdoContact?.position || 'SDO Rep'})
-                    </span>
-                  </div>
-                )}
+                <div style={{
+                  padding: '8px 12px',
+                  borderBottom: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <button
+                    onClick={() => {
+                      setSelectedRoomId(null);
+                      // Refresh rooms list
+                      const token = localStorage.getItem('token');
+                      fetch(api('/api/chat/rooms'), {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      })
+                      .then(res => res.json())
+                      .then(data => { if (data.success) setRooms(data.rooms || []); });
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      color: '#1d4ed8',
+                      border: '1px solid #1d4ed8',
+                      borderRadius: '6px',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    &larr; Back
+                  </button>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {activeRoom?.first_name} {activeRoom?.last_name}
+                  </span>
+                </div>
 
                 {/* Messages Flow */}
                 <div style={{
@@ -613,7 +767,7 @@ const SchoolHeadChatWidget = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Message input form */}
+                {/* Input form */}
                 <form
                   onSubmit={handleSendMessage}
                   style={{
@@ -628,7 +782,7 @@ const SchoolHeadChatWidget = () => {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={!rooms[activeBubble] || uploading}
+                    disabled={!selectedRoomId || uploading}
                     style={{
                       width: '36px',
                       height: '36px',
@@ -636,7 +790,7 @@ const SchoolHeadChatWidget = () => {
                       backgroundColor: '#f1f5f9',
                       color: '#475569',
                       border: 'none',
-                      cursor: (rooms[activeBubble] && !uploading) ? 'pointer' : 'default',
+                      cursor: (selectedRoomId && !uploading) ? 'pointer' : 'default',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -656,7 +810,7 @@ const SchoolHeadChatWidget = () => {
                     onChange={(e) => setInputMessage(e.target.value)}
                     onPaste={handlePaste}
                     placeholder="Message... (Paste Ctrl+V screenshots)"
-                    disabled={!rooms[activeBubble] || uploading}
+                    disabled={!selectedRoomId || uploading}
                     style={{
                       flex: 1,
                       padding: '10px 14px',
@@ -665,22 +819,22 @@ const SchoolHeadChatWidget = () => {
                       outline: 'none',
                       fontSize: '13px',
                       transition: 'border-color 0.2s',
-                      backgroundColor: (rooms[activeBubble] && !uploading) ? 'white' : '#f1f5f9'
+                      backgroundColor: (selectedRoomId && !uploading) ? 'white' : '#f1f5f9'
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#1d4ed8'}
                     onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                   />
                   <button
                     type="submit"
-                    disabled={!inputMessage.trim() || !rooms[activeBubble] || uploading}
+                    disabled={!inputMessage.trim() || !selectedRoomId || uploading}
                     style={{
                       width: '36px',
                       height: '36px',
                       borderRadius: '50%',
-                      backgroundColor: (inputMessage.trim() && rooms[activeBubble] && !uploading) ? '#2563eb' : '#cbd5e1',
+                      backgroundColor: (inputMessage.trim() && selectedRoomId && !uploading) ? '#2563eb' : '#cbd5e1',
                       color: 'white',
                       border: 'none',
-                      cursor: (inputMessage.trim() && rooms[activeBubble] && !uploading) ? 'pointer' : 'default',
+                      cursor: (inputMessage.trim() && selectedRoomId && !uploading) ? 'pointer' : 'default',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
