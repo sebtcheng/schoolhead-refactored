@@ -80,7 +80,7 @@ const SIIFFormsHub = ({ user, token }) => {
     const {
         loading, error,
         deadline, openDate, isExpired, isNotYetOpen,
-        submissionId, isLocked, isApproved, isDisapproved, remarks, allocation,
+        submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
         selectedInterventions, setSelectedInterventions,
         aral, setAral,
         beneficiaries, setBeneficiaries,
@@ -317,7 +317,7 @@ const SIIFFormsHub = ({ user, token }) => {
                 budgets,
                 allocation,
                 deadline,
-                status: isApproved ? 'Approved' : (isDisapproved ? 'Disapproved' : (isLocked ? 'submitted' : 'draft')),
+                status: isReviewed ? 'Reviewed' : (isDisapproved ? 'Disapproved' : (isSubmitted ? 'submitted' : 'draft')),
                 remarks: remarks
             }
         });
@@ -484,7 +484,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </div>
                     <div>
                         <p className="text-xl font-black italic leading-tight text-slate-800">
-                            {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : isApproved ? 'Approved by SDO' : isLocked ? 'Pending Approval' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
+                            {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : isReviewed ? 'Reviewed by SDO' : isSubmitted ? 'Pending Review' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
                         </p>
                         <p className="text-[11px] font-bold mt-1">
                             {isExpired
@@ -493,10 +493,10 @@ const SIIFFormsHub = ({ user, token }) => {
                                     ? <span className="text-slate-500">{`Opening on ${new Date(openDate).toLocaleString()}.`}</span>
                                     : syncStatus === 'saving'
                                         ? <span className="text-amber-500">🔄 Syncing changes...</span>
-                                        : isApproved
-                                            ? <span className="text-emerald-500">{`✅ Approved (Read-only)`}</span>
-                                            : isLocked
-                                                ? <span className="text-amber-500">{`⏳ Submitted & For Review`}</span>
+                                        : isReviewed
+                                            ? <span className="text-emerald-500">{`✅ Reviewed (Read-only)`}</span>
+                                            : isSubmitted
+                                                ? <span className="text-amber-500">{`⏳ Pending Review (Editable)`}</span>
                                                 : <span className="text-slate-500">{`${TOTAL_STEPS - confirmedCount} section${TOTAL_STEPS - confirmedCount !== 1 ? 's' : ''} remaining`}</span>}
                         </p>
                     </div>
@@ -538,37 +538,6 @@ const SIIFFormsHub = ({ user, token }) => {
                         </motion.div>
                     )}
 
-                    {isApproved && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-4 bg-emerald-500 text-white rounded-3xl border border-emerald-400 flex items-center gap-4 shadow-xl"
-                        >
-                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-                                <TbCircleCheck size={20} className="text-white" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100">Plan Approved</p>
-                                <p className="text-[11px] font-bold leading-tight">Your submission has been approved by the SDO. You can proceed to utilization tracking once the submission deadline has passed.</p>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {isLocked && !isApproved && !isDisapproved && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-4 bg-amber-500 text-white rounded-3xl border border-amber-400 flex items-center gap-4 shadow-xl"
-                        >
-                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-                                <TbClock size={20} className="text-white animate-pulse" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-100">Pending Approval</p>
-                                <p className="text-[11px] font-bold leading-tight">Your plan has been submitted and is waiting for SDO approval. It is currently read-only.</p>
-                            </div>
-                        </motion.div>
-                    )}
 
                     {isDisapproved && (
                         <motion.div
@@ -1033,7 +1002,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                                 disabled={submitting || totalBudget > (parseFloat(allocation?.allocation_amount) || 0) || !allConfirmed}
                                                 className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                {submitting ? 'Submitting...' : isLocked ? 'Update Submitted Plan 🚀' : 'Submit Final Plan 🚀'}
+                                                {submitting ? 'Submitting...' : isSubmitted ? 'Update Submitted Plan 🚀' : 'Submit Final Plan 🚀'}
                                             </button>
                                         </div>
                                     </div>

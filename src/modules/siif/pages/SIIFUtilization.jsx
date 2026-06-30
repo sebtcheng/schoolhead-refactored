@@ -110,7 +110,7 @@ const SIIFUtilization = ({ user, token }) => {
                     <p className="text-slate-500 mb-8 leading-relaxed font-medium text-sm">
                         The planning window has closed, but no submitted **SIIF Baseline Plan** was found for your school. 
                         <br/><br/>
-                        Utilization tracking is disabled because there is no approved budget to track against.
+                        Utilization tracking is disabled because there is no reviewed budget to track against.
                     </p>
                     <button
                         onClick={() => navigate('/siif/forms')}
@@ -124,7 +124,7 @@ const SIIFUtilization = ({ user, token }) => {
         );
     }
 
-    // PHASE 3 LOCK: Plan is submitted but Pending Approval
+    // PHASE 3 LOCK: Plan is submitted but Pending Review
     const statusVal = submission.status?.toLowerCase() || '';
     if (statusVal === 'submitted') {
         return (
@@ -133,11 +133,11 @@ const SIIFUtilization = ({ user, token }) => {
                     <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
                         <TbClock size={40} className="text-amber-500 animate-pulse" />
                     </div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Pending SDO Approval</h1>
+                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Pending SDO Review</h1>
                     <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-                        Your submitted plan is currently waiting for approval from the Division Office. 
+                        Your submitted plan is currently waiting for review from the Division Office. 
                         <br/><br/>
-                        You can begin tracking your quarterly utilization once your baseline plan has been officially approved.
+                        You can begin tracking your quarterly utilization once your baseline plan has been officially reviewed.
                     </p>
                     <button
                         onClick={() => navigate('/siif/forms')}
@@ -163,7 +163,7 @@ const SIIFUtilization = ({ user, token }) => {
                     <p className="text-slate-500 mb-8 leading-relaxed font-medium">
                         Your plan was disapproved by the Division Office and the submission deadline has passed. 
                         <br/><br/>
-                        Utilization tracking cannot proceed without an approved baseline.
+                        Utilization tracking cannot proceed without a reviewed baseline.
                     </p>
                     <button
                         onClick={() => navigate('/siif/forms')}

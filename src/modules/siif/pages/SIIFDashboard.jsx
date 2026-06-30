@@ -202,7 +202,7 @@ const SIIFDashboard = ({ user, token }) => {
                                         </button>
                                     </div>
                                 )}
-                                {submission?.status?.toLowerCase() === 'approved' && (
+                                {submission?.status?.toLowerCase() === 'reviewed' && (
                                     <div className="mx-6 mb-4 p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
                                         <div className="flex items-start gap-3 flex-1">
                                             <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
@@ -210,7 +210,7 @@ const SIIFDashboard = ({ user, token }) => {
                                             </div>
                                             <div>
                                                 <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
-                                                    Approved by SDO
+                                                    Reviewed by SDO
                                                 </h4>
                                                 <p className="text-xs text-emerald-600/80 mt-0.5">
                                                     <strong>Remarks:</strong> {submission.remarks || 'Ready for implementation.'}
@@ -233,7 +233,7 @@ const SIIFDashboard = ({ user, token }) => {
                                             </div>
                                             <div>
                                                 <h4 className="text-sm font-bold text-amber-700 flex items-center gap-1.5">
-                                                    Pending Approval
+                                                    Pending Review
                                                 </h4>
                                                 <p className="text-xs text-amber-600/80 mt-0.5">
                                                     Your submission is currently being reviewed by the Division Office.
@@ -273,7 +273,7 @@ const SIIFDashboard = ({ user, token }) => {
                                                         actionBtn = "Fix";
                                                     } else if (submission.status?.toLowerCase() === 'draft') {
                                                         actionBtn = "Edit";
-                                                    } else if (submission.status?.toLowerCase() === 'approved') {
+                                                    } else if (submission.status?.toLowerCase() === 'reviewed') {
                                                         actionBtn = "View";
                                                     }
 
