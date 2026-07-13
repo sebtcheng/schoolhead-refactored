@@ -42,7 +42,7 @@ const SIIFUtilization = ({ user, token }) => {
     }
 
     // PHASE 2 PILOT TEST LOCK
-    const IS_UNDER_DEVELOPMENT = true;
+    const IS_UNDER_DEVELOPMENT = false;
     if (IS_UNDER_DEVELOPMENT) {
         return (
             <div className="min-h-screen bg-slate-50 p-6 pb-24">
