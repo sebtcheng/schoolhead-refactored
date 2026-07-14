@@ -55,6 +55,39 @@ router.post('/utilization', authenticate, async (req, res) => {
             }
         }
 
+        // --- BACKEND SYNCHRONIZATION ---
+        // 1. Get the school_id and fiscal_year associated with this submission
+        const subLookup = await client.query(
+            'SELECT school_id, fiscal_year FROM siif_submissions WHERE siif_sub_id = $1',
+            [submissionId]
+        );
+        
+        if (subLookup.rows.length > 0) {
+            const { school_id, fiscal_year } = subLookup.rows[0];
+
+            // 2. Calculate the grand total of all utilized amounts for this submission
+            const totalQuery = await client.query(`
+                SELECT COALESCE(SUM(u.utilized_amount), 0) as grand_total
+                FROM siif_utilization u
+                JOIN siif_interventions i ON u.siif_int_id = i.siif_int_id
+                WHERE i.siif_sub_id = $1
+            `, [submissionId]);
+            
+            const grandTotal = totalQuery.rows[0].grand_total;
+            console.log(`📊 [SIIF-API] Calculated grand total utilization: ₱${grandTotal} for School ${school_id}`);
+
+            // 3. Update the siif_allocations table with the new spent_amount
+            await client.query(`
+                UPDATE siif_allocations
+                SET spent_amount = $1
+                WHERE school_id = $2 AND fiscal_year = $3
+            `, [grandTotal, school_id, fiscal_year]);
+            console.log(`✅ [SIIF-API] Synced spent_amount in siif_allocations.`);
+        } else {
+            console.warn(`⚠️ [SIIF-API] Could not find submission ${submissionId} in siif_submissions to sync allocation.`);
+        }
+        // -------------------------------
+
         await client.query('COMMIT');
         console.log(`✅ [SIIF-API] Utilization updated successfully for submission ${submissionId}\n`);
         res.json({ success: true });

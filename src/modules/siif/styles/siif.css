@@ -830,7 +830,7 @@
 .siif-progress-fill {
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, var(--blue-600), var(--green));
+    background: linear-gradient(90deg, var(--navy), var(--blue-600));
     display: flex;
     align-items: center;
     justify-content: flex-end;
