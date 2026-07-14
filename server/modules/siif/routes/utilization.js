@@ -43,14 +43,15 @@ router.post('/utilization', authenticate, async (req, res) => {
                 // Backward compatibility if data is a number
                 const amount = typeof data === 'object' && data !== null ? data.amount : data;
                 const status = typeof data === 'object' && data !== null ? data.status : 'Not Yet Started';
+                const justification = typeof data === 'object' && data !== null ? data.justification : null;
 
                 console.log(`💾 [SIIF-API] Upserting: ${intType} | ${quarter} | ₱${amount} | Status: ${status}`);
                 await client.query(
-                    `INSERT INTO siif_utilization (siif_int_id, quarter, utilized_amount, implementation_status, updated_at)
-                     VALUES ($1, $2, $3, $4, NOW())
+                    `INSERT INTO siif_utilization (siif_int_id, quarter, utilized_amount, implementation_status, justification, updated_at)
+                     VALUES ($1, $2, $3, $4, $5, NOW())
                      ON CONFLICT (siif_int_id, quarter) 
-                     DO UPDATE SET utilized_amount = EXCLUDED.utilized_amount, implementation_status = EXCLUDED.implementation_status, updated_at = NOW()`,
-                    [dbIntId, quarter, parseFloat(amount) || 0, status]
+                     DO UPDATE SET utilized_amount = EXCLUDED.utilized_amount, implementation_status = EXCLUDED.implementation_status, justification = EXCLUDED.justification, updated_at = NOW()`,
+                    [dbIntId, quarter, parseFloat(amount) || 0, status, justification]
                 );
             }
         }
