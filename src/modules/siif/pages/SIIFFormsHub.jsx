@@ -11,6 +11,7 @@ import {
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../../../utils/logger';
+import PriorityImprovementAreaCard from './cards/PriorityImprovementAreaCard';
 import InterventionsCard from './cards/InterventionsCard';
 import BeneficiariesCard from './cards/BeneficiariesCard';
 import ActivitiesCard from './cards/ActivitiesCard';
@@ -28,8 +29,16 @@ import budgetIcon from '../assets/icons/project.png';
 // ─── Card Metadata ────────────────────────────────────────────────────────────
 const CARDS = [
     {
-        id: 'interventions',
+        id: 'pia',
         step: 1,
+        label: 'Priority Areas',
+        sublabel: 'Identify priority improvement areas',
+        icon: TbTarget,
+        color: 'bg-siif-blue',
+    },
+    {
+        id: 'interventions',
+        step: 2,
         label: 'Interventions',
         sublabel: 'Select what your school will implement',
         icon: interventionIcon,
@@ -81,6 +90,7 @@ const SIIFFormsHub = ({ user, token }) => {
         loading, error,
         deadline, openDate, isExpired, isNotYetOpen,
         submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
+        priorityAreas, setPriorityAreas,
         selectedInterventions, setSelectedInterventions,
         aral, setAral,
         beneficiaries, setBeneficiaries,
@@ -106,10 +116,14 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
+    }, [priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
+        if (cardId === 'pia') {
+            return !priorityAreas || priorityAreas.filter(a => a && a.trim().length > 0).length === 0;
+        }
+
         if (selectedInterventions.length === 0) return false;
         
         if (cardId === 'beneficiaries') {
@@ -181,7 +195,8 @@ const SIIFFormsHub = ({ user, token }) => {
         }
 
         // 3. [SEQUENTIAL LOCK] Fresh submission hierarchy
-        if (cardId === 'interventions') return false;
+        if (cardId === 'pia') return false;
+        if (cardId === 'interventions') return !confirmed.pia;
         if (cardId === 'beneficiaries') return !confirmed.interventions;
         if (cardId === 'activities') return !confirmed.beneficiaries;
         if (cardId === 'budget') return !confirmed.activities;
@@ -273,6 +288,7 @@ const SIIFFormsHub = ({ user, token }) => {
             budgetEstimates: budgets,
             totalBudget,
             interventionData,
+            priorityAreas,
         };
 
         console.log(`📤 [SIIFFormsHub] Built Payload (${status}):`, JSON.stringify(payload, null, 2));
@@ -370,6 +386,10 @@ const SIIFFormsHub = ({ user, token }) => {
     // ─── Card summary text ────────────────────────────────────────────────────
     const getCardSummary = (cardId) => {
         if (!confirmed[cardId]) return null;
+        if (cardId === 'pia') {
+            const count = (priorityAreas || []).filter(a => a && a.trim().length > 0).length;
+            return `${count} priority area${count !== 1 ? 's' : ''} identified`;
+        }
         if (cardId === 'interventions') {
             return `${selectedInterventions.length} intervention${selectedInterventions.length !== 1 ? 's' : ''} selected`;
         }
@@ -665,6 +685,17 @@ const SIIFFormsHub = ({ user, token }) => {
 
             {/* ── Full-screen card panels ── */}
             <AnimatePresence>
+                {activeCard === 'pia' && (
+                    <motion.div key="pia" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
+                        <PriorityImprovementAreaCard
+                            value={priorityAreas}
+                            onChange={setPriorityAreas}
+                            onConfirm={() => confirm('pia')}
+                            onClose={() => closeCard('pia')}
+                            readOnly={isExpired || isNotYetOpen || isLocked}
+                        />
+                    </motion.div>
+                )}
                 {activeCard === 'interventions' && (
                     <motion.div key="int" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
                         <InterventionsCard
@@ -804,7 +835,31 @@ const SIIFFormsHub = ({ user, token }) => {
                                         </div>
                                     </div>
                                 )}
-                                    {selectedInterventions.map((intId, idx) => {
+
+                                {/* Priority Improvement Areas */}
+                                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
+                                    <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+                                        <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                            <TbTarget size={16} /> Priority Improvement Areas
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {(priorityAreas || []).filter(a => a && a.trim().length > 0).length > 0 ? (
+                                            (priorityAreas || []).filter(a => a && a.trim().length > 0).map((area, idx) => (
+                                                <div key={idx} className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                    <div className="w-6 h-6 rounded-lg bg-siif-blue/10 text-siif-blue flex items-center justify-center shrink-0 mt-0.5">
+                                                        <span className="font-black text-[10px]">{idx + 1}</span>
+                                                    </div>
+                                                    <p className="text-[13px] font-bold text-slate-700 leading-relaxed flex-1 whitespace-pre-wrap">{area}</p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-[12px] text-slate-500 italic px-2">No priority improvement areas specified.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {selectedInterventions.map((intId, idx) => {
                                         const info = INTERVENTIONS.find(i => i.id === intId);
                                         const budget = budgets?.[intId] || 0;
                                         

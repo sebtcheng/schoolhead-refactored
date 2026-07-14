@@ -27,13 +27,14 @@ export function useSIIFSubmission(user, token) {
     const [isSubmitted, setIsSubmitted]             = useState(false);
     const [isDisapproved, setIsDisapproved]         = useState(false);
     const [remarks, setRemarks]     = useState(null);
+    const [priorityAreas, setPriorityAreas]         = useState([]);
     const [selectedInterventions, setSelectedInterventions] = useState([]);
     const [aral, setAral]                           = useState({ planned: null, subjects: [] });
     const [beneficiaries, setBeneficiaries]         = useState({});
     const [activities, setActivities]               = useState({});
     const [budgets, setBudgets]                     = useState({});
     const [confirmed, setConfirmed]                 = useState({
-        interventions: false, beneficiaries: false, activities: false, budget: false,
+        pia: false, interventions: false, beneficiaries: false, activities: false, budget: false,
     });
 
     useEffect(() => {
@@ -87,6 +88,7 @@ export function useSIIFSubmission(user, token) {
                     setIsDisapproved(statusVal === 'disapproved');
                     
                     setRemarks(subData.remarks || subData.rejection_reason || subData.rejectionReason || null);
+                    setPriorityAreas(subData.priorityAreas || []);
                     setSelectedInterventions(ints);
                     setAral(subData.aral || { planned: null, subjects: [] });
                     setBudgets(subData.budgetEstimates || {});
@@ -102,6 +104,7 @@ export function useSIIFSubmission(user, token) {
                     setActivities(acts);
 
                     const nextConfirmed = {
+                        pia: (subData.priorityAreas || []).filter(area => area && area.trim().length > 0).length > 0,
                         interventions: ints.length > 0,
                         beneficiaries: ints.some(id => (bens[id]?.selectedGrades || []).length > 0),
                         activities:    ints.some(id => Object.values(acts[id]?.selectedActivities || {}).flat().length > 0),
@@ -130,6 +133,7 @@ export function useSIIFSubmission(user, token) {
         // Submission meta
         loading, error, submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
         // Form state
+        priorityAreas, setPriorityAreas,
         selectedInterventions, setSelectedInterventions,
         aral, setAral,
         beneficiaries, setBeneficiaries,

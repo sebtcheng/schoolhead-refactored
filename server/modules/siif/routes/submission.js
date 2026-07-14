@@ -130,6 +130,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             utilization,
             aral,
             allocation,
+            priorityAreas: submission.priority_improvement_area || [],
         };
 
         console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB submission_status: ${submission.submission_status} | DB status: ${submission.status}`);
@@ -147,7 +148,7 @@ router.post('/submit', async (req, res) => {
     const {
         schoolId, schoolName, region, division, fiscalYear,
         interventions, interventionData, budgetEstimates, aral,
-        totalBudget, status = 'submitted',
+        totalBudget, status = 'submitted', priorityAreas = [],
     } = req.body;
 
     console.log('\n📬 [SIIF-API] Incoming Submission from:', schoolName || 'Unknown School');
@@ -280,8 +281,8 @@ router.post('/submit', async (req, res) => {
         // Insert submission header
         const submissionResult = await client.query(
             `INSERT INTO siif_submissions
-             (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks, priority_improvement_area)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              RETURNING siif_sub_id`,
             [
                 finalSchoolId,
@@ -294,7 +295,8 @@ router.post('/submit', async (req, res) => {
                 submittedAt,
                 status || 'draft',
                 finalSubmissionStatus,
-                existingRemarks
+                existingRemarks,
+                JSON.stringify(priorityAreas)
             ]
         );
         const submissionId = submissionResult.rows[0].siif_sub_id;

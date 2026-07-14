@@ -209,43 +209,34 @@ const SIIFUtilization = ({ user, token }) => {
     // ─── Handlers ──────────────────────────────────────────────────────────────
     const handleUpdateUtilization = async (intId, value) => {
         const amount = parseFloat(value) || 0;
-        const allocation = budgetEstimates[intId] || 0;
-        const qData = utilizationData[intId] || {};
 
-        // 1️⃣ Calculate total utilized in PREVIOUS phases (chronological check)
-        let previousPhasesTotal = 0;
-        const currentIdx = periods.findIndex(p => p.id === activeQuarter);
-        for (let i = 0; i < currentIdx; i++) {
-            const qVal = qData[periods[i].id];
-            previousPhasesTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
-        }
-
-        // 🛡️ [CUMULATIVE LOCK] If already maxed in previous phases, block immediately
-        if (previousPhasesTotal >= allocation) {
-            alert(`⚠️ Allocation Exhausted\n\nYou have already utilized the full ₱${allocation.toLocaleString()} allocation in previous reporting periods. No further inputs are allowed for this intervention.`);
-            return;
-        }
-
-        // 2️⃣ Calculate total utilized in OTHER phases
-        let otherPhasesTotal = 0;
-        periods.forEach(p => {
-            if (p.id !== activeQuarter) {
-                const qVal = qData[p.id];
-                otherPhasesTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
+        // Calculate the current overall total utilization WITHOUT the active quarter for this specific intervention
+        let currentTotalUtilized = 0;
+        selectedInterventions.forEach(id => {
+            const intUtil = utilizationData[id] || {};
+            if (id === intId) {
+                // For the current intervention, add only other phases
+                periods.forEach(p => {
+                    if (p.id !== activeQuarter) {
+                        const qVal = intUtil[p.id];
+                        currentTotalUtilized += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
+                    }
+                });
+            } else {
+                // For other interventions, add all phases
+                Object.values(intUtil).forEach(qVal => {
+                    currentTotalUtilized += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
+                });
             }
         });
 
-        // 🛡️ [BUDGET RESTRICTION] Check if total exceeds intervention's plan
-        if (otherPhasesTotal + amount > allocation) {
-            const maxAllowed = Math.max(0, allocation - otherPhasesTotal);
-            alert(`⚠️ Budget Restriction\n\nYou cannot exceed the planned budget for this intervention (₱${allocation.toLocaleString()}).\n\nMaximum allowable for this phase is ₱${maxAllowed.toLocaleString()}.`);
-            return;
-        }
+        const newTotal = currentTotalUtilized + amount;
 
-        // 🚀 [MAX OUT WARNING] Notify user if they hit the limit now
-        if (otherPhasesTotal + amount === allocation && amount > 0) {
-            const currentPeriod = periods.find(p => p.id === activeQuarter)?.label || activeQuarter;
-            alert(`✅ Maximum Allocation Reached\n\nYou have reached the ₱${allocation.toLocaleString()} limit for this intervention. \n\nNOTE: Since you've maxed out the budget in ${currentPeriod}, you will not be able to add more utilization in future reporting periods.`);
+        // 🛡️ [TOTAL ALLOCATION RESTRICTION]
+        if (totalAllocated > 0 && newTotal > totalAllocated) {
+            const maxAllowed = Math.max(0, totalAllocated - currentTotalUtilized);
+            alert(`⚠️ Overall Budget Restriction\n\nYou cannot exceed the school's total allocation (₱${totalAllocated.toLocaleString()}).\n\nMaximum allowable amount to input here is ₱${maxAllowed.toLocaleString()}.`);
+            return;
         }
 
         const newData = {
@@ -260,6 +251,19 @@ const SIIFUtilization = ({ user, token }) => {
             }
         };
         setUtilizationData(newData);
+    };
+
+    const handleUpdateJustification = (intId, text) => {
+        setUtilizationData(prev => ({
+            ...prev,
+            [intId]: {
+                ...(prev[intId] || {}),
+                [activeQuarter]: {
+                    ...((prev[intId] || {})[activeQuarter] || {}),
+                    justification: text
+                }
+            }
+        }));
     };
 
     const handleUpdateStatus = (intId, status) => {
@@ -294,7 +298,7 @@ const SIIFUtilization = ({ user, token }) => {
                         finalUtilizationData[intId] = {};
                     }
                     if (!finalUtilizationData[intId][activeQuarter]) {
-                        finalUtilizationData[intId][activeQuarter] = { amount: '0', status: 'Not Yet Started' };
+                        finalUtilizationData[intId][activeQuarter] = { amount: '0', status: 'Not Yet Started', justification: '' };
                     }
                 });
             }
@@ -380,8 +384,7 @@ const SIIFUtilization = ({ user, token }) => {
                     <div>
                         <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Utilization Note</p>
                         <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                            Quarterly utilization must not exceed the estimated budget set for each intervention. 
-                            The total utilization across all quarters is capped by your official allocation.
+                            Quarterly utilization can exceed the estimated budget set for a specific intervention, but the total utilization across all quarters must not exceed your official total allocation.
                         </p>
                     </div>
                 </div>
@@ -465,18 +468,20 @@ const SIIFUtilization = ({ user, token }) => {
 
                             <div className="relative">
                                 {(() => {
-                                    const qData = utilizationData[intId] || {};
-                                    let prevTotal = 0;
-                                    const viewIdx = periods.findIndex(p => p.id === viewingQuarter);
-                                    for (let i = 0; i < viewIdx; i++) {
-                                        const qVal = qData[periods[i].id];
-                                        prevTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
-                                    }
-                                    
-                                    const isBudgetExhausted = prevTotal >= allocation && allocation > 0;
-                                    const isOffSeason = activeQuarter === '';
-                                    const isNotActiveWindow = viewingQuarter !== activeQuarter;
-                                    const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow; 
+                                    // Check if overall school budget is exhausted
+                                     let prevOverallTotal = 0;
+                                     const viewIdx = periods.findIndex(p => p.id === viewingQuarter);
+                                     selectedInterventions.forEach(id => {
+                                         const iData = utilizationData[id] || {};
+                                         for (let i = 0; i < viewIdx; i++) {
+                                             const qVal = iData[periods[i].id];
+                                             prevOverallTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
+                                         }
+                                     });
+                                     const isBudgetExhausted = totalAllocated > 0 && prevOverallTotal >= totalAllocated;
+                                     const isOffSeason = activeQuarter === '';
+                                     const isNotActiveWindow = viewingQuarter !== activeQuarter;
+                                     const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow;
                                     
                                     return (
                                         <div className="relative space-y-3">
@@ -520,6 +525,35 @@ const SIIFUtilization = ({ user, token }) => {
                                                     <TbChevronRight size={16} className="rotate-90" />
                                                 </div>
                                             </div>
+                                             
+                                             <AnimatePresence>
+                                                {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                        <div className="pt-2">
+                                                            <div className="flex items-center gap-1.5 mb-1.5">
+                                                                <TbAlertCircle size={14} className="text-amber-500" />
+                                                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Justification Required</span>
+                                                            </div>
+                                                            <textarea
+                                                                value={qValObj?.justification || ''}
+                                                                onChange={(e) => handleUpdateJustification(intId, e.target.value)}
+                                                                disabled={isInputLocked}
+                                                                placeholder="Please provide a justification for exceeding the estimated budget..."
+                                                                className={`w-full border-none rounded-2xl p-4 text-xs font-medium transition-all min-h-[80px] resize-none ${
+                                                                    !qValObj?.justification?.trim() 
+                                                                    ? 'bg-amber-50 border-amber-200 focus:ring-amber-200 placeholder-amber-400/70 text-amber-900 ring-2 ring-amber-100' 
+                                                                    : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
+                                                                }`}
+                                                            />
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                             </AnimatePresence>
                                         </div>
                                     );
                                 })()}
@@ -531,35 +565,64 @@ const SIIFUtilization = ({ user, token }) => {
 
             {/* ─── Save Action ─── */}
             <div className="mt-8 pb-12">
-                {totalUtilized > totalAllocated && (
-                    <div className="mb-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
-                        <TbAlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
-                        <p className="text-[11px] text-rose-700 font-bold leading-relaxed">
-                            UNABLE TO SAVE: Total utilization (₱{totalUtilized.toLocaleString()}) exceeds the allocated budget (₱{totalAllocated.toLocaleString()}). Please adjust your inputs.
-                        </p>
-                    </div>
-                )}
-                
-                <button
-                    onClick={handleSave}
-                    disabled={saving || (totalAllocated > 0 && totalUtilized > totalAllocated) || activeQuarter === '' || viewingQuarter !== activeQuarter}
-                    className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                        (totalAllocated > 0 && totalUtilized > totalAllocated) 
-                        ? 'bg-rose-500 shadow-rose-500/20' 
-                        : (activeQuarter === '' || viewingQuarter !== activeQuarter)
-                            ? 'bg-slate-400 shadow-slate-400/20'
-                            : 'bg-emerald-500 shadow-emerald-500/20'
-                    }`}
-                >
-                    {saving ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
+                {(() => {
+                    let missingJustification = false;
+                    if (activeQuarter) {
+                        selectedInterventions.forEach(intId => {
+                            const qData = utilizationData[intId] || {};
+                            const qValObj = qData[activeQuarter] || {};
+                            const amount = parseFloat(qValObj?.amount !== undefined ? qValObj.amount : qValObj) || 0;
+                            const allocation = budgetEstimates[intId] || 0;
+                            if (amount > allocation && !qValObj?.justification?.trim()) {
+                                missingJustification = true;
+                            }
+                        });
+                    }
+                    
+                    const isSaveDisabled = saving || (totalAllocated > 0 && totalUtilized > totalAllocated) || activeQuarter === '' || viewingQuarter !== activeQuarter || missingJustification;
+
+                    return (
                         <>
-                            <TbCheck size={20} />
-                            Save Quarterly Updates
+                            {totalUtilized > totalAllocated && (
+                                <div className="mb-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
+                                    <TbAlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
+                                    <p className="text-[11px] text-rose-700 font-bold leading-relaxed">
+                                        UNABLE TO SAVE: Total utilization (₱{totalUtilized.toLocaleString()}) exceeds the allocated budget (₱{totalAllocated.toLocaleString()}). Please adjust your inputs.
+                                    </p>
+                                </div>
+                            )}
+                            {missingJustification && totalUtilized <= totalAllocated && (
+                                <div className="mb-4 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                                    <TbAlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                                    <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
+                                        JUSTIFICATION REQUIRED: You have entered amounts exceeding the initial budget estimates. Please provide a justification for all highlighted fields before saving.
+                                    </p>
+                                </div>
+                            )}
+                            
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaveDisabled}
+                                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    (totalAllocated > 0 && totalUtilized > totalAllocated) 
+                                    ? 'bg-rose-500 shadow-rose-500/20' 
+                                    : (activeQuarter === '' || viewingQuarter !== activeQuarter)
+                                        ? 'bg-slate-400 shadow-slate-400/20'
+                                        : 'bg-emerald-500 shadow-emerald-500/20'
+                                }`}
+                            >
+                                {saving ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <TbCheck size={20} />
+                                        Save Quarterly Updates
+                                    </>
+                                )}
+                            </button>
                         </>
-                    )}
-                </button>
+                    );
+                })()}
                 <p className="text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-4 italic">
                     {activeQuarter === '' ? "Reporting window is closed" : "Updates will be reflected in the dashboard progress"}
                 </p>
