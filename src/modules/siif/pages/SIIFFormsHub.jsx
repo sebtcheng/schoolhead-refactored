@@ -84,6 +84,7 @@ const SIIFFormsHub = ({ user, token }) => {
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
+    const [activePiaCategory, setActivePiaCategory] = useState('Access and Quality');
 
     // ─── Data + state from hook ───────────────────────────────────────────────
     const {
@@ -837,25 +838,48 @@ const SIIFFormsHub = ({ user, token }) => {
                                 )}
 
                                 {/* Priority Improvement Areas */}
-                                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-3">
+                                <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
                                     <div className="flex justify-between items-center border-b border-slate-50 pb-2">
                                         <h4 className="text-[12px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
                                             <TbTarget size={16} /> Priority Improvement Areas
                                         </h4>
                                     </div>
+
+                                    {/* Category Tabs */}
+                                    <div className="flex bg-slate-50 p-1.5 rounded-xl">
+                                        {['Access and Quality', 'Governance'].map(cat => (
+                                            <button
+                                                key={cat}
+                                                onClick={() => setActivePiaCategory(cat)}
+                                                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${
+                                                    activePiaCategory === cat 
+                                                        ? 'bg-white text-siif-blue shadow-sm border border-slate-200' 
+                                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     <div className="space-y-2">
-                                        {(priorityAreas || []).filter(a => a && a.trim().length > 0).length > 0 ? (
-                                            (priorityAreas || []).filter(a => a && a.trim().length > 0).map((area, idx) => (
-                                                <div key={idx} className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                    <div className="w-6 h-6 rounded-lg bg-siif-blue/10 text-siif-blue flex items-center justify-center shrink-0 mt-0.5">
+                                        {(() => {
+                                            const activePias = (priorityAreas || [])
+                                                .filter(a => a && a.trim().length > 0 && a.startsWith(`[${activePiaCategory}]`));
+                                            
+                                            if (activePias.length === 0) {
+                                                return <p className="text-[12px] text-slate-500 italic px-2 py-4 text-center">No priority areas identified for {activePiaCategory}.</p>;
+                                            }
+
+                                            return activePias.map((area, idx) => (
+                                                <div key={idx} className="flex items-start gap-3 bg-white p-3 rounded-xl border border-slate-100 hover:border-slate-200 shadow-sm transition-all group">
+                                                    <div className="w-6 h-6 rounded-lg bg-blue-50 text-siif-blue flex items-center justify-center shrink-0 mt-0.5 border border-blue-100 group-hover:bg-siif-blue group-hover:text-white transition-all">
                                                         <span className="font-black text-[10px]">{idx + 1}</span>
                                                     </div>
-                                                    <p className="text-[13px] font-bold text-slate-700 leading-relaxed flex-1 whitespace-pre-wrap">{area}</p>
+                                                    <p className="text-[13px] font-bold text-slate-700 leading-relaxed flex-1 whitespace-pre-wrap">{area.replace(`[${activePiaCategory}] `, '')}</p>
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <p className="text-[12px] text-slate-500 italic px-2">No priority improvement areas specified.</p>
-                                        )}
+                                            ));
+                                        })()}
                                     </div>
                                 </div>
 
