@@ -830,19 +830,6 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 unit6_wash: JSON.stringify(washData),
                 unit6_utilities: JSON.stringify(utilitiesData),
                 unit6_completed: true,
-                u7_ict_smart_tv_cond: ictData.smart_tvs_cond,
-                u7_ict_projector_cond: ictData.projectors_cond,
-                u7_ict_printer_cond: ictData.printers_cond,
-                u7_wash_male_seats_cond: washData.male_seats_cond,
-                u7_wash_female_seats_cond: washData.female_seats_cond,
-                u7_wash_common_seats_cond: washData.common_seats_cond,
-                u7_wash_pwd_seats_cond: washData.pwd_seats_cond,
-                u7_wash_faucets_cond: washData.faucets_cond,
-                u7_confirm_no_grid: (utilitiesData.confirm_no_grid_text || "").trim().toLowerCase() === "confirm",
-                u7_confirm_no_piped: (washData.confirm_no_piped_text || "").trim().toLowerCase() === "confirm",
-                u7_confirm_zero_wash: (washData.confirm_zero_wash_text || "").trim().toLowerCase() === "confirm",
-                u7_confirm_no_wired: (utilitiesData.confirm_no_wired_text || "").trim().toLowerCase() === "confirm",
-                u7_utility_internet_type: utilitiesData.utility_internet_type,
                 iern: iern
             };
 

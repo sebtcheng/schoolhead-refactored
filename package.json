@@ -13,7 +13,7 @@
     "build": "npx turbo run build",
     "lint": "npx turbo run lint",
     "dev:legacy": "vite",
-    "server:legacy": "node --watch-path=api --watch-path=server api/index.js",
+    "server:legacy": "node --watch-path=apps/school-head/api apps/school-head/api/index.js",
     "dev:full:legacy": "concurrently -n \"SERVER,VITE\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run server:legacy\" \"npm run dev:legacy\"",
     "dev:turbo:legacy": "npm run dev:full:legacy",
     "build:legacy": "vite build",

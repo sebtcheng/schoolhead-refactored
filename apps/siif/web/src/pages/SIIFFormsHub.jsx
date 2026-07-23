@@ -457,12 +457,6 @@ const SIIFFormsHub = ({ user, token }) => {
             {/* ── Header ── */}
             <header className="topbar print:hidden">
                 <div className="page-title">
-                    <div className="flex items-center gap-2 mb-3">
-                        <button onClick={() => navigate('/siif')} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-all text-white shadow-sm flex items-center gap-1.5" title="Back to Dashboard">
-                            <TbArrowLeft size={16} /> <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Back</span>
-                        </button>
-                    </div>
-                    
                     <p className="eyebrow">
                         DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
                     </p>

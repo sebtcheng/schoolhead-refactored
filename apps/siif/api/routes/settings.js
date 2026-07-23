@@ -3,7 +3,7 @@
 // PUT  /api/siif/settings/deadline  — Admin only
 
 import { Router } from 'express';
-import { pool } from '../../../utils/db.js';
+import { pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();

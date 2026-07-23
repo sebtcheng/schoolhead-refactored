@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
-import { pool } from '../../../utils/db.js';
+import { pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();

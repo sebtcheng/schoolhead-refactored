@@ -2,7 +2,7 @@
 // Resolves a 6-digit school ID from the request context, falling back to a DB
 // lookup by email when the ID is missing or is a UUID.
 
-import { pool } from '../../../utils/db.js';
+import { pool } from '@shared/db';
 
 export async function resolveSchoolId(schoolId, user) {
     let finalId = schoolId;

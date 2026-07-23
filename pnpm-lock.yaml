@@ -343,6 +343,9 @@ importers:
       '@azure/storage-blob':
         specifier: ^12.31.0
         version: 12.33.0
+      '@shared/db':
+        specifier: workspace:*
+        version: link:../shared-db
       multer:
         specifier: ^2.1.1
         version: 2.2.0

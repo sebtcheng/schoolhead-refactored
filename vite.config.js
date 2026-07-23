@@ -29,7 +29,7 @@ export default defineConfig({
     react(),
     VitePWA({
       strategies: 'injectManifest',
-      srcDir: 'src',
+      srcDir: 'apps/school-head/web/src',
       filename: 'sw.js',
       registerType: 'prompt',
       injectRegister: null,

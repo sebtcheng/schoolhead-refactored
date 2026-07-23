@@ -31,6 +31,7 @@ import dashboardRouter from './units/dashboard/index.js';
 import locationRouter from './units/location/index.js';
 import settingsRouter from './units/settings/index.js';
 import chatRouter from './units/chat/index.js'; // Chat Backend Unit
+import siifRouter from '../../siif/api/index.js'; // SIIF Module Unit
 // Chat cleanup function logic (purges messages older than 90 days with Nuclear-Lock compliance)
 const autoCleanOldChats = async () => {
   const client = await pool.connect();
@@ -222,6 +223,7 @@ app.use(dashboardRouter);
 app.use(locationRouter);
 app.use(settingsRouter);
 app.use(chatRouter);
+app.use('/api/siif', siifRouter);
 
 // --- COMPREHENSIVE SERVER STARTUP ---
 const startServer = async () => {

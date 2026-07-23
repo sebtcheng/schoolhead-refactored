@@ -345,12 +345,6 @@ const SIIFUtilization = ({ user, token }) => {
             {/* ── Header ── */}
             <header className="topbar print:hidden mb-8">
                 <div className="page-title">
-                    <div className="flex items-center gap-2 mb-3">
-                        <button onClick={() => navigate('/siif')} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-all text-white shadow-sm flex items-center gap-1.5" title="Back to Dashboard">
-                            <TbArrowLeft size={16} /> <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Back</span>
-                        </button>
-                    </div>
-                    
                     <p className="eyebrow">
                         DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
                     </p>
@@ -358,7 +352,9 @@ const SIIFUtilization = ({ user, token }) => {
                     
                     <div className="flex flex-wrap items-center gap-2 mt-3 opacity-90">
                         <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200 flex items-center gap-1.5 bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-500/20">
-                            <TbTrendingUp size={12} /> FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Quarterly Tracking
+                            <TbTrendingUp size={12} />
+                            <span className="hidden sm:inline">FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Quarterly Tracking</span>
+                            <span className="sm:hidden">Tracking</span>
                         </p>
                     </div>
                 </div>

@@ -1,164 +1,290 @@
-# School Head (Refactored) — Implementation Prompt
-
 <aside>
-⚙️
+⚡
 
-Execute-verbatim implementation prompt for a coding agent. Repo `clea241/InsightEd-SchoolHead-Official-2.0` · branch `schoolhead-refactored` · commit `e43475931cf3ff16606e09783a721f797a4a6dde` (head reconfirmed, no drift). The code at that commit is the source of truth — not this document's prose.
+Execute-verbatim implementation prompt. Paste the section below into your coding agent as-is. **Source of truth = the `main` branch** of `clea241/InsightEd-SchoolHead-Official-2.0` (pinned commit `16bb5dfc6e8ccdd01644e892ab47dfed21b6c5bc`). Goal: reapply that exact styling layer into the current `schoolhead-refactored` branch (commit `a481ed3`). All design values below are copied verbatim from `main` — there are no unresolved STOP AND ASK items.
 
 </aside>
 
-## 0. OBJECTIVE & NON-NEGOTIABLES
+# 0. OBJECTIVE & NON-NEGOTIABLES
 
-**Scope (one line):** In `apps/school-head` (+ `packages/shared-io`), fix the four defects — **R1** unresolved `utils/`/`middleware/` imports (compounded by a broken `@shared/io`), **R2** Unit 6 generic route + mislabeled payload, **R3** verify Unit 3/4/5/7 endpoints, **R4** dead `autoCleanOldChats()` scheduler — and change nothing else.
+**Scope (one line):** Port and reapply the complete CSS / styling layer that renders correctly on the **`main`** branch into the current **`schoolhead-refactored`** branch, so every view matches the InsightED design system — with **zero** changes to application logic, data, or contracts.
 
-**Preserve-list (do NOT modify):**
+**Critical structural fact (read first):** `main` and `schoolhead-refactored` do NOT share the same file layout. This is a **port-and-remap**, not a raw file copy.
 
-- DB schema in `packages/shared-db/src/db_init.js`: all tables, columns, conflict keys, `update_unit_timestamp()` trigger, RLS / Nuclear-Lock policies.
-- Join convention: Units 1–5 join on `iern`, Units 6–9 on `school_id`, always filtered by `school_yr`.
-- Middleware order in `api/index.js`: `/api/ping` → subpath normalizer → CORS allowlist → `express.json` 500 mb → School-Year Lock → admission control → static `/uploads` → routers.
-- School-Year Lock (`403 LOCKED_SCHOOL_YEAR` for `SY 25-26`; default active year `SY 26-27`).
-- Every endpoint path, response shape, and `ON CONFLICT` key EXCEPT the Unit 6 path/payload changed in R2.
-- Upload / Hydra pipeline, offline/PWA sync (`Outbox`/`SyncCenter`), JWT auth, boot-migration primary-worker guard.
+- `main` is a **flat single-app** Vite project: source lives at `src/…`; build config (`tailwind.config.js`, `postcss.config.js`, `index.html`, `vite.config.js`) sits at the **repo root**.
+- `schoolhead-refactored` is a **pnpm + Turborepo monorepo**: the School Head web app lives at `apps/school-head/web/…` with shared packages under `packages/*`.
 
-**Single allowed exception:** R2 may rename the Unit 6 route path and its request-body keys. This is the ONLY sanctioned contract change; all other routes, tables, columns, and shapes remain byte-identical.
+Copy the *styling values and rules* from `main` verbatim, but place them at the **refactored** branch's equivalent paths (see §1 mapping). Never restructure the monorepo to match `main`.
 
-**Hard rules:**
+**Preserve-list (must NOT change):**
 
-1. Never guess, infer, invent, or substitute. If a required value is missing, insert a bold `STOP AND ASK:` note at that exact spot and continue with everything else.
-2. Ground every instruction in exact files/routes/tables/columns/endpoints from §1–§2.
-3. Quote reference values verbatim.
-4. Preserve business logic, API contracts, data bindings, and offline/state flows unless a revision explicitly requires a change.
-5. Single source of truth — the same identifier/value must reconcile everywhere.
-6. Conflict precedence: (a) preserve logic → (b) base conventions → (c) explicit revision instruction overrides.
-7. Full coverage: each revision maps to exactly one task Rn.
-8. Deterministic, imperative output.
+- All backend code under `apps/school-head/api`, `apps/siif/api`, and `packages/shared-*` (routers, middleware, DB layer). CSS work is frontend-only.
+- All React component logic, hooks, state, effects, and routing (`App.jsx`, `HashRouter`, `ProtectedRoute`, `AnimatedRoutes`).
+- All API calls and the `lib/api.js` `api(path)` base resolution (`/insighted-schoolhead/api` prod, `/api` local, `VITE_API_URL` override). Note: `main` uses a different base (`/insighted-staging`, see its `src/main.jsx` fetch interceptor) — **do NOT port main's base path or fetch interceptor**; keep the refactored branch's resolution untouched.
+- All data bindings, response shapes, and endpoints (`/api/*`, `/siif/*`).
+- The SIIF rule: no `fetch` in components; all calls stay in `services/siifService.js`.
+- Any `className` / `id` / `data-*` attribute that JavaScript reads or that drives conditional behavior — do not rename these unless the corresponding JS/JSX selector is updated in the same edit.
+- PWA / offline behavior (`sw.js`, `db.js`, `Outbox`, `SyncCenter`), `ThemeContext` semantics, `vite.config.js` `base` path (`/insighted-schoolhead/`).
 
-## 1. TARGET CODEBASE MAP
+**Single allowed exception:** Only styling artifacts may change — `.css` files, Tailwind config + utility classes, design-token declarations, and JSX `className`/inline-`style` attributes *strictly for presentation*.
 
-**Stack:** pnpm@9 + Turborepo monorepo · Express 5 (ESM) · React 19 + Vite 7 PWA · PostgreSQL (node-postgres) · Azure Blob + local disk · JWT.
+**Hard rules (obey):**
 
-**Files in scope:**
+1. **Values are provided verbatim in §2 — use them exactly.** Copy hex, spacing, radius, fonts, shadows, and gradients as written from `main`. Do not invent, round, or substitute. If a class exists on `main` but its target JSX on the refactored branch is unclear, insert a bold `NOTE:` and continue.
+2. **Ground everything** in the `main`-branch files cited in §1/§2. No generic "clean up the styles" advice.
+3. **Quote references verbatim** from §2. Paste exact tokens/CSS; never paraphrase.
+4. **Preserve, don't break** — keep all logic, contracts, selectors, and route/tab keys per the preserve-list. Styling is the ONLY allowed change.
+5. **Single source of truth** — one canonical token set in the global stylesheet; every view consumes it. SIIF keeps its own scoped token mirror (`.siif-module-root`) exactly as on `main`.
+6. **Rule precedence for conflicts:** (a) preserve logic/selectors → (b) apply the `main` global token layer → (c) module-scoped rules (SIIF) override global where `main` scopes them under `.siif-module-root`.
+7. **Full coverage** — the one REVISION maps to exactly task R1 below; nothing dropped, nothing invented.
+8. **Deterministic output** — imperative and specific. Exact values in code blocks. Inline code for short snippets; never nest fenced code blocks.
 
-| File | Revision | Action |
+---
+
+# 1. SOURCE ↔ TARGET PATH MAP
+
+*(left = verbatim source on `main` @ `16bb5df`; right = where it belongs on `schoolhead-refactored` @ `a481ed3`)*
+
+| Concern | `main` (source of truth) | `schoolhead-refactored` (target) |
 | --- | --- | --- |
-| `api/units/{unit1..unit9,auth,chat,dashboard,docs,location,push,settings}/index.js` | R1 | Migrate relative imports to `@shared/*` |
-| `packages/shared-io/src/` (+ `helpers.js`) | R1 | Restore missing `binaryPipeline.js` / `upsertBinary` |
-| `api/units/unit6/index.js`  • `web/src/components/modular/Unit6SchoolResources.jsx` | R2 | Rename route + payload keys |
-| `api/units/{unit3,unit4,unit5,unit7}/index.js` | R3 | Verify endpoints (confirmed clean) |
-| `api/index.js` | R4 | Remove or implement `autoCleanOldChats()` |
+| Tailwind config | `/tailwind.config.js` (repo root) | `apps/school-head/web/tailwind.config.js` — confirm exact path; create/repair if missing |
+| PostCSS config | `/postcss.config.js` (repo root) | `apps/school-head/web/postcss.config.js` |
+| Global stylesheet + token layer | `src/index.css` | `apps/school-head/web/src/index.css` (imported once in `main.jsx`) |
+| Stylesheet import site | `src/main.jsx` → `import './index.css'` | `apps/school-head/web/src/main.jsx` — verify the import exists and resolves |
+| Global sidebar / app shell | `src/components/SharedNexusSidebar.jsx` (inline `<style>`) + `src/App.jsx` | `apps/school-head/web/src` shell (`App.jsx` → `AppContent`) + shared-ui |
+| SIIF module stylesheet | `src/modules/siif/styles/siif.css` (single file, scoped `.siif-module-root`) | `apps/school-head/web/src/modules/siif/styles/siif.css` |
 
-**Confirmed endpoints (verbatim):**
+**Styling stack on `main` (replicate this exactly):** Tailwind CSS v3 utility classes + a **CSS-variables token layer** declared in `src/index.css` `:root` and mirrored into `tailwind.config.js` → `theme.extend.colors`. PostCSS runs `tailwindcss` + `autoprefixer`. `darkMode: 'class'`. There are **no** CSS Modules, SCSS, or CSS-in-JS libraries — the only inline `<style>` is inside `SharedNexusSidebar.jsx`, and SIIF ships one plain `.css` file.
 
-| Unit | Method + Path | Table(s) | Conflict key |
-| --- | --- | --- | --- |
-| 1 | `POST /api/ph_schools/unit1` | `unit1_school_identity` (+ `school_ownership_records`) | `(iern, school_yr)` |
-| 2 | `PUT /api/ph_schools/unit2/:id` | `unit2_school_learners` | `(iern, school_yr)` |
-| 3 | `PUT /api/ph_schools/unit3/:id` | `unit3_organized_classes` | `(iern, school_yr)` |
-| 4 | `PUT /api/ph_schools/unit4/:id` | `unit4_learner_profile` | `(iern, school_yr)` |
-| 5 | `PUT /api/ph_schools/unit5/:id` | `unit5_shifting_modality` | `(iern, school_yr)` |
-| 6 | `PUT /api/ph_schools/:id` ⚠️ generic — R2 target | `unit6_school_resources` (+ `unit6_furniture_grades`, `unit6_ecart_batches`) | `(school_id, school_yr)` |
-| 7 | multi-route master (see §2.6) | `unit7_*` tables | `(iern, school_yr)` / `(iern, space_name, school_yr)` |
-| 8 | `GET`/`POST /api/school-location[/:id]` | `unit8_location` | `(school_id, school_yr)` |
-| 9 | `GET`/`PUT /api/ph_schools/unit9/:id` | `unit9_safety` | `(school_id, school_yr)` |
+<aside>
+🧭
 
-**MUST NOT modify:** `db_init.js` schema and locks; the `api/index.js` middleware chain (except removing the R4 timer); all other routers' logic; existing `@shared/*` public exports beyond restoring `upsertBinary`.
+**Root-cause hypothesis (Reference D):** nav labels concatenate with no spacing → the Tailwind pipeline / global `index.css` is not loading on the refactored branch. Most likely: `index.css` is not imported in the app's `main.jsx`, or `tailwind.config.js` `content` globs don't cover `apps/school-head/web` so all utility classes are purged, or PostCSS isn't wired. Verify these three before any per-view work.
 
-## 2. VERBATIM REFERENCE MATERIAL
+</aside>
 
-**2.1 Offending relative imports** (resolving to the absent `apps/school-head/api/utils/` and `apps/school-head/api/middleware/`):
+---
 
+# 2. VERBATIM REFERENCE MATERIAL (copied from `main`)
+
+## 2.1 — InsightED design tokens · `src/index.css` `:root`
+
+```css
+:root {
+  /* InsightED Core Palette */
+  --navy: #08315F;
+  --blue: #075985;
+  --blue-600: #0284C7;
+  --blue-400: #7DD3FC;
+  --blue-100: #E0F2FE;
+  --blue-50: #F0F9FF;
+  --gold: #FBBF24;
+  --amber: #D97706;
+  --red: #B91C1C;
+  --green: #16A34A;
+  --purple: #7C3AED;
+  --card: #FFFFFF;
+  --text: #0F172A;
+  --muted: #64748B;
+  --line: #BAE6FD;
+  --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius: 22px;
+  /* Legacy fallbacks (keep to avoid breaking auth/old modules) */
+  --engineer-navy: #003366;  --engineer-slate: #1e293b;  --engineer-orange: #f97316;
+  --engineer-yellow: #fbbf24; --engineer-dark: #0f172a;  --engineer-zinc: #71717a;
+  --engineer-border: #e2e8f0;
+}
 ```
-../../utils/db.js
-../../utils/helpers.js
-../../utils/binaryPipeline.js
-../../utils/updateSchoolTotalCompletion
-../../middleware/authMiddleware.js
+
+Font imports at the very top of `index.css` (keep verbatim): Google Fonts `DM Sans`, `Plus Jakarta Sans`, and `Poppins`.
+
+## 2.2 — Tailwind theme extension · `tailwind.config.js`
+
+```jsx
+export default {
+  darkMode: 'class',
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"], // RETARGET globs to apps/school-head/web on refactored
+  theme: { extend: {
+    colors: {
+      'deped-blue': '#10346B', 'deped-blue-dk': '#002580', 'deped-red': '#CE1126', 'deped-gold': '#FCD116',
+      'siif-blue': '#0e83bd', 'siif-gray': '#b3b3b3', 'siif-yellow': '#ffd93b', 'surface': '#fafbff',
+      navy: 'var(--navy)', blue: 'var(--blue)', 'blue-600': 'var(--blue-600)', 'blue-400': 'var(--blue-400)',
+      'blue-100': 'var(--blue-100)', 'blue-50': 'var(--blue-50)', gold: 'var(--gold)', amber: 'var(--amber)',
+      red: 'var(--red)', green: 'var(--green)', purple: 'var(--purple)', card: 'var(--card)',
+      text: 'var(--text)', muted: 'var(--muted)', line: 'var(--line)',
+    },
+    fontFamily: { sans: ['Poppins', 'sans-serif'], heading: 'var(--font-heading)', body: 'var(--font-body)' },
+    borderRadius: { 'siif': 'var(--radius)' },
+    animation: { blob:'blob 7s infinite', 'gradient-xy':'gradient-xy 15s ease infinite', 'pop-up':'pop-up 0.5s ease-out forwards', shimmer:'shimmer 2s infinite', 'pulse-subtle':'pulse-subtle 3s ease-in-out infinite' },
+    // keyframes: blob, gradient-xy, pop-up, shimmer, pulse-subtle — copy verbatim from main
+  }},
+  plugins: [],
+}
 ```
 
-**2.2 Confirmed import → `@shared/*` mapping** (verified against each `package.json` `exports` + `src/`):
+**⚠️ On the refactored branch, the `content` globs MUST cover the app source** (e.g. `"./index.html"`, `"./src/**/*.{js,ts,jsx,tsx}"` relative to `apps/school-head/web`, plus any consumed `packages/**`). Wrong globs = Tailwind purges every class = the Reference D symptom.
 
-| Current relative import | Bindings used | Correct specifier |
-| --- | --- | --- |
-| `../../utils/db.js` | `pool`, `safeQuery`, `cachedQuery`, `poolNew` (named) | `@shared/db` (→ `src/db.js`) |
-| `../../utils/updateSchoolTotalCompletion` | `updateSchoolTotalCompletion` (named) | `@shared/db` — same `db.js`, NOT a separate file |
-| `../../utils/helpers.js` | `compressBufferTo90Dpi`, `getUploadPath`, `memoryUpload`, `schoolDocsUpload`, `projectPhotosUpload`, `normalizeRole`, `UPLOAD_BASE_PATH`, `transporter`, `blobServiceClient` (named) | `@shared/io` (→ `src/helpers.js`) |
-| `../../middleware/authMiddleware.js` | `authMiddleware` (**DEFAULT** export) | `@shared/auth` (→ `src/authMiddleware.js`) |
-| `../../utils/binaryPipeline.js` | `upsertBinary` (named) | ⚠️ no valid target yet — see §2.2a |
+## 2.3 — PostCSS · `postcss.config.js`
 
-`@shared/db` also exposes subpath `@shared/db/db_init` (→ `src/db_init.js`). Package exports: db `{'.':'./src/db.js','./db_init':'./src/db_init.js'}`; auth `{'.':'./src/authMiddleware.js'}`; io `{'.':'./src/helpers.js'}`; all `type: module`. `authMiddleware` must stay a DEFAULT import after migration (confirmed in `units/chat/index.js`).
+```jsx
+export default { plugins: { tailwindcss: {}, autoprefixer: {} } }
+```
 
-**2.2a ⚠️ `binaryPipeline.js` / `upsertBinary` is missing everywhere.** `packages/shared-io/src/` holds only `helpers.js` — there is no `binaryPipeline.js`, and `@shared/io` exports only `.` (→ `helpers.js`). Worse, `helpers.js` itself runs `import { upsertBinary } from './binaryPipeline.js'`, so `@shared/io` is itself unresolvable at this commit — independent of the missing app-level `utils/` folder. Restore `upsertBinary` (create `packages/shared-io/src/binaryPipeline.js` and re-export it, e.g. through `helpers.js`) so both `helpers.js` and the `docs` router resolve. **STOP AND ASK:** the canonical `upsertBinary` implementation/source (absent at this commit — cannot be recovered from the repo).
+## 2.4 — Global body + typography · `src/index.css`
 
-**2.3 Missing folders are uncommitted, NOT gitignored:** root `.gitignore` lists only `node_modules`, `dist`, `.env*`, `uploads/`, `scripts`, `*.sql`/`*.txt`/`*.log`, `data/`, etc. — it does NOT list `utils/`, `middleware/`, or `binaryPipeline`. The fix is genuine restoration, not un-ignoring.
+```css
+@tailwind base; @tailwind components; @tailwind utilities;
+body {
+  margin: 0; min-height: 100vh; color: var(--text); font-family: var(--font-body);
+  background-color: var(--blue-50); background-attachment: fixed;
+  background-image:
+    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7,89,133,.30) 0 34%, transparent 78%),
+    radial-gradient(46.5% 54% at 92% 10%, rgba(251,191,36,.42) 0 36%, transparent 80%),
+    radial-gradient(40.5% 48% at 84% 92%, rgba(125,211,252,.30) 0 34%, transparent 78%),
+    radial-gradient(45% 52.5% at 8% 92%, rgba(217,119,6,.26) 0 28%, rgba(251,191,36,.18) 42%, transparent 80%);
+}
+h1,h2,h3,h4,h5,h6 { font-family: var(--font-heading); }
+```
 
-**2.4 Unit 6 mislabeled request-body keys (current):** `unit7_furniture`, `unit7_ict`, `unit7_has_ecart`, `unit7_ecarts`, `unit7_wash`, `unit7_utilities` — written into `unit6_school_resources` on conflict `(school_id, school_yr)`. Frontend also sends dead flat `u7_*` fields (`u7_ict_smart_tv_cond`, `u7_confirm_no_grid`, …) the router never reads.
+`index.css` also carries (port verbatim, do not trim): `.dark` overrides, auth-screen light-mode overrides (`.login-container`/`.register-container`), redesign animations (`blob`, `gradient-xy`, `shimmer`, `pulse-subtle`, `float`, wave `.parallax`), the `.bg-canvas`/`.bg-yellow-glow`/`.bg-contours` blueprint background system, custom scrollbars, and `.auth-register-embedded` form styling.
 
-**2.5 Nuclear-Lock deletion bypass** (only if R4 implements deletion): `SET LOCAL internal.authorized_app_deletion = 'true'` inside the transaction.
+## 2.5 — SIIF scoped tokens + core layout · `src/modules/siif/styles/siif.css`
 
-**2.6 Unit 3/4/5/7 endpoints (R3 reference — verified correctly namespaced):**
+SIIF **redeclares the same tokens** under `.siif-module-root` (plus `--bg:#F0F9FF`) so the module is self-contained. Key layout classes (copy verbatim):
 
-- Unit 3/4/5: `PUT /api/ph_schools/unit{3,4,5}/:id`, each `ON CONFLICT (iern, school_yr)`.
-- Unit 7 multi-route master: `GET /api/ph_schools/unit7/:id/master` · `GET /api/ph_schools/unit7/:id/facilities` · `GET /api/ph_schools/unit7/:id/spaces` · `POST /api/ph_schools/unit7/:id/spaces` (`ON CONFLICT (iern, space_name, school_yr)`) · `DELETE /api/ph_schools/unit7/spaces/:spaceId` · `GET /api/unit8/teachers/:id` (⚠️ mislabeled under `/api/unit8/`) · `POST /api/save-physical-facilities` (⚠️ non-namespaced; main save, writes `unit7_buildings_inventory`/`_repairs`/`_demolition`/`_school_buildable_spaces` + `unit7_facilities`).
-- Dead import: `updateSchoolTotalCompletion` imported but never called in `unit5` and `unit7`.
+```css
+.siif-app-layout { display: grid; grid-template-columns: 72px 1fr; min-height: 100vh; }
+@media (max-width: 1000px) { .siif-app-layout { grid-template-columns: 1fr; } }
+.siif-sidebar { color:#fff; padding:24px; display:flex; flex-direction:column; gap:28px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--blue) 72%, var(--navy) 28%));
+  border-right:1px solid rgba(255,255,255,.24); box-shadow:18px 0 42px rgba(11,31,77,.16); overflow:hidden; }
+@media (min-width:1001px){ .siif-sidebar{ width:72px; transition:width .18s ease; } .siif-sidebar:hover{ width:260px; } }
+.siif-nav a { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px;
+  font-size:14px; font-weight:700; color:rgba(255,255,255,.78); text-decoration:none; border:1px solid transparent; }
+.siif-nav a.active { background:rgba(255,255,255,.16); color:#fff; border-color:rgba(255,255,255,.28);
+  box-shadow: inset 0 -3px 0 var(--gold), 0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent); }
+.siif-card { background:var(--card); border:2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  border-radius:var(--radius); box-shadow:none; font-family:var(--font-body); }
+.siif-topbar { display:flex; justify-content:space-between; align-items:center; gap:25px; min-height:130px;
+  padding:28px 44px; border:2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  background:linear-gradient(135deg, var(--blue-50), white); box-shadow:0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
+  border-radius:0 0 22px 22px; overflow:hidden; }
+.siif-topbar .eyebrow { color:var(--gold); font-size:14px; font-weight:900; letter-spacing:.2em; text-transform:uppercase; }
+.siif-topbar h1 { font-family:var(--font-heading); font-size:40px; font-weight:900; color:var(--blue); }
+```
 
-*No design-system, CSS, token, or layout references apply — this is a backend-centric change set (R2 touches one frontend caller for path/key alignment only).*
+**KPI / allocation value colors (verbatim):** progress fill `linear-gradient(90deg, var(--navy), var(--blue-600))`; legend dots `.siif-dot.sky → var(--blue-600) #0284C7`, `.siif-dot.green → var(--green) #16A34A`, `.siif-dot.gold → var(--gold) #FBBF24`; big number `.siif-big-number` uses `var(--navy)`. Status pills: `ok #DCFCE7/#166534`, `warn #FEF3C7/#92400E`, `risk #FEE2E2/#991B1B`, `info #DBEAFE/#1E40AF`. Port the full `html.dark .siif-*` dark-mode block verbatim too.
 
-## 3. LAYOUT / INTERACTION CONTRACT
+## 2.6 — Global sidebar shell · `SharedNexusSidebar.jsx` inline `<style>`
 
-N/A — no UI template or layout revision is in scope. R2 touches a frontend API caller only to align the fetch path and payload key names, not layout or interaction.
+```css
+.nodes-sidebar { width:80px; position:fixed; inset:0 auto 0 0; color:#fff; padding:24px 8px;
+  display:flex; flex-direction:column; align-items:center; gap:28px;
+  background: linear-gradient(180deg, color-mix(in srgb, #06345F 92%, transparent), color-mix(in srgb, #0A6FA6 72%, #06345F 28%));
+  border-right:1px solid rgba(255,255,255,.24); box-shadow:18px 0 42px rgba(11,31,77,.16); overflow:hidden; z-index:100; }
+@media (max-width:1023px){ .nodes-sidebar{ display:none !important; } } /* mobile → grid-cols-5 bottom nav */
+.nodes-sidebar:hover, .nodes-sidebar.sidebar-expanded { width:260px !important; padding:24px 16px; align-items:flex-start; }
+.nodes-nav button { display:flex; align-items:center; justify-content:center; width:44px; height:44px;
+  border-radius:14px; color:rgba(255,255,255,.78); border:1px solid transparent; gap:12px; background:transparent; }
+.nodes-nav button.active { background:rgba(255,255,255,.16) !important; color:#fff !important;
+  border-color:rgba(255,255,255,.28) !important; box-shadow: inset 0 -3px 0 #FDBA22, 0 0 18px color-mix(in srgb, #0A6FA6 26%, transparent) !important; }
+```
 
-## 4. NUMBERED REVISIONS R1..R4
+Nav items on `main`: `Home` (`/nodes-dashboard`), `CLOUD` (`/my-activity`), `Units` (`/modular-dashboard`), `Guide` (`/guide/school-head`), `Settings` (`/profile`). Active icon tint `#FBBF24`; footer shows `SCHOOL HEAD` / school name / `Secure Sign Out`. Match the refactored branch's own route keys — **do not change routes**, only styling.
 
-### R1 — Resolve missing `utils/`/`middleware/` imports + repair `@shared/io`
+---
 
-- **Where:** every router under `api/units/{unit1..unit9,auth,chat,dashboard,docs,location,push,settings}/index.js`; plus `packages/shared-io/src/`.
-- **Do:** replace each relative import per the §2.2 mapping — `../../utils/db.js` → `@shared/db`; `../../utils/updateSchoolTotalCompletion` → `@shared/db`; `../../utils/helpers.js` → `@shared/io`; `../../middleware/authMiddleware.js` → `@shared/auth` (keep the DEFAULT import form). Then repair `@shared/io` per §2.2a: create `packages/shared-io/src/binaryPipeline.js` exporting `upsertBinary`, ensure `helpers.js`'s `import { upsertBinary } from './binaryPipeline.js'` resolves, and route the `docs` router's `../../utils/binaryPipeline.js` to `@shared/io`. **STOP AND ASK:** the canonical `upsertBinary` source before writing its body — do not fabricate the PDF-sharding logic.
-- **Optional cleanup:** remove the dead `updateSchoolTotalCompletion` import from `unit5` and `unit7` (imported, never called) — only if it does not alter behavior.
-- **Data bindings:** imports only — no query/column changes.
-- **Preserve:** every router's routes, handlers, behavior; all existing `@shared/*` named exports.
+## Broken-state evidence (current `schoolhead-refactored` render)
 
-### R2 — Fix Unit 6 route + payload naming
+Screenshots document the *symptoms to fix*; the exact values to apply come from §2 (`main`).
 
-- **Where:** backend `api/units/unit6/index.js`; frontend `web/src/components/modular/Unit6SchoolResources.jsx` (confirmed — the only caller of this route).
-- **Do (backend):** rename `router.put('/api/ph_schools/:id', …)` → `router.put('/api/ph_schools/unit6/:id', …)`, and rename the destructured body keys `unit7_furniture` / `unit7_ict` / `unit7_has_ecart` / `unit7_ecarts` / `unit7_wash` / `unit7_utilities` → `unit6_*`.
-- **Do (frontend — 3 URL sites + payload):** online submit `fetch(api('/api/ph_schools/<schoolId>'), { method: 'PUT' })` → path `/api/ph_schools/unit6/<schoolId>`; the two offline `addModularToOutbox({ url: api('/ph_schools/<schoolId>'), method: 'PUT' })` sites → `api('/ph_schools/unit6/<schoolId>')`. Rename the same `unit7_*` keys in the `payload`. Here `schoolId = localStorage.getItem('schoolId')`. NOTE: `api()` strips a leading `api/`, so both URL forms resolve to the same path before and after the rename.
-- **Dead keys (optional):** the payload also sends flat `u7_*` fields the router never reads; leave or delete, but do not depend on them.
-- **Data bindings:** keep upserting into `unit6_school_resources` (+ `unit6_furniture_grades`, `unit6_ecart_batches`) on conflict `(school_id, school_yr)`. The post-success secondary sync `POST /api/ph_schools/unit9/<schoolId>/ecarts` is a different route — do not rename it.
-- **Preserve:** table targets, conflict key, upsert logic, offline/outbox flow; do not touch any other `/api/ph_schools/*` route.
+**Reference A — SIIF School Head Dashboard (`/siif` → `SIIFDashboard`)**
 
-### R3 — Verify Unit 3/4/5/7 endpoints
+!Broken SIIF dashboard — KPI cards render as flat unstyled boxes
 
-- **Where:** `api/units/{unit3,unit4,unit5,unit7}/index.js`.
-- **Do:** VERIFICATION — already confirmed (see §2.6): Units 3/4/5 use namespaced `PUT /api/ph_schools/unit{3,4,5}/:id`; Unit 7 uses a namespaced multi-route master. **No route renames required** — Unit 6 (R2) is the only generic-path collision. Do not modify these routers' paths, tables, or conflict keys.
-- **Optional (non-colliding, cosmetic — do only if explicitly approved):** rename Unit 7's `GET /api/unit8/teachers/:id` to a `/api/ph_schools/unit7/...` namespace, and/or namespace `POST /api/save-physical-facilities`. Both currently work; renaming requires matching frontend caller updates. **STOP AND ASK** before touching either, since they are outside the sanctioned R2 exception.
-- **Preserve:** all Unit 3/4/5/7 upsert logic, paths, and `school_yr` default `SY 26-27`.
+Broken SIIF dashboard — KPI cards render as flat unstyled boxes
 
-### R4 — Resolve `autoCleanOldChats()` stub
+- Symptom: KPI cards are full-width flat rows with no grid/spacing/shadow. Fix source: `.siif-card`, `.siif-topbar`, allocation/progress classes in §2.5.
 
-- **Where:** `api/index.js`.
-- **Do:** choose exactly ONE: (a) remove the no-op function together with its 24 h `setInterval` and startup timer; or (b) implement it to delete `chat_messages` older than a retention window. **STOP AND ASK:** the exact retention window before implementing any deletion.
-- **Data bindings:** if implementing deletion, target `chat_messages.created_at`; the `DELETE` MUST run inside a transaction with `SET LOCAL internal.authorized_app_deletion = 'true'` (Nuclear Lock, §2.5).
-- **Preserve:** all other boot logic and the primary-worker-only migration guard.
+**Reference B — InsightED Nexus Gateway (`/nodes-dashboard` → `NexusDashboard`)**
 
-## 5. CONFLICT-PREVENTION CHECKLIST
+!Broken Nexus gateway — portal cards unstyled
 
-- [ ]  R1: import style reconciles across all 16 routers and matches `api/index.js` (`@shared/*`).
-- [ ]  R1: no relative import to `utils/` or `middleware/` remains anywhere.
-- [ ]  R1: `@shared/io` repaired — `packages/shared-io/src/binaryPipeline.js` exists and `upsertBinary` resolves for both `helpers.js` and the `docs` router.
-- [ ]  R2: route path, request-body keys, and table target all use consistent `unit6_*` naming.
-- [ ]  R2: all 3 frontend URL sites (1 online fetch + 2 outbox) and the `unit7_*` payload keys updated in lockstep with the backend route rename.
-- [ ]  R2: no other `/api/ph_schools/*` route is regressed by the rename.
-- [ ]  R3: Unit 3/4/5/7 paths confirmed unchanged; only Unit 6 was renamed.
-- [ ]  R4: a single decision made (remove OR implement) — no partial stub left behind.
-- [ ]  R4: any `chat_messages` deletion uses the authorized-deletion bypass inside a transaction.
-- [ ]  DB schema, conflict keys, and middleware order are unchanged.
-- [ ]  Every `STOP AND ASK` is answered before merge.
+Broken Nexus gateway — portal cards unstyled
 
-## 6. ACCEPTANCE CRITERIA
+- Symptom: portal cards lack elevation/hover + `ACCESS RESTRICTED` disabled treatment. Fix source: token layer + Tailwind utilities restored.
 
-- All 16 routers resolve their imports AND `@shared/io` resolves (`upsertBinary` restored); the app boots with no unresolved-module errors.
-- Unit 6 write flow works end-to-end via `PUT /api/ph_schools/unit6/:id` with `unit6_*` payload → `unit6_school_resources`, with no route collision.
-- Units 3/4/5/7 endpoints confirmed collision-free and unchanged.
-- `autoCleanOldChats()` is either fully removed or a working, Nuclear-Lock-compliant cleanup.
-- No preserved contract, schema, trigger, or middleware behavior changed.
-- **Reconciliation:** the `unit6` identifier is identical across route path, body keys, and table name; the alias set `@shared/db` / `@shared/auth` / `@shared/io` is identical across every router and `index.js`. Every identifier appearing in more than one place matches exactly.
+**Reference C — STRIDE Action Board / Mission Control**
+
+!Broken STRIDE mission control — overflowing, clipped, misaligned layout
+
+Broken STRIDE mission control — overflowing, clipped, misaligned layout
+
+- Symptom: content overflows / clips / misaligns — most severely broken view. Fix source: restore Tailwind layout utilities + container widths (this collapses when Tailwind is purged).
+
+**Reference D — Collapsed / unstyled sidebar shell**
+
+!Broken shell — nav labels concatenated with no spacing
+
+Broken shell — nav labels concatenated with no spacing
+
+- Symptom: `DUnitsGuideSettings` — no spacing/icons → **global stylesheet + Tailwind pipeline not loading**. Fix source: §1 callout (import site + content globs + PostCSS).
+
+---
+
+# 3. LAYOUT / INTERACTION CONTRACT (as rendered on `main`)
+
+- **Global sidebar** (`.nodes-sidebar`): fixed left, **80px collapsed → 260px on hover/`.sidebar-expanded`**, navy gradient, icon+label rows, gold active underline (`inset 0 -3px 0 #FBBF24`), logo swap collapsed/expanded, hidden `< 1024px` (replaced by a 5-column bottom nav).
+- **SIIF layout** (`.siif-app-layout`): CSS grid `72px 1fr` desktop → single column `< 1000px`; SIIF sidebar `72px → 260px` on hover; fixed bottom nav on mobile.
+- **Header band** (`.siif-topbar`): min-height 130px, clip-path navy wedge (`::before`) + gold orb (`::after`), gold uppercase `.eyebrow` → 40px `h1`.
+- **KPI / allocation**: elevated `.siif-card` (2.5px blue↔navy mixed border, radius `var(--radius)` = 22px, no shadow); progress bar `navy→blue-600`; legend dots sky/green/gold as in §2.5.
+- **Cards & tables**: `.siif-card`, `.siif-table` (uppercase muted headers, centered cells, status pills), all consuming the token layer.
+- **Dark mode**: class-based (`darkMode:'class'`); port both the global `.dark` block and the `html.dark .siif-*` block verbatim.
+
+---
+
+# 4. NUMBERED REVISIONS
+
+## R1 — Reapply the `main`-branch CSS into `schoolhead-refactored`
+
+**Where:** the styling stack mapped in §1 (`tailwind.config.js`, `postcss.config.js`, `src/index.css`, `src/main.jsx` import, `SharedNexusSidebar` shell, `modules/siif/styles/siif.css`) at their **refactored-branch** locations.
+
+**Do (ordered):**
+
+1. **Fix the pipeline first (root cause of Reference D).** Confirm on the refactored branch: (a) `index.css` is imported exactly once in the app entry (`main.jsx`); (b) `tailwind.config.js` `content` globs cover `apps/school-head/web` source (and any consumed `packages/**`) so classes aren't purged; (c) `postcss.config.js` runs `tailwindcss` + `autoprefixer`. Do NOT touch the Vite `base` (`/insighted-schoolhead/`).
+2. **Restore the token layer** — paste the §2.1 `:root` variables and font imports into the app's `index.css`, and the §2.2 `theme.extend` (colors/fonts/radius/animations + keyframes) into the app's `tailwind.config.js`. This is the single source of truth.
+3. **Restore global body + shared styles** — §2.4 body background/typography plus the `.dark`, auth-override, animation, `.bg-canvas`, scrollbar, and `.auth-register-embedded` blocks from `main`'s `index.css`, verbatim.
+4. **Restore the app shell / sidebar** — reapply the §2.6 `.nodes-sidebar` styling (and its mobile bottom-nav) onto the refactored shell, keeping the refactored branch's own routes/selectors.
+5. **Restore the SIIF module** (Reference A) — port `modules/siif/styles/siif.css` verbatim (scoped `.siif-module-root` tokens, `.siif-app-layout`, `.siif-sidebar`, `.siif-topbar`, `.siif-card`, allocation/progress, table, and full dark-mode block). Ensure it is imported by the SIIF module entry as on `main`.
+6. **Restore the Nexus gateway** (Reference B) — with the token layer + Tailwind utilities back, verify portal card elevation/hover and `ACCESS RESTRICTED` disabled treatment render.
+7. **Restore the STRIDE mission-control view** (Reference C) — confirm overflow/clipping is gone once Tailwind layout utilities resolve; contain panels at target breakpoints.
+8. **Sweep remaining views** — Units 1–9 wizards, `ModularDashboard`, `MyActivityDashboard`, `AdminDashboard`, `Leaderboard`, `SyncCenter`, SIIF sub-pages — each must consume the single token source (rule 5).
+
+**Data bindings:** none — presentation only. `NOTE:` if any styling fix appears to require touching a JS-consumed selector; surface the selector and its JS reference instead of renaming silently.
+
+**Preserve (here):** every item in the §0 preserve-list. Do not port `main`'s staging `base`/fetch interceptor. Do not alter values shown in the screenshots (they are live data like `₱0.00` / `0%`).
+
+---
+
+# 5. CONFLICT-PREVENTION CHECKLIST
+
+- [ ]  `index.css` imported once in the app entry; Tailwind `content` globs cover `apps/school-head/web`; PostCSS wired (Reference D resolved).
+- [ ]  Vite `base` unchanged (`/insighted-schoolhead/`); CSS assets resolve, no 404s.
+- [ ]  `main`'s staging base path / fetch interceptor NOT ported.
+- [ ]  One canonical `:root` token set; SIIF `.siif-module-root` mirror matches `main`; no stray hardcoded colors.
+- [ ]  Token hex, radius (22px), fonts (Plus Jakarta Sans / DM Sans / Poppins) match §2 verbatim.
+- [ ]  No endpoint, route key, DB, or `lib/api.js` logic changed.
+- [ ]  No JS-consumed `className`/`id`/`data-*` renamed without updating its JS reference in the same edit.
+- [ ]  SIIF `fetch`-in-`siifService.js` rule intact; no fetch added to components.
+- [ ]  PWA/offline (`sw.js`, `Outbox`, `SyncCenter`) untouched.
+- [ ]  Global + SIIF dark-mode blocks ported verbatim.
+- [ ]  STRIDE mission-control view has no overflow/clipping at target breakpoints.
+
+# 6. ACCEPTANCE CRITERIA
+
+- All four reference views (A–D) render matching the **`main`** branch: navy sidebar (80→260px hover) with gold active underline, header bands, elevated KPI/portal cards, no overflow/clipping, no concatenated nav labels.
+- Every color/spacing/typography value derives from the single token source and matches the §2 verbatim values from `main`.
+- Zero changes to logic, routes, endpoints, DB, API resolution, PWA/offline behavior, or JS-consumed selectors — verified by diff review (styling-only).
+- The app builds and runs under `base` `/insighted-schoolhead/` with no CSS asset 404s and no Tailwind purge of used classes.
+- Light and dark modes both render correctly (class-based `darkMode`).
