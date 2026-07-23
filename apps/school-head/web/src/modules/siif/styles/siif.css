@@ -1,0 +1,1490 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+.siif-module-root {
+  --navy: #08315F;
+  --blue: #075985;
+  --blue-600: #0284C7;
+  --blue-400: #7DD3FC;
+  --blue-100: #E0F2FE;
+  --blue-50: #F0F9FF;
+  --gold: #FBBF24;
+  --amber: #D97706;
+  --red: #B91C1C;
+  --bg: #F0F9FF;
+  --card: #FFFFFF;
+  --text: #0F172A;
+  --muted: #64748B;
+  --line: #BAE6FD;
+  --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --radius: 22px;
+
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--font-body);
+  background-color: var(--blue-50);
+  background-attachment: fixed;
+  background-image:
+    radial-gradient(43.5% 49.5% at 10% 12%, rgba(7, 89, 133, 0.30) 0 34%, transparent 78%),
+    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.42) 0 36%, transparent 80%),
+    radial-gradient(40.5% 48% at 84% 92%, rgba(125, 211, 252, 0.30) 0 34%, transparent 78%),
+    radial-gradient(45% 52.5% at 8% 92%, rgba(217, 119, 6, 0.26) 0 28%, rgba(251, 191, 36, 0.18) 42%, transparent 80%);
+}
+
+.siif-app-layout {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  min-height: 100vh;
+}
+
+/* On mobile/tablet: sidebar becomes bottom nav, grid becomes full-width */
+@media (max-width: 1000px) {
+  .siif-app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .siif-main-area {
+    padding: 0 0 100px 0;
+    overflow-x: hidden;
+  }
+}
+
+.siif-sidebar {
+  position: relative;
+  color: white;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--navy) 92%, transparent), color-mix(in srgb, var(--blue) 72%, var(--navy) 28%));
+  border-right: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow: 18px 0 42px rgba(11, 31, 77, 0.16);
+  overflow: hidden;
+}
+
+@media (min-width: 1001px) {
+  .siif-sidebar {
+    width: 72px;
+    transition: width 0.18s ease;
+    z-index: 50;
+  }
+
+  .siif-sidebar:hover {
+    width: 260px;
+  }
+
+  .siif-sidebar:not(:hover) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .siif-sidebar:not(:hover) .siif-brand {
+    width: 54px;
+    height: 54px;
+    overflow: hidden;
+    font-size: 0;
+    padding: 0;
+  }
+
+  .siif-sidebar:not(:hover) .siif-brand-logo {
+    display: none;
+  }
+
+  .siif-sidebar:not(:hover) .siif-brand-logo-collapsed {
+    display: block;
+    max-width: 54px;
+    max-height: 54px;
+  }
+
+  .siif-sidebar:hover .siif-brand-logo-collapsed {
+    display: none;
+  }
+
+  .siif-sidebar:not(:hover) .siif-nav a {
+    font-size: 0;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .siif-sidebar:not(:hover) .siif-nav a span {
+    display: none;
+  }
+
+  .siif-sidebar .siif-nav a:focus {
+    outline: none;
+  }
+
+  .siif-sidebar .siif-nav a:focus-visible {
+    outline: 2px solid rgba(255,255,255,.75);
+    outline-offset: 2px;
+  }
+}
+
+.siif-brand {
+  padding: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.siif-brand-logo,
+.siif-brand-logo-collapsed {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  max-height: 80px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 0 10px rgba(255, 255, 255, 0.9));
+}
+
+.siif-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.siif-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.siif-nav a:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.siif-nav a.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 -3px 0 var(--gold),
+    0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
+}
+
+.siif-topbar {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  min-height: 130px;
+  padding: 28px 44px;
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  background: linear-gradient(135deg, var(--blue-50), white);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
+  overflow: hidden;
+  margin-bottom: 24px;
+  border-radius: 0 0 22px 22px;
+  /* Smooth top corners if inside layout */
+}
+
+/* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
+.siif-main-area {
+  padding: 0 24px 24px 24px;
+  overflow-y: auto;
+}
+
+.siif-topbar-flush {
+  margin: 0 -24px 24px -24px;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.siif-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 76%;
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%),
+    linear-gradient(135deg, var(--navy), var(--blue));
+  clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
+  z-index: 0;
+}
+
+.siif-topbar::after {
+  content: "";
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--gold) 8%, transparent),
+    0 0 28px color-mix(in srgb, var(--gold) 24%, transparent);
+  z-index: 0;
+}
+
+.siif-topbar>* {
+  position: relative;
+  z-index: 1;
+}
+
+.siif-topbar h1 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  line-height: 1.12;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: var(--blue);
+  -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
+  paint-order: stroke fill;
+  text-shadow:
+    -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+    1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+    -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+    1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+    0 4px 10px rgba(11, 31, 77, 0.34),
+    0 12px 28px rgba(15, 23, 42, 0.26);
+}
+
+.siif-topbar .eyebrow {
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.siif-card {
+  background: var(--card);
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  border-radius: var(--radius);
+  box-shadow: none;
+  font-family: var(--font-body);
+}
+
+@media (max-width: 1000px) {
+  .siif-module-root {
+    padding-bottom: 82px;
+    background-attachment: scroll;
+  }
+
+  .siif-app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .siif-main-area {
+    padding: 0 10px 10px;
+  }
+
+  .siif-topbar-flush {
+    margin: 0 -10px 10px -10px;
+  }
+
+  .siif-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 40;
+    display: block;
+    padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.46);
+    background:
+      radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 48%),
+      radial-gradient(ellipse at 84% 0%, color-mix(in srgb, var(--red) 10%, transparent), transparent 46%),
+      linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
+    box-shadow:
+      0 -18px 44px rgba(11, 31, 77, 0.26),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+
+  .siif-brand {
+    display: none;
+  }
+
+  .siif-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    flex-direction: row;
+  }
+
+  .siif-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 48px;
+    padding: 6px 2px;
+    border-radius: 16px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 9px;
+    line-height: 1;
+    text-align: center;
+    border: 1px solid transparent;
+    background: transparent;
+    text-decoration: none;
+  }
+
+  .siif-nav a.active {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
+    color: white;
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow:
+      inset 0 -3px 0 var(--gold),
+      0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
+  }
+
+}
+
+.siif-nav a.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 -3px 0 var(--gold),
+    0 0 18px color-mix(in srgb, var(--blue-400) 26%, transparent);
+}
+
+.siif-topbar {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  min-height: 130px;
+  padding: 28px 44px;
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  background: linear-gradient(135deg, var(--blue-50), white);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
+  overflow: hidden;
+  margin-bottom: 24px;
+  border-radius: 0 0 22px 22px;
+  /* Smooth top corners if inside layout */
+}
+
+/* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
+.siif-main-area {
+  padding: 0 24px 24px 24px;
+  overflow-y: auto;
+}
+
+.siif-topbar-flush {
+  margin: 0 -24px 24px -24px;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.siif-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 76%;
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--blue-400) 24%, transparent), transparent 32%),
+    linear-gradient(135deg, var(--navy), var(--blue));
+  clip-path: polygon(0 0, 92% 0, 100% 100%, 0 100%);
+  z-index: 0;
+}
+
+.siif-topbar::after {
+  content: "";
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--gold) 20%, white 80%) 0 44%, color-mix(in srgb, var(--gold) 10%, transparent) 45% 68%, transparent 74%);
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--gold) 8%, transparent),
+    0 0 28px color-mix(in srgb, var(--gold) 24%, transparent);
+  z-index: 0;
+}
+
+.siif-topbar>* {
+  position: relative;
+  z-index: 1;
+}
+
+.siif-topbar h1 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  line-height: 1.12;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: var(--blue);
+  -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
+  paint-order: stroke fill;
+  text-shadow:
+    -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+    1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
+    -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+    1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
+    0 4px 10px rgba(11, 31, 77, 0.34),
+    0 12px 28px rgba(15, 23, 42, 0.26);
+}
+
+.siif-topbar .eyebrow {
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.siif-card {
+  background: var(--card);
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  border-radius: var(--radius);
+  box-shadow: none;
+  font-family: var(--font-body);
+}
+
+@media (max-width: 1000px) {
+  .siif-module-root {
+    padding-bottom: 82px;
+    background-attachment: scroll;
+  }
+
+  .siif-app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .siif-main-area {
+    padding: 0 10px 10px;
+  }
+
+  .siif-topbar-flush {
+    margin: 0 -10px 10px -10px;
+  }
+
+  .siif-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 40;
+    display: block;
+    padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.46);
+    background:
+      radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 48%),
+      radial-gradient(ellipse at 84% 0%, color-mix(in srgb, var(--red) 10%, transparent), transparent 46%),
+      linear-gradient(90deg, color-mix(in srgb, var(--blue) 80%, var(--navy) 20%), var(--blue-600));
+    box-shadow:
+      0 -18px 44px rgba(11, 31, 77, 0.26),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+
+  .siif-brand {
+    display: none;
+  }
+
+  .siif-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    flex-direction: row;
+  }
+
+  .siif-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 48px;
+    padding: 6px 2px;
+    border-radius: 16px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 9px;
+    line-height: 1;
+    text-align: center;
+    border: 1px solid transparent;
+    background: transparent;
+    text-decoration: none;
+  }
+
+  .siif-nav a.active {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.10));
+    color: white;
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow:
+      inset 0 -3px 0 var(--gold),
+      0 0 16px color-mix(in srgb, var(--blue-400) 24%, transparent);
+  }
+
+  .siif-topbar {
+    min-height: 98px;
+    padding: 15px 23px;
+  }
+
+  .siif-topbar h1 {
+    font-size: clamp(23px, 8.75vw, 29px);
+  }
+
+  .siif-card {
+    border-width: 2px;
+    border-radius: 14px;
+  }
+}
+
+.siif-mobile-fab {
+  display: none !important;
+}
+
+@media (max-width: 1000px) {
+  .siif-mobile-fab {
+    display: flex !important;
+  }
+}
+
+.siif-page-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.siif-select {
+  width: 118px;
+  height: 36px;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: white;
+  color: var(--navy);
+  padding: 0 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.siif-page-btn {
+  border: 1px solid #BFDBFE;
+  background: white;
+  color: var(--navy);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-family: var(--font-heading);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.siif-page-btn.active {
+  background: var(--navy);
+  color: white;
+}
+
+.siif-page-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* = = =   N E W   T E A M   L E A D   H T M L   S T Y L E S   = = =   */
+.siif-new-topbar {
+    position: relative;
+    isolation: isolate;
+    min-height: 118px;
+    margin: 24px 28px 0;
+    padding: 28px 44px;
+    display: flex;
+}
+
+.topbar {
+  position: relative;
+  isolation: isolate;
+  min-height: 118px;
+  margin: 0;
+  padding: 28px 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  overflow: hidden;
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  border-radius: calc(var(--radius) + 6px);
+  background:
+    radial-gradient(circle at 92% 50%, rgba(251, 191, 36, .18) 0 7%, rgba(251, 191, 36, .08) 7.2% 13%, transparent 13.2%),
+    radial-gradient(circle at 98% 46%, rgba(251, 191, 36, .28) 0 10%, transparent 10.5%),
+    linear-gradient(112deg, var(--navy) 0 70%, rgba(255, 255, 255, .96) 70.2% 100%);
+}
+
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 70%;
+  background: linear-gradient(135deg, var(--navy), var(--blue));
+  clip-path: polygon(0 0, 88% 0, 100% 100%, 0 100%);
+  z-index: -2;
+  pointer-events: none;
+}
+
+.topbar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 61%;
+  width: 13%;
+  background: color-mix(in srgb, var(--navy) 88%, #000 12%);
+  clip-path: polygon(0 0, 58% 0, 100% 100%, 42% 100%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+
+@media (min-width: 641px) and (max-width: 1000px) {
+  .topbar {
+    min-height: 104px;
+    margin: 12px 10px 0;
+    padding: 15px 23px;
+  }
+
+  .topbar::before {
+    width: 68%;
+  }
+
+  .topbar::after {
+    left: 59%;
+    width: 14%;
+  }
+}
+
+/* ── Base topbar text rules ─────────────────── */
+.page-title,
+.siif-page-title {
+  max-width: min(70%, 860px);
+  min-width: 0;
+}
+
+.topbar .eyebrow,
+.topbar p.eyebrow {
+  color: var(--gold) !important;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin: 0 0 4px;
+}
+
+.topbar h1,
+.page-title h1,
+.siif-page-title h1 {
+  margin: 0;
+  color: var(--blue-100);
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: clamp(18px, 3.5vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-shadow: 0 2px 0 rgba(15, 23, 42, .28);
+}
+
+.siif-page-title h1 span {
+  color: #F87171;
+}
+
+.siif-page-title p {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: #DFF6FF;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.siif-topbar-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.siif-school-pill {
+  min-width: auto;
+  padding: 10px 14px;
+  border: 2px solid var(--blue-100);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .92);
+  color: var(--navy);
+  text-align: right;
+}
+
+/* ── Mobile overrides (MUST be after base rules) ─ */
+@media (max-width: 640px) {
+  .topbar {
+    margin: 12px 12px 0;
+    padding: 16px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    border-radius: 18px;
+  }
+
+  .topbar::before {
+    width: 100%;
+    clip-path: none;
+    border-radius: 18px;
+  }
+
+  .topbar::after {
+    display: none;
+  }
+
+  .page-title,
+  .siif-page-title {
+    max-width: 100%;
+    flex: none;
+  }
+
+  /* CRITICAL: wrap eyebrow gracefully on phone */
+  .topbar .eyebrow,
+  .topbar p.eyebrow {
+    font-size: 7px !important;
+    letter-spacing: 0.09em;
+    margin: 0 0 4px;
+    white-space: normal !important;
+  }
+
+  .topbar h1,
+  .page-title h1,
+  .siif-page-title h1 {
+    font-size: 16px !important;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  /* Pill becomes compact horizontal strip */
+  .siif-topbar-actions {
+    width: 100% !important;
+    margin-top: 0 !important;
+    justify-content: flex-start;
+  }
+
+  .siif-school-pill {
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 8px 12px !important;
+    gap: 8px !important;
+  }
+
+  .siif-school-pill > div:first-child {
+    align-items: flex-start !important;
+  }
+
+  .siif-school-pill > div.flex-1 {
+    display: block;
+    max-width: 100px;
+  }
+}
+
+.siif-school-pill small {
+    display: block;
+    color: var(--muted);
+    font-family: var(--font-heading);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+.siif-school-pill strong {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.siif-school-pill span {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.siif-new-content {
+  width: min(1500px, calc(100% - 56px));
+  margin: 12px auto 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1000px) {
+  .siif-new-content {
+    width: 100%;
+    margin: 0;
+    padding: 0 10px;
+  }
+}
+
+.siif-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.siif-card-inner {
+    padding: 16px;
+}
+
+.siif-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.siif-card h2 {
+    margin: 0;
+    color: var(--navy);
+    font-family: var(--font-heading);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.siif-card-subtitle {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.siif-progress-highlight {
+    overflow: hidden;
+}
+
+.siif-allocation-summary {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 12px;
+}
+
+.siif-big-number {
+    margin: 0;
+    color: var(--navy);
+    font-family: var(--font-heading);
+    font-size: clamp(32px, 4vw, 46px);
+    font-weight: 800;
+    letter-spacing: -0.06em;
+}
+
+.siif-fy-pill,
+.siif-summary-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    background: var(--blue-100);
+    color: var(--blue);
+    padding: 7px 11px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.siif-progress-track {
+    width: 100%;
+    height: 24px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #E2E8F0;
+    border: 1px solid #DBEAFE;
+}
+
+.siif-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--navy), var(--blue-600));
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 10px;
+    color: white;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 800;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+}
+
+.siif-legend-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.siif-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.siif-dot.sky {
+    background: var(--blue-600);
+}
+
+.siif-dot.green {
+    background: var(--green);
+}
+
+.siif-dot.gold {
+    background: var(--gold);
+}
+
+.siif-action-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3.35fr) minmax(270px, .65fr);
+    gap: 10px;
+    align-items: start;
+}
+
+.siif-queue-summary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.siif-summary-pill {
+    min-height: 32px;
+    background: var(--blue-50);
+    color: var(--muted);
+}
+
+.siif-summary-pill strong {
+    color: var(--navy);
+    margin-right: 2px;
+}
+
+.siif-quick-actions {
+    display: grid;
+    gap: 8px;
+}
+
+.siif-action-btn {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 68px;
+    border: 2px solid var(--line);
+    border-radius: 18px;
+    background: var(--blue-50);
+    padding: 10px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.siif-action-btn:hover {
+    border-color: var(--blue-600);
+    background: var(--blue-100);
+}
+
+.siif-action-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: var(--blue-100);
+    color: var(--blue-600);
+    font-family: var(--font-heading);
+    font-weight: 800;
+}
+
+.siif-action-btn b {
+    display: block;
+    color: var(--navy);
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.siif-action-btn span {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.siif-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #DBEAFE;
+    border-radius: 18px;
+}
+
+.siif-table {
+    width: max(100%, 700px);
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+}
+
+.siif-table th,
+.siif-table td {
+    display: table-cell;
+    padding: 10px 12px;
+    border-bottom: 1px solid #E2E8F0;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.siif-table th {
+    color: var(--muted);
+    background: #F8FAFC;
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .13em;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.siif-table td {
+    color: #1E293B;
+    font-weight: 700;
+    text-align: center;
+}
+
+.siif-status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 6px 9px;
+    font-family: var(--font-heading);
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.siif-status.ok {
+    background: #DCFCE7;
+    color: #166534;
+}
+
+.siif-status.warn {
+    background: #FEF3C7;
+    color: #92400E;
+}
+
+.siif-status.risk {
+    background: #FEE2E2;
+    color: #991B1B;
+}
+
+.siif-status.info {
+    background: #DBEAFE;
+    color: #1E40AF;
+}
+
+.siif-row-action {
+    border: 0;
+    background: var(--navy);
+    color: white;
+    border-radius: 11px;
+    padding: 8px 10px;
+    font-family: var(--font-heading);
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.siif-row-action:hover {
+    background: var(--blue);
+}
+
+.siif-table-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+@media (max-width: 1120px) {
+    .siif-action-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1000px) {
+    .siif-new-topbar {
+        min-height: 104px;
+        margin: 15px 16px 0;
+        padding: 15px 23px;
+    }
+
+    .siif-new-topbar::before {
+        width: 68%;
+    }
+
+    .siif-new-topbar::after {
+        left: 59%;
+        width: 14%;
+    }
+
+    .siif-page-title {
+        max-width: 68%;
+    }
+
+    .siif-new-content {
+        width: calc(100% - 32px);
+    }
+}
+
+@media (max-width: 640px) {
+    .siif-new-topbar {
+        display: grid;
+        gap: 12px;
+    }
+
+    .siif-new-topbar::before {
+        width: 100%;
+        clip-path: none;
+    }
+
+    .siif-new-topbar::after {
+        display: none;
+    }
+
+    .siif-page-title {
+        max-width: 100%;
+    }
+
+    .siif-topbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .siif-school-pill {
+        width: 100%;
+        text-align: left;
+    }
+
+    .siif-card-header,
+    .siif-allocation-summary {
+        display: block;
+    }
+
+    .siif-queue-summary {
+        justify-content: flex-start;
+        margin-top: 10px;
+    }
+
+    .siif-table-footer {
+        align-items: flex-start;
+    }
+}
+
+/* Force hide Bottom Nav during print */
+@media print {
+    .siif-sidebar {
+        display: none !important;
+    }
+}
+
+/* ================================================================
+   🌙  SIIF DARK MODE
+   Triggered when Tailwind adds class="dark" to <html>
+   ================================================================ */
+html.dark .siif-module-root {
+  --bg:   #0F172A;
+  --card: #1E293B;
+  --text: #E2E8F0;
+  --muted: #94A3B8;
+  --line: #334155;
+  --navy: #1E3A5F;
+  --blue-50: #0F172A;
+  --blue-100: #1E293B;
+  --blue-400: #60A5FA;
+  --blue-600: #3B82F6;
+
+  background-color: #0F172A;
+  background-image:
+    radial-gradient(43.5% 49.5% at 10% 12%, rgba(30, 58, 138, 0.35) 0 34%, transparent 78%),
+    radial-gradient(46.5% 54% at 92% 10%, rgba(251, 191, 36, 0.20) 0 36%, transparent 80%),
+    radial-gradient(40.5% 48% at 84% 92%, rgba(56, 189, 248, 0.14) 0 34%, transparent 78%),
+    radial-gradient(45% 52.5% at 8% 92%, rgba(180, 83, 9, 0.18) 0 28%, rgba(251, 191, 36, 0.10) 42%, transparent 80%);
+  color: var(--text);
+}
+
+/* Cards */
+html.dark .siif-card {
+  background: #1E293B;
+  border-color: #334155;
+}
+
+html.dark .siif-card h2 {
+  color: #E2E8F0;
+}
+
+html.dark .siif-card-subtitle {
+  color: #94A3B8;
+}
+
+/* Topbar (new-style) */
+html.dark .siif-new-topbar {
+  border-color: #334155;
+}
+
+/* School pill */
+html.dark .siif-school-pill {
+  background: rgba(30, 41, 59, 0.92);
+  border-color: #334155;
+  color: #E2E8F0;
+}
+html.dark .siif-school-pill small,
+html.dark .siif-school-pill span {
+  color: #94A3B8;
+}
+html.dark .siif-school-pill strong {
+  color: #F1F5F9;
+}
+
+/* Big number / allocation */
+html.dark .siif-big-number {
+  color: #93C5FD;
+}
+
+/* Progress track */
+html.dark .siif-progress-track {
+  background: #334155;
+  border-color: #475569;
+}
+
+/* Legend */
+html.dark .siif-legend-row {
+  color: #94A3B8;
+}
+
+/* FY / Summary pills */
+html.dark .siif-fy-pill,
+html.dark .siif-summary-pill {
+  background: #1E293B;
+  border-color: #334155;
+  color: #93C5FD;
+}
+html.dark .siif-summary-pill strong {
+  color: #E2E8F0;
+}
+
+/* Action buttons */
+html.dark .siif-action-btn {
+  background: #1E293B;
+  border-color: #334155;
+}
+html.dark .siif-action-btn:hover {
+  background: #263548;
+  border-color: #3B82F6;
+}
+html.dark .siif-action-btn b {
+  color: #E2E8F0;
+}
+html.dark .siif-action-btn span {
+  color: #94A3B8;
+}
+html.dark .siif-action-icon {
+  background: #263548;
+  color: #60A5FA;
+}
+
+/* Table */
+html.dark .siif-table-wrap {
+  border-color: #334155;
+}
+html.dark .siif-table th {
+  background: #1A2744;
+  color: #94A3B8;
+}
+html.dark .siif-table th,
+html.dark .siif-table td {
+  border-bottom-color: #334155;
+}
+html.dark .siif-table td {
+  color: #CBD5E1;
+}
+
+/* Status badges */
+html.dark .siif-status.ok   { background: #14532D; color: #86EFAC; }
+html.dark .siif-status.warn { background: #78350F; color: #FDE68A; }
+html.dark .siif-status.risk { background: #7F1D1D; color: #FCA5A5; }
+html.dark .siif-status.info { background: #1E3A8A; color: #93C5FD; }
+
+/* Row action button */
+html.dark .siif-row-action {
+  background: #2563EB;
+}
+html.dark .siif-row-action:hover {
+  background: #1D4ED8;
+}
+
+/* Page controls */
+html.dark .siif-select {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+html.dark .siif-page-btn {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+html.dark .siif-page-btn.active {
+  background: #2563EB;
+  color: white;
+}
+
+/* Table footer */
+html.dark .siif-table-footer {
+  color: #94A3B8;
+}
+
+/* Main area background */
+html.dark .siif-main-area {
+  background: transparent;
+}
+
+/* ================================================================
+   🌙  SIIF DARK MODE — TAILWIND TEXT COLOR OVERRIDES
+   Forces readable light text for all hardcoded Tailwind dark text
+   classes used inside SIIF JSX files.
+   ================================================================ */
+
+/* Dark text → Light text */
+html.dark .siif-module-root .text-slate-900,
+html.dark .siif-module-root .text-slate-800,
+html.dark .siif-module-root .text-slate-700,
+html.dark .siif-module-root .text-gray-900,
+html.dark .siif-module-root .text-gray-800,
+html.dark .siif-module-root .text-gray-700,
+html.dark .siif-module-root .text-zinc-900,
+html.dark .siif-module-root .text-zinc-800,
+html.dark .siif-module-root .text-neutral-900,
+html.dark .siif-module-root .text-neutral-800,
+html.dark .siif-module-root .text-black {
+  color: #E2E8F0 !important;
+}
+
+/* Medium text → Dimmed light */
+html.dark .siif-module-root .text-slate-600,
+html.dark .siif-module-root .text-slate-500,
+html.dark .siif-module-root .text-gray-600,
+html.dark .siif-module-root .text-gray-500,
+html.dark .siif-module-root .text-zinc-600,
+html.dark .siif-module-root .text-zinc-500 {
+  color: #94A3B8 !important;
+}
+
+/* White backgrounds used in inline card panels (cards inside forms) */
+html.dark .siif-module-root .bg-white {
+  background-color: #1E293B !important;
+}
+html.dark .siif-module-root .bg-slate-50,
+html.dark .siif-module-root .bg-gray-50 {
+  background-color: #172032 !important;
+}
+html.dark .siif-module-root .bg-slate-100,
+html.dark .siif-module-root .bg-gray-100 {
+  background-color: #1A2744 !important;
+}
+
+/* Borders */
+html.dark .siif-module-root .border-slate-100,
+html.dark .siif-module-root .border-slate-200,
+html.dark .siif-module-root .border-gray-100,
+html.dark .siif-module-root .border-gray-200 {
+  border-color: #334155 !important;
+}
+
+/* Input / textarea fields */
+html.dark .siif-module-root input:not([type="checkbox"]):not([type="radio"]),
+html.dark .siif-module-root textarea,
+html.dark .siif-module-root select {
+  background-color: #1E293B !important;
+  color: #E2E8F0 !important;
+  border-color: #334155 !important;
+}
+html.dark .siif-module-root input::placeholder,
+html.dark .siif-module-root textarea::placeholder {
+  color: #64748B !important;
+}
+

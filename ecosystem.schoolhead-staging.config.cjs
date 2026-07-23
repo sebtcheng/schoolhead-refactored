@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'insighted-schoolhead-staging-backend',
-      script: 'api/index.js',
+      script: 'apps/school-head/api/index.js',
       env: {
         NODE_ENV: 'production',
         PORT: 5020,

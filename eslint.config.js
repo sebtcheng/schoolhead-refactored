@@ -24,6 +24,17 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/siif/**', '**/apps/school-head/**'],
+              message: 'Cross-app imports are prohibited. Use @shared/* packages instead.'
+            }
+          ]
+        }
+      ]
     },
   },
 ])

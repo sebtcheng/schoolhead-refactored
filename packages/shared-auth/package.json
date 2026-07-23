@@ -1,0 +1,13 @@
+{
+  "name": "@shared/auth",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/authMiddleware.js",
+  "exports": {
+    ".": "./src/authMiddleware.js"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "@shared/db": "workspace:*"
+  }
+}

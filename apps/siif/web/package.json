@@ -1,0 +1,12 @@
+{
+  "name": "@apps/siif-web",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/SIIFModule.jsx",
+  "dependencies": {
+    "@shared/ui": "workspace:*",
+    "@shared/types": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}
