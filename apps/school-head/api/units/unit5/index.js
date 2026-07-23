@@ -1,5 +1,5 @@
 import express from 'express';
-import { safeQuery, updateSchoolTotalCompletion } from '@shared/db';
+import { safeQuery } from '@shared/db';
 
 const router = express.Router();
 
