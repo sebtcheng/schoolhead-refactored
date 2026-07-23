@@ -2,13 +2,13 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { pool, safeQuery } from '../../utils/db.js';
-import { upsertBinary } from '../../utils/binaryPipeline.js';
+import { pool, safeQuery } from '@shared/db';
 import { 
+  upsertBinary,
   compressBufferTo90Dpi, 
   getUploadPath, 
   memoryUpload 
-} from '../../utils/helpers.js';
+} from '@shared/io';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

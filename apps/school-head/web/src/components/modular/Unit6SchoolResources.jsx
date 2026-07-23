@@ -823,12 +823,12 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         try {
             const payload = {
                 school_yr: "SY 26-27",
-                unit7_furniture: JSON.stringify({ grades: gradesData.filter(g => g.isVerified), general: generalRoomsData }),
-                unit7_ict: JSON.stringify(ictData),
-                unit7_has_ecart: hasEcart,
-                unit7_ecarts: JSON.stringify(eCarts),
-                unit7_wash: JSON.stringify(washData),
-                unit7_utilities: JSON.stringify(utilitiesData),
+                unit6_furniture: JSON.stringify({ grades: gradesData.filter(g => g.isVerified), general: generalRoomsData }),
+                unit6_ict: JSON.stringify(ictData),
+                unit6_has_ecart: hasEcart,
+                unit6_ecarts: JSON.stringify(eCarts),
+                unit6_wash: JSON.stringify(washData),
+                unit6_utilities: JSON.stringify(utilitiesData),
                 unit6_completed: true,
                 u7_ict_smart_tv_cond: ictData.smart_tvs_cond,
                 u7_ict_projector_cond: ictData.projectors_cond,
@@ -850,7 +850,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 6,
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
-                    url: api(`/ph_schools/${storedId}`),
+                    url: api(`/ph_schools/unit6/${storedId}`),
                     method: 'PUT',
                     payload: payload,
                     schoolId: storedId
@@ -870,7 +870,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 return;
             }
 
-            const res = await fetch(api(`/api/ph_schools/${storedId}`), {
+            const res = await fetch(api(`/api/ph_schools/unit6/${storedId}`), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -915,7 +915,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 await addModularToOutbox({
                     unitId: 6,
                     label: "Unit 6: School Resources (Furniture, ICT, WASH)",
-                    url: api(`/ph_schools/${storedId}`),
+                    url: api(`/ph_schools/unit6/${storedId}`),
                     method: 'PUT',
                     payload: { school_yr: "SY 26-27", ...payload, unit6_completed: true },
                     schoolId: storedId

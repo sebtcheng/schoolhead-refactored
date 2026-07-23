@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 
-import { pool, safeQuery } from '../../utils/db.js';
+import { pool, safeQuery } from '@shared/db';
 
 const router = express.Router();
 

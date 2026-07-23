@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "main": "src/SIIFModule.jsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
   "dependencies": {
     "@shared/ui": "workspace:*",
     "@shared/types": "workspace:*",

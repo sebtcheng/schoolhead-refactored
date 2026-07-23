@@ -207,6 +207,9 @@ importers:
       tailwindcss:
         specifier: ^3.4.18
         version: 3.4.19(yaml@2.9.0)
+      turbo:
+        specifier: ^2.10.6
+        version: 2.10.6
       vite:
         specifier: ^7.2.7
         version: 7.3.6(@types/node@26.1.1)(jiti@1.21.7)(terser@5.49.0)(yaml@2.9.0)
@@ -222,6 +225,100 @@ importers:
       workbox-routing:
         specifier: ^7.4.0
         version: 7.4.1
+
+  apps/school-head/api:
+    dependencies:
+      '@shared/auth':
+        specifier: workspace:*
+        version: link:../../../packages/shared-auth
+      '@shared/db':
+        specifier: workspace:*
+        version: link:../../../packages/shared-db
+      '@shared/io':
+        specifier: workspace:*
+        version: link:../../../packages/shared-io
+      cors:
+        specifier: ^2.8.5
+        version: 2.8.6
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.4.2
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      node-cron:
+        specifier: ^4.2.1
+        version: 4.6.0
+
+  apps/school-head/web:
+    dependencies:
+      '@shared/types':
+        specifier: workspace:*
+        version: link:../../../packages/shared-types
+      '@shared/ui':
+        specifier: workspace:*
+        version: link:../../../packages/shared-ui
+      framer-motion:
+        specifier: ^12.24.12
+        version: 12.42.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      lucide-react:
+        specifier: ^0.469.0
+        version: 0.469.0(react@19.2.8)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+      react-icons:
+        specifier: ^5.5.0
+        version: 5.7.0(react@19.2.8)
+      react-router-dom:
+        specifier: ^7.10.1
+        version: 7.18.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+    devDependencies:
+      '@vitejs/plugin-react':
+        specifier: ^5.1.2
+        version: 5.2.0(vite@7.3.6(@types/node@26.1.1)(jiti@1.21.7)(terser@5.49.0)(yaml@2.9.0))
+      autoprefixer:
+        specifier: ^10.4.22
+        version: 10.5.4(postcss@8.5.22)
+      postcss:
+        specifier: ^8.5.6
+        version: 8.5.22
+      tailwindcss:
+        specifier: ^3.4.18
+        version: 3.4.19(yaml@2.9.0)
+      vite:
+        specifier: ^7.2.7
+        version: 7.3.6(@types/node@26.1.1)(jiti@1.21.7)(terser@5.49.0)(yaml@2.9.0)
+
+  apps/siif/api:
+    dependencies:
+      '@shared/auth':
+        specifier: workspace:*
+        version: link:../../../packages/shared-auth
+      '@shared/db':
+        specifier: workspace:*
+        version: link:../../../packages/shared-db
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+
+  apps/siif/web:
+    dependencies:
+      '@shared/types':
+        specifier: workspace:*
+        version: link:../../../packages/shared-types
+      '@shared/ui':
+        specifier: workspace:*
+        version: link:../../../packages/shared-ui
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
 
   packages/shared-auth:
     dependencies:
@@ -2216,6 +2313,36 @@ packages:
     resolution: {integrity: sha512-/67zpWDBLV+oYAEL682s1ktXL0HgqX76f6gaVGkGnVZlBbm1zd0v4Bz8MFF2GGhoX9rvfq3KSQHubFHwa6w6/Q==}
     engines: {node: '>=12'}
 
+  '@turbo/darwin-64@2.10.6':
+    resolution: {integrity: sha512-S+yIyZkmjYBQbIM7sTqMAwnLeMjSK60Q9grUDPbTWvkRjbsn5k1Rt5sPvTX80M4PnlYQBwLiYsjlu6tHsuIqQQ==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@turbo/darwin-arm64@2.10.6':
+    resolution: {integrity: sha512-gnS8G78EjvJzDc1+tFES5BYXdlF+292n+h57G9G+5LJYelRh195f4Ed22RCo4EFIbI4Du9S5xfE9YjrqhoZaxQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@turbo/linux-64@2.10.6':
+    resolution: {integrity: sha512-lPv5AVkzvhs4z6Isr2ZE2UYt9Ndym5aWSMEIRh9OROnAdyEG1CFugJwAn/aFuDMmiCoHasyvD5tTDmVVTTrYxw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@turbo/linux-arm64@2.10.6':
+    resolution: {integrity: sha512-yeQ24es8pz+FhZxt25HIXj4ml7HpWMrmOL1BtCP4XUz7mBJZdAfC7z7HGF+wPSUZoKmoSZbL4r4QWbRddhPZIQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@turbo/windows-64@2.10.6':
+    resolution: {integrity: sha512-JiFscBN83F43VG3oM+QU2LvgHcf11tgirLJ3c1QDJBtulTCbDwupzIjqB9yBlfiMWAe6g3ssD6gqLP6a4g7FzA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@turbo/windows-arm64@2.10.6':
+    resolution: {integrity: sha512-emWVdriXsaSVS5VXJxy4DppQ0UnGD+PUKu40DGjC3E5JXeoszL09B/1xU6B+Y8lJQg38cFoaB1NqGC4ayY5SQQ==}
+    cpu: [arm64]
+    os: [win32]
+
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
 
@@ -3925,6 +4052,11 @@ packages:
   lru-memoizer@2.3.0:
     resolution: {integrity: sha512-GXn7gyHAMhO13WSKrIiNfztwxodVsP8IoZ3XfrJV4yH2x0/OeTO/FIaAHTY5YekdGgW94njfuKmyyt1E0mR6Ug==}
 
+  lucide-react@0.469.0:
+    resolution: {integrity: sha512-28vvUnnKQ/dBwiCQtwJw7QauYnE7yd2Cyp4tTTJpvglX4EMpbflcdBgrgToX2j71B3YvugK/NH3BGUk+E/p/Fw==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -5120,6 +5252,10 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
+
+  turbo@2.10.6:
+    resolution: {integrity: sha512-3VfH7fK7WQ/ZHYjvfWyVnPRpcNaX3ZqXfGDMdc82eGdM0ESATyxFK4R4PM3wNsVFsdkUFZ4pZpkNeG37dxOv+g==}
+    hasBin: true
 
   tweetnacl@0.14.5:
     resolution: {integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==}
@@ -7384,6 +7520,24 @@ snapshots:
       magic-string: 0.30.21
       string.prototype.matchall: 4.0.12
 
+  '@turbo/darwin-64@2.10.6':
+    optional: true
+
+  '@turbo/darwin-arm64@2.10.6':
+    optional: true
+
+  '@turbo/linux-64@2.10.6':
+    optional: true
+
+  '@turbo/linux-arm64@2.10.6':
+    optional: true
+
+  '@turbo/windows-64@2.10.6':
+    optional: true
+
+  '@turbo/windows-arm64@2.10.6':
+    optional: true
+
   '@types/babel__core@7.20.5':
     dependencies:
       '@babel/parser': 7.29.7
@@ -9352,6 +9506,10 @@ snapshots:
       lodash.clonedeep: 4.5.0
       lru-cache: 6.0.0
 
+  lucide-react@0.469.0(react@19.2.8):
+    dependencies:
+      react: 19.2.8
+
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -10859,6 +11017,15 @@ snapshots:
   ts-interface-checker@0.1.13: {}
 
   tslib@2.8.1: {}
+
+  turbo@2.10.6:
+    optionalDependencies:
+      '@turbo/darwin-64': 2.10.6
+      '@turbo/darwin-arm64': 2.10.6
+      '@turbo/linux-64': 2.10.6
+      '@turbo/linux-arm64': 2.10.6
+      '@turbo/windows-64': 2.10.6
+      '@turbo/windows-arm64': 2.10.6
 
   tweetnacl@0.14.5: {}
 

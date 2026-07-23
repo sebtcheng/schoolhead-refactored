@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { FirebaseScrypt } from 'firebase-scrypt';
 
-import authMiddleware from '../../middleware/authMiddleware.js';
-import { pool } from '../../utils/db.js';
+import authMiddleware from '@shared/auth';
+import { pool } from '@shared/db';
 
 const router = express.Router();
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { safeQuery } from '../../utils/db.js';
+import { safeQuery } from '@shared/db';
 
 const router = express.Router();
 

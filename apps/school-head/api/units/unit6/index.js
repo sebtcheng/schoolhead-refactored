@@ -1,35 +1,36 @@
 import express from 'express';
-import { pool } from '../../utils/db.js';
+import { pool } from '@shared/db';
 
 const router = express.Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [QUEST] UNIT 6: SCHOOL RESOURCES (Wash/ICT) - Decoupled Flat Tables
 // ─────────────────────────────────────────────────────────────────────────────
-router.put('/api/ph_schools/:id', async (req, res) => {
+router.put('/api/ph_schools/unit6/:id', async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     const {
       iern,
-      unit7_furniture,
-      unit7_ict,
-      unit7_has_ecart,
-      unit7_ecarts,
-      unit7_wash,
-      unit7_utilities,
+      unit6_furniture,
+      unit6_ict,
+      unit6_has_ecart,
+      unit6_ecarts,
+      unit6_wash,
+      unit6_utilities,
       unit6_completed
     } = req.body;
 
     // Parse structures
-    const furnitureData = typeof unit7_furniture === 'string' ? JSON.parse(unit7_furniture) : (unit7_furniture || {});
+    const furnitureData = typeof unit6_furniture === 'string' ? JSON.parse(unit6_furniture) : (unit6_furniture || req.body.unit7_furniture || {});
     const general = furnitureData.general || {};
     const gradesList = furnitureData.grades || [];
 
-    const ict = typeof unit7_ict === 'string' ? JSON.parse(unit7_ict) : (unit7_ict || {});
-    const ecartsList = typeof unit7_ecarts === 'string' ? JSON.parse(unit7_ecarts) : (unit7_ecarts || []);
-    const wash = typeof unit7_wash === 'string' ? JSON.parse(unit7_wash) : (unit7_wash || {});
-    const utilities = typeof unit7_utilities === 'string' ? JSON.parse(unit7_utilities) : (unit7_utilities || {});
+    const ict = typeof unit6_ict === 'string' ? JSON.parse(unit6_ict) : (unit6_ict || req.body.unit7_ict || {});
+    const ecartsList = typeof unit6_ecarts === 'string' ? JSON.parse(unit6_ecarts) : (unit6_ecarts || req.body.unit7_ecarts || []);
+    const wash = typeof unit6_wash === 'string' ? JSON.parse(unit6_wash) : (unit6_wash || req.body.unit7_wash || {});
+    const utilities = typeof unit6_utilities === 'string' ? JSON.parse(unit6_utilities) : (unit6_utilities || req.body.unit7_utilities || {});
+    const hasEcart = unit6_has_ecart !== undefined ? unit6_has_ecart : req.body.unit7_has_ecart;
 
     const school_yr = req.body.school_yr || 'SY 26-27';
 
@@ -155,7 +156,7 @@ router.put('/api/ph_schools/:id', async (req, res) => {
         parseInt(ict.printers_total) || 0, // $43
         parseInt(ict.printers_func) || 0, // $44
         ict.printers_cond, // $45
-        unit7_has_ecart, // $46
+        hasEcart, // $46
         parseInt(wash.male_seats_total) || 0, // $47
         parseInt(wash.male_seats_func) || 0, // $48
         wash.male_seats_cond, // $49
@@ -233,7 +234,7 @@ router.put('/api/ph_schools/:id', async (req, res) => {
 
     // 3. Refresh eCarts table
     await client.query('DELETE FROM unit6_ecart_batches WHERE iern = $1 AND school_yr = $2', [iern, school_yr]);
-    if (unit7_has_ecart && ecartsList && ecartsList.length > 0) {
+    if (hasEcart && ecartsList && ecartsList.length > 0) {
       for (const cart of ecartsList) {
         await client.query(
           `INSERT INTO unit6_ecart_batches (

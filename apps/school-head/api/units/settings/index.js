@@ -1,6 +1,6 @@
 import express from 'express';
 import csv from 'csv-parser';
-import { pool } from '../../utils/db.js';
+import { pool } from '@shared/db';
 
 const router = reportError => express.Router(); // wait, let's keep it simple: express.Router()
 const customRouter = express.Router();

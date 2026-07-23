@@ -1,6 +1,6 @@
 import express from 'express';
-import authMiddleware from '../../middleware/authMiddleware.js';
-import { pool } from '../../utils/db.js';
+import authMiddleware from '@shared/auth';
+import { pool } from '@shared/db';
 import multer from 'multer';
 import { BlobServiceClient, BlobSASPermissions } from '@azure/storage-blob';
 import fs from 'fs';

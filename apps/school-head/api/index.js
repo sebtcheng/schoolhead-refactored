@@ -31,8 +31,24 @@ import dashboardRouter from './units/dashboard/index.js';
 import locationRouter from './units/location/index.js';
 import settingsRouter from './units/settings/index.js';
 import chatRouter from './units/chat/index.js'; // Chat Backend Unit
-// Chat cleanup function logic (fallback or inline)
-const autoCleanOldChats = async () => {};
+// Chat cleanup function logic (purges messages older than 90 days with Nuclear-Lock compliance)
+const autoCleanOldChats = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
+    const res = await client.query("DELETE FROM chat_messages WHERE created_at < NOW() - INTERVAL '90 days'");
+    await client.query('COMMIT');
+    if (res.rowCount > 0) {
+      console.log(`🧹 [CLEANUP SERVICE] Purged ${res.rowCount} chat messages older than 90 days.`);
+    }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('❌ [CLEANUP SERVICE] autoCleanOldChats error:', err.message);
+  } finally {
+    client.release();
+  }
+};
 
 console.log("📌 >>> RUNNING: [apps/school-head/api/index.js] <<< 📌");
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { pool, safeQuery, updateSchoolTotalCompletion } from '../../utils/db.js';
+import { pool, safeQuery, updateSchoolTotalCompletion } from '@shared/db';
 
 const router = express.Router();
 

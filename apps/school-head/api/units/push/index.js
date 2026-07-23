@@ -1,7 +1,7 @@
 import express from 'express';
 import webpush from 'web-push';
-import authMiddleware from '../../middleware/authMiddleware.js';
-import { safeQuery } from '../../utils/db.js';
+import authMiddleware from '@shared/auth';
+import { safeQuery } from '@shared/db';
 
 const router = express.Router();
 

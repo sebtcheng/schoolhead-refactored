@@ -7,8 +7,9 @@ import multer from 'multer';
 import { exec } from 'child_process';
 import util from 'util';
 import { fileURLToPath } from 'url';
-import { pool } from './db.js';
+import { pool } from '@shared/db';
 import { upsertBinary } from './binaryPipeline.js';
+export { upsertBinary };
 
 const execAsync = util.promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
