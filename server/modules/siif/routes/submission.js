@@ -90,14 +90,15 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
 
             // Fetch utilization
             const utilResult = await pool.query(
-                `SELECT quarter, utilized_amount, implementation_status FROM siif_utilization WHERE siif_int_id = $1`,
+                `SELECT quarter, utilized_amount, implementation_status, justification FROM siif_utilization WHERE siif_int_id = $1`,
                 [dbIntId]
             );
             utilization[intId] = {};
             for (const util of utilResult.rows) {
                 utilization[intId][util.quarter] = {
                     amount: util.utilized_amount,
-                    status: util.implementation_status || 'Not Yet Started'
+                    status: util.implementation_status || 'Not Yet Started',
+                    justification: util.justification || ''
                 };
             }
         }
@@ -252,55 +253,78 @@ router.post('/submit', async (req, res) => {
         let existingSubmissionStatus = null;
         let existingRemarks = null;
 
-        // Clear previous submission for this school/year
+        // Clear previous children for this school/year (interventions, beneficiaries, activities)
         const oldSubRes = await client.query('SELECT siif_sub_id, submission_status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+        
+        let submissionId;
+
         if (oldSubRes.rows.length > 0) {
             const oldSub = oldSubRes.rows[0];
-            const oldSubId = oldSub.siif_sub_id;
+            submissionId = oldSub.siif_sub_id;
             existingSubmissionStatus = oldSub.submission_status;
             existingRemarks = oldSub.remarks;
 
-            const oldIntRes = await client.query('SELECT siif_int_id FROM siif_interventions WHERE siif_sub_id = $1', [oldSubId]);
+            const oldIntRes = await client.query('SELECT siif_int_id FROM siif_interventions WHERE siif_sub_id = $1', [submissionId]);
             const oldIntIds = oldIntRes.rows.map(r => r.siif_int_id);
             
             if (oldIntIds.length > 0) {
                 await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = ANY($1::int[])', [oldIntIds]);
                 await client.query('DELETE FROM siif_activities WHERE siif_int_id = ANY($1::int[])', [oldIntIds]);
-                await client.query('DELETE FROM siif_interventions WHERE siif_sub_id = $1', [oldSubId]);
+                await client.query('DELETE FROM siif_interventions WHERE siif_sub_id = $1', [submissionId]);
             }
-            await client.query('DELETE FROM siif_submissions WHERE siif_sub_id = $1', [oldSubId]);
-        }
-        console.log('✅ [SIIF-API] Old records cleared');
 
-        // If explicit submit, update submission_status to submitted
-        let finalSubmissionStatus = existingSubmissionStatus;
-        if (status === 'submitted') {
-            finalSubmissionStatus = 'submitted';
-        }
+            // If explicit submit, update submission_status to submitted
+            let finalSubmissionStatus = existingSubmissionStatus;
+            if (status === 'submitted') {
+                finalSubmissionStatus = 'submitted';
+            }
 
-        // Insert submission header
-        const submissionResult = await client.query(
-            `INSERT INTO siif_submissions
-             (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks, priority_improvement_area)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-             RETURNING siif_sub_id`,
-            [
-                finalSchoolId,
-                req.body.schoolName || 'Unknown School',
-                req.body.region || 'Unknown Region',
-                req.body.division || 'Unknown Division',
-                req.body.district || '',
-                currentFiscalYear,
-                isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
-                submittedAt,
-                status || 'draft',
-                finalSubmissionStatus,
-                existingRemarks,
-                JSON.stringify(priorityAreas)
-            ]
-        );
-        const submissionId = submissionResult.rows[0].siif_sub_id;
-        console.log(`🆔 [SIIF-API] Submission header created. ID: ${submissionId}`);
+            // Update existing submission header
+            await client.query(
+                `UPDATE siif_submissions 
+                 SET school_name = $1, region = $2, division = $3, district = $4, total_budget_estimate = $5, 
+                     submitted_at = $6, status = $7, submission_status = $8, priority_improvement_area = $9
+                 WHERE siif_sub_id = $10`,
+                [
+                    req.body.schoolName || 'Unknown School',
+                    req.body.region || 'Unknown Region',
+                    req.body.division || 'Unknown Division',
+                    req.body.district || '',
+                    isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
+                    submittedAt,
+                    status || 'draft',
+                    finalSubmissionStatus,
+                    JSON.stringify(priorityAreas),
+                    submissionId
+                ]
+            );
+            console.log(`✅ [SIIF-API] Old children cleared and header updated. ID: ${submissionId}`);
+
+        } else {
+            // Insert new submission header
+            const submissionResult = await client.query(
+                `INSERT INTO siif_submissions
+                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks, priority_improvement_area)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                 RETURNING siif_sub_id`,
+                [
+                    finalSchoolId,
+                    req.body.schoolName || 'Unknown School',
+                    req.body.region || 'Unknown Region',
+                    req.body.division || 'Unknown Division',
+                    req.body.district || '',
+                    currentFiscalYear,
+                    isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
+                    submittedAt,
+                    status || 'draft',
+                    null,
+                    null,
+                    JSON.stringify(priorityAreas)
+                ]
+            );
+            submissionId = submissionResult.rows[0].siif_sub_id;
+            console.log(`🆔 [SIIF-API] Submission header created. ID: ${submissionId}`);
+        }
 
         // Insert interventions, beneficiaries, and activities
         for (const intType of interventions) {

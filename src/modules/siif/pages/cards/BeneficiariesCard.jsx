@@ -144,71 +144,75 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                 </p>
             </div>
 
-            {selectedInterventions.map(intId => {
-                const info = INTERVENTIONS.find(i => i.id === intId);
-                const data = value[intId] || {};
-                const selectedGrades = Array.isArray(data.selectedGrades) ? data.selectedGrades : [];
-                const beneficiaryCounts = data.beneficiaryCounts || {};
-                const gradeCount = selectedGrades.length;
+            <div className="flex flex-row overflow-x-auto gap-4 pb-4">
+                {selectedInterventions.map(intId => {
+                    const info = INTERVENTIONS.find(i => i.id === intId);
+                    const data = value[intId] || {};
+                    const selectedGrades = Array.isArray(data.selectedGrades) ? data.selectedGrades : [];
+                    const beneficiaryCounts = data.beneficiaryCounts || {};
+                    const gradeCount = selectedGrades.length;
 
-                return (
-                    <div
-                        key={intId}
-                        onClick={() => !readOnly && setActiveModalInt(intId)}
-                        className={`siif-card p-4 sm:p-5 flex flex-col gap-3 transition-all duration-300 ${!readOnly ? 'cursor-pointer hover:border-siif-blue hover:shadow-lg' : ''
-                            }`}
-                    >
-                        <div className="flex items-center gap-3 sm:gap-4 w-full">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
-                                {INTERVENTION_ICONS[intId]}
+                    return (
+                        <div
+                            key={intId}
+                            onClick={() => !readOnly && setActiveModalInt(intId)}
+                            className={`siif-card shrink-0 w-[280px] p-4 sm:p-5 flex flex-col gap-3 transition-all duration-300 ${!readOnly ? 'cursor-pointer hover:border-siif-blue hover:shadow-lg' : ''
+                                }`}
+                        >
+                            <div className="flex flex-col gap-3 w-full">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-14 h-14 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
+                                        {INTERVENTION_ICONS[intId]}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-black text-xs sm:text-sm text-slate-800 uppercase tracking-tight break-words whitespace-normal leading-snug">{info?.label}</p>
+                                    </div>
+                                </div>
+                                {!readOnly && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveModalInt(intId);
+                                        }}
+                                        className="w-full h-[40px] bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-md flex items-center justify-center"
+                                    >
+                                        Configure
+                                    </button>
+                                )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-black text-xs sm:text-sm text-slate-800 uppercase tracking-tight truncate">{info?.label}</p>
-                            </div>
-                            {!readOnly && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setActiveModalInt(intId);
-                                    }}
-                                    className="px-3 py-2 sm:px-4 sm:py-2.5 bg-siif-blue/10 hover:bg-siif-blue text-siif-blue hover:text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm"
-                                >
-                                    Configure
-                                </button>
-                            )}
-                        </div>
 
-                        <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50">
-                            {gradeCount > 0 ? (
-                                KEY_STAGES.map(ks => {
-                                    const activeGradesInKs = ks.grades.filter(g => selectedGrades.includes(g));
-                                    if (activeGradesInKs.length === 0) return null;
-                                    const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts[g]) || 0), 0);
-                                    return (
-                                        <div key={ks.id} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
-                                            <div className="flex justify-between items-center mb-1.5">
-                                                <span className="text-[15px] font-black text-slate-500 uppercase tracking-wider">{ks.label}</span>
-                                                <span className="text-[15px] font-black text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md border border-siif-blue/10">Total: {ksTotal.toLocaleString()}</span>
+                            <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50 flex-1 overflow-y-auto max-h-[200px]">
+                                {gradeCount > 0 ? (
+                                    KEY_STAGES.map(ks => {
+                                        const activeGradesInKs = ks.grades.filter(g => selectedGrades.includes(g));
+                                        if (activeGradesInKs.length === 0) return null;
+                                        const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts[g]) || 0), 0);
+                                        return (
+                                            <div key={ks.id} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="text-[13px] font-black text-slate-500 uppercase tracking-wider">{ks.label}</span>
+                                                    <span className="text-[11px] font-black text-siif-blue bg-siif-blue/5 px-2 py-1 rounded-md border border-siif-blue/10">Total: {ksTotal.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                                    {activeGradesInKs.map(g => (
+                                                        <span key={g} className="text-[11px] font-black bg-slate-50 text-slate-600 px-3 py-1 rounded-lg border border-slate-100 whitespace-nowrap inline-flex items-center gap-1">
+                                                            {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts[g] || 0}</span>
+                                                        </span>
+                                                    ))}
+                                                </div>
                                             </div>
-                                            <div className="flex flex-wrap gap-1.5 mt-1">
-                                                {activeGradesInKs.map(g => (
-                                                    <span key={g} className="text-[11px] font-black bg-slate-50 text-slate-600 px-3 py-1 rounded-lg border border-slate-100">
-                                                        {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts[g] || 0}</span>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
-                                    ⚠️ Click Configure to add learners
-                                </span>
-                            )}
+                                        );
+                                    })
+                                ) : (
+                                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
+                                        ⚠️ Click Configure to add learners
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
 
             <div className="mt-4">
                 <motion.button
@@ -472,10 +476,11 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                 initial={{ scale: 0.95, y: 20 }}
                                 animate={{ scale: 1, y: 0 }}
                                 exit={{ scale: 0.95, y: 20 }}
-                                className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[80vh] border border-slate-100"
+                                className="siif-card w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh] border-[2.5px] border-slate-300"
+                                style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
                             >
                                 {/* Modal Header */}
-                                <div className="bg-siif-blue text-white px-6 py-5 flex items-center justify-between shrink-0">
+                                <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 flex items-center justify-between shrink-0">
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
                                         <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
                                             {INTERVENTION_ICONS[intId] || <TbUsers size={20} />}

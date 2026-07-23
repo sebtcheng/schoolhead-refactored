@@ -7,7 +7,7 @@ import {
     TbChevronLeft, TbCircleCheck, TbLock,
     TbTarget, TbUsers, TbBulb, TbCurrencyPeso,
     TbChevronRight, TbClock, TbTrendingUp,
-    TbArrowLeft, TbX, TbCheck, TbArrowRight
+    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../../../utils/logger';
@@ -19,6 +19,7 @@ import BudgetCard from './cards/BudgetCard';
 import { INTERVENTIONS, INTERVENTION_ICONS, KEY_STAGES, GRADE_LABELS, emptyIntData } from '../constants/siifConstants';
 import { submitPlan } from '../services/siifService';
 import { useSIIFSubmission } from '../hooks/useSIIFSubmission';
+import SiifLoader from '../components/SiifLoader';
 
 // Custom Flaticon Icons
 import interventionIcon from '../assets/icons/intervention.png';
@@ -31,7 +32,7 @@ const CARDS = [
     {
         id: 'pia',
         step: 1,
-        label: 'Priority Areas',
+        label: 'Priority Improvement Areas',
         sublabel: 'Identify priority improvement areas',
         icon: TbTarget,
         color: 'bg-siif-blue',
@@ -104,7 +105,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
-        if (isExpired || isNotYetOpen || isLocked || selectedInterventions.length === 0) return;
+        if (loading || isExpired || isNotYetOpen || isLocked) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
@@ -117,7 +118,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
+    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
@@ -126,7 +127,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }
 
         if (selectedInterventions.length === 0) return false;
-        
+
         if (cardId === 'beneficiaries') {
             return selectedInterventions.some(intId => {
                 const counts = beneficiaries?.[intId]?.beneficiaryCounts || {};
@@ -188,12 +189,7 @@ const SIIFFormsHub = ({ user, token }) => {
         // 1. [TEMPORAL LOCK] If deadline expired or not yet open, unlock for READ-ONLY viewing
         if (isExpired || isNotYetOpen || isLocked) return false;
 
-        // 2. [ARCHITECTURAL BYPASS] If submission exists in DB, unlock ALL cards
-        // This allows users to jump directly to any section when re-editing.
-        if (submissionId) {
-            console.log(`🔓 [SIIF_BYPASS] Submission ID ${submissionId} exists. Unlocking ${cardId} for direct access.`);
-            return false;
-        }
+        // (Architectural Bypass removed to enforce strict sequential locking during drafting)
 
         // 3. [SEQUENTIAL LOCK] Fresh submission hierarchy
         if (cardId === 'pia') return false;
@@ -239,14 +235,34 @@ const SIIFFormsHub = ({ user, token }) => {
         setActiveCard(null);
     };
 
-    // ─── Confirm handlers ─────────────────────────────────────────────────────
     const confirm = (cardId) => {
         if (isExpired || isNotYetOpen || isLocked) {
             setActiveCard(null);
             return;
         }
         console.log(`✅ [SIIFFormsHub] ${cardId} confirmed. State updated.`);
-        setConfirmed(p => ({ ...p, [cardId]: true }));
+
+        setConfirmed(p => {
+            const next = { ...p, [cardId]: true };
+            // Enforce sequential confirmation: modifying an upstream card resets downstream cards
+            if (cardId === 'pia') {
+                next.interventions = false;
+                next.beneficiaries = false;
+                next.activities = false;
+                next.budget = false;
+            } else if (cardId === 'interventions') {
+                next.beneficiaries = false;
+                next.activities = false;
+                next.budget = false;
+            } else if (cardId === 'beneficiaries') {
+                next.activities = false;
+                next.budget = false;
+            } else if (cardId === 'activities') {
+                next.budget = false;
+            }
+            return next;
+        });
+
         setActiveCard(null);
         handleSaveDraft(true);
     };
@@ -298,8 +314,8 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Save Draft ───────────────────────────────────────────────────────────
     const handleSaveDraft = async (silent = false) => {
-        if (selectedInterventions.length === 0 || isLocked) {
-            console.warn('⚠️ [SIIFFormsHub] No interventions to draft or plan is locked.');
+        if (isLocked) {
+            console.warn('⚠️ [SIIFFormsHub] Plan is locked, cannot save draft.');
             return;
         }
         if (!silent) setSaving(true);
@@ -374,7 +390,7 @@ const SIIFFormsHub = ({ user, token }) => {
             const data = await submitPlan(payload, token);
             console.log('📬 [SIIFFormsHub] Submit response:', data);
             console.log('✅ [SIIFFormsHub] Submitted. ID:', data.submissionId);
-            alert(`✅ Plan Submitted Successfully!\n\nIMPORTANT: Your plan has been submitted and is now For Review of Division. Please wait for the SDO to approve your plan.`);
+            alert(`✅ Plan Submitted Successfully!\n\nIMPORTANT: Please wait for the SDO to review your submitted plan.`);
             window.location.reload();
         } catch (err) {
             console.error('🔥 [SIIFFormsHub] Submit failed:', err);
@@ -395,24 +411,10 @@ const SIIFFormsHub = ({ user, token }) => {
             return `${selectedInterventions.length} intervention${selectedInterventions.length !== 1 ? 's' : ''} selected`;
         }
         if (cardId === 'beneficiaries') {
-            const summary = Object.entries(beneficiaries || {}).map(([id, d]) => {
-                if (!d) return null;
-                const count = Object.values(d.beneficiaryCounts || {}).reduce((a, v) => a + (parseInt(v) || 0), 0);
-                if (count === 0) return null;
-                const label = INTERVENTIONS.find(i => i.id === id)?.label || id;
-                return `${label}: ${count.toLocaleString()}`;
-            }).filter(Boolean).join(' • ');
-            return summary || 'No learners selected';
+            return `${totalLearners.toLocaleString()} learner${totalLearners !== 1 ? 's' : ''} targeted`;
         }
         if (cardId === 'activities') {
-            const summary = Object.entries(activities || {}).map(([id, d]) => {
-                if (!d) return null;
-                const count = Object.values(d.selectedActivities || {}).flat().length;
-                if (count === 0) return null;
-                const label = INTERVENTIONS.find(i => i.id === id)?.label || id;
-                return `${label}: ${count} activities`;
-            }).filter(Boolean).join(' • ');
-            return summary || 'No activities planned';
+            return `${totalActivities.toLocaleString()} activit${totalActivities !== 1 ? 'ies' : 'y'} planned`;
         }
         if (cardId === 'budget') {
             return `₱${totalBudget.toLocaleString('en-PH', { minimumFractionDigits: 2 })} total`;
@@ -424,14 +426,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Render ───────────────────────────────────────────────────────────────
     if (loading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-                <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-deped-blue border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-sm font-black text-slate-800 uppercase tracking-widest italic animate-pulse">Initializing Planner...</p>
-                </div>
-            </div>
-        );
+        return <SiifLoader text="Initializing Planner..." />;
     }
 
     if (error) {
@@ -457,72 +452,68 @@ const SIIFFormsHub = ({ user, token }) => {
     }
 
     return (
-        <div className="pb-32 text-lg">
+        <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
 
             {/* ── Header ── */}
-            <div className="siif-topbar siif-topbar-flush flex-col items-stretch !items-start !justify-start gap-4 sm:gap-6 pb-6 sm:pb-8 print:hidden">
-                <div className="flex items-center justify-between w-full relative z-10 mb-2">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => navigate('/siif')} className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600">
-                            <TbChevronLeft size={20} />
+            <header className="topbar print:hidden">
+                <div className="page-title">
+                    <div className="flex items-center gap-2 mb-3">
+                        <button onClick={() => navigate('/siif')} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-all text-white shadow-sm flex items-center gap-1.5" title="Back to Dashboard">
+                            <TbArrowLeft size={16} /> <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Back</span>
                         </button>
-                        <div>
-                            <h1 className="text-xl font-black italic tracking-tight uppercase leading-none text-slate-800">Planning Hub</h1>
-                            <p className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-1">
-                                {deadline ? `Deadline: ${new Date(deadline).toLocaleDateString()} @ ${new Date(deadline).toLocaleTimeString()}` : 'No Deadline Set'}
-                            </p>
-                        </div>
                     </div>
-                    <button
-                        onClick={handleSaveDraft}
-                        disabled={saving || selectedInterventions.length === 0 || isExpired || isNotYetOpen || isLocked}
-                        className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl disabled:opacity-40 relative text-slate-600"
-                        title="Save Draft"
-                    >
-                        <FiSave size={20} />
-                        {syncStatus === 'saving' && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-siif-yellow rounded-full border-2 border-white animate-pulse" />
+                    
+                    <p className="eyebrow">
+                        DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
+                    </p>
+                    <h1>School Innovation and Improvement Fund</h1>
+                    
+                    <div className="flex flex-row items-center gap-1.5 mt-3 opacity-90 w-full overflow-hidden">
+                        {deadline && (
+                            <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200 flex items-center gap-1 bg-blue-900/30 px-1.5 sm:px-2 py-1 rounded-md border border-blue-500/20 whitespace-nowrap shrink">
+                                <TbClock size={12} className="shrink-0" />
+                                <span className="hidden sm:inline">Deadline: {new Date(deadline).toLocaleString()}</span>
+                                <span className="sm:hidden truncate">Due: {new Date(deadline).toLocaleDateString()}</span>
+                            </p>
                         )}
-                        {syncStatus === 'saved' && selectedInterventions.length > 0 && !isLocked && (
-                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white" />
+                        {isLocked && (
+                            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest bg-red-500/20 text-red-200 px-1.5 sm:px-2 py-1 rounded-md border border-red-500/30 flex items-center gap-1 whitespace-nowrap shrink-0">
+                                <TbLock size={12} className="shrink-0" /> 
+                                <span className="hidden sm:inline">Read-Only Mode</span>
+                                <span className="sm:hidden">Read-Only</span>
+                            </span>
                         )}
-                    </button>
+                    </div>
                 </div>
 
-                {/* Progress donut */}
-                <div className="relative z-10 flex items-center gap-6 w-full">
-                    <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="4" />
-                            <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none" stroke={progressPct === 100 ? '#10b981' : progressPct > 0 ? '#f59e0b' : 'var(--blue)'} strokeWidth="4"
-                                strokeDasharray={`${progressPct}, 100`}
-                                style={{ transition: 'stroke-dasharray 0.6s ease' }}
-                            />
-                        </svg>
-                        <span className="absolute text-sm font-black text-slate-800">{progressPct}%</span>
+                <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    
+                    {/* Submission Status Pill */}
+                    <div className={`
+                        flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-[14px] font-black text-[10px] sm:text-[11px] uppercase tracking-wider text-white shadow-sm border border-white/10 self-start sm:self-auto
+                        ${isReviewed ? 'bg-emerald-500' : isDisapproved ? 'bg-red-500' : isSubmitted ? 'bg-blue-600' : 'bg-slate-500/80'}
+                    `}>
+                        {isReviewed ? <TbCheck size={16} /> :
+                         isDisapproved ? <TbX size={16} /> :
+                         isSubmitted ? <TbArrowRight size={16} /> :
+                         <TbEdit size={16} />}
+                        <span>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
                     </div>
-                    <div>
-                        <p className="text-xl font-black italic leading-tight text-slate-800">
-                            {isExpired ? 'Deadline Passed' : isNotYetOpen ? 'Waiting to Open' : isReviewed ? 'Reviewed by SDO' : isSubmitted ? 'Pending Review' : allConfirmed ? 'Ready to Submit!' : confirmedCount === 0 ? "Let's Get Started" : `${confirmedCount}/${TOTAL_STEPS} Complete`}
-                        </p>
-                        <p className="text-[11px] font-bold mt-1">
-                            {isExpired
-                                ? <span className="text-red-500">{deadline ? `Window closed on ${new Date(deadline).toLocaleString()}.` : 'Submission window is closed.'}</span>
-                                : isNotYetOpen
-                                    ? <span className="text-slate-500">{`Opening on ${new Date(openDate).toLocaleString()}.`}</span>
-                                    : syncStatus === 'saving'
-                                        ? <span className="text-amber-500">🔄 Syncing changes...</span>
-                                        : isReviewed
-                                            ? <span className="text-emerald-500">{`✅ Reviewed (Read-only)`}</span>
-                                            : isSubmitted
-                                                ? <span className="text-amber-500">{`⏳ Pending Review (Editable)`}</span>
-                                                : <span className="text-slate-500">{`${TOTAL_STEPS - confirmedCount} section${TOTAL_STEPS - confirmedCount !== 1 ? 's' : ''} remaining`}</span>}
-                        </p>
-                    </div>
+
+                    {/* Overall Progress */}
+                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                        <div className="flex flex-col items-start sm:items-end">
+                            <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Forms Completion</small>
+                            <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
+                                {progressPct}%
+                            </strong>
+                        </div>
+                        <div className="flex-1 sm:w-full" style={{ maxWidth: '120px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
+                        </div>
+                    </section>
                 </div>
-            </div>
+            </header>
 
             {/* ── Warning Banner Area (Repositioned to Top) ── */}
             <div className="px-5 relative z-20 mt-4 space-y-3">
@@ -584,7 +575,7 @@ const SIIFFormsHub = ({ user, token }) => {
             </div>
 
             {/* ── Cards ── */}
-            <div className={`px-5 relative z-20 space-y-4 mt-4`}>
+            <div className="px-5 relative z-20 flex flex-row overflow-x-auto flex-nowrap scrollbar-hide gap-4 mt-4 pb-4">
                 {CARDS.map((card, idx) => {
                     const status = getCardStatus(card.id);
                     const locked = status === 'locked';
@@ -600,40 +591,40 @@ const SIIFFormsHub = ({ user, token }) => {
                             initial={{ opacity: 0, y: 24 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.07, duration: 0.3 }}
+                            style={{ flex: done ? '1.5' : '1', minWidth: done ? '340px' : '240px', transition: 'all 0.4s ease' }}
                         >
                             <button
                                 onClick={() => handleCardClick(card.id)}
                                 disabled={locked}
-                                className={`w-full p-6 rounded-[2.5rem] border border-slate-100 border-b-8 flex items-center gap-5 text-left relative transition-all duration-300 active:scale-[0.98] ${locked
+                                className={`w-full h-full p-6 rounded-[2.5rem] border border-b-8 flex flex-col items-start gap-4 text-left relative transition-all duration-300 group active:scale-[0.98] ${locked
                                     ? 'bg-slate-100 border-slate-100 opacity-60 cursor-not-allowed'
                                     : done
-                                        ? 'bg-white border-slate-100 shadow-md border-b-slate-200'
+                                        ? 'bg-[#f0fdf4] border-[#bbf7d0] shadow-md border-b-[#16A34A]'
                                         : missing
                                             ? 'bg-red-50/50 border-red-100 shadow-lg shadow-red-500/10 hover:border-red-200 border-b-red-400'
-                                            : 'bg-white border-blue-50 border-b-blue-500 shadow-lg shadow-blue-500/10 hover:border-blue-100'
+                                            : 'bg-white border-blue-50 border-b-[#0284C7] shadow-lg shadow-blue-500/10 hover:border-blue-100'
                                     }`}
                             >
                                 {/* Status strip */}
                                 {!locked && (
-                                    <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${done ? 'bg-emerald-400' : missing ? 'bg-red-500 animate-pulse' : 'bg-orange-400 animate-pulse'}`} />
+                                    <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${done ? 'bg-[#16A34A]' : missing ? 'bg-red-500 animate-pulse' : 'bg-orange-400 animate-pulse'}`} />
                                 )}
 
                                 {/* Icon */}
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0 ${locked ? 'bg-slate-300' : done ? 'bg-emerald-500' : card.color
-                                    } shadow-md`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0 transition-transform duration-150 ease-in-out group-hover:scale-[1.08] group-hover:-translate-y-1 shadow-md ${locked ? 'bg-slate-300' : done ? 'bg-[#16A34A]' : card.color}`}>
                                     {locked
                                         ? <TbLock size={24} />
                                         : done
                                             ? <TbCircleCheck size={26} />
-                                            : (typeof Icon === 'string' 
+                                            : (typeof Icon === 'string'
                                                 ? <img src={Icon} alt={card.label} className="w-8 h-8 object-contain" />
                                                 : <Icon size={26} />
-                                              )}
+                                            )}
                                 </div>
 
                                 {/* Text */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-0.5">
+                                <div className="flex-1 min-w-0 w-full">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <p className={`font-black text-sm uppercase tracking-tight ${locked ? 'text-slate-400' : 'text-slate-800'}`}>
                                             {card.label}
                                         </p>
@@ -653,36 +644,34 @@ const SIIFFormsHub = ({ user, token }) => {
                                             <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase tracking-widest">Locked</span>
                                         )}
                                     </div>
-                                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                                    <p className="text-[10px] text-slate-500 leading-relaxed mt-2" style={{ minHeight: done && summary ? 'auto' : '30px' }}>
                                         {done && summary ? summary : locked ? (isNotYetOpen ? 'Scheduled to open soon' : `Complete step ${card.step - 1} first`) : card.sublabel}
                                     </p>
                                 </div>
-
-                                {!locked && <TbChevronRight className="text-slate-300 shrink-0" size={20} />}
                             </button>
                         </motion.div>
                     );
                 })}
-
-                {/* ── Submit / View Summary CTA ── */}
-                <AnimatePresence>
-                    {(selectedInterventions.length > 0 || isLocked || isExpired) && (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="mt-6 space-y-4 px-5"
-                        >
-                            <button
-                                onClick={() => setShowSummaryModal(true)}
-                                className="w-full py-6 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
-                            >
-                                {isLocked || isExpired ? 'View Submitted Plan Summary' : 'View Summary'}
-                            </button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
             </div>
+
+            {/* ── Submit / View Summary CTA ── */}
+            <AnimatePresence>
+                {(priorityAreas.length > 0 || selectedInterventions.length > 0 || isLocked || isExpired) && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="mt-6 space-y-4 px-5"
+                    >
+                        <button
+                            onClick={() => setShowSummaryModal(true)}
+                            className="w-full py-6 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+                        >
+                            {isLocked || isExpired ? 'View Submitted Plan Summary' : 'View Summary'}
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* ── Full-screen card panels ── */}
             <AnimatePresence>
@@ -767,10 +756,11 @@ const SIIFFormsHub = ({ user, token }) => {
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="bg-slate-50 w-full sm:max-w-2xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-slate-200"
+                            className="siif-card w-full sm:max-w-2xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden border-[2.5px] border-slate-300"
+                            style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
                         >
                             {/* Modal Header */}
-                            <div className="bg-siif-blue text-white px-6 py-5 rounded-b-[2rem] shadow-lg relative overflow-hidden shrink-0">
+                            <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 rounded-b-[2rem] shadow-lg relative overflow-hidden shrink-0">
                                 <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
                                 <div className="relative z-10 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -798,7 +788,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
                             {/* Modal Body */}
                             <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800">
-                                
+
                                 {/* Metrics Cards Grid */}
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="bg-white p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center shadow-sm">
@@ -826,11 +816,10 @@ const SIIFFormsHub = ({ user, token }) => {
                                         </div>
                                         <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-[2px]">
                                             <div
-                                                className={`h-full rounded-full transition-all duration-500 ${
-                                                    totalBudget > (parseFloat(allocation.allocation_amount) || 0)
-                                                        ? 'bg-red-500 shadow-[0_0_10px_#ef4444]'
-                                                        : 'bg-siif-blue'
-                                                }`}
+                                                className={`h-full rounded-full transition-all duration-500 ${totalBudget > (parseFloat(allocation.allocation_amount) || 0)
+                                                    ? 'bg-red-500 shadow-[0_0_10px_#ef4444]'
+                                                    : 'bg-siif-blue'
+                                                    }`}
                                                 style={{ width: `${Math.min(100, (totalBudget / (parseFloat(allocation.allocation_amount) || 1)) * 100)}%` }}
                                             />
                                         </div>
@@ -851,11 +840,10 @@ const SIIFFormsHub = ({ user, token }) => {
                                             <button
                                                 key={cat}
                                                 onClick={() => setActivePiaCategory(cat)}
-                                                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${
-                                                    activePiaCategory === cat 
-                                                        ? 'bg-white text-siif-blue shadow-sm border border-slate-200' 
-                                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                                                }`}
+                                                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${activePiaCategory === cat
+                                                    ? 'bg-white text-siif-blue shadow-sm border border-slate-200'
+                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                                                    }`}
                                             >
                                                 {cat}
                                             </button>
@@ -866,7 +854,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                         {(() => {
                                             const activePias = (priorityAreas || [])
                                                 .filter(a => a && a.trim().length > 0 && a.startsWith(`[${activePiaCategory}]`));
-                                            
+
                                             if (activePias.length === 0) {
                                                 return <p className="text-[12px] text-slate-500 italic px-2 py-4 text-center">No priority areas identified for {activePiaCategory}.</p>;
                                             }
@@ -884,108 +872,108 @@ const SIIFFormsHub = ({ user, token }) => {
                                 </div>
 
                                 {selectedInterventions.map((intId, idx) => {
-                                        const info = INTERVENTIONS.find(i => i.id === intId);
-                                        const budget = budgets?.[intId] || 0;
-                                        
-                                        // Beneficiary Info
-                                        const benData = beneficiaries?.[intId] || {};
-                                        const selectedGrades = Array.isArray(benData.selectedGrades) ? benData.selectedGrades : [];
-                                        const beneficiaryCounts = benData.beneficiaryCounts || {};
-                                        const grades = selectedGrades.filter(g => (parseInt(beneficiaryCounts?.[g]) || 0) > 0);
-                                        
-                                        // Activities Info
-                                        const actData = activities?.[intId] || {};
-                                        const selectedActivities = actData.selectedActivities || {};
-                                        const otherActivity = actData.otherActivity || '';
-                                        const categories = [
-                                            { key: 'sip_aip', label: 'SIP–AIP Aligned' },
-                                            { key: 'action_research', label: 'Action Research' },
-                                            { key: 'remaining', label: 'Remaining Balance' }
-                                        ];
+                                    const info = INTERVENTIONS.find(i => i.id === intId);
+                                    const budget = budgets?.[intId] || 0;
 
-                                        return (
-                                            <div key={intId} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
-                                                <div className="flex justify-between items-start border-b border-slate-50 pb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0">
-                                                            {INTERVENTION_ICONS[intId] || <TbTarget size={20} />}
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{info?.label || intId}</h4>
-                                                            <span className="text-[11px] font-black bg-blue-50 text-siif-blue px-2 py-0.5 rounded-md uppercase tracking-wider">Intervention #{idx + 1}</span>
-                                                        </div>
+                                    // Beneficiary Info
+                                    const benData = beneficiaries?.[intId] || {};
+                                    const selectedGrades = Array.isArray(benData.selectedGrades) ? benData.selectedGrades : [];
+                                    const beneficiaryCounts = benData.beneficiaryCounts || {};
+                                    const grades = selectedGrades.filter(g => (parseInt(beneficiaryCounts?.[g]) || 0) > 0);
+
+                                    // Activities Info
+                                    const actData = activities?.[intId] || {};
+                                    const selectedActivities = actData.selectedActivities || {};
+                                    const otherActivity = actData.otherActivity || '';
+                                    const categories = [
+                                        { key: 'sip_aip', label: 'SIP–AIP Aligned' },
+                                        { key: 'action_research', label: 'Action Research' },
+                                        { key: 'remaining', label: 'Remaining Balance' }
+                                    ];
+
+                                    return (
+                                        <div key={intId} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+                                            <div className="flex justify-between items-start border-b border-slate-50 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0">
+                                                        {INTERVENTION_ICONS[intId] || <TbTarget size={20} />}
                                                     </div>
-                                                    <p className="text-[15px] font-black text-emerald-600 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
-                                                        ₱{(parseFloat(budget) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                                    </p>
+                                                    <div>
+                                                        <h4 className="text-[15px] font-black text-slate-800 uppercase tracking-tight">{info?.label || intId}</h4>
+                                                        <span className="text-[11px] font-black bg-blue-50 text-siif-blue px-2 py-0.5 rounded-md uppercase tracking-wider">Intervention #{idx + 1}</span>
+                                                    </div>
                                                 </div>
+                                                <p className="text-[15px] font-black text-emerald-600 bg-emerald-50/50 px-3 py-1 rounded-full border border-emerald-100">
+                                                    ₱{(parseFloat(budget) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                                </p>
+                                            </div>
 
-                                                {/* Beneficiaries Section - Grouped by Key Stage */}
-                                                <div className="space-y-1.5">
-                                                    <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Target Beneficiaries (Key Stages)</p>
-                                                    {grades.length > 0 ? (
-                                                        <div className="grid grid-cols-1 gap-2 pl-1">
-                                                            {KEY_STAGES.map(ks => {
-                                                                const activeGradesInKs = ks.grades.filter(g => grades.includes(g));
-                                                                if (activeGradesInKs.length === 0) return null;
-                                                                const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts?.[g]) || 0), 0);
-                                                                return (
-                                                                    <div key={ks.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-2">
-                                                                        <div className="flex justify-between items-center text-[15px] font-black text-slate-500 uppercase">
-                                                                            <span>{ks.label}</span>
-                                                                            <span className="text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md">Total: {ksTotal.toLocaleString()}</span>
-                                                                        </div>
-                                                                        <div className="flex flex-wrap gap-2 mt-0.5">
-                                                                            {activeGradesInKs.map(g => (
-                                                                                <span key={g} className="text-[15px] font-black bg-white text-slate-600 px-3 py-1.5 rounded-lg border border-slate-100">
-                                                                                    {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts?.[g] || 0}</span>
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-[15px] text-slate-400 italic pl-1">No beneficiaries configured.</p>
-                                                    )}
-                                                </div>
-
-                                                {/* Activities Section - Grouped by Category */}
-                                                <div className="space-y-1.5">
-                                                    <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Planned Activities</p>
-                                                    <div className="pl-1 space-y-2">
-                                                        {categories.map(cat => {
-                                                            const items = Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : [];
-                                                            if (items.length === 0) return null;
+                                            {/* Beneficiaries Section - Grouped by Key Stage */}
+                                            <div className="space-y-1.5">
+                                                <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Target Beneficiaries (Key Stages)</p>
+                                                {grades.length > 0 ? (
+                                                    <div className="grid grid-cols-1 gap-2 pl-1">
+                                                        {KEY_STAGES.map(ks => {
+                                                            const activeGradesInKs = ks.grades.filter(g => grades.includes(g));
+                                                            if (activeGradesInKs.length === 0) return null;
+                                                            const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts?.[g]) || 0), 0);
                                                             return (
-                                                                <div key={cat.key} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                                    <p className="text-[15px] font-black text-slate-500 uppercase tracking-wider mb-2">{cat.label}</p>
-                                                                    <div className="space-y-2">
-                                                                        {items.map((act, i) => {
-                                                                            const display = act === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : act;
-                                                                            return (
-                                                                                <div key={i} className="flex items-start gap-3 bg-white px-3 py-2 rounded-lg border border-slate-100">
-                                                                                    <div className="w-5 h-5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                                                        <TbCheck size={12} />
-                                                                                    </div>
-                                                                                    <p className="text-[15px] text-slate-600 font-bold leading-snug">{display}</p>
-                                                                                </div>
-                                                                            );
-                                                                        })}
+                                                                <div key={ks.id} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-2">
+                                                                    <div className="flex justify-between items-center text-[15px] font-black text-slate-500 uppercase">
+                                                                        <span>{ks.label}</span>
+                                                                        <span className="text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md">Total: {ksTotal.toLocaleString()}</span>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-2 mt-0.5">
+                                                                        {activeGradesInKs.map(g => (
+                                                                            <span key={g} className="text-[15px] font-black bg-white text-slate-600 px-3 py-1.5 rounded-lg border border-slate-100">
+                                                                                {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts?.[g] || 0}</span>
+                                                                            </span>
+                                                                        ))}
                                                                     </div>
                                                                 </div>
                                                             );
                                                         })}
-                                                        {!categories.some(cat => (Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : []).length > 0) && (
-                                                            <p className="text-[10px] text-slate-400 italic">No activities planned.</p>
-                                                        )}
                                                     </div>
+                                                ) : (
+                                                    <p className="text-[15px] text-slate-400 italic pl-1">No beneficiaries configured.</p>
+                                                )}
+                                            </div>
+
+                                            {/* Activities Section - Grouped by Category */}
+                                            <div className="space-y-1.5">
+                                                <p className="text-[15px] font-black text-slate-400 uppercase tracking-widest">Planned Activities</p>
+                                                <div className="pl-1 space-y-2">
+                                                    {categories.map(cat => {
+                                                        const items = Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : [];
+                                                        if (items.length === 0) return null;
+                                                        return (
+                                                            <div key={cat.key} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                                <p className="text-[15px] font-black text-slate-500 uppercase tracking-wider mb-2">{cat.label}</p>
+                                                                <div className="space-y-2">
+                                                                    {items.map((act, i) => {
+                                                                        const display = act === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : act;
+                                                                        return (
+                                                                            <div key={i} className="flex items-start gap-3 bg-white px-3 py-2 rounded-lg border border-slate-100">
+                                                                                <div className="w-5 h-5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                                                    <TbCheck size={12} />
+                                                                                </div>
+                                                                                <p className="text-[15px] text-slate-600 font-bold leading-snug">{display}</p>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {!categories.some(cat => (Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : []).length > 0) && (
+                                                        <p className="text-[10px] text-slate-400 italic">No activities planned.</p>
+                                                    )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
 
                             {/* Modal Footer / Submit Attestation */}
                             <div className="p-6 bg-white border-t border-slate-200 shrink-0">
@@ -1046,13 +1034,12 @@ const SIIFFormsHub = ({ user, token }) => {
                                                 disabled={!allConfirmed}
                                                 value={confirmText}
                                                 onChange={e => setConfirmText(e.target.value)}
-                                                className={`w-full px-5 py-3 rounded-xl border-2 font-black text-xs tracking-widest text-center transition-all focus:outline-none ${
-                                                    !allConfirmed
-                                                        ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                        : confirmError
-                                                            ? 'border-red-400 bg-red-50 text-red-600 animate-shake'
-                                                            : 'border-slate-200 bg-white text-slate-800 focus:border-siif-blue'
-                                                }`}
+                                                className={`w-full px-5 py-3 rounded-xl border-2 font-black text-xs tracking-widest text-center transition-all focus:outline-none ${!allConfirmed
+                                                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                    : confirmError
+                                                        ? 'border-red-400 bg-red-50 text-red-600 animate-shake'
+                                                        : 'border-slate-200 bg-white text-slate-800 focus:border-siif-blue'
+                                                    }`}
                                             />
                                         </div>
 
@@ -1091,7 +1078,7 @@ const SIIFFormsHub = ({ user, token }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </main>
     );
 };
 

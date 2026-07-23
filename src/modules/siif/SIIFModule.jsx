@@ -26,9 +26,13 @@ const SIIFModuleContent = () => {
 
     return (
         <div className="siif-module-root">
-            <div className="siif-app-layout">
+            {/* 
+              On desktop (lg+): 2-column grid → [72px sidebar] [1fr content]
+              On mobile (<lg):  1-column grid → sidebar becomes fixed bottom nav
+            */}
+            <div className="grid grid-cols-1 lg:grid-cols-[72px_1fr] min-h-screen">
                 <BottomNav />
-                <div className="siif-main-area">
+                <div className="w-full min-w-0 pb-24 lg:pb-6 overflow-x-hidden">
                     <Routes>
                         <Route path="/" element={<SIIFDashboard user={user} token={token} />} />
                         <Route path="/forms"       element={<SIIFFormsHub user={user} token={token} />} />

@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    TbTrendingUp, 
-    TbTarget, 
-    TbCurrencyPeso, 
-    TbChevronRight, 
-    TbAlertCircle, 
-    TbLock, 
+import {
+    TbTrendingUp,
+    TbTarget,
+    TbCurrencyPeso,
+    TbChevronRight,
+    TbAlertCircle,
+    TbLock,
     TbCheck,
     TbLayoutDashboard,
     TbClock,
     TbTool,
-    TbChevronLeft
+    TbChevronLeft,
+    TbArrowLeft
 } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { useSIIFUtilization } from '../hooks/useSIIFUtilization';
 import { updateUtilization } from '../services/siifService';
+import SiifLoader from '../components/SiifLoader';
 
 const SIIFUtilization = ({ user, token }) => {
     const navigate = useNavigate();
@@ -34,93 +36,102 @@ const SIIFUtilization = ({ user, token }) => {
     const isSubmitted = submission && submission.status && submission.status.toLowerCase() !== 'draft';
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <div className="w-10 h-10 border-4 border-deped-blue/20 border-t-deped-blue rounded-full animate-spin"></div>
-            </div>
-        );
+        return <SiifLoader text="Loading Utilization..." />;
     }
 
     // PHASE 2 PILOT TEST LOCK
     const IS_UNDER_DEVELOPMENT = false;
     if (IS_UNDER_DEVELOPMENT) {
         return (
-            <div className="min-h-screen bg-slate-50 p-6 pb-24">
-                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
-                    <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <TbTool size={40} className="text-indigo-600" />
-                    </div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Under Development</h1>
-                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-                        This feature is currently under development and will be released during <span className="font-bold text-indigo-600">Phase 2</span> of the pilot test.
-                        <br/><br/>
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                            Stay Tuned
-                        </span>
-                    </p>
-                    <button
-                        onClick={() => navigate('/siif')}
-                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20"
-                    >
-                        Return to Dashboard
-                        <TbChevronRight size={18} />
-                    </button>
+            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-10">
+                            <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                                <TbTool size={40} className="text-indigo-600" />
+                            </div>
+                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Under Development</h1>
+                            <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+                                This feature is currently under development and will be released during <span className="font-bold text-indigo-600">Phase 2</span> of the pilot test.
+                                <br /><br />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Stay Tuned
+                                </span>
+                            </p>
+                            <button
+                                onClick={() => navigate('/siif')}
+                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20"
+                            >
+                                Return to Dashboard
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
-            </div>
+            </main>
         );
     }
 
     // PHASE 1 LOCK: Planning phase still active
     if (isPlanningPhase) {
         return (
-            <div className="min-h-screen bg-slate-50 p-6 pb-24">
-                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
-                    <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <TbClock size={40} className="text-deped-blue" />
-                    </div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Planning Phase Active</h1>
-                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-                        Utilization tracking will become available once the **SIIF Planning Phase** is officially over.
-                        <br/><br/>
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                            Estimated Opening: {deadline ? new Date(deadline).toLocaleString() : 'TBD'}
-                        </span>
-                    </p>
-                    <button
-                        onClick={() => navigate('/siif/forms')}
-                        className="w-full py-4 bg-[#0038A8] text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#002d86] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
-                    >
-                        Review Baseline Plan
-                        <TbChevronRight size={18} />
-                    </button>
+            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-10">
+                            <div className="w-20 h-20 bg-blue-50 border border-blue-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                                <TbClock size={40} style={{ color: 'var(--blue)' }} />
+                            </div>
+                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Planning Phase Active</h1>
+                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
+                                Utilization tracking will become available once the <strong>SIIF Planning Phase</strong> is officially over.
+                                <br /><br />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Estimated Opening: {deadline ? new Date(deadline).toLocaleString() : 'TBD'}
+                                </span>
+                            </p>
+                            <button
+                                onClick={() => navigate('/siif/forms')}
+                                className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
+                                style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
+                            >
+                                Review Baseline Plan
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
-            </div>
+            </main>
         );
     }
 
     // PHASE 2 LOCK: Deadline over but NO submission found or still draft
     if (!isSubmitted) {
         return (
-            <div className="min-h-screen bg-slate-50 p-6 pb-24">
-                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
-                    <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <TbLock size={40} className="text-amber-500" />
-                    </div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">No Baseline Found</h1>
-                    <p className="text-slate-500 mb-8 leading-relaxed font-medium text-sm">
-                        The planning window has closed, but no submitted **SIIF Baseline Plan** was found for your school. 
-                        <br/><br/>
-                        Utilization tracking is disabled because there is no reviewed budget to track against.
-                    </p>
-                    <button
-                        onClick={() => navigate('/siif/forms')}
-                        className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
-                    >
-                        View Archived Forms
-                        <TbChevronRight size={18} />
-                    </button>
+            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-10">
+                            <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-100 shadow-inner">
+                                <TbLock size={40} className="text-amber-500" />
+                            </div>
+                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>No Baseline Found</h1>
+                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
+                                The planning window has closed, but no submitted <strong>SIIF Baseline Plan</strong> was found for your school.
+                                <br /><br />
+                                Utilization tracking is disabled because there is no reviewed budget to track against.
+                            </p>
+                            <button
+                                onClick={() => navigate('/siif/forms')}
+                                className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
+                            >
+                                View Archived Forms
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
-            </div>
+            </main>
         );
     }
 
@@ -128,52 +139,61 @@ const SIIFUtilization = ({ user, token }) => {
     const statusVal = submission.status?.toLowerCase() || '';
     if (statusVal === 'submitted') {
         return (
-            <div className="min-h-screen bg-slate-50 p-6 pb-24">
-                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
-                    <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <TbClock size={40} className="text-amber-500 animate-pulse" />
-                    </div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Pending SDO Review</h1>
-                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-                        Your submitted plan is currently waiting for review from the Division Office. 
-                        <br/><br/>
-                        You can begin tracking your quarterly utilization once your baseline plan has been officially reviewed.
-                    </p>
-                    <button
-                        onClick={() => navigate('/siif/forms')}
-                        className="w-full py-4 bg-[#0038A8] text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-[#002d86] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
-                    >
-                        View Read-Only Plan
-                        <TbChevronRight size={18} />
-                    </button>
+            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-10">
+                            <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-100 shadow-inner">
+                                <TbClock size={40} className="text-amber-500 animate-pulse" />
+                            </div>
+                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Pending SDO Review</h1>
+                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
+                                Your submitted plan is currently waiting for review from the Division Office.
+                                <br /><br />
+                                You can begin tracking your quarterly utilization once your baseline plan has been officially reviewed.
+                            </p>
+                            <button
+                                onClick={() => navigate('/siif/forms')}
+                                className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
+                                style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
+                            >
+                                View Read-Only Plan
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
-            </div>
+            </main>
         );
     }
 
     // PHASE 4 LOCK: Plan is disapproved
     if (statusVal === 'disapproved') {
         return (
-            <div className="min-h-screen bg-slate-50 p-6 pb-24">
-                <div className="max-w-2xl mx-auto mt-12 bg-white rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100">
-                    <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                        <TbAlertCircle size={40} className="text-red-500" />
-                    </div>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic">Plan Disapproved</h1>
-                    <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-                        Your plan was disapproved by the Division Office and the submission deadline has passed. 
-                        <br/><br/>
-                        Utilization tracking cannot proceed without a reviewed baseline.
-                    </p>
-                    <button
-                        onClick={() => navigate('/siif/forms')}
-                        className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
-                    >
-                        View Rejection Details
-                        <TbChevronRight size={18} />
-                    </button>
+            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-10">
+                            <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-red-100 shadow-inner">
+                                <TbAlertCircle size={40} className="text-red-500" />
+                            </div>
+                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Plan Disapproved</h1>
+                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
+                                Your plan was disapproved by the Division Office and the submission deadline has passed.
+                                <br /><br />
+                                Utilization tracking cannot proceed without a reviewed baseline.
+                            </p>
+                            <button
+                                onClick={() => navigate('/siif/forms')}
+                                className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
+                            >
+                                View Rejection Details
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
-            </div>
+            </main>
         );
     }
 
@@ -187,7 +207,7 @@ const SIIFUtilization = ({ user, token }) => {
 
         selectedInterventions.forEach(intId => {
             totalEstimated += (budgetEstimates[intId] || 0);
-            
+
             // Total utilized for this intervention across all quarters
             const intUtil = utilizationData[intId] || {};
             Object.values(intUtil).forEach(qVal => {
@@ -196,8 +216,8 @@ const SIIFUtilization = ({ user, token }) => {
         });
 
         // Use official allocation if available, otherwise fallback to sum of estimates
-        const totalAllocated = officialAllocation.allocation_amount > 0 
-            ? parseFloat(officialAllocation.allocation_amount) 
+        const totalAllocated = officialAllocation.allocation_amount > 0
+            ? parseFloat(officialAllocation.allocation_amount)
             : totalEstimated;
 
         return { totalAllocated, totalUtilized, totalEstimated };
@@ -305,7 +325,7 @@ const SIIFUtilization = ({ user, token }) => {
 
             console.log('💾 [SIIFUtilization] Saving utilization updates:', finalUtilizationData);
             await updateUtilization(submission.submissionId, finalUtilizationData, token);
-            
+
             // Sync local state so it reflects the defaults we just saved
             setUtilizationData(finalUtilizationData);
 
@@ -320,69 +340,98 @@ const SIIFUtilization = ({ user, token }) => {
     };
 
     return (
-        <div className="p-6 pb-32">
-            <header className="siif-topbar siif-topbar-flush flex-col items-stretch !items-start !justify-start gap-6 pb-8 print:hidden mb-8 w-full">
-                <div className="flex items-center gap-3 w-full">
-                    <button onClick={() => navigate('/siif')} className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 mr-2">
-                        <TbChevronLeft size={20} />
-                    </button>
-                    <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-center text-siif-blue shadow-inner shrink-0">
-                        <TbTrendingUp size={24} />
+        <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+            
+            {/* ── Header ── */}
+            <header className="topbar print:hidden mb-8">
+                <div className="page-title">
+                    <div className="flex items-center gap-2 mb-3">
+                        <button onClick={() => navigate('/siif')} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-all text-white shadow-sm flex items-center gap-1.5" title="Back to Dashboard">
+                            <TbArrowLeft size={16} /> <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Back</span>
+                        </button>
                     </div>
-                    <div>
-                        <p className="eyebrow">National Education Command Center</p>
-                        <h1 className="text-xl font-black text-slate-800 tracking-tight italic uppercase">SIIF Utilization</h1>
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Quarterly Tracking</p>
+                    
+                    <p className="eyebrow">
+                        DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
+                    </p>
+                    <h1>School Innovation and Improvement Fund</h1>
+                    
+                    <div className="flex flex-wrap items-center gap-2 mt-3 opacity-90">
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200 flex items-center gap-1.5 bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-500/20">
+                            <TbTrendingUp size={12} /> FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Quarterly Tracking
+                        </p>
                     </div>
+                </div>
+
+                <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    
+                    {/* Overall Progress Pill */}
+                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                        <div className="flex flex-col items-start sm:items-end">
+                            <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Total Utilized</small>
+                            <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
+                                {overallProgress.toFixed(1)}%
+                            </strong>
+                        </div>
+                        <div className="flex-1 sm:w-full" style={{ maxWidth: '120px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${Math.min(overallProgress, 100)}%`, height: '100%', background: overallProgress > 100 ? 'var(--red)' : 'var(--blue)', transition: 'width 0.3s ease' }} />
+                        </div>
+                    </section>
                 </div>
             </header>
 
             {/* ─── Summary Dashboard ─── */}
-            <div className="grid grid-cols-1 gap-4 mb-8">
-                <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 relative overflow-hidden">
-                    <div className="relative z-10">
-                        <div className="flex justify-between items-end mb-4">
+            <div className="grid grid-cols-1 gap-4 mb-8 mt-6">
+                <article className="siif-card siif-progress-highlight">
+                    <div className="siif-card-inner relative overflow-hidden">
+                        <div className="siif-card-header relative z-10">
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Utilization Progress</p>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-black text-slate-900">₱{totalUtilized.toLocaleString()}</span>
-                                    <span className="text-slate-400 font-bold text-sm">/ ₱{totalAllocated.toLocaleString()}</span>
-                                </div>
+                                <h2>Total Utilization Progress</h2>
+                                <p className="siif-card-subtitle">
+                                    {officialAllocation.allocation_amount > 0
+                                        ? "Based on Finance Official Allocation"
+                                        : "Based on School Estimated Budget"}
+                                    {officialAllocation.remarks && ` • ${officialAllocation.remarks}`}
+                                </p>
                             </div>
-                            <div className="text-right">
-                                <span className="text-2xl font-black text-[#0038A8]">{overallProgress.toFixed(1)}%</span>
+                            <span className={`siif-status ${overallProgress > 100 ? 'bad bg-red-50 text-red-600 border border-red-200' : 'ok'}`}>
+                                {overallProgress.toFixed(1)}%
+                            </span>
+                        </div>
+
+                        <div className="siif-allocation-summary relative z-10" style={{ paddingTop: '24px', paddingBottom: '20px' }}>
+                            <div>
+                                <p className="siif-card-subtitle">Total Utilized</p>
+                                <h3 className="siif-big-number">₱{totalUtilized.toLocaleString()}</h3>
+                            </div>
+                            <div className="text-right flex flex-col items-end">
+                                <p className="siif-card-subtitle">Total Allocated</p>
+                                <h3 className="siif-big-number" style={{ fontSize: '1.25rem', color: 'var(--slate-400)' }}>/ ₱{totalAllocated.toLocaleString()}</h3>
                             </div>
                         </div>
-                        
-                        <div className="h-3 bg-slate-100 rounded-full overflow-hidden mb-2">
-                            <motion.div 
+
+                        <div className="siif-progress-track relative z-10">
+                            <motion.div
+                                className="siif-progress-fill"
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.min(overallProgress, 100)}%` }}
-                                className={`h-full rounded-full ${overallProgress > 100 ? 'bg-rose-500' : 'bg-[#0038A8]'}`}
-                            />
+                                style={{ background: overallProgress > 100 ? 'var(--red)' : 'var(--blue)' }}
+                                transition={{ duration: 1.2, ease: 'easeOut' }}
+                            >
+                                {overallProgress.toFixed(1)}%
+                            </motion.div>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <p className="text-[10px] text-slate-400 font-bold">
-                                {officialAllocation.allocation_amount > 0 
-                                    ? "Based on Finance Official Allocation" 
-                                    : "Based on School Estimated Budget"}
-                            </p>
-                            {officialAllocation.remarks && (
-                                <p className="text-[10px] text-emerald-600 font-black italic">
-                                    • {officialAllocation.remarks}
-                                </p>
-                            )}
-                        </div>
+
+                        {/* Background decoration */}
+                        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-deped-blue/5 rounded-full blur-3xl pointer-events-none z-0"></div>
                     </div>
-                    {/* Background decoration */}
-                    <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-deped-blue/5 rounded-full blur-3xl"></div>
-                </div>
+                </article>
 
                 {/* Information Note */}
-                <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 shadow-sm mx-1">
                     <TbAlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
                     <div>
-                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Utilization Note</p>
+                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1" style={{ fontFamily: 'var(--font-heading)' }}>Utilization Note</p>
                         <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
                             Quarterly utilization can exceed the estimated budget set for a specific intervention, but the total utilization across all quarters must not exceed your official total allocation.
                         </p>
@@ -402,13 +451,12 @@ const SIIFUtilization = ({ user, token }) => {
                             key={p.id}
                             onClick={() => setViewingQuarter(p.id)}
                             disabled={isLocked}
-                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-0.5 ${
-                                isLocked
-                                ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed opacity-50'
-                                : isSelected 
-                                    ? 'bg-white text-[#0038A8] shadow-md' 
-                                    : 'text-slate-500 hover:bg-white/50'
-                            }`}
+                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-0.5 ${isLocked
+                                    ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed opacity-50'
+                                    : isSelected
+                                        ? 'bg-white text-[#0038A8] shadow-md'
+                                        : 'text-slate-500 hover:bg-white/50'
+                                }`}
                         >
                             <span>{p.label}</span>
                             {isCurrent && <span className="text-[8px] text-emerald-500 font-black tracking-normal lowercase">Active Now</span>}
@@ -439,50 +487,50 @@ const SIIFUtilization = ({ user, token }) => {
                     const qValObj = qData[viewingQuarter] || {};
                     const currentVal = qValObj?.amount !== undefined ? qValObj.amount : qValObj;
                     const currentStatus = qValObj?.status || 'Not Yet Started';
-                    
+
                     // Calculate total used for this intervention so far
                     const totalUsedInt = Object.values(qData).reduce((sum, val) => sum + (parseFloat(val?.amount !== undefined ? val.amount : val) || 0), 0);
                     const intProgress = allocation > 0 ? (totalUsedInt / allocation) * 100 : 0;
 
                     return (
-                        <div key={intId} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="flex gap-3">
-                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
-                                        <TbTarget size={20} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-bold text-slate-900 leading-tight mb-1">{intId}</h3>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase">Allocated:</span>
-                                            <span className="text-[10px] font-bold text-slate-600">₱{allocation.toLocaleString()}</span>
+                        <article key={intId} className="siif-card">
+                            <div className="siif-card-inner">
+                                <div className="siif-card-header mb-6 border-b border-slate-100 pb-4">
+                                    <div className="flex gap-3 items-center">
+                                        <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 shadow-sm shrink-0">
+                                            <TbTarget size={20} />
+                                        </div>
+                                        <div>
+                                            <h2 style={{ fontSize: '14px', lineHeight: 1.2 }}>{intId}</h2>
+                                            <p className="siif-card-subtitle mt-1">
+                                                Allocated: <strong style={{ color: 'var(--blue)' }}>₱{allocation.toLocaleString()}</strong>
+                                            </p>
                                         </div>
                                     </div>
+                                    <div className="text-right">
+                                        <span className={`siif-status ${intProgress > 100 ? 'bad bg-red-50 text-red-600 border border-red-200' : 'ok bg-blue-50 text-[var(--blue)] border border-blue-100'}`}>
+                                            {intProgress.toFixed(0)}% Utilized
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${intProgress > 100 ? 'bg-rose-50 text-rose-600' : 'bg-deped-blue/5 text-deped-blue'}`}>
-                                        {intProgress.toFixed(0)}% Utilized
-                                    </span>
-                                </div>
-                            </div>
 
                             <div className="relative">
                                 {(() => {
                                     // Check if overall school budget is exhausted
-                                     let prevOverallTotal = 0;
-                                     const viewIdx = periods.findIndex(p => p.id === viewingQuarter);
-                                     selectedInterventions.forEach(id => {
-                                         const iData = utilizationData[id] || {};
-                                         for (let i = 0; i < viewIdx; i++) {
-                                             const qVal = iData[periods[i].id];
-                                             prevOverallTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
-                                         }
-                                     });
-                                     const isBudgetExhausted = totalAllocated > 0 && prevOverallTotal >= totalAllocated;
-                                     const isOffSeason = activeQuarter === '';
-                                     const isNotActiveWindow = viewingQuarter !== activeQuarter;
-                                     const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow;
-                                    
+                                    let prevOverallTotal = 0;
+                                    const viewIdx = periods.findIndex(p => p.id === viewingQuarter);
+                                    selectedInterventions.forEach(id => {
+                                        const iData = utilizationData[id] || {};
+                                        for (let i = 0; i < viewIdx; i++) {
+                                            const qVal = iData[periods[i].id];
+                                            prevOverallTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
+                                        }
+                                    });
+                                    const isBudgetExhausted = totalAllocated > 0 && prevOverallTotal >= totalAllocated;
+                                    const isOffSeason = activeQuarter === '';
+                                    const isNotActiveWindow = viewingQuarter !== activeQuarter;
+                                    const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow;
+
                                     return (
                                         <div className="relative space-y-3">
                                             <div className="relative">
@@ -493,11 +541,10 @@ const SIIFUtilization = ({ user, token }) => {
                                                     onChange={(e) => handleUpdateUtilization(intId, e.target.value)}
                                                     disabled={isInputLocked}
                                                     placeholder={isInputLocked ? (isOffSeason ? "WINDOW CLOSED" : isNotActiveWindow ? "NOT ACTIVE PHASE" : "ALLOCATION EXHAUSTED") : "0.00"}
-                                                    className={`w-full border-none rounded-2xl py-4 pl-8 pr-4 text-sm font-bold transition-all ${
-                                                        isInputLocked 
-                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic' 
-                                                        : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
-                                                    }`}
+                                                    className={`w-full border-none rounded-2xl py-4 pl-8 pr-4 text-sm font-bold transition-all ${isInputLocked
+                                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
+                                                            : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
+                                                        }`}
                                                 />
                                                 {isInputLocked && (
                                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
@@ -511,11 +558,10 @@ const SIIFUtilization = ({ user, token }) => {
                                                     value={currentStatus}
                                                     onChange={(e) => handleUpdateStatus(intId, e.target.value)}
                                                     disabled={isInputLocked}
-                                                    className={`w-full border-none rounded-2xl py-3 pl-4 pr-10 text-sm font-bold transition-all appearance-none ${
-                                                        isInputLocked
-                                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
-                                                        : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20 cursor-pointer'
-                                                    }`}
+                                                    className={`w-full border-none rounded-2xl py-3 pl-4 pr-10 text-sm font-bold transition-all appearance-none ${isInputLocked
+                                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
+                                                            : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20 cursor-pointer'
+                                                        }`}
                                                 >
                                                     <option value="Not Yet Started">Not Yet Started</option>
                                                     <option value="Ongoing">Ongoing</option>
@@ -525,8 +571,8 @@ const SIIFUtilization = ({ user, token }) => {
                                                     <TbChevronRight size={16} className="rotate-90" />
                                                 </div>
                                             </div>
-                                             
-                                             <AnimatePresence>
+
+                                            <AnimatePresence>
                                                 {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
                                                     <motion.div
                                                         initial={{ height: 0, opacity: 0 }}
@@ -544,22 +590,22 @@ const SIIFUtilization = ({ user, token }) => {
                                                                 onChange={(e) => handleUpdateJustification(intId, e.target.value)}
                                                                 disabled={isInputLocked}
                                                                 placeholder="Please provide a justification for exceeding the estimated budget..."
-                                                                className={`w-full border-none rounded-2xl p-4 text-xs font-medium transition-all min-h-[80px] resize-none ${
-                                                                    !qValObj?.justification?.trim() 
-                                                                    ? 'bg-amber-50 border-amber-200 focus:ring-amber-200 placeholder-amber-400/70 text-amber-900 ring-2 ring-amber-100' 
-                                                                    : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
-                                                                }`}
+                                                                className={`w-full border-none rounded-2xl p-4 text-xs font-medium transition-all min-h-[80px] resize-none ${!qValObj?.justification?.trim()
+                                                                        ? 'bg-amber-50 border-amber-200 focus:ring-amber-200 placeholder-amber-400/70 text-amber-900 ring-2 ring-amber-100'
+                                                                        : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
+                                                                    }`}
                                                             />
                                                         </div>
                                                     </motion.div>
                                                 )}
-                                             </AnimatePresence>
+                                            </AnimatePresence>
                                         </div>
                                     );
                                 })()}
                             </div>
                         </div>
-                    );
+                    </article>
+                );
                 })}
             </div>
 
@@ -578,7 +624,7 @@ const SIIFUtilization = ({ user, token }) => {
                             }
                         });
                     }
-                    
+
                     const isSaveDisabled = saving || (totalAllocated > 0 && totalUtilized > totalAllocated) || activeQuarter === '' || viewingQuarter !== activeQuarter || missingJustification;
 
                     return (
@@ -599,17 +645,16 @@ const SIIFUtilization = ({ user, token }) => {
                                     </p>
                                 </div>
                             )}
-                            
+
                             <button
                                 onClick={handleSave}
                                 disabled={isSaveDisabled}
-                                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                                    (totalAllocated > 0 && totalUtilized > totalAllocated) 
-                                    ? 'bg-rose-500 shadow-rose-500/20' 
-                                    : (activeQuarter === '' || viewingQuarter !== activeQuarter)
-                                        ? 'bg-slate-400 shadow-slate-400/20'
-                                        : 'bg-emerald-500 shadow-emerald-500/20'
-                                }`}
+                                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${(totalAllocated > 0 && totalUtilized > totalAllocated)
+                                        ? 'bg-rose-500 shadow-rose-500/20'
+                                        : (activeQuarter === '' || viewingQuarter !== activeQuarter)
+                                            ? 'bg-slate-400 shadow-slate-400/20'
+                                            : 'bg-emerald-500 shadow-emerald-500/20'
+                                    }`}
                             >
                                 {saving ? (
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -627,7 +672,7 @@ const SIIFUtilization = ({ user, token }) => {
                     {activeQuarter === '' ? "Reporting window is closed" : "Updates will be reflected in the dashboard progress"}
                 </p>
             </div>
-        </div>
+        </main>
     );
 };
 

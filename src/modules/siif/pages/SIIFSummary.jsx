@@ -11,6 +11,7 @@ import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../../../utils/logger';
 import { fetchAllocation, fetchSubmission, fetchDeadline, submitPlan } from '../services/siifService';
 import { INTERVENTIONS, INTERVENTION_ICONS, GRADE_LABELS } from '../constants/siifConstants';
+import SiifLoader from '../components/SiifLoader';
 
 const SIIFSummary = ({ user, token }) => {
     const navigate = useNavigate();
@@ -168,12 +169,7 @@ const SIIFSummary = ({ user, token }) => {
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center flex-col gap-4">
-                <div className="w-12 h-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assembling Plan Summary...</p>
-            </div>
-        );
+        return <SiifLoader text="Assembling Plan Summary..." />;
     }
 
     return (

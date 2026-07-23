@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=Quicksand:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
 
 .siif-module-root {
   --navy: #08315F;
@@ -15,8 +15,8 @@
   --text: #0F172A;
   --muted: #64748B;
   --line: #BAE6FD;
-  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --radius: 22px;
 
   margin: 0;
@@ -36,6 +36,18 @@
   display: grid;
   grid-template-columns: 72px 1fr;
   min-height: 100vh;
+}
+
+/* On mobile/tablet: sidebar becomes bottom nav, grid becomes full-width */
+@media (max-width: 1000px) {
+  .siif-app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .siif-main-area {
+    padding: 0 0 100px 0;
+    overflow-x: hidden;
+  }
 }
 
 .siif-sidebar {
@@ -618,101 +630,206 @@
     margin: 24px 28px 0;
     padding: 28px 44px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    overflow: hidden;
-    border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
-    border-radius: calc(var(--radius) + 6px);
-    box-shadow: none;
-    background:
-        radial-gradient(circle at 92% 50%, rgba(251, 191, 36, .18) 0 7%, rgba(251, 191, 36, .08) 7.2% 13%, transparent 13.2%),
-        radial-gradient(circle at 98% 46%, rgba(251, 191, 36, .28) 0 10%, transparent 10.5%),
-        linear-gradient(112deg, var(--navy) 0 70%, rgba(255, 255, 255, .96) 70.2% 100%);
 }
 
-.siif-new-topbar::before {
-    content: "";
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 70%;
-    background: linear-gradient(135deg, var(--navy), var(--blue));
-    clip-path: polygon(0 0, 88% 0, 100% 100%, 0 100%);
-    z-index: -2;
-    pointer-events: none;
+.topbar {
+  position: relative;
+  isolation: isolate;
+  min-height: 118px;
+  margin: 0;
+  padding: 28px 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  overflow: hidden;
+  border: 2.5px solid color-mix(in srgb, var(--blue) 64%, var(--navy) 36%);
+  border-radius: calc(var(--radius) + 6px);
+  background:
+    radial-gradient(circle at 92% 50%, rgba(251, 191, 36, .18) 0 7%, rgba(251, 191, 36, .08) 7.2% 13%, transparent 13.2%),
+    radial-gradient(circle at 98% 46%, rgba(251, 191, 36, .28) 0 10%, transparent 10.5%),
+    linear-gradient(112deg, var(--navy) 0 70%, rgba(255, 255, 255, .96) 70.2% 100%);
 }
 
-.siif-new-topbar::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 61%;
-    width: 13%;
-    background: color-mix(in srgb, var(--navy) 88%, #000 12%);
-    clip-path: polygon(0 0, 58% 0, 100% 100%, 42% 100%);
-    z-index: -1;
-    pointer-events: none;
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 70%;
+  background: linear-gradient(135deg, var(--navy), var(--blue));
+  clip-path: polygon(0 0, 88% 0, 100% 100%, 0 100%);
+  z-index: -2;
+  pointer-events: none;
 }
 
+.topbar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 61%;
+  width: 13%;
+  background: color-mix(in srgb, var(--navy) 88%, #000 12%);
+  clip-path: polygon(0 0, 58% 0, 100% 100%, 42% 100%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+
+@media (min-width: 641px) and (max-width: 1000px) {
+  .topbar {
+    min-height: 104px;
+    margin: 12px 10px 0;
+    padding: 15px 23px;
+  }
+
+  .topbar::before {
+    width: 68%;
+  }
+
+  .topbar::after {
+    left: 59%;
+    width: 14%;
+  }
+}
+
+/* ── Base topbar text rules ─────────────────── */
+.page-title,
 .siif-page-title {
-    max-width: min(70%, 860px);
-    min-width: 0;
+  max-width: min(70%, 860px);
+  min-width: 0;
 }
 
-.siif-eyebrow {
-    margin: 0 0 6px;
-    color: var(--gold);
-    font-family: var(--font-heading);
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: .18em;
-    text-transform: uppercase;
+.topbar .eyebrow,
+.topbar p.eyebrow {
+  color: var(--gold) !important;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin: 0 0 4px;
 }
 
+.topbar h1,
+.page-title h1,
 .siif-page-title h1 {
-    margin: 0;
-    color: var(--blue-100);
-    font-family: var(--font-heading);
-    font-size: clamp(24px, 2.2vw, 34px);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1.05;
-    text-shadow: 0 2px 0 rgba(15, 23, 42, .28);
+  margin: 0;
+  color: var(--blue-100);
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: clamp(18px, 3.5vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  text-shadow: 0 2px 0 rgba(15, 23, 42, .28);
 }
 
 .siif-page-title h1 span {
-    color: #F87171;
+  color: #F87171;
 }
 
 .siif-page-title p {
-    max-width: 720px;
-    margin: 5px 0 0;
-    color: #DFF6FF;
-    font-family: var(--font-body);
-    font-size: 14px;
-    font-weight: 700;
-    line-height: 1.35;
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: #DFF6FF;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .siif-topbar-actions {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .siif-school-pill {
-    min-width: 190px;
-    padding: 12px 14px;
-    border: 2px solid var(--blue-100);
+  min-width: auto;
+  padding: 10px 14px;
+  border: 2px solid var(--blue-100);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .92);
+  color: var(--navy);
+  text-align: right;
+}
+
+/* ── Mobile overrides (MUST be after base rules) ─ */
+@media (max-width: 640px) {
+  .topbar {
+    margin: 12px 12px 0;
+    padding: 16px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
     border-radius: 18px;
-    background: rgba(255, 255, 255, .92);
-    color: var(--navy);
-    text-align: right;
+  }
+
+  .topbar::before {
+    width: 100%;
+    clip-path: none;
+    border-radius: 18px;
+  }
+
+  .topbar::after {
+    display: none;
+  }
+
+  .page-title,
+  .siif-page-title {
+    max-width: 100%;
+    flex: none;
+  }
+
+  /* CRITICAL: wrap eyebrow gracefully on phone */
+  .topbar .eyebrow,
+  .topbar p.eyebrow {
+    font-size: 7px !important;
+    letter-spacing: 0.09em;
+    margin: 0 0 4px;
+    white-space: normal !important;
+  }
+
+  .topbar h1,
+  .page-title h1,
+  .siif-page-title h1 {
+    font-size: 16px !important;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  /* Pill becomes compact horizontal strip */
+  .siif-topbar-actions {
+    width: 100% !important;
+    margin-top: 0 !important;
+    justify-content: flex-start;
+  }
+
+  .siif-school-pill {
+    width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 8px 12px !important;
+    gap: 8px !important;
+  }
+
+  .siif-school-pill > div:first-child {
+    align-items: flex-start !important;
+  }
+
+  .siif-school-pill > div.flex-1 {
+    display: block;
+    max-width: 100px;
+  }
 }
 
 .siif-school-pill small {
@@ -742,13 +859,22 @@
 }
 
 .siif-new-content {
-    width: min(1500px, calc(100% - 56px));
-    margin: 12px auto 0;
+  width: min(1500px, calc(100% - 56px));
+  margin: 12px auto 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1000px) {
+  .siif-new-content {
+    width: 100%;
+    margin: 0;
+    padding: 0 10px;
+  }
 }
 
 .siif-grid {
-    display: grid;
-    gap: 10px;
+  display: grid;
+  gap: 10px;
 }
 
 .siif-card-inner {

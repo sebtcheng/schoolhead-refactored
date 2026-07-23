@@ -287,26 +287,62 @@ const SchoolHeadChatWidget = () => {
 
   return (
     <>
+      {/* Chat Widget Styles injected into the head */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .sh-chat-fab {
+          position: fixed;
+          bottom: 24px;
+          right: 24px;
+          z-index: 9999;
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background-color: #1d4ed8;
+          color: white;
+          border: none;
+          box-shadow: 0 4px 14px rgba(29, 78, 216, 0.4), 0 2px 5px rgba(0, 0, 0, 0.1);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .sh-chat-drawer {
+          position: fixed;
+          bottom: 96px;
+          right: 24px;
+          z-index: 9998;
+          width: 380px;
+          height: 520px;
+          background-color: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          animation: slideUpSH 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @media (max-width: 768px) {
+          .sh-chat-fab {
+            bottom: 96px;
+          }
+          .sh-chat-drawer {
+            bottom: 168px;
+            width: calc(100% - 48px);
+            right: 24px;
+            height: calc(100vh - 200px);
+          }
+        }
+      `}} />
+
       {/* Floating Action Button (FAB) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        className="sh-chat-fab"
         style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 9999,
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          backgroundColor: '#1d4ed8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 4px 14px rgba(29, 78, 216, 0.4), 0 2px 5px rgba(0, 0, 0, 0.1)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           transform: isOpen ? 'rotate(135deg) scale(0.9)' : 'scale(1)',
         }}
         title="Open Support Chat"
@@ -325,22 +361,7 @@ const SchoolHeadChatWidget = () => {
 
       {/* Chat Drawer Panel */}
       {isOpen && (
-        <div style={{
-          position: 'fixed',
-          bottom: '96px',
-          right: '24px',
-          zIndex: 9998,
-          width: '380px',
-          height: '520px',
-          backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-          animation: 'slideUpSH 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}>
+        <div className="sh-chat-drawer">
           <style dangerouslySetInnerHTML={{__html: `
             @keyframes slideUpSH {
               from { transform: translateY(20px); opacity: 0; }

@@ -207,7 +207,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                             Select Category
                         </h3>
                         <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Choose the broad category for your priority improvement areas.
+                            Choose the broad category for your intermediate outcomes.
                         </p>
                     </div>
 
@@ -252,7 +252,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                             Select Intermediate Outcome
                         </h3>
                         <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Choose the specific outcome you want to focus on.
+                            Choose the specific outcome of focus.
                         </p>
                     </div>
 
@@ -302,7 +302,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                             Select Priority Areas
                         </h3>
                         <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Select all that apply for this outcome.
+                            Select priority areas serving as basis of SIIF interventions.
                         </p>
                     </div>
 
@@ -318,10 +318,10 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                                     onClick={() => toggleDraftPIA(pia)}
                                     disabled={isAlreadyAdded}
                                     className={`siif-card w-full p-4 rounded-3xl border-2 text-left flex items-center gap-4 transition-all duration-300 ${!isAlreadyAdded ? 'active:scale-[0.98]' : ''} ${active
-                                            ? 'border-siif-blue bg-blue-50/40 shadow-lg shadow-blue-100/50'
-                                            : isAlreadyAdded
-                                                ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
-                                                : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
+                                        ? 'border-siif-blue bg-blue-50/40 shadow-lg shadow-blue-100/50'
+                                        : isAlreadyAdded
+                                            ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                                            : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
                                         }`}
                                 >
                                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${active || isAlreadyAdded ? 'border-siif-blue bg-siif-blue' : 'border-slate-200 bg-white'
@@ -367,7 +367,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                     <p className="text-[11px] text-slate-500 leading-relaxed">
                         {readOnly
                             ? "Viewing priority improvement areas for this fiscal year."
-                            : "List down the Priority Improvement Areas (PIAs) of your school by navigating the categories."}
+                            : "List down the relevant Priority Improvement Areas (PIAs) of your school based on your approved SIP."}
                     </p>
                 </div>
 
@@ -535,8 +535,8 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                             value={confirmText}
                             onChange={e => setConfirmText(e.target.value)}
                             className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-deped-blue focus:bg-white'
+                                ? 'border-red-400 bg-red-50 text-red-600'
+                                : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-deped-blue focus:bg-white'
                                 }`}
                         />
                         {confirmError && (
@@ -565,6 +565,21 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         return 'Priority Areas';
     };
 
+    const getMainHeaderTitle = () => {
+        if (screen === 'summary') return 'Review & Confirm';
+        if (subScreen === 'list') return 'Priority Improvement Areas';
+        if (subScreen === 'category') return 'Category';
+        if (subScreen === 'io') return 'Intermediate Outcomes';
+        if (subScreen === 'pias') return 'Priority Improvement Areas';
+        return 'List Priority Improvement Areas';
+    };
+
+    const getEyebrowText = () => {
+        if (screen === 'summary') return 'Step 1 of 5 — REVIEW';
+        if (subScreen === 'list') return 'Step 1 of 5 — LIST';
+        return 'Step 1 of 5 — SELECT';
+    };
+
     return (
         <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
             {/* Header */}
@@ -579,9 +594,9 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                         </button>
                         <div>
                             <p className="eyebrow">
-                                Step 1 of 5 — {getHeaderTitle()}
+                                {getEyebrowText()}
                             </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">List Priority Improvement Areas</h1>
+                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">{getMainHeaderTitle()}</h1>
                         </div>
                     </div>
                     {screen !== 'summary' && subScreen !== 'list' && (
