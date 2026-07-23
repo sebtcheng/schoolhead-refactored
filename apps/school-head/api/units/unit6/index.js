@@ -22,15 +22,15 @@ router.put('/api/ph_schools/unit6/:id', async (req, res) => {
     } = req.body;
 
     // Parse structures
-    const furnitureData = typeof unit6_furniture === 'string' ? JSON.parse(unit6_furniture) : (unit6_furniture || req.body.unit7_furniture || {});
+    const furnitureData = typeof unit6_furniture === 'string' ? JSON.parse(unit6_furniture) : (unit6_furniture || {});
     const general = furnitureData.general || {};
     const gradesList = furnitureData.grades || [];
 
-    const ict = typeof unit6_ict === 'string' ? JSON.parse(unit6_ict) : (unit6_ict || req.body.unit7_ict || {});
-    const ecartsList = typeof unit6_ecarts === 'string' ? JSON.parse(unit6_ecarts) : (unit6_ecarts || req.body.unit7_ecarts || []);
-    const wash = typeof unit6_wash === 'string' ? JSON.parse(unit6_wash) : (unit6_wash || req.body.unit7_wash || {});
-    const utilities = typeof unit6_utilities === 'string' ? JSON.parse(unit6_utilities) : (unit6_utilities || req.body.unit7_utilities || {});
-    const hasEcart = unit6_has_ecart !== undefined ? unit6_has_ecart : req.body.unit7_has_ecart;
+    const ict = typeof unit6_ict === 'string' ? JSON.parse(unit6_ict) : (unit6_ict || {});
+    const ecartsList = typeof unit6_ecarts === 'string' ? JSON.parse(unit6_ecarts) : (unit6_ecarts || []);
+    const wash = typeof unit6_wash === 'string' ? JSON.parse(unit6_wash) : (unit6_wash || {});
+    const utilities = typeof unit6_utilities === 'string' ? JSON.parse(unit6_utilities) : (unit6_utilities || {});
+    const hasEcart = unit6_has_ecart;
 
     const school_yr = req.body.school_yr || 'SY 26-27';
 
