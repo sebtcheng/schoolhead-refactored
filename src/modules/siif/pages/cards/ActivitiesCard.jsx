@@ -10,7 +10,7 @@ import {
 } from './siifConstants.jsx';
 
 const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onClose, readOnly }) => {
-    const [screen, setScreen]           = useState('form');
+    const [screen, setScreen] = useState('form');
     const [activeModalInt, setActiveModalInt] = useState(null);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
@@ -26,17 +26,17 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         const current = value[intId] || {};
         const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
         const list = Array.isArray(selectedActivities[category]) ? selectedActivities[category] : [];
-        
+
         const next = list.includes(choice) ? list.filter(x => x !== choice) : [...list, choice];
         console.log(`🔄 [ActivitiesCard] "${intId}" category "${category}" toggled "${choice}".`);
         onChange({
             ...value,
-            [intId]: { 
-                ...current, 
-                selectedActivities: { 
-                    ...selectedActivities, 
-                    [category]: next 
-                } 
+            [intId]: {
+                ...current,
+                selectedActivities: {
+                    ...selectedActivities,
+                    [category]: next
+                }
             }
         });
     };
@@ -45,13 +45,13 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         if (readOnly) return;
         const current = value[intId] || {};
         const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
-        onChange({ 
-            ...value, 
-            [intId]: { 
-                ...current, 
+        onChange({
+            ...value,
+            [intId]: {
+                ...current,
                 selectedActivities,
-                otherActivity: text 
-            } 
+                otherActivity: text
+            }
         });
     };
 
@@ -92,7 +92,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         const list = Array.isArray(selectedActivities[category]) ? selectedActivities[category] : [];
         const active = list.includes(choice);
         const isOthers = choice === 'Others (specify)';
-        
+
         if (readOnly && !active) return null;
 
         return (
@@ -100,9 +100,8 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                 <button
                     onClick={() => toggleActivity(intId, category, choice)}
                     disabled={readOnly}
-                    className={`w-full p-4 rounded-2xl text-left text-[11px] font-bold flex items-start gap-3 transition-all border-2 ${
-                        active ? 'border-siif-blue bg-siif-blue/5 text-siif-blue' : 'border-slate-50 bg-slate-50/50 text-slate-500'
-                    } ${readOnly ? 'cursor-default' : ''}`}
+                    className={`w-full p-4 rounded-2xl text-left text-[11px] font-bold flex items-start gap-3 transition-all border-2 ${active ? 'border-siif-blue bg-siif-blue/5 text-siif-blue' : 'border-slate-50 bg-slate-50/50 text-slate-500'
+                        } ${readOnly ? 'cursor-default' : ''}`}
                 >
                     <div className={`w-5 h-5 rounded-md mt-0.5 shrink-0 flex items-center justify-center ${active ? 'bg-siif-blue' : 'bg-slate-200'}`}>
                         {active && <TbCheck size={11} className="text-white" />}
@@ -145,87 +144,91 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                     What activities does your school plan to conduct for this intervention?
                 </h3>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                    {readOnly 
+                    {readOnly
                         ? "Viewing planned activities for each intervention."
                         : "For each intervention, configure the planned activities to be implemented using popup panels."}
                 </p>
             </div>
 
-            {selectedInterventions.map(intId => {
-                const info = INTERVENTIONS.find(i => i.id === intId);
-                const current = value[intId] || {};
-                const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
-                const otherActivity = current.otherActivity || '';
-                
-                const actsList = [];
-                Object.entries(selectedActivities).forEach(([cat, list]) => {
-                    if (Array.isArray(list)) {
-                        list.forEach(a => {
-                            if (a === 'Others (specify)') {
-                                if (otherActivity) actsList.push(`Other: ${otherActivity}`);
-                            } else {
-                                actsList.push(a);
-                            }
-                        });
-                    }
-                });
+            <div className="flex flex-row overflow-x-auto gap-4 pb-4">
+                {selectedInterventions.map(intId => {
+                    const info = INTERVENTIONS.find(i => i.id === intId);
+                    const current = value[intId] || {};
+                    const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
+                    const otherActivity = current.otherActivity || '';
 
-                return (
-                    <div key={intId} className="siif-card p-4 sm:p-5 flex flex-col gap-3 hover:border-siif-blue transition-all duration-300">
-                        <div className="flex items-center gap-3 sm:gap-4 w-full">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
-                                {INTERVENTION_ICONS[intId]}
+                    const actsList = [];
+                    Object.entries(selectedActivities).forEach(([cat, list]) => {
+                        if (Array.isArray(list)) {
+                            list.forEach(a => {
+                                if (a === 'Others (specify)') {
+                                    if (otherActivity) actsList.push(`Other: ${otherActivity}`);
+                                } else {
+                                    actsList.push(a);
+                                }
+                            });
+                        }
+                    });
+
+                    return (
+                        <div key={intId} className="siif-card shrink-0 w-[280px] p-4 sm:p-5 flex flex-col gap-3 hover:border-siif-blue transition-all duration-300">
+                            <div className="flex flex-col gap-3 w-full">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-14 h-14 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
+                                        {INTERVENTION_ICONS[intId]}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-black text-xs sm:text-sm text-slate-800 uppercase tracking-tight break-words whitespace-normal leading-snug">{info?.label}</p>
+                                    </div>
+                                </div>
+                                {!readOnly && (
+                                    <button
+                                        onClick={() => setActiveModalInt(intId)}
+                                        className="w-full h-[40px] bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-md flex items-center justify-center"
+                                    >
+                                        Configure
+                                    </button>
+                                )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-black text-xs sm:text-sm text-slate-800 uppercase tracking-tight truncate">{info?.label}</p>
-                            </div>
-                            {!readOnly && (
-                                <button
-                                    onClick={() => setActiveModalInt(intId)}
-                                    className="px-3 py-2 sm:px-4 sm:py-2.5 bg-siif-blue/10 hover:bg-siif-blue text-siif-blue hover:text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm"
-                                >
-                                    Configure
-                                </button>
-                            )}
-                        </div>
-                        
-                        <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50">
-                            {actsList.length > 0 ? (
-                                (() => {
-                                    const categories = [
-                                        { key: 'sip_aip', label: 'SIP–AIP Aligned' },
-                                        { key: 'action_research', label: 'Action Research' },
-                                        { key: 'remaining', label: 'Remaining Balance' }
-                                    ];
-                                    return categories.map(cat => {
-                                        const items = Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : [];
-                                        if (items.length === 0) return null;
-                                        return (
-                                            <div key={cat.key} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5">{cat.label}</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {items.map((a, idx) => {
-                                                        const display = a === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : a;
-                                                        return (
-                                                            <span key={idx} className="text-[8px] font-black bg-slate-50 text-slate-600 px-2 py-0.5 rounded-lg border border-slate-100 leading-normal max-w-full truncate block" title={display}>
-                                                                {display}
-                                                            </span>
-                                                        );
-                                                    })}
+
+                            <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50 flex-1 overflow-y-auto max-h-[200px]">
+                                {actsList.length > 0 ? (
+                                    (() => {
+                                        const categories = [
+                                            { key: 'sip_aip', label: 'SIP–AIP Aligned' },
+                                            { key: 'action_research', label: 'Action Research' },
+                                            { key: 'remaining', label: 'Remaining Balance' }
+                                        ];
+                                        return categories.map(cat => {
+                                            const items = Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : [];
+                                            if (items.length === 0) return null;
+                                            return (
+                                                <div key={cat.key} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
+                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5">{cat.label}</p>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {items.map((a, idx) => {
+                                                            const display = a === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : a;
+                                                            return (
+                                                                <span key={idx} className="text-[8px] font-black bg-slate-50 text-slate-600 px-2 py-1 rounded-lg border border-slate-100 leading-snug whitespace-normal break-words inline-block" title={display}>
+                                                                    {display}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    });
-                                })()
-                            ) : (
-                                <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
-                                    ⚠️ Click Configure to add activities
-                                </span>
-                            )}
+                                            );
+                                        });
+                                    })()
+                                ) : (
+                                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
+                                        ⚠️ Click Configure to add activities
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
 
             <div className="mt-4">
                 <motion.button
@@ -245,27 +248,27 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
             <div className="siif-card p-6">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Summary — Planned Activities</p>
-                
+
                 <div className="space-y-6">
                     {selectedInterventions.map(intId => {
                         const info = INTERVENTIONS.find(i => i.id === intId);
                         const current = value[intId] || {};
                         const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
                         const otherActivity = current.otherActivity || '';
-                        
+
                         const categories = [
                             { key: 'sip_aip', label: 'SIP–AIP Aligned' },
                             { key: 'action_research', label: 'Action Research' },
                             { key: 'remaining', label: 'Remaining Balance' }
                         ];
 
-                        const hasActivities = categories.some(cat => (Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : []).length > 0) || 
+                        const hasActivities = categories.some(cat => (Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : []).length > 0) ||
                             (otherActivity && (
-                                (Array.isArray(selectedActivities.sip_aip) && selectedActivities.sip_aip.includes('Others (specify)')) || 
-                                (Array.isArray(selectedActivities.action_research) && selectedActivities.action_research.includes('Others (specify)')) || 
+                                (Array.isArray(selectedActivities.sip_aip) && selectedActivities.sip_aip.includes('Others (specify)')) ||
+                                (Array.isArray(selectedActivities.action_research) && selectedActivities.action_research.includes('Others (specify)')) ||
                                 (Array.isArray(selectedActivities.remaining) && selectedActivities.remaining.includes('Others (specify)'))
                             ));
-                            
+
                         if (!hasActivities) return null;
 
                         return (
@@ -340,11 +343,10 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                             placeholder="Type CONFIRM here..."
                             value={confirmText}
                             onChange={e => setConfirmText(e.target.value)}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${
-                                confirmError
+                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
                                     ? 'border-red-400 bg-red-50 text-red-600'
                                     : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
-                            }`}
+                                }`}
                         />
                         {confirmError && (
                             <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
@@ -417,7 +419,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                     const current = value[intId] || {};
                     const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
                     const otherActivity = current.otherActivity || '';
-                    
+
                     return (
                         <motion.div
                             initial={{ opacity: 0 }}
@@ -429,10 +431,11 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                 initial={{ scale: 0.95, y: 20 }}
                                 animate={{ scale: 1, y: 0 }}
                                 exit={{ scale: 0.95, y: 20 }}
-                                className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[80vh] border border-slate-100"
+                                className="siif-card w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh] border-[2.5px] border-slate-300"
+                                style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
                             >
                                 {/* Modal Header */}
-                                <div className="bg-siif-blue text-white px-6 py-5 flex items-center justify-between shrink-0">
+                                <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 flex items-center justify-between shrink-0">
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
                                         <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
                                             {INTERVENTION_ICONS[intId] || <TbBook size={20} />}
@@ -450,7 +453,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                         <TbX size={16} />
                                     </button>
                                 </div>
-                                
+
                                 {/* Modal Body */}
                                 <div className="p-6 overflow-y-auto space-y-6 flex-1">
                                     {/* SIP-AIP */}

@@ -27,9 +27,9 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
 
     const safeBudgets = budgets || {};
     const totalBudget = Object.values(safeBudgets).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
-    const allocAmt    = allocation ? (parseFloat(allocation.allocation_amount) || 0) : 0;
-    const isOver      = allocation && allocAmt > 0 && totalBudget > allocAmt;
-    const excess      = allocation ? (allocAmt - totalBudget) : 0; // positive = surplus, negative = over
+    const allocAmt = allocation ? (parseFloat(allocation.allocation_amount) || 0) : 0;
+    const isOver = allocation && allocAmt > 0 && totalBudget > allocAmt;
+    const excess = allocation ? (allocAmt - totalBudget) : 0; // positive = surplus, negative = over
 
     const handleAmountChange = (intId, amt) => {
         if (isLocked) return;
@@ -172,20 +172,26 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                 )}
 
                 {/* Live Totals */}
-                <div className="pt-2 flex items-center justify-between">
+                <div className="pt-2 grid grid-cols-3 gap-4">
+                    <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Budget</p>
+                        <p className="text-xl font-black text-slate-700 tracking-tight">
+                            {formatCurrency(allocAmt)}
+                        </p>
+                    </div>
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Estimate</p>
-                        <p className={`text-2xl font-black tracking-tight transition-colors ${isOver ? 'text-red-500' : 'text-siif-blue'}`}>
+                        <p className={`text-xl font-black tracking-tight transition-colors ${isOver ? 'text-red-500' : 'text-siif-blue'}`}>
                             {formatCurrency(totalBudget)}
                         </p>
                     </div>
                     {allocAmt > 0 && (
                         <div className="text-right">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                {excess >= 0 ? 'Remaining Budget' : 'Over Limit'}
+                                {excess >= 0 ? 'Remaining' : 'Over Limit'}
                             </p>
                             {/* Task 5: Show excess in green */}
-                            <p className={`text-sm font-black tracking-tight ${excess < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                            <p className={`text-xl font-black tracking-tight ${excess < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                 {excess < 0 ? '-' : '+'}{formatCurrency(Math.abs(excess))}
                             </p>
                         </div>
@@ -214,7 +220,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
             </div>
 
             {/* Intervention Budget Inputs */}
-            <div className="space-y-3">
+            <div className="flex flex-row overflow-x-auto flex-nowrap scrollbar-hide gap-4 pb-4 mt-2">
                 {interventions.map(intId => {
                     const info = INTERVENTIONS.find(i => i.id === intId);
                     const bData = beneficiaries?.[intId] || {};
@@ -223,41 +229,48 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                     const activeGrades = (bData.selectedGrades || []).filter(g => (parseInt(counts[g]) || 0) > 0);
 
                     return (
-                        <div key={intId} className="siif-card p-4 sm:p-5 flex flex-col gap-3 hover:border-siif-blue transition-all duration-300">
+                        <div key={intId} className="siif-card shrink-0 w-[320px] p-4 sm:p-5 flex flex-col justify-start gap-3 hover:border-siif-blue transition-all duration-300">
                             {/* Header & Budget Row */}
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                            <div className="flex flex-col gap-3">
                                 <div className="flex items-center gap-3 sm:gap-4 flex-1">
                                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
                                         {INTERVENTION_ICONS[intId]}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-black text-xs text-slate-800 uppercase tracking-tight truncate">{info?.label}</p>
+                                        <p className="font-black text-xs text-slate-800 uppercase tracking-tight break-words whitespace-normal leading-snug">{info?.label}</p>
                                         <p className="text-[9px] text-slate-400 font-bold mt-0.5">Estimated Budget</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
-                                    <span className="text-[10px] font-black text-slate-400 sm:hidden">Budget:</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-black text-slate-400">₱</span>
-                                        <input
-                                            type="text"
-                                            placeholder="0.00"
-                                            readOnly={isLocked}
-                                            value={(!safeBudgets[intId] || safeBudgets[intId] === '0' || safeBudgets[intId] === 0) ? '' : safeBudgets[intId]}
-                                            onChange={e => handleAmountChange(intId, e.target.value)}
-                                            className="w-24 bg-transparent text-right text-xs font-black text-slate-800 focus:outline-none placeholder-slate-300"
-                                        />
-                                    </div>
+                                <div className="flex items-center justify-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2 w-full shrink-0 cursor-text" onClick={(e) => e.currentTarget.querySelector('input')?.focus()}>
+                                    <span className="text-[10px] font-black text-slate-400">₱</span>
+                                    <input
+                                        type="text"
+                                        placeholder="0.00"
+                                        readOnly={isLocked}
+                                        value={(!safeBudgets[intId] || safeBudgets[intId] === '0' || safeBudgets[intId] === 0) ? '' : safeBudgets[intId]}
+                                        onChange={e => handleAmountChange(intId, e.target.value)}
+                                        className="w-24 bg-transparent text-center text-xs font-black text-slate-800 focus:outline-none placeholder-slate-300"
+                                    />
                                 </div>
                             </div>
 
                             {/* Target Learners Row (Below Budget) */}
                             <div className="bg-slate-50/70 rounded-xl p-3 border border-slate-100/50 mt-1">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                    <TbUsers size={14} className="text-siif-blue" />
-                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                                        Target Learners: <span className="text-siif-blue">{learnersCount.toLocaleString()} Total</span>
-                                    </p>
+                                <div className="flex items-start gap-1.5 mb-2">
+                                    <TbUsers size={14} className="text-siif-blue mt-0.5" />
+                                    <div className="flex-1">
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                            Target Learners: <span className="text-siif-blue">{learnersCount.toLocaleString()} Total</span>
+                                        </p>
+                                        <p className="text-[8px] text-slate-400 italic mt-0.5">Allocation per individual = budget_estimate ÷ (sum of beneficiary_count for that intervention)</p>
+                                    </div>
+                                    {learnersCount > 0 && parseFloat(safeBudgets[intId]) > 0 && (
+                                        <div className="shrink-0">
+                                            <p className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">
+                                                {formatCurrency(parseFloat(safeBudgets[intId]) / learnersCount)} / learner
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                                 {activeGrades.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
@@ -298,7 +311,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                     <div className="space-y-3">
                         {interventions.map(intId => {
                             const info = INTERVENTIONS.find(i => i.id === intId);
-                            const amt  = parseFloat(safeBudgets[intId]) || 0;
+                            const amt = parseFloat(safeBudgets[intId]) || 0;
                             return (
                                 <div key={intId} className="flex justify-between items-center bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100/50">
                                     <div className="flex items-center gap-2">
@@ -361,11 +374,10 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                             placeholder="Type CONFIRM here..."
                             value={confirmText}
                             onChange={e => setConfirmText(e.target.value)}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${
-                                confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
-                            }`}
+                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
+                                ? 'border-red-400 bg-red-50 text-red-600'
+                                : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
+                                }`}
                         />
                         {confirmError && (
                             <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
@@ -444,9 +456,10 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: 50, opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-                            className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[85vh] flex flex-col"
+                            className="siif-card w-full max-w-md shadow-2xl overflow-hidden max-h-[85vh] flex flex-col border-[2.5px] border-slate-300"
+                            style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
                         >
-                            <div className="bg-siif-blue text-white px-6 py-5 flex items-center justify-between shrink-0">
+                            <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 flex items-center justify-between shrink-0">
                                 <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center">
                                         <TbUsers size={18} />
@@ -525,14 +538,15 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
                             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                            className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100"
+                            className="siif-card w-full max-w-sm shadow-2xl overflow-hidden border-[2.5px] border-amber-300"
+                            style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
                         >
-                            <div className="bg-amber-500 text-white px-6 py-6 text-center">
+                            <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 text-white px-6 py-6 text-center">
                                 <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
                                     <TbAlertTriangle size={28} className="text-white" />
                                 </div>
                                 <h3 className="font-black text-lg uppercase tracking-tight">Excess Budget</h3>
-                                <p className="text-amber-100 text-[11px] font-bold mt-1">You have unallocated funds</p>
+                                <p className="text-yellow-100 text-[11px] font-bold mt-1">You have unallocated funds</p>
                             </div>
 
                             <div className="p-6 space-y-5">
@@ -549,13 +563,13 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                         <span>You may proceed in</span>
-                                        <span className={`text-base font-black ${excessCountdown > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                        <span className={`text-base font-black text-yellow-500`}>
                                             {excessCountdown > 0 ? `${excessCountdown}s` : '✓ Ready'}
                                         </span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                                         <motion.div
-                                            className="h-full bg-amber-400 rounded-full"
+                                            className="h-full bg-yellow-400 rounded-full"
                                             initial={{ width: '100%' }}
                                             animate={{ width: `${(excessCountdown / 10) * 100}%` }}
                                             transition={{ duration: 0.5 }}

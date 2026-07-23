@@ -25,7 +25,8 @@ const BottomNav = () => {
                 <img
                     src={insightedLogo}
                     alt="InsightEd Logo"
-                    className="siif-brand-logo"
+                    className="siif-brand-logo w-full max-w-[140px]"
+                    style={{ objectFit: 'contain' }}
                 />
                 <img
                     src={insightedLogoCollapsed}
