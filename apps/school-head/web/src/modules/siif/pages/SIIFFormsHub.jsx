@@ -7,7 +7,8 @@ import {
     TbChevronLeft, TbCircleCheck, TbLock,
     TbTarget, TbUsers, TbBulb, TbCurrencyPeso,
     TbChevronRight, TbClock, TbTrendingUp,
-    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit
+    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit,
+    TbSettings, TbClipboardList, TbCalculator, TbChartBar
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../../../utils/logger';
@@ -34,7 +35,7 @@ const CARDS = [
         step: 1,
         label: 'Priority Improvement Areas',
         sublabel: 'Identify priority improvement areas',
-        icon: TbTarget,
+        icon: TbTrendingUp, // Performance icon
         color: 'bg-siif-blue',
     },
     {
