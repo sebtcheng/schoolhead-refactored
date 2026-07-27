@@ -36,14 +36,27 @@ def main():
     env["VITE_BASE_PATH"] = "/insighted-schoolhead-staging/"
     env["NODE_OPTIONS"] = "--max-old-space-size=4096"
     try:
-        subprocess.run("npm run build", shell=True, check=True, env=env)
+        subprocess.run("npx turbo run build --filter=@apps/school-head-web", shell=True, check=True, env=env)
     except subprocess.CalledProcessError:
         print("  [ERROR] Build failed! Aborting.")
         sys.exit(1)
 
     # 2. Archive only essential files (excluding node_modules)
     print(f"[2/5] ARCHIVING deployment payload -> {ARCHIVE_NAME}...")
-    files_to_include = ["api", "server", "dist", "public", "package.json", "package-lock.json", ECOSYSTEM_CONFIG, ".env"]
+    files_to_include = [
+        "apps/school-head/api", 
+        "apps/siif/api",
+        "packages/shared-auth",
+        "packages/shared-db",
+        "packages/shared-io",
+        "packages/shared-types",
+        "public", 
+        "package.json", 
+        "pnpm-lock.yaml", 
+        "pnpm-workspace.yaml", 
+        ECOSYSTEM_CONFIG, 
+        ".env"
+    ]
     with tarfile.open(ARCHIVE_NAME, "w:gz") as tar:
         for f in files_to_include:
             if os.path.exists(f):
@@ -51,6 +64,14 @@ def main():
                 print(f"       + {f}")
             else:
                 print(f"       [SKIP] not found: {f}")
+        
+        # Inject the built frontend dist folder directly into the root as "dist" for Nginx
+        frontend_dist = "apps/school-head/web/dist"
+        if os.path.exists(frontend_dist):
+            tar.add(frontend_dist, arcname="dist")
+            print(f"       + {frontend_dist} -> (archived as dist/)")
+        else:
+            print(f"       [WARN] Frontend dist not found at {frontend_dist}!")
 
     print(f"[3/5] UPLOADING archive to {REMOTE_HOST} inside {REMOTE_ROOT}...")
     try:
@@ -70,8 +91,8 @@ def main():
         f"sudo chown -R {REMOTE_USER}:{REMOTE_USER} {REMOTE_ROOT} && "
         # [Stabilization] Ensure .env uses localhost to bypass NIC bottlenecks
         "sed -i 's/20.24.58.49:6432/127.0.0.1:6432/g' .env && "
-        "echo \"       → Running production npm install...\" && "
-        "npm install --omit=dev --legacy-peer-deps --prefer-offline --no-audit --no-fund 2>&1 | tail -n 10 && "
+        "echo \"       → Running production pnpm install...\" && "
+        "pnpm install --prod 2>&1 | tail -n 10 && "
         f"pm2 flush {PM2_NAME} && "
         f"pm2 delete {PM2_NAME} 2>/dev/null || true && "
         f"pm2 start {ECOSYSTEM_CONFIG} && "
