@@ -9,14 +9,17 @@ import time
 REMOTE_USER  = "Administrator1"
 REMOTE_HOST  = "20.24.58.49"
 REMOTE_ROOT  = "/mnt/insighted-schoolhead-staging"
-SSH_KEY_PATH = os.path.expanduser("~/.ssh/id_rsa")
+SSH_KEY_PATH = os.path.expanduser("~/.ssh/id_rsa").replace("\\", "/")
+# Check if key file exists locally, otherwise omit -i from SSH commands
+SSH_KEY_OPT = f'-i "{SSH_KEY_PATH}"' if os.path.exists(SSH_KEY_PATH) else ""
 ARCHIVE_NAME = "schoolhead-staging-deploy.tar.gz"
 ECOSYSTEM_CONFIG = "ecosystem.schoolhead-staging.config.cjs"
 PM2_NAME     = "insighted-schoolhead-staging-backend"
 
 def run_ssh(command: str, timeout=60):
     """Run bundled commands over a single SSH connection with a timeout."""
-    ssh_cmd = f'ssh -i "{SSH_KEY_PATH}" -o ConnectTimeout=10 {REMOTE_USER}@{REMOTE_HOST} "{command}"'
+    # Use BatchMode=yes for connection check to prevent hangs
+    ssh_cmd = f'ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10 {SSH_KEY_OPT} {REMOTE_USER}@{REMOTE_HOST} "{command}"'
     try:
         return subprocess.run(ssh_cmd, shell=True, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -54,6 +57,7 @@ def main():
         "package.json", 
         "pnpm-lock.yaml", 
         "pnpm-workspace.yaml", 
+        ".npmrc",
         ECOSYSTEM_CONFIG, 
         ".env"
     ]
@@ -76,8 +80,9 @@ def main():
     print(f"[3/5] UPLOADING archive to {REMOTE_HOST} inside {REMOTE_ROOT}...")
     try:
         # Create directory first to ensure scp works
-        run_ssh(f"mkdir -p {REMOTE_ROOT}")
-        subprocess.run(f'scp -i "{SSH_KEY_PATH}" {ARCHIVE_NAME} {REMOTE_USER}@{REMOTE_HOST}:{REMOTE_ROOT}/', shell=True, check=True)
+        run_ssh(f"sudo mkdir -p {REMOTE_ROOT} && sudo chown -R {REMOTE_USER}:{REMOTE_USER} {REMOTE_ROOT}")
+        scp_cmd = f'scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 {SSH_KEY_OPT} {ARCHIVE_NAME} {REMOTE_USER}@{REMOTE_HOST}:{REMOTE_ROOT}/'
+        subprocess.run(scp_cmd, shell=True, check=True)
     except subprocess.CalledProcessError:
         print("  [ERROR] Upload failed! Check your SSH key and connection.")
         sys.exit(1)
@@ -85,22 +90,25 @@ def main():
     # 4. Bundled Remote Execution (Self-Healing & Speed)
     print("[4/5] REMOTE extraction, production install, and PM2 reset...")
     remote_script = (
-        f"mkdir -p {REMOTE_ROOT}/logs && "
         f"cd {REMOTE_ROOT} && "
+        f"pm2 stop {PM2_NAME} 2>/dev/null || true && "
+        f"sudo rm -rf apps packages node_modules && "
+        f"mkdir -p dist && sudo rm -rf dist/* && "
         f"tar -xzf {ARCHIVE_NAME} && "
         f"sudo chown -R {REMOTE_USER}:{REMOTE_USER} {REMOTE_ROOT} && "
+        f"find . -name 'node_modules' -type d -prune -exec rm -rf {{}} + 2>/dev/null || true && "
         # [Stabilization] Ensure .env uses localhost to bypass NIC bottlenecks
         "sed -i 's/20.24.58.49:6432/127.0.0.1:6432/g' .env && "
         "echo \"       → Running production pnpm install...\" && "
-        "pnpm install --prod 2>&1 | tail -n 10 && "
+        "pnpm install --shamefully-hoist 2>&1 | tail -n 10 && "
         f"pm2 flush {PM2_NAME} && "
         f"pm2 delete {PM2_NAME} 2>/dev/null || true && "
         f"pm2 start {ECOSYSTEM_CONFIG} && "
-        f"rm {ARCHIVE_NAME}"
+        f"rm -f {ARCHIVE_NAME}"
     )
     
     # Use -t to force a pseudo-terminal, which helps with process cleanup
-    ssh_cmd = f'ssh -t -i "{SSH_KEY_PATH}" -o ConnectTimeout=10 {REMOTE_USER}@{REMOTE_HOST} "{remote_script}"'
+    ssh_cmd = f'ssh -t -o StrictHostKeyChecking=no {SSH_KEY_OPT} -o ConnectTimeout=10 {REMOTE_USER}@{REMOTE_HOST} "{remote_script}"'
     try:
         # We don't use capture_output here so the user can see the progress (echoes, etc.)
         subprocess.run(ssh_cmd, shell=True, check=True)
