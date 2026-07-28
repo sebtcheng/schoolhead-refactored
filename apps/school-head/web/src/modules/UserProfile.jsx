@@ -1562,7 +1562,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                                 DEPARTMENT OF EDUCATION | BUREAU OF HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT
                             </span>
                             <h1>
-                                {activeTab === 'settings' ? `Settings • ${schoolName || 'InsightEd Campus'}` :
+                                {activeTab === 'settings' ? (schoolName ? `Settings • ${schoolName}` : 'Settings') :
                                  activeTab === 'profile' ? 'Edit Profile' :
                                  activeTab === 'faq' ? 'FAQ / Knowledge Base' :
                                  activeTab === 'feedback' ? 'User Feedback' : 'About InsightED'}

@@ -617,7 +617,7 @@ const SIIFDashboard = ({ user, token }) => {
                                             <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1.5" style={{ color: 'var(--gold)' }}>
                                                 Intervention Disaggregation
                                             </p>
-                                            <h2 className="text-[20px] font-black italic uppercase tracking-tight leading-tight">
+                                            <h2 className="text-[20px] font-black italic uppercase tracking-tight leading-tight" style={{ color: 'var(--gold)' }}>
                                                 {info?.label || intId}
                                             </h2>
                                         </div>
@@ -632,57 +632,20 @@ const SIIFDashboard = ({ user, token }) => {
 
                                 {/* Modal Body */}
                                 <div className="p-8 overflow-y-auto space-y-6 flex-1 text-slate-800 text-[14px] bg-slate-50">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-600 text-sm">Search:</span>
-                                            <input type="text" placeholder="Search records..." className="border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-siif-blue" />
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Estimated Budget</span>
+                                            <strong className="text-lg md:text-base lg:text-xl font-black text-emerald-600 whitespace-nowrap leading-tight">{formatCurrency(budget)}</strong>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-600 text-sm">Showing 1 of 1</span>
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Beneficiaries</span>
+                                            <strong className="text-xl md:text-lg lg:text-2xl font-black text-blue-600 whitespace-nowrap leading-tight">{learners.toLocaleString()}</strong>
+                                            <span className="text-[10px] sm:text-xs font-medium text-slate-500 mt-1">Learners targeted</span>
                                         </div>
-                                    </div>
-
-                                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white shadow-sm" style={{ maxHeight: '400px' }}>
-                                        <table className="w-full text-left" style={{ tableLayout: 'fixed' }}>
-                                            <thead className="bg-slate-100 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer">Record ID ↕</th>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer">Beneficiaries ↕</th>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer">Activities ↕</th>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer text-center">Value ↕</th>
-                                                </tr>
-                                                <tr>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr className="hover:bg-slate-50 border-b border-slate-100">
-                                                    <td className="p-3 text-slate-700 font-medium truncate">{info?.label || intId}</td>
-                                                    <td className="p-3 text-slate-700 truncate">{learners.toLocaleString()} learners</td>
-                                                    <td className="p-3 text-slate-700 truncate">{acts.length + (intData.otherActivity ? 1 : 0)} activities</td>
-                                                    <td className="p-3 text-emerald-700 font-bold text-center">{formatCurrency(budget)}</td>
-                                                </tr>
-                                                <tr className="sticky bottom-0 bg-slate-100 border-t-2 border-slate-300">
-                                                    <td className="p-3 font-black text-slate-800" colSpan="3">Total</td>
-                                                    <td className="p-3 font-black text-emerald-700 text-center">{formatCurrency(budget)}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div className="flex items-center justify-between mt-4">
-                                        <span className="text-xs font-bold text-slate-500">Rows 1–1 of 1 · Page 1 of 1</span>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span className="font-bold text-slate-600">Rows per page:</span>
-                                            <select className="border border-slate-300 rounded px-2 py-1 outline-none" defaultValue="25">
-                                                <option value="10">10</option>
-                                                <option value="25">25</option>
-                                                <option value="50">50</option>
-                                                <option value="100">100</option>
-                                            </select>
+                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Planned Activities</span>
+                                            <strong className="text-xl md:text-lg lg:text-2xl font-black text-purple-600 whitespace-nowrap leading-tight">{acts.length + (intData.otherActivity ? 1 : 0)}</strong>
+                                            <span className="text-[10px] sm:text-xs font-medium text-slate-500 mt-1">Total activities</span>
                                         </div>
                                     </div>
                                 </div>
