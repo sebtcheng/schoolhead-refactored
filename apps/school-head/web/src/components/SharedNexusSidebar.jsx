@@ -4,6 +4,8 @@ import { FiHome, FiSettings, FiLogOut } from 'react-icons/fi';
 import { TbCloudSearch, TbSchool } from 'react-icons/tb';
 import { LuCompass } from 'react-icons/lu';
 import { useAuth } from '../context/AuthContext';
+import InsightEdLogoExpanded from '../assets/InsightEdLogoApp.png';
+import InsightEdLogoCollapsed from '../assets/insightedlogo.png';
 
 const SharedNexusSidebar = ({ activeTab }) => {
   const navigate = useNavigate();
@@ -162,17 +164,15 @@ const SharedNexusSidebar = ({ activeTab }) => {
       >
         <div className="nodes-brand">
           <img
-            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 2x2 white outline.png`}
+            src={InsightEdLogoExpanded}
             alt="InsightED Logo"
             className="logo-collapsed object-contain w-10 h-10"
-            onError={(e) => { e.target.src = "OFFICIAL LOGO/InsightED logo 2x2 white outline.png"; }}
           />
           <img
-            src={`${import.meta.env.BASE_URL || '/'}OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png`}
+            src={InsightEdLogoCollapsed}
             alt="InsightED Logo"
             className="logo-expanded object-contain"
             style={{ width: '10rem', height: '4rem' }}
-            onError={(e) => { e.target.src = "OFFICIAL LOGO/InsightED logo 5 x 3 in white outline.png"; }}
           />
         </div>
 
