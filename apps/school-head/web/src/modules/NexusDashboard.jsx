@@ -231,10 +231,10 @@ const NodesDashboard = () => {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-[#EAF6FB] font-['IBM_Plex_Sans'] text-[#082B4C] relative selection:bg-sky-200">
+      <div className="min-h-screen bg-[#EAF6FB] font-['DM_Sans'] text-[#082B4C] relative selection:bg-sky-200">
         <style dangerouslySetInnerHTML={{
           __html: `
-                    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700;800;900&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
                     
                     :root {
                         --navy: #06345F;
@@ -267,8 +267,8 @@ const NodesDashboard = () => {
                         --orb-warm: rgba(253, 186, 34, 0.30);
                         --orb-cool: rgba(10, 111, 166, 0.18);
 
-                        --font-heading: "Quicksand", "IBM Plex Sans", system-ui, sans-serif;
-                        --font-body: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                        --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                        --font-body: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                     }
 
                     /* Custom Collapsible Sidebar Styles matching SchoolHead */

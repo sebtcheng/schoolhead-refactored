@@ -112,6 +112,20 @@
     display: none;
   }
 
+  .siif-sidebar:not(:hover) .siif-text-label {
+    display: none !important;
+  }
+
+  .siif-sidebar:hover .siif-text-label {
+    display: inline-block !important;
+  }
+
+  .siif-sidebar:not(:hover) .siif-sidebar-footer button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
   .siif-sidebar .siif-nav a:focus {
     outline: none;
   }
@@ -319,8 +333,9 @@
     overflow: hidden;
   }
 
-  .siif-brand {
-    display: none;
+  .siif-brand,
+  .siif-sidebar-footer {
+    display: none !important;
   }
 
   .siif-nav {

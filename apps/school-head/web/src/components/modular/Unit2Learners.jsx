@@ -1552,7 +1552,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         <div className={`min-h-screen unit1-page relative pb-32`}>
             <style dangerouslySetInnerHTML={{
                 __html: `
-                @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700;900&family=Comic+Neue:wght@400;700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
                 
                 :root {
                   --navy: #08315F;
@@ -1569,8 +1569,8 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                   --text: #0F172A;
                   --muted: #64748B;
                   --line: #BAE6FD;
-                  --font-heading: Quicksand, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                  --font-body: 'Comic Neue', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                  --font-body: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                   --radius: 22px;
                 }
 
