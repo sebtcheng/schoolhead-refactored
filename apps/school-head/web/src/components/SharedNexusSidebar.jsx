@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiHome, FiSettings, FiLogOut } from 'react-icons/fi';
-import { TbCloudSearch, TbSchool } from 'react-icons/tb';
+import { FiHome, FiSettings, FiLogOut, FiArrowLeft } from 'react-icons/fi';
 import { LuCompass } from 'react-icons/lu';
 import { useAuth } from '../context/AuthContext';
 import InsightEdLogoExpanded from '../assets/InsightEdLogoApp.png';
@@ -13,10 +12,8 @@ const SharedNexusSidebar = ({ activeTab }) => {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
 
   const navItems = [
-    { label: 'Home', icon: <FiHome size={18} />, path: '/nodes-dashboard' },
-    { label: 'CLOUD', icon: <TbCloudSearch size={18} />, path: '/my-activity' },
+    { label: 'Home', icon: <FiHome size={18} />, path: '/my-activity' },
     { label: 'Units', icon: <LuCompass size={18} />, path: '/modular-dashboard' },
-    { label: 'Guide', icon: <TbSchool size={18} />, path: '/guide/school-head' },
     { label: 'Settings', icon: <FiSettings size={18} />, path: '/profile' }
   ];
 
@@ -164,12 +161,12 @@ const SharedNexusSidebar = ({ activeTab }) => {
       >
         <div className="nodes-brand">
           <img
-            src={InsightEdLogoExpanded}
+            src={InsightEdLogoCollapsed}
             alt="InsightED Logo"
             className="logo-collapsed object-contain w-10 h-10"
           />
           <img
-            src={InsightEdLogoCollapsed}
+            src={InsightEdLogoExpanded}
             alt="InsightED Logo"
             className="logo-expanded object-contain"
             style={{ width: '10rem', height: '4rem' }}
@@ -198,8 +195,16 @@ const SharedNexusSidebar = ({ activeTab }) => {
             <p className="text-[10px] uppercase tracking-wider text-white/50 truncate">{user?.school_name || "Nexus Dashboard"}</p>
           </div>
           <button
+            onClick={() => navigate('/nodes-dashboard')}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sky-200 hover:text-white hover:bg-white/10 text-xs font-bold transition-all overflow-hidden"
+            title="Go Back to Nexus"
+          >
+            <FiArrowLeft size={16} className="shrink-0" />
+            <span className="sidebar-text-label">Go Back to Nexus</span>
+          </button>
+          <button
             onClick={confirmLogout}
-            className="w-full mt-2 flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-300 hover:text-rose-400 hover:bg-rose-950/20 text-xs font-bold transition-all overflow-hidden"
+            className="w-full mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-300 hover:text-rose-400 hover:bg-rose-950/20 text-xs font-bold transition-all overflow-hidden"
           >
             <FiLogOut size={16} className="shrink-0" />
             <span className="sidebar-text-label">Secure Sign Out</span>
@@ -212,7 +217,7 @@ const SharedNexusSidebar = ({ activeTab }) => {
         <div className="absolute top-0 left-[18%] w-24 h-6 bg-gradient-to-b from-[#FBBF24]/20 to-transparent blur-sm pointer-events-none" />
         <div className="absolute top-0 right-[20%] w-20 h-6 bg-gradient-to-b from-[#B91C1C]/15 to-transparent blur-sm pointer-events-none" />
 
-        <div className="grid grid-cols-5 gap-1 max-w-[760px] mx-auto w-full relative z-10">
+        <div className="grid grid-cols-3 gap-1 max-w-[760px] mx-auto w-full relative z-10">
           {navItems.map((item) => {
             const isActive = activeTab === item.label;
             return (

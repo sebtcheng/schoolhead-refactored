@@ -21,7 +21,6 @@ import { LuCompass } from "react-icons/lu";
 import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
-import SharedNexusSidebar from '../components/SharedNexusSidebar';
 import { api } from "../lib/api";
 
 const NodesDashboard = () => {
@@ -948,9 +947,8 @@ const NodesDashboard = () => {
         <div className="bg-orb orb-b" aria-hidden="true"></div>
         <div className="bg-orb orb-c" aria-hidden="true"></div>
 
-        <div className="nodes-app-layout min-h-screen grid grid-cols-1 lg:grid-cols-[80px_1fr] transition-all duration-300 ease-in-out">
-            <SharedNexusSidebar activeTab="Home" />{/* Main Workspace Frame (New Design Integration) */}
-          <main className="nexus-preview lg:col-start-2">
+        <div className="nodes-app-layout min-h-screen w-full grid grid-cols-1 transition-all duration-300 ease-in-out">
+          <main className="nexus-preview w-full">
             <section className="landing-stage">
               <section className="hero" aria-labelledby="page-title">
                 <div className="logo-icon" aria-label="InsightED">IE</div>

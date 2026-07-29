@@ -686,7 +686,7 @@ const MyActivityDashboard = () => {
                 }} />
 
                 {/* ── Sidebar ── */}
-                <SharedNexusSidebar activeTab="CLOUD" />
+                <SharedNexusSidebar activeTab="Home" />
 
                 {/* ── Main Content ── */}
                 <div className="flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10">
