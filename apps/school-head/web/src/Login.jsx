@@ -229,8 +229,8 @@ const Login = ({ mode = 'login' }) => {
             const useSchoolIdField = (isSchoolHead || isNumericId) && !isEmail;
 
             const body = loginMode === 'passcode'
-                ? { [useSchoolIdField ? 'school_id' : 'email']: identifier, pin: secret }
-                : { [useSchoolIdField ? 'school_id' : 'email']: identifier, password: secret };
+                ? { school_id: identifier, email: identifier, pin: secret }
+                : { school_id: identifier, email: identifier, password: secret };
 
             console.log(`Attempting login via ${endpoint}...`);
             const response = await fetch(endpoint, {

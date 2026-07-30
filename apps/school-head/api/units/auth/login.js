@@ -30,9 +30,14 @@ router.post('/api/auth/migrate-login', async (req, res) => {
 
     const SELECT_COLS = `uid, email, role, region, division, office, account_category, passcode, password_hash, password_salt, hash_version, first_name, last_name, school_id, province, city`;
 
-    const query = isSchoolId
-      ? `SELECT ${SELECT_COLS} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
-      : `SELECT ${SELECT_COLS} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
+    const query = `
+      SELECT ${SELECT_COLS} 
+      FROM users 
+      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1) 
+        AND disabled = false 
+        AND (registration_status = 'Valid' OR registration_status IS NULL) 
+      ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC
+    `;
 
     const processUserRes = (resObj) => {
       if (resObj.rowCount === 0) return null;
@@ -42,13 +47,26 @@ router.post('/api/auth/migrate-login', async (req, res) => {
     let user;
     let loginClient = await pool.connect();
     try {
-      const userRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+      const searchTarget = identifier.toLowerCase();
+      console.log(`\n=================== [LOGIN DEBUG TRACE] ===================`);
+      console.log(`🔍 Received req.body:`, JSON.stringify(req.body));
+      console.log(`🔍 Extracted identifier: "${identifier}", searchTarget: "${searchTarget}"`);
+      
+      const userRes = await loginClient.query(query, [searchTarget]);
+      console.log(`📊 DB query rowCount: ${userRes.rowCount}`);
       user = processUserRes(userRes);
+      if (user) {
+        console.log(`✅ USER MATCHED: email="${user.email}", school_id="${user.school_id}", role="${user.role}", hash_version="${user.hash_version}"`);
+      } else {
+        console.log(`❌ NO USER MATCH FOUND IN DB for target: "${searchTarget}"`);
+      }
+      console.log(`===========================================================\n`);
     } catch (err) {
+      console.error(`❌ [LOGIN DEBUG TRACE ERROR]:`, err);
       if (err.message.includes('terminated unexpectedly')) {
         loginClient.release();
         loginClient = await pool.connect();
-        const retryRes = await loginClient.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+        const retryRes = await loginClient.query(query, [identifier.toLowerCase()]);
         user = processUserRes(retryRes);
       } else {
         throw err;
@@ -167,26 +185,43 @@ router.post('/api/auth/pin-login', async (req, res) => {
     const isSchoolId = !isEmail && (!!school_id || /^\d{6,}$/.test(identifier));
 
     const selectCols = 'uid, email, role, region, division, office, account_category, passcode, first_name, last_name, school_id';
-    const query = isSchoolId
-      ? `SELECT ${selectCols} FROM users WHERE school_id = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL)`
-      : `SELECT ${selectCols} FROM users WHERE LOWER(email) = $1 AND disabled = false AND (registration_status = 'Valid' OR registration_status IS NULL) ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC`;
+    const query = `
+      SELECT ${selectCols} 
+      FROM users 
+      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1) 
+        AND disabled = false 
+        AND (registration_status = 'Valid' OR registration_status IS NULL) 
+      ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC
+    `;
 
     let user;
     let client = await pool.connect();
     try {
+      const searchTarget = identifier.toLowerCase();
+      console.log(`\n=================== [PIN-LOGIN DEBUG TRACE] ===================`);
+      console.log(`🔍 Received req.body:`, JSON.stringify(req.body));
+      console.log(`🔍 Extracted identifier: "${identifier}", searchTarget: "${searchTarget}"`);
+
       let userRes;
       try {
-        userRes = await client.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+        userRes = await client.query(query, [searchTarget]);
+        console.log(`📊 DB query rowCount: ${userRes.rowCount}`);
       } catch (err) {
         if (err.message.includes('terminated unexpectedly')) {
           client.release();
           client = await pool.connect();
-          userRes = await client.query(query, [isSchoolId ? identifier : identifier.toLowerCase()]);
+          userRes = await client.query(query, [searchTarget]);
         } else {
           throw err;
         }
       }
-      if (userRes.rowCount > 0) user = userRes.rows[0];
+      if (userRes.rowCount > 0) {
+        user = userRes.rows[0];
+        console.log(`✅ PIN USER MATCHED: email="${user.email}", school_id="${user.school_id}", role="${user.role}"`);
+      } else {
+        console.log(`❌ NO PIN USER MATCH FOUND IN DB for target: "${searchTarget}"`);
+      }
+      console.log(`===============================================================\n`);
     } finally {
       client.release();
     }

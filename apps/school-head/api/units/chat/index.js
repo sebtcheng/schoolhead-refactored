@@ -72,7 +72,7 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
         ORDER BY last_name ASC
       `;
       const schoolHeadsRes = await pool.query(schoolHeadsQuery, [self.division]);
-      
+
       const adminQuery = `
         SELECT uid, first_name, last_name, role 
         FROM users 
@@ -158,7 +158,7 @@ router.post('/api/chat/room', authMiddleware, async (req, res) => {
       INSERT INTO chat_room_participants (room_id, user_uid, user_role) 
       VALUES ($1, $2, $3)
     `;
-    
+
     await client.query(addParticipantQuery, [roomId, userUid, selfUser.role]);
     await client.query(addParticipantQuery, [roomId, target_uid, targetUser.role]);
 
@@ -195,7 +195,8 @@ router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
       u.school_id,
       m.message_text AS last_message,
       m.sender_uid AS last_message_sender,
-      m.created_at AS last_message_time
+      m.created_at AS last_message_time,
+      COALESCE(u_cnt.unread_count, 0)::int AS unread_count
     FROM chat_rooms r
     JOIN chat_room_participants self ON r.id = self.room_id AND self.user_uid = $1
     JOIN chat_room_participants p ON r.id = p.room_id AND p.user_uid != $1
@@ -207,6 +208,11 @@ router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
       ORDER BY created_at DESC 
       LIMIT 1
     ) m ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS unread_count
+      FROM chat_messages
+      WHERE room_id = r.id AND sender_uid::text != $1::text AND (is_read = false OR is_read IS NULL)
+    ) u_cnt ON TRUE
     ORDER BY r.updated_at DESC
   `;
 
@@ -215,6 +221,28 @@ router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
     res.json({ success: true, rooms: result.rows });
   } catch (err) {
     console.error('[CHAT ROUTE] Fetch rooms error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [MESSAGES] PUT /api/chat/rooms/:roomId/read
+// Marks all unread incoming messages in a specific chat room as read.
+// ─────────────────────────────────────────────────────────────────────────────
+router.put('/api/chat/rooms/:roomId/read', authMiddleware, async (req, res) => {
+  const userUid = req.user.uid;
+  const { roomId } = req.params;
+
+  try {
+    const updateQuery = `
+      UPDATE chat_messages
+      SET is_read = true
+      WHERE room_id = $1 AND sender_uid::text != $2::text AND (is_read = false OR is_read IS NULL)
+    `;
+    await pool.query(updateQuery, [roomId, userUid]);
+    res.json({ success: true, message: 'Messages marked as read.' });
+  } catch (err) {
+    console.error('[CHAT ROUTE] Mark messages read error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
   }
 });
@@ -237,6 +265,12 @@ router.get('/api/chat/rooms/:roomId/messages', authMiddleware, async (req, res) 
     if (membershipRes.rowCount === 0) {
       return res.status(403).json({ success: false, error: 'Unauthorized to view this room.' });
     }
+
+    // Auto mark unread messages sent by others as read
+    await pool.query(
+      `UPDATE chat_messages SET is_read = true WHERE room_id = $1 AND sender_uid::text != $2::text AND (is_read = false OR is_read IS NULL)`,
+      [roomId, userUid]
+    );
 
     const messagesQuery = `
       SELECT 
@@ -301,8 +335,8 @@ router.post('/api/chat/messages', authMiddleware, async (req, res) => {
     const type = message_type || 'text';
 
     const insertMessageQuery = `
-      INSERT INTO chat_messages (room_id, sender_uid, message_text, message_type, attachment_url, attachment_metadata) 
-      VALUES ($1, $2, $3, $4, $5, $6) 
+      INSERT INTO chat_messages (room_id, sender_uid, message_text, message_type, attachment_url, attachment_metadata, is_read) 
+      VALUES ($1, $2, $3, $4, $5, $6, false) 
       RETURNING *
     `;
     const insertRes = await client.query(insertMessageQuery, [
@@ -345,7 +379,7 @@ router.post('/api/chat/upload', authMiddleware, upload.single('image'), async (r
   const fileName = `chat_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')}`;
   const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
 
-  const isAzureConfigured = connectionString && 
+  const isAzureConfigured = connectionString &&
     connectionString !== 'ReplaceWithYourAzureStorageConnectionString' &&
     !connectionString.includes('Replace');
 
@@ -354,19 +388,19 @@ router.post('/api/chat/upload', authMiddleware, upload.single('image'), async (r
       console.log('[CHAT UPLOAD] Uploading image to Azure Blob Storage...');
       const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
       const containerClient = blobServiceClient.getContainerClient('chat-attachments');
-      
+
       // Remove public access settings to support enterprise environments where public container access is disabled
       await containerClient.createIfNotExists();
-      
+
       const blockBlobClient = containerClient.getBlockBlobClient(fileName);
       await blockBlobClient.upload(fileBuffer, fileBuffer.length, {
         blobHTTPHeaders: { blobContentType: req.file.mimetype }
       });
-      
+
       // Generate a Shared Access Signature (SAS) URL allowing long term browser access (e.g. 10 years)
       const expiryTime = new Date();
       expiryTime.setFullYear(expiryTime.getFullYear() + 10);
-      
+
       const fileUrl = await blockBlobClient.generateSasUrl({
         permissions: BlobSASPermissions.parse("r"),
         expiresOn: expiryTime

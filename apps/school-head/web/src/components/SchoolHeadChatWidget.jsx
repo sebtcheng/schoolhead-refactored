@@ -2,6 +2,32 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 
+// Singleton AudioContext pre-unlocked on user interaction
+let globalAudioCtx = null;
+
+const getSharedAudioContext = () => {
+  if (typeof window === 'undefined') return null;
+  if (!globalAudioCtx) {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtxClass) {
+      globalAudioCtx = new AudioCtxClass();
+    }
+  }
+  if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+    globalAudioCtx.resume().catch(() => {});
+  }
+  return globalAudioCtx;
+};
+
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    getSharedAudioContext();
+  };
+  window.addEventListener('click', unlockAudio, { passive: true });
+  window.addEventListener('keydown', unlockAudio, { passive: true });
+  window.addEventListener('touchstart', unlockAudio, { passive: true });
+}
+
 const SchoolHeadChatWidget = () => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -20,65 +46,161 @@ const SchoolHeadChatWidget = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Check if current user is a School Head
-  const userRole = localStorage.getItem('userRole') || (user && user.role);
-  const isSchoolHead = userRole === 'School Head' || userRole === 'school_head';
+  // Check if current user is a School Head or Admin/Super User
+  const userRole = localStorage.getItem('userRole') || (user && user.role) || '';
+  const roleLower = userRole.toLowerCase();
+  const isSchoolHead = roleLower.includes('school') || roleLower.includes('head') || roleLower.includes('admin') || roleLower.includes('super');
 
-  // 1. Fetch active rooms & contacts on open
+  const prevUnreadTotalRef = useRef(null);
+  const prevMsgCountRef = useRef(0);
+
+  // Helper audio chime player for incoming messages (Loud & Crisp Web Audio)
+  const playNotificationSound = () => {
+    try {
+      const audioCtx = getSharedAudioContext();
+      if (!audioCtx) return;
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+
+      const now = audioCtx.currentTime;
+
+      // Primary oscillator (D5 to A5 pitch sweep)
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now); // D5
+      osc1.frequency.exponentialRampToValueAtTime(880, now + 0.15); // A5
+      gain1.gain.setValueAtTime(0.5, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // Harmony oscillator (F#5 to D6) for a bright, clear bell ring
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(739.99, now + 0.05); // F#5
+      osc2.frequency.exponentialRampToValueAtTime(1174.66, now + 0.2); // D6
+      gain2.gain.setValueAtTime(0.35, now + 0.05);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start(now + 0.05);
+      osc2.stop(now + 0.4);
+    } catch (e) {
+      console.warn('[SH CHAT] Audio play failed:', e);
+    }
+  };
+
+  // Reset active room message count on room selection change
   useEffect(() => {
-    if (!isSchoolHead || !isOpen) return;
+    prevMsgCountRef.current = 0;
+  }, [selectedRoomId]);
+
+  // 1. Fetch active rooms & contacts + Poll periodically (5s) for new unread messages
+  useEffect(() => {
+    if (!isSchoolHead) return;
+
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    // Load active rooms
-    fetch(api('/api/chat/rooms'), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        setRooms(data.rooms || []);
-      }
-    })
-    .catch(err => console.error('[SH CHAT] Load rooms error:', err));
+    const fetchRoomsAndContacts = () => {
+      const currentToken = localStorage.getItem('token');
+      if (!currentToken) return;
 
-    // Load contacts list
+      fetch(api('/api/chat/rooms'), {
+        headers: { 'Authorization': `Bearer ${currentToken}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            const fetchedRooms = data.rooms || [];
+            setRooms(fetchedRooms);
+
+            // Calculate total unread count
+            const totalUnread = fetchedRooms.reduce((acc, r) => acc + (parseInt(r.unread_count || 0, 10)), 0);
+            if (prevUnreadTotalRef.current !== null && totalUnread > prevUnreadTotalRef.current) {
+              playNotificationSound();
+            }
+            prevUnreadTotalRef.current = totalUnread;
+          }
+        })
+        .catch(err => console.error('[SH CHAT] Load rooms error:', err));
+    };
+
+    // Load contacts list once
     fetch(api('/api/chat/contacts'), {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success && data.contacts) {
-        setContacts({
-          SDOs: data.contacts.SDOs || [],
-          HRMO: data.contacts.HRMO,
-          ADMIN: data.contacts.ADMIN
-        });
-      }
-    })
-    .catch(err => console.error('[SH CHAT] Fetch contacts error:', err));
-  }, [isSchoolHead, isOpen]);
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.contacts) {
+          setContacts({
+            SDOs: data.contacts.SDOs || [],
+            HRMO: data.contacts.HRMO,
+            ADMIN: data.contacts.ADMIN
+          });
+        }
+      })
+      .catch(err => console.error('[SH CHAT] Fetch contacts error:', err));
 
-  // 2. Fetch messages for active room
+    fetchRoomsAndContacts();
+    const interval = setInterval(fetchRoomsAndContacts, 5000);
+    return () => clearInterval(interval);
+  }, [isSchoolHead]);
+
+  // 2. Fetch messages for active room + polling every 4s when chat room is open
   useEffect(() => {
     if (!selectedRoomId || !isOpen) return;
     const token = localStorage.getItem('token');
-    setLoading(true);
 
-    fetch(api(`/api/chat/rooms/${selectedRoomId}/messages`), {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        setMessages(data.messages || []);
-      }
-    })
-    .catch(err => {
-      console.error('[SH CHAT] Load messages error:', err);
-      setMessages([]);
-    })
-    .finally(() => setLoading(false));
+    const fetchMessages = (showLoading = false) => {
+      if (showLoading) setLoading(true);
+      fetch(api(`/api/chat/rooms/${selectedRoomId}/messages`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            const fetchedMsgs = data.messages || [];
+            const selfUid = user?.uid || localStorage.getItem('uid');
+
+            // Play sound if a new message arrived from another person while room is open
+            if (fetchedMsgs.length > prevMsgCountRef.current && prevMsgCountRef.current > 0) {
+              const lastMsg = fetchedMsgs[fetchedMsgs.length - 1];
+              if (lastMsg && lastMsg.sender_uid !== selfUid) {
+                playNotificationSound();
+              }
+            }
+            prevMsgCountRef.current = fetchedMsgs.length;
+            setMessages(fetchedMsgs);
+
+            // Update rooms list immediately to reflect cleared unread_count
+            fetch(api('/api/chat/rooms'), {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+              .then(r => r.json())
+              .then(d => {
+                if (d.success) setRooms(d.rooms || []);
+              });
+          }
+        })
+        .catch(err => {
+          console.error('[SH CHAT] Load messages error:', err);
+          if (showLoading) setMessages([]);
+        })
+        .finally(() => {
+          if (showLoading) setLoading(false);
+        });
+    };
+
+    fetchMessages(true);
+    const interval = setInterval(() => fetchMessages(false), 4000);
+    return () => clearInterval(interval);
   }, [selectedRoomId, isOpen]);
 
   // 3. Auto-scroll to bottom of chat
@@ -101,27 +223,27 @@ const SchoolHeadChatWidget = () => {
       },
       body: JSON.stringify({ target_uid: contact.uid })
     })
-    .then(res => res.json())
-    .then(roomData => {
-      if (roomData.success) {
-        setSelectedRoomId(roomData.room_id);
-        setShowNewChatSelector(false);
+      .then(res => res.json())
+      .then(roomData => {
+        if (roomData.success) {
+          setSelectedRoomId(roomData.room_id);
+          setShowNewChatSelector(false);
 
-        // Refresh rooms list
-        return fetch(api('/api/chat/rooms'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      } else {
-        throw new Error(roomData.error || 'Failed to initialize room');
-      }
-    })
-    .then(res => res && res.json())
-    .then(data => {
-      if (data && data.success) {
-        setRooms(data.rooms || []);
-      }
-    })
-    .catch(err => console.error('[SH CHAT] Start new chat error:', err));
+          // Refresh rooms list
+          return fetch(api('/api/chat/rooms'), {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } else {
+          throw new Error(roomData.error || 'Failed to initialize room');
+        }
+      })
+      .then(res => res && res.json())
+      .then(data => {
+        if (data && data.success) {
+          setRooms(data.rooms || []);
+        }
+      })
+      .catch(err => console.error('[SH CHAT] Start new chat error:', err));
   };
 
   const handleSendMessage = (e) => {
@@ -142,14 +264,14 @@ const SchoolHeadChatWidget = () => {
         },
         body: JSON.stringify({ target_uid: contact.uid })
       })
-      .then(res => res.json())
-      .then(roomData => {
-        if (roomData.success) {
-          setSelectedRoomId(roomData.room_id);
-          postMessageToBackend(roomData.room_id);
-        }
-      })
-      .catch(err => console.error('[SH CHAT] Auto room create error:', err));
+        .then(res => res.json())
+        .then(roomData => {
+          if (roomData.success) {
+            setSelectedRoomId(roomData.room_id);
+            postMessageToBackend(roomData.room_id);
+          }
+        })
+        .catch(err => console.error('[SH CHAT] Auto room create error:', err));
       return;
     }
 
@@ -176,21 +298,21 @@ const SchoolHeadChatWidget = () => {
       },
       body: JSON.stringify(body)
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        const userUid = user?.uid || localStorage.getItem('uid');
-        setMessages(prev => [...prev, {
-          ...data.message,
-          sender_uid: userUid,
-          first_name: user?.first_name || 'You',
-          last_name: user?.last_name || '',
-          sender_role: 'School Head',
-          sender_position: user?.position || null
-        }]);
-      }
-    })
-    .catch(err => console.error('[SH CHAT] Send message error:', err));
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const userUid = user?.uid || localStorage.getItem('uid');
+          setMessages(prev => [...prev, {
+            ...data.message,
+            sender_uid: userUid,
+            first_name: user?.first_name || 'You',
+            last_name: user?.last_name || '',
+            sender_role: 'School Head',
+            sender_position: user?.position || null
+          }]);
+        }
+      })
+      .catch(err => console.error('[SH CHAT] Send message error:', err));
   };
 
   // Upload file buffer to backend (Azure storage / local fallback)
@@ -210,45 +332,45 @@ const SchoolHeadChatWidget = () => {
       },
       body: formData
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        return fetch(api('/api/chat/messages'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            room_id: roomId,
-            message_type: 'image',
-            attachment_url: data.url,
-            message_text: 'Sent an image attachment'
-          })
-        });
-      } else {
-        throw new Error(data.error || 'Failed to upload image');
-      }
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        const userUid = user?.uid || localStorage.getItem('uid');
-        setMessages(prev => [...prev, {
-          ...data.message,
-          sender_uid: userUid,
-          first_name: user?.first_name || 'You',
-          last_name: user?.last_name || '',
-          sender_role: 'School Head',
-          sender_position: user?.position || null
-        }]);
-      }
-    })
-    .catch(err => {
-      console.error('[SH CHAT] Upload attachment failed:', err);
-      alert('Failed to send image attachment.');
-    })
-    .finally(() => setUploading(false));
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          return fetch(api('/api/chat/messages'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              room_id: roomId,
+              message_type: 'image',
+              attachment_url: data.url,
+              message_text: 'Sent an image attachment'
+            })
+          });
+        } else {
+          throw new Error(data.error || 'Failed to upload image');
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const userUid = user?.uid || localStorage.getItem('uid');
+          setMessages(prev => [...prev, {
+            ...data.message,
+            sender_uid: userUid,
+            first_name: user?.first_name || 'You',
+            last_name: user?.last_name || '',
+            sender_role: 'School Head',
+            sender_position: user?.position || null
+          }]);
+        }
+      })
+      .catch(err => {
+        console.error('[SH CHAT] Upload attachment failed:', err);
+        alert('Failed to send image attachment.');
+      })
+      .finally(() => setUploading(false));
   };
 
   // Capture copy-paste screenshot clipboards
@@ -272,6 +394,21 @@ const SchoolHeadChatWidget = () => {
     }
   };
 
+  // Calculate category unread totals
+  const getCategoryUnreadCount = (category) => {
+    return rooms.filter(room => {
+      if (category === 'SDO') {
+        return room.participant_role === 'School Division Office' || room.participant_role === 'Regional Division Office' || room.participant_role === 'RO/SDO' || room.participant_role === 'Ro/sdo';
+      } else if (category === 'HRMO') {
+        return room.participant_role === 'HRMO' || room.participant_role === 'Personnel';
+      } else {
+        return room.participant_role === 'Admin' || room.participant_role === 'Super Admin';
+      }
+    }).reduce((acc, r) => acc + (parseInt(r.unread_count || 0, 10)), 0);
+  };
+
+  const totalUnreadBadge = rooms.reduce((acc, r) => acc + (parseInt(r.unread_count || 0, 10)), 0);
+
   // Filter rooms based on active tab bubble
   const displayedRooms = rooms.filter(room => {
     if (activeBubble === 'SDO') {
@@ -288,7 +425,8 @@ const SchoolHeadChatWidget = () => {
   return (
     <>
       {/* Chat Widget Styles injected into the head */}
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .sh-chat-fab {
           position: fixed;
           bottom: 24px;
@@ -353,16 +491,42 @@ const SchoolHeadChatWidget = () => {
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
+          <>
+            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            {totalUnreadBadge > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                backgroundColor: '#ef4444',
+                color: 'white',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                minWidth: '20px',
+                height: '20px',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+                border: '2px solid white',
+                boxShadow: '0 2px 4px rgba(239,68,68,0.4)',
+                animation: 'pulse 2s infinite'
+              }}>
+                {totalUnreadBadge > 99 ? '99+' : totalUnreadBadge}
+              </span>
+            )}
+          </>
         )}
       </button>
 
       {/* Chat Drawer Panel */}
       {isOpen && (
         <div className="sh-chat-drawer">
-          <style dangerouslySetInnerHTML={{__html: `
+          <style dangerouslySetInnerHTML={{
+            __html: `
             @keyframes slideUpSH {
               from { transform: translateY(20px); opacity: 0; }
               to { transform: translateY(0); opacity: 1; }
@@ -403,6 +567,8 @@ const SchoolHeadChatWidget = () => {
               { id: 'ADMIN', label: 'ADMIN', sub: 'Support (999009)', color: '#f59e0b' }
             ].map((bubble) => {
               const isActive = activeBubble === bubble.id;
+              const unreadCount = getCategoryUnreadCount(bubble.id);
+
               return (
                 <button
                   key={bubble.id}
@@ -426,6 +592,7 @@ const SchoolHeadChatWidget = () => {
                     transition: 'all 0.2s ease',
                     boxShadow: isActive ? 'inset 0 1px 3px rgba(0,0,0,0.2)' : 'none',
                     borderBottom: isActive ? `3px solid ${bubble.color}` : '3px solid transparent',
+                    position: 'relative'
                   }}
                 >
                   <div style={{
@@ -440,9 +607,30 @@ const SchoolHeadChatWidget = () => {
                     fontWeight: 'bold',
                     fontSize: '12px',
                     marginBottom: '4px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    position: 'relative'
                   }}>
                     {bubble.label[0]}
+                    {unreadCount > 0 && (
+                      <span style={{
+                        position: 'absolute',
+                        top: '-3px',
+                        right: '-3px',
+                        backgroundColor: '#ef4444',
+                        color: 'white',
+                        fontSize: '9px',
+                        fontWeight: 'bold',
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1.5px solid white'
+                      }}>
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </div>
                   <span style={{ fontSize: '11px', fontWeight: isActive ? 'bold' : 'normal' }}>{bubble.label}</span>
                   <span style={{ fontSize: '8px', opacity: 0.7, whiteSpace: 'nowrap' }}>{bubble.sub}</span>
@@ -452,12 +640,12 @@ const SchoolHeadChatWidget = () => {
           </div>
 
           {/* Hidden File Input */}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileSelect} 
-            accept="image/*" 
-            style={{ display: 'none' }} 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*"
+            style={{ display: 'none' }}
           />
 
           {/* Chat Panel Body */}
@@ -543,53 +731,72 @@ const SchoolHeadChatWidget = () => {
 
                 {/* Active chat rooms listing */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {displayedRooms.map((room) => (
-                    <div
-                      key={room.room_id}
-                      onClick={() => setSelectedRoomId(room.room_id)}
-                      style={{
-                        padding: '12px',
-                        backgroundColor: '#ffffff',
-                        borderRadius: '10px',
-                        border: '1px solid #e2e8f0',
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s, box-shadow 0.2s',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '2px'
-                      }}
-                      onMouseOver={e => {
-                        e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
-                      }}
-                      onMouseOut={e => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e293b' }}>
-                          {room.first_name} {room.last_name}
+                  {displayedRooms.map((room) => {
+                    const roomUnread = parseInt(room.unread_count || 0, 10);
+                    return (
+                      <div
+                        key={room.room_id}
+                        onClick={() => setSelectedRoomId(room.room_id)}
+                        style={{
+                          padding: '12px',
+                          backgroundColor: roomUnread > 0 ? '#eff6ff' : '#ffffff',
+                          borderRadius: '10px',
+                          border: roomUnread > 0 ? '1.5px solid #bfdbfe' : '1px solid #e2e8f0',
+                          cursor: 'pointer',
+                          transition: 'transform 0.2s, box-shadow 0.2s',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          position: 'relative'
+                        }}
+                        onMouseOver={e => {
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                          e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
+                        }}
+                        onMouseOut={e => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: roomUnread > 0 ? '800' : 'bold', color: roomUnread > 0 ? '#1e3a8a' : '#1e293b' }}>
+                              {room.first_name} {room.last_name}
+                            </span>
+                            {roomUnread > 0 && (
+                              <span style={{
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                fontSize: '10px',
+                                fontWeight: 'bold',
+                                padding: '1px 6px',
+                                borderRadius: '10px'
+                              }}>
+                                {roomUnread} new
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '9px', color: roomUnread > 0 ? '#2563eb' : '#94a3b8', fontWeight: roomUnread > 0 ? 'bold' : 'normal' }}>
+                            {room.last_message_time ? new Date(room.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>
+                          {room.participant_role}
                         </span>
-                        <span style={{ fontSize: '9px', color: '#94a3b8' }}>
-                          {room.last_message_time ? new Date(room.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        <span style={{
+                          fontSize: '11px',
+                          color: roomUnread > 0 ? '#1e40af' : '#94a3b8',
+                          fontWeight: roomUnread > 0 ? '600' : 'normal',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          marginTop: '4px'
+                        }}>
+                          {room.last_message ? room.last_message : 'Click to start conversation.'}
                         </span>
                       </div>
-                      <span style={{ fontSize: '10px', color: '#64748b' }}>
-                        {room.participant_role}
-                      </span>
-                      <span style={{
-                        fontSize: '11px',
-                        color: '#94a3b8',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        marginTop: '4px'
-                      }}>
-                        {room.last_message ? room.last_message : 'Click to start conversation.'}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {displayedRooms.length === 0 && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', padding: '24px 0' }}>
                       <span style={{ fontSize: '12px' }}>No active discussions found.</span>
@@ -634,8 +841,8 @@ const SchoolHeadChatWidget = () => {
                       fetch(api('/api/chat/rooms'), {
                         headers: { 'Authorization': `Bearer ${token}` }
                       })
-                      .then(res => res.json())
-                      .then(data => { if (data.success) setRooms(data.rooms || []); });
+                        .then(res => res.json())
+                        .then(data => { if (data.success) setRooms(data.rooms || []); });
                     }}
                     style={{
                       padding: '4px 8px',
@@ -711,17 +918,17 @@ const SchoolHeadChatWidget = () => {
                           }}>
                             {msg.message_type === 'image' ? (
                               <a href={msg.attachment_url} target="_blank" rel="noreferrer">
-                                <img 
-                                  src={msg.attachment_url} 
-                                  alt="Screenshot" 
-                                  style={{ 
-                                    maxWidth: '100%', 
-                                    maxHeight: '180px', 
-                                    borderRadius: '8px', 
-                                    marginTop: '2px', 
+                                <img
+                                  src={msg.attachment_url}
+                                  alt="Screenshot"
+                                  style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '180px',
+                                    borderRadius: '8px',
+                                    marginTop: '2px',
                                     cursor: 'zoom-in',
                                     display: 'block'
-                                  }} 
+                                  }}
                                 />
                               </a>
                             ) : (
@@ -742,7 +949,7 @@ const SchoolHeadChatWidget = () => {
                       <div style={{
                         padding: '10px 14px',
                         borderRadius: '16px 16px 0px 16px',
-                        backgroundColor: '#bfdbfe', 
+                        backgroundColor: '#bfdbfe',
                         color: '#1e3a8a',
                         fontSize: '12px',
                         display: 'flex',
@@ -777,7 +984,8 @@ const SchoolHeadChatWidget = () => {
                         <span style={{ width: '6px', height: '6px', backgroundColor: '#94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'bounceSH 1.4s infinite ease-in-out both 0.2s' }}></span>
                         <span style={{ width: '6px', height: '6px', backgroundColor: '#94a3b8', borderRadius: '50%', display: 'inline-block', animation: 'bounceSH 1.4s infinite ease-in-out both 0.4s' }}></span>
                       </div>
-                      <style dangerouslySetInnerHTML={{__html: `
+                      <style dangerouslySetInnerHTML={{
+                        __html: `
                         @keyframes bounceSH {
                           0%, 80%, 100% { transform: scale(0); }
                           40% { transform: scale(1.0); }
