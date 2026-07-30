@@ -650,7 +650,7 @@ const SIIFUtilization = ({ user, token }) => {
                     <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Planned Interventions</h2>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-stretch">
                     {selectedInterventions.map(intId => {
                     const allocation = budgetEstimates[intId] || 0;
                     const qData = utilizationData[intId] || {};
@@ -663,9 +663,9 @@ const SIIFUtilization = ({ user, token }) => {
                     const intProgress = allocation > 0 ? (totalUsedInt / allocation) * 100 : 0;
 
                     return (
-                        <article key={intId} className="siif-card">
-                            <div className="siif-card-inner">
-                                <div className="flex flex-wrap items-start justify-between gap-3 mb-6 border-b border-slate-100 pb-4">
+                        <article key={intId} className="siif-card h-full">
+                            <div className="siif-card-inner flex flex-col" style={{ height: '100%' }}>
+                                <div className="flex flex-wrap items-start justify-between gap-3 mb-4 border-b border-slate-100 pb-4 shrink-0">
                                     <div className="flex gap-3 items-center min-w-0">
                                         <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 shadow-sm shrink-0">
                                             <TbTarget size={20} />
@@ -684,7 +684,7 @@ const SIIFUtilization = ({ user, token }) => {
                                     </div>
                                 </div>
 
-                            <div className="relative">
+                            <div className="relative flex-1 overflow-y-auto siif-intervention-scroll">
                                 {(() => {
                                     // Check if overall school budget is exhausted
                                     let prevOverallTotal = 0;
@@ -702,7 +702,7 @@ const SIIFUtilization = ({ user, token }) => {
                                     const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow;
 
                                     return (
-                                        <div className="relative space-y-3">
+                                        <div className="relative flex flex-col gap-3">
                                             <div className="relative">
                                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">₱</span>
                                                 <input
@@ -742,33 +742,43 @@ const SIIFUtilization = ({ user, token }) => {
                                                 </div>
                                             </div>
 
-                                            <AnimatePresence>
-                                                {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
-                                                    <motion.div
-                                                        initial={{ height: 0, opacity: 0 }}
-                                                        animate={{ height: 'auto', opacity: 1 }}
-                                                        exit={{ height: 0, opacity: 0 }}
-                                                        className="overflow-hidden"
-                                                    >
-                                                        <div className="pt-2">
-                                                            <div className="flex items-center gap-1.5 mb-1.5">
-                                                                <TbAlertCircle size={14} className="text-amber-500" />
-                                                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Justification Required</span>
+                                            {/* Justification zone */}
+                                            <div className="overflow-hidden">
+                                                <AnimatePresence>
+                                                    {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 6 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: 6 }}
+                                                            transition={{ duration: 0.18 }}
+                                                        >
+                                                            <div className="pt-2">
+                                                                <div className="rounded-xl overflow-hidden border border-amber-200 shadow-sm shadow-amber-100/60">
+                                                                    {/* Header bar */}
+                                                                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-400">
+                                                                        <div className="w-4 h-4 rounded-md bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                                                                            <TbAlertCircle size={10} className="text-white" />
+                                                                        </div>
+                                                                        <span className="text-[9px] font-black text-white uppercase tracking-widest leading-none">Justification Required</span>
+                                                                    </div>
+                                                                    {/* Textarea */}
+                                                                    <textarea
+                                                                        value={qValObj?.justification || ''}
+                                                                        onChange={(e) => handleUpdateJustification(intId, e.target.value)}
+                                                                        disabled={isInputLocked}
+                                                                        placeholder="Provide a detailed justification for exceeding the allocated budget estimate..."
+                                                                        className={`w-full border-none p-3 text-xs font-medium transition-all resize-none outline-none focus:outline-none h-[85px] ${
+                                                                            !qValObj?.justification?.trim()
+                                                                                ? 'bg-amber-50 placeholder-amber-400/70 text-amber-900'
+                                                                                : 'bg-slate-50 text-slate-700'
+                                                                        }`}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <textarea
-                                                                value={qValObj?.justification || ''}
-                                                                onChange={(e) => handleUpdateJustification(intId, e.target.value)}
-                                                                disabled={isInputLocked}
-                                                                placeholder="Please provide a justification for exceeding the estimated budget..."
-                                                                className={`w-full border-none rounded-2xl p-4 text-xs font-medium transition-all min-h-[80px] resize-none ${!qValObj?.justification?.trim()
-                                                                        ? 'bg-amber-50 border-amber-200 focus:ring-amber-200 placeholder-amber-400/70 text-amber-900 ring-2 ring-amber-100'
-                                                                        : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
-                                                                    }`}
-                                                            />
-                                                        </div>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
                                         </div>
                                     );
                                 })()}
