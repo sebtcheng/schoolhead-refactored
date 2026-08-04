@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.turbo
 
 # R session history
 .Rhistory
@@ -46,7 +47,6 @@ public/Teacher_Subject_Elem,JHS,SHS_2026.csv
 users.json
 schema_out.json
 nohup.out
-scripts
 
 # Ignore uploads and extracted data
 uploads/

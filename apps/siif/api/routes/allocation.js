@@ -2,7 +2,7 @@
 // GET /api/siif/allocation/:schoolId
 
 import { Router } from 'express';
-import { pool } from '@shared/db';
+import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
 

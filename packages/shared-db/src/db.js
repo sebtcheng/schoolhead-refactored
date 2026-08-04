@@ -98,6 +98,74 @@ export async function safeQuery(text, params) {
   }
 }
 
+// --- CENTRAL USERS DATABASE CONNECTION (users_database) ---
+const usersDbUrl = process.env.USERS_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/users_database';
+export const poolUsers = new Pool({
+  connectionString: usersDbUrl,
+  ssl: { rejectUnauthorized: false },
+  max: isLocal ? 15 : 10,
+  min: 1,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
+  application_name: isLocal ? 'InsightEd_Users_Local' : 'InsightEd_Users_Cluster'
+});
+
+poolUsers.on('error', (err) => {
+  console.error('💥 [USERS-DB-POOL] Unexpected error on idle users database client:', err.message);
+});
+
+/**
+ * [USERS-DB-RETRY] Execute a safe query on users_database with one-shot retry.
+ */
+export async function safeUsersQuery(text, params) {
+  try {
+    return await poolUsers.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('terminated unexpectedly')) {
+      console.warn(`♻️ [USERS-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+      return await poolUsers.query(text, params);
+    }
+    throw err;
+  }
+}
+
+// --- CENTRAL SIIF DATABASE CONNECTION (siif_database) ---
+const siifDbUrl = process.env.SIIF_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/siif_database';
+export const poolSiif = new Pool({
+  connectionString: siifDbUrl,
+  ssl: { rejectUnauthorized: false },
+  max: isLocal ? 15 : 10,
+  min: 1,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
+  application_name: isLocal ? 'InsightEd_SIIF_Local' : 'InsightEd_SIIF_Cluster'
+});
+
+poolSiif.on('error', (err) => {
+  console.error('💥 [SIIF-DB-POOL] Unexpected error on idle siif database client:', err.message);
+});
+
+/**
+ * [SIIF-DB-RETRY] Execute a safe query on siif_database with one-shot retry.
+ */
+export async function safeSiifQuery(text, params) {
+  try {
+    return await poolSiif.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('terminated unexpectedly')) {
+      console.warn(`♻️ [SIIF-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+      return await poolSiif.query(text, params);
+    }
+    throw err;
+  }
+}
+
 // Proactive Pool Telemetry
 setInterval(() => {
   if (pool) {

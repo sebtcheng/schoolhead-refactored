@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
-import { pool } from '@shared/db';
+import { poolUsers } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();
@@ -22,13 +22,24 @@ router.put('/users/update', authenticate, async (req, res) => {
     }
 
     try {
-        const result = await pool.query(
-            'UPDATE users SET first_name = $1, last_name = $2 WHERE LOWER(email) = LOWER($3) RETURNING *',
+        let result = await poolUsers.query(
+            'UPDATE user_SchoolHead SET first_name = $1, last_name = $2 WHERE LOWER(email) = LOWER($3) RETURNING *',
             [firstName, lastName, email]
         );
+        await poolUsers.query(
+            'UPDATE users SET first_name = $1, last_name = $2 WHERE LOWER(email) = LOWER($3)',
+            [firstName, lastName, email]
+        ).catch(e => {});
+
         if (result.rowCount === 0) {
-            console.error(`❌ [SIIF-API] User not found during update: ${email}`);
-            return res.status(404).json({ error: 'User not found' });
+            result = await poolUsers.query(
+                'UPDATE users SET first_name = $1, last_name = $2 WHERE LOWER(email) = LOWER($3) RETURNING *',
+                [firstName, lastName, email]
+            );
+            if (result.rowCount === 0) {
+                console.error(`❌ [SIIF-API] User not found during update: ${email}`);
+                return res.status(404).json({ error: 'User not found' });
+            }
         }
         console.log(`✅ [SIIF-API] Profile updated for: ${email}`);
         res.json({ success: true, user: result.rows[0] });
@@ -46,12 +57,18 @@ router.post('/auth/change-password', authenticate, async (req, res) => {
     console.log(`🔐 [SIIF-API] Password change request for: ${email}`);
 
     try {
-        const userResult = await pool.query(
-            'SELECT password_hash FROM users WHERE LOWER(email) = LOWER($1)',
+        let userResult = await poolUsers.query(
+            'SELECT password_hash FROM user_SchoolHead WHERE LOWER(email) = LOWER($1)',
             [email]
         );
         if (userResult.rowCount === 0) {
-            return res.status(404).json({ error: 'User not found' });
+            userResult = await poolUsers.query(
+                'SELECT password_hash FROM users WHERE LOWER(email) = LOWER($1)',
+                [email]
+            );
+            if (userResult.rowCount === 0) {
+                return res.status(404).json({ error: 'User not found' });
+            }
         }
 
         const isMatch = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
@@ -61,10 +78,15 @@ router.post('/auth/change-password', authenticate, async (req, res) => {
         }
 
         const hashed = await bcrypt.hash(newPassword, 10);
-        await pool.query(
-            'UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)',
+        await poolUsers.query(
+            'UPDATE user_SchoolHead SET password_hash = $1 WHERE LOWER(email) = LOWER($2)',
             [hashed, email]
         );
+        await poolUsers.query(
+            'UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)',
+            [hashed, email]
+        ).catch(e => {});
+
         console.log(`✅ [SIIF-API] Password updated for: ${email}`);
         res.json({ success: true, message: 'Password updated successfully' });
     } catch (err) {
@@ -86,10 +108,15 @@ router.post('/auth/setup-passcode', authenticate, async (req, res) => {
 
     try {
         const hashed = await bcrypt.hash(passcode, 10);
-        await pool.query(
-            'UPDATE users SET passcode = $1 WHERE LOWER(email) = LOWER($2)',
+        await poolUsers.query(
+            'UPDATE user_SchoolHead SET passcode = $1 WHERE LOWER(email) = LOWER($2)',
             [hashed, email]
         );
+        await poolUsers.query(
+            'UPDATE users SET passcode = $1 WHERE LOWER(email) = LOWER($2)',
+            [hashed, email]
+        ).catch(e => {});
+
         console.log(`✅ [SIIF-API] Passcode updated for: ${email}`);
         res.json({ success: true, message: 'Passcode updated successfully' });
     } catch (err) {

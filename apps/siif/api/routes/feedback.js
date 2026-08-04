@@ -2,7 +2,7 @@
 // POST /api/siif/feedback
 
 import { Router } from 'express';
-import { pool } from '@shared/db';
+import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();

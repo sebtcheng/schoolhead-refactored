@@ -84,6 +84,13 @@ const NodesDashboard = () => {
       return;
     }
 
+    if (!user) {
+      console.log(`[NexusDashboard] Unauthenticated click on module "${id}". Redirecting to login with target: ${route}`);
+      sessionStorage.setItem('login_target_redirect', route);
+      navigate('/login', { state: { from: route } });
+      return;
+    }
+
     if (route.startsWith('http')) {
       const token = user?.token || localStorage.getItem('token');
       const targetUrl = new URL(route);

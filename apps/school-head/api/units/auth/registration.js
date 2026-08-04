@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 
-import { pool, safeQuery } from '@shared/db';
+import { pool, poolUsers, safeQuery, safeUsersQuery } from '@shared/db';
 
 const router = express.Router();
 
@@ -45,8 +45,8 @@ router.post('/api/check-existing-school', async (req, res) => {
 
   let client;
   try {
-    client = await pool.connect();
-    const query = "SELECT uid FROM users WHERE school_id = $1 AND role = 'School Head'";
+    client = await poolUsers.connect();
+    const query = "SELECT uid FROM user_SchoolHead WHERE school_id = $1";
     let result;
 
     try {
@@ -54,7 +54,7 @@ router.post('/api/check-existing-school', async (req, res) => {
     } catch (err) {
       if (err.message.includes('terminated unexpectedly')) {
         client.release();
-        client = await pool.connect();
+        client = await poolUsers.connect();
         result = await client.query(query, [tidiedId]);
       } else {
         throw err;
@@ -96,8 +96,8 @@ router.post('/api/register-beta', async (req, res) => {
     const master = masterRes.rows[0];
     const iern = master.IERN || school_id;
 
-    // Check for duplicate user emails or school IDs
-    const dupRes = await safeQuery('SELECT uid FROM users WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
+    // Check for duplicate user emails or school IDs in user_SchoolHead
+    const dupRes = await safeUsersQuery('SELECT uid FROM user_SchoolHead WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
     if (dupRes.rowCount > 0) {
       return res.status(400).json({ error: "Email or School ID is already registered." });
     }
@@ -113,28 +113,36 @@ router.post('/api/register-beta', async (req, res) => {
       ? String(schoolData.longitude)
       : String(master.Longitude);
 
+    // 1. Insert user into users_database (user_SchoolHead & users)
+    const userQuery = `
+      INSERT INTO users (
+        uid, email, password_hash, hash_version, role, first_name, last_name,
+        school_id, iern, contact_number, region, division, province, city, barangay,
+        disabled, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+    `;
+    const shUserQuery = `
+      INSERT INTO user_SchoolHead (
+        uid, email, password_hash, hash_version, role, first_name, last_name,
+        school_id, iern, contact_number, region, division, province, city, barangay,
+        disabled, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+    `;
+    const userValues = [
+      uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
+      school_id, iern, contactNumber,
+      master.Region, master.Division, master.Province,
+      master.Municipality, master.Barangay,
+      false
+    ];
+    await safeUsersQuery(userQuery, userValues);
+    await safeUsersQuery(shUserQuery, userValues).catch(e => console.warn('⚠️ user_SchoolHead insert notice:', e.message));
+
+    // 2. Insert or update ph_schools and unit1_school_identity in main database
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // 1. Insert into users table
-      const userQuery = `
-        INSERT INTO users (
-          uid, email, password_hash, hash_version, role, first_name, last_name,
-          school_id, iern, contact_number, region, division, province, city, barangay,
-          disabled, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
-      `;
-      const userValues = [
-        uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
-        school_id, iern, contactNumber,
-        master.Region, master.Division, master.Province,
-        master.Municipality, master.Barangay,
-        false
-      ];
-      await client.query(userQuery, userValues);
-
-      // 2. Insert or update the ph_schools table
       const schoolQuery = `
         INSERT INTO ph_schools (
           school_id, iern, updated_at
@@ -148,7 +156,6 @@ router.post('/api/register-beta', async (req, res) => {
         school_id, iern
       ]);
 
-      // 2b. Initialize or update the unit1_school_identity table
       const unit1Query = `
         INSERT INTO unit1_school_identity (
           school_id, iern, school_name, region, division, province, municipality, barangay, district, leg_district, curricular_offering, latitude, longitude, updated_at

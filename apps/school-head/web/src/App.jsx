@@ -55,8 +55,7 @@ const AnimatedRoutes = () => {
 
   useEffect(() => {
     // List of public paths that don't require authentication
-    const publicPaths = ['/', '/login', '/register', '/adminlogin'];
-
+    const publicPaths = ['/', '/login', '/register', '/adminlogin', '/nodes-dashboard'];
 
     // If auth is finished loading and no user is found on a non-public path, redirect to login
     if (!loading && !user && !publicPaths.includes(location.pathname)) {
@@ -133,24 +132,14 @@ const AnimatedRoutes = () => {
 
   return (
     <Routes>
-      {/* Authentication */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Authentication & Public Landing */}
+      <Route path="/" element={<Navigate to="/nodes-dashboard" replace />} />
       <Route path="/login" element={<Login mode="login" />} />
       <Route path="/register" element={<Login mode="register" />} />
       <Route path="/guide/school-head" element={<LegacyGuideWrapper />} />
 
-
-
       {/* Dashboards */}
-
-      <Route
-        path="/nodes-dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['School Head']}>
-            <NodesDashboard />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/nodes-dashboard" element={<NodesDashboard />} />
 
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/user-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><UserManagement /></ProtectedRoute>} />
