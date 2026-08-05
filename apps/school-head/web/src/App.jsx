@@ -57,25 +57,10 @@ const AnimatedRoutes = () => {
     // List of public paths that don't require authentication
     const publicPaths = ['/', '/login', '/register', '/adminlogin', '/nodes-dashboard'];
 
-    // If auth is finished loading and no user is found on a non-public path, redirect to login
+    // If auth is finished loading and no user is found on a non-public path, redirect to Nexus
     if (!loading && !user && !publicPaths.includes(location.pathname)) {
-      console.log("[App] No user session found on protected route. Redirecting to login...");
-      const lastRole = localStorage.getItem('lastRole');
-      console.log("[App] Retrieved lastRole for redirection:", lastRole);
-
-      // Role to PathId Mapping for Portal Redirection
-      const roleToPathId = {
-        'School Head': 'path_school_head',
-        'school_head': 'path_school_head',
-        'Implementing Agency': 'path_agencies',
-        'Central Office': 'path_central_office'
-      };
-
-      const pathId = lastRole ? roleToPathId[lastRole] : null;
-      console.log("[App] Calculated pathId:", pathId);
-      const state = pathId ? { pathId } : null;
-
-      navigate('/login', { replace: true, state });
+      console.log("[App] No user session found on protected route. Redirecting to Nexus...");
+      navigate('/nodes-dashboard', { replace: true });
     }
   }, [user, loading, location.pathname, navigate]);
 

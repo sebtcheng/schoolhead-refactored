@@ -194,14 +194,7 @@ const SharedNexusSidebar = ({ activeTab }) => {
             <p className="text-xs font-bold truncate text-[#7DD3FC]">SCHOOL HEAD</p>
             <p className="text-[10px] uppercase tracking-wider text-white/50 truncate">{user?.school_name || "Nexus Dashboard"}</p>
           </div>
-          <button
-            onClick={() => navigate('/nodes-dashboard')}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sky-200 hover:text-white hover:bg-white/10 text-xs font-bold transition-all overflow-hidden"
-            title="Go Back to Nexus"
-          >
-            <FiArrowLeft size={16} className="shrink-0" />
-            <span className="sidebar-text-label">Go Back to Nexus</span>
-          </button>
+
           <button
             onClick={confirmLogout}
             className="w-full mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-300 hover:text-rose-400 hover:bg-rose-950/20 text-xs font-bold transition-all overflow-hidden"
