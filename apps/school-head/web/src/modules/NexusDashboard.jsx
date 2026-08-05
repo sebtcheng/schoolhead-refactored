@@ -146,9 +146,9 @@ const NodesDashboard = () => {
       icon: <TbReportAnalytics className="w-6 h-6 md:w-8 h-8" />,
       progress: questProgress.esf7_progress || 0,
       route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
-      badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
+      badge: dynamicLocks['esf7'] ? 'COMING SOON' : null,
       description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
-      isLocked: !questProgress.is_esf7_opened,
+      isLocked: dynamicLocks.hasOwnProperty('esf7') ? dynamicLocks['esf7'] : false,
       cardClass: '' // Default Blue
     },
     {
@@ -158,9 +158,9 @@ const NodesDashboard = () => {
       icon: <TbTarget className="w-6 h-6 md:w-8 h-8" />,
       progress: 0,
       route: '/draft/nspp',
-      badge: 'COMING SOON',
+      badge: dynamicLocks['nspp'] ? 'COMING SOON' : null,
       description: 'Registry monitoring for the deployment of administrative staff in schools.',
-      isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true,
+      isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : false,
       cardClass: 'reports' // Red theme
     },
     {

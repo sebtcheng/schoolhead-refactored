@@ -264,13 +264,29 @@ router.post('/submit', async (req, res) => {
             existingSubmissionStatus = oldSub.submission_status;
             existingRemarks = oldSub.remarks;
 
-            const oldIntRes = await client.query('SELECT siif_int_id FROM siif_interventions WHERE siif_sub_id = $1', [submissionId]);
-            const oldIntIds = oldIntRes.rows.map(r => r.siif_int_id);
-            
-            if (oldIntIds.length > 0) {
-                await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = ANY($1::int[])', [oldIntIds]);
-                await client.query('DELETE FROM siif_activities WHERE siif_int_id = ANY($1::int[])', [oldIntIds]);
-                await client.query('DELETE FROM siif_interventions WHERE siif_sub_id = $1', [submissionId]);
+            const existingIntRes = await client.query(
+                'SELECT siif_int_id, intervention_type FROM siif_interventions WHERE siif_sub_id = $1',
+                [submissionId]
+            );
+            const existingIntMap = {};
+            existingIntRes.rows.forEach(r => {
+                existingIntMap[r.intervention_type] = r.siif_int_id;
+            });
+
+            const activeIntTypesSet = new Set(interventions || []);
+            const removedIntIds = [];
+
+            for (const [type, id] of Object.entries(existingIntMap)) {
+                if (!activeIntTypesSet.has(type)) {
+                    removedIntIds.push(id);
+                }
+            }
+
+            if (removedIntIds.length > 0) {
+                await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = ANY($1::int[])', [removedIntIds]);
+                await client.query('DELETE FROM siif_activities WHERE siif_int_id = ANY($1::int[])', [removedIntIds]);
+                await client.query('DELETE FROM siif_interventions WHERE siif_int_id = ANY($1::int[])', [removedIntIds]);
+                console.log(`🧹 [SIIF-API] Cleaned up ${removedIntIds.length} removed interventions.`);
             }
 
             // If explicit submit, update submission_status to submitted
@@ -298,7 +314,7 @@ router.post('/submit', async (req, res) => {
                     submissionId
                 ]
             );
-            console.log(`✅ [SIIF-API] Old children cleared and header updated. ID: ${submissionId}`);
+            console.log(`✅ [SIIF-API] Submission header updated. ID: ${submissionId}`);
 
         } else {
             // Insert new submission header
@@ -326,14 +342,22 @@ router.post('/submit', async (req, res) => {
             console.log(`🆔 [SIIF-API] Submission header created. ID: ${submissionId}`);
         }
 
-        // Insert interventions, beneficiaries, and activities
+        // Fetch existing interventions map if not already populated
+        const existingIntRes = await client.query(
+            'SELECT siif_int_id, intervention_type FROM siif_interventions WHERE siif_sub_id = $1',
+            [submissionId]
+        );
+        const existingIntMap = {};
+        existingIntRes.rows.forEach(r => {
+            existingIntMap[r.intervention_type] = r.siif_int_id;
+        });
+
+        // Insert or update interventions, beneficiaries, and activities
         for (const intType of interventions) {
             const data = interventionData?.[intType] || {};
             let budget = budgetEstimates?.[intType] || 0;
             budget = parseFloat(budget);
             if (isNaN(budget)) budget = 0;
-
-            console.log(`   - Inserting intervention: ${intType}`);
 
             let hasAral = false;
             let aralSubjects = [];
@@ -342,14 +366,31 @@ router.post('/submit', async (req, res) => {
                 aralSubjects = aral.subjects || [];
             }
 
-            const intResult = await client.query(
-                `INSERT INTO siif_interventions
-                 (siif_sub_id, intervention_type, budget_estimate, has_aral, aral_subjects, other_activity_details)
-                 VALUES ($1, $2, $3, $4, $5, $6) 
-                 RETURNING siif_int_id`,
-                [submissionId, intType, budget, hasAral, aralSubjects, data.otherActivity || '']
-            );
-            const siifIntId = intResult.rows[0].siif_int_id;
+            let siifIntId = existingIntMap[intType];
+
+            if (siifIntId) {
+                console.log(`   - Updating existing intervention: ${intType} (siif_int_id: ${siifIntId})`);
+                await client.query(
+                    `UPDATE siif_interventions
+                     SET budget_estimate = $1, has_aral = $2, aral_subjects = $3, other_activity_details = $4
+                     WHERE siif_int_id = $5`,
+                    [budget, hasAral, aralSubjects, data.otherActivity || '', siifIntId]
+                );
+            } else {
+                console.log(`   - Inserting new intervention: ${intType}`);
+                const intResult = await client.query(
+                    `INSERT INTO siif_interventions
+                     (siif_sub_id, intervention_type, budget_estimate, has_aral, aral_subjects, other_activity_details)
+                     VALUES ($1, $2, $3, $4, $5, $6) 
+                     RETURNING siif_int_id`,
+                    [submissionId, intType, budget, hasAral, aralSubjects, data.otherActivity || '']
+                );
+                siifIntId = intResult.rows[0].siif_int_id;
+            }
+
+            // Refresh beneficiaries & activities for this specific siifIntId
+            await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = $1', [siifIntId]);
+            await client.query('DELETE FROM siif_activities WHERE siif_int_id = $1', [siifIntId]);
 
             // Beneficiaries
             const beneficiaryCounts = data.beneficiaryCounts || {};
