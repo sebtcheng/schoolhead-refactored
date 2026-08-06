@@ -62,7 +62,7 @@ const AdminDashboard = () => {
     const [updatingDeadline, setUpdatingDeadline] = useState(false);
 
     // Nexus Module Locks
-    const [nexusLocks, setNexusLocks] = useState({ 'school-info': false, 'esf7': false, 'nspp': false });
+    const [nexusLocks, setNexusLocks] = useState({ 'school-info': false, 'esf7': false, 'siif': false });
     const [updatingLocks, setUpdatingLocks] = useState(false);
 
     // Fraud Detection State
@@ -645,7 +645,7 @@ const AdminDashboard = () => {
                     {[
                         { id: 'school-info', label: 'School Profile', icon: '🏛️' },
                         { id: 'esf7', label: 'eSF7 Hub', icon: '🛡️' },
-                        { id: 'nspp', label: 'NSPP Path', icon: '⚡' }
+                        { id: 'siif', label: 'SIIF Hub', icon: '🏆' }
                     ].map((mod) => (
                         <div key={mod.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                             <div className="flex items-center gap-3">
