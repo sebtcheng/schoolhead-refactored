@@ -4,10 +4,10 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-import { initOtpTable, runMigrations } from '@shared/db/db_init';
+import { initOtpTable, runMigrations, initChatSchema } from '@shared/db/db_init';
 
 // Import Database & Utilities
-import { pool } from '@shared/db';
+import { pool, poolChat } from '@shared/db';
 
 // Import Helpers & Uploads
 import { UPLOAD_BASE_PATH } from '@shared/io';
@@ -32,9 +32,10 @@ import locationRouter from './units/location/index.js';
 import settingsRouter from './units/settings/index.js';
 import chatRouter from './units/chat/index.js'; // Chat Backend Unit
 import siifRouter from '../../siif/api/index.js'; // SIIF Module Unit
+
 // Chat cleanup function logic (purges messages older than 90 days with Nuclear-Lock compliance)
 const autoCleanOldChats = async () => {
-  const client = await pool.connect();
+  const client = await poolChat.connect();
   try {
     await client.query('BEGIN');
     await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
@@ -243,6 +244,17 @@ const startServer = async () => {
                     console.log("✅ [Primary] Pre-flight migrations complete.");
                 } finally {
                     migClient.release();
+                }
+
+                try {
+                    const chatClient = await poolChat.connect();
+                    try {
+                        await initChatSchema(chatClient, 'Chat-DB');
+                    } finally {
+                        chatClient.release();
+                    }
+                } catch (chatMigErr) {
+                    console.warn(`⚠️ [Primary] Chat schema boot initialization warning: ${chatMigErr.message}`);
                 }
             } catch (migErr) {
                 console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);

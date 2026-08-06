@@ -27,6 +27,68 @@ const initOtpTable = async (pool) => {
     }
 };
 
+const initChatSchema = async (client, dbLabel = 'Chat-DB') => {
+    try {
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS chat_rooms (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                room_type VARCHAR(50) DEFAULT 'direct',
+                region VARCHAR(100),
+                division VARCHAR(100),
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS chat_room_participants (
+                id SERIAL PRIMARY KEY,
+                room_id UUID REFERENCES chat_rooms(id) ON DELETE CASCADE,
+                user_uid VARCHAR(255) NOT NULL,
+                user_role VARCHAR(100),
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT unique_room_participant UNIQUE (room_id, user_uid)
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                room_id UUID REFERENCES chat_rooms(id) ON DELETE CASCADE,
+                sender_uid VARCHAR(255) NOT NULL,
+                message_text TEXT,
+                message_type VARCHAR(50) DEFAULT 'text',
+                attachment_url TEXT,
+                attachment_metadata JSONB,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS siif_ro_coordination (
+                "MID" SERIAL PRIMARY KEY,
+                "Division" VARCHAR(100),
+                "Region" VARCHAR(100),
+                "SenderUID" VARCHAR(255),
+                "SenderName" VARCHAR(255),
+                "SenderRole" VARCHAR(100),
+                "RecipientUID" VARCHAR(255),
+                "RecipientName" VARCHAR(255),
+                "RecipientRole" VARCHAR(100),
+                "Message" TEXT,
+                "Timestamp" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                "IsRead" BOOLEAN DEFAULT FALSE,
+                "AttachmentUrl" TEXT
+            );
+        `);
+
+        console.log(`✅ [${dbLabel}] Chat Schema Initialized.`);
+    } catch (err) {
+        console.error(`❌ [${dbLabel}] Failed to initialize chat schema:`, err.message);
+    }
+};
+
 const initUnit7Schema = async (client, dbLabel) => {
     try {
         // 1. Ph Schools Extensions (Unit 7 Flags)
@@ -1866,4 +1928,5 @@ const runMigrations = async (client, dbLabel) => {
     }
 };
 
-export { initOtpTable, runMigrations };
+export { initOtpTable, runMigrations, initChatSchema };
+

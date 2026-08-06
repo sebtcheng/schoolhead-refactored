@@ -16,22 +16,22 @@ dotenv.config({ path: path.join(rootDir, '.env') });
 const { Pool } = pg;
 
 // --- DATABASE CONNECTION ---
-let dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd';
+let dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insighted-staging';
 
 // Auto-redirect local development connections from production (insightEd) to staging (insighted-staging)
 const isLocalMachine = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';
 if (isLocalMachine) {
   try {
     const urlObj = new URL(dbUrl);
-    if (urlObj.pathname === '/insightEd') {
+    if (urlObj.pathname.toLowerCase() === '/insighted') {
       console.log('🛡️ [DB] Local environment detected. Redirecting connection from production "insightEd" to "insighted-staging" for safety.');
       urlObj.pathname = '/insighted-staging';
       dbUrl = urlObj.toString();
     }
   } catch (e) {
-    if (dbUrl.includes('/insightEd')) {
+    if (dbUrl.toLowerCase().includes('/insighted')) {
       console.log('🛡️ [DB] Local environment detected. Redirecting connection from production "insightEd" to "insighted-staging" for safety.');
-      dbUrl = dbUrl.replace('/insightEd', '/insighted-staging');
+      dbUrl = dbUrl.replace(/\/insighted/i, '/insighted-staging');
     }
   }
 }
@@ -167,6 +167,42 @@ export async function safeSiifQuery(text, params) {
     if (err.message && err.message.includes('terminated unexpectedly')) {
       console.warn(`♻️ [SIIF-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
       return await poolSiif.query(text, params);
+    }
+    throw err;
+  }
+}
+
+// --- CENTRAL CHAT DATABASE CONNECTION (chat_database) ---
+const chatDbUrl = process.env.CHAT_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/chat_database';
+export const poolChat = new Pool({
+  connectionString: chatDbUrl,
+  ssl: { rejectUnauthorized: false },
+  max: isLocal ? 15 : 10,
+  min: 1,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
+  application_name: isLocal ? 'InsightEd_Chat_Local' : 'InsightEd_Chat_Cluster'
+});
+
+export const chatDbPool = poolChat;
+
+poolChat.on('error', (err) => {
+  console.error('💥 [CHAT-DB-POOL] Unexpected error on idle chat database client:', err.message);
+});
+
+/**
+ * [CHAT-DB-RETRY] Execute a safe query on chat_database with one-shot retry.
+ */
+export async function safeChatQuery(text, params) {
+  try {
+    return await poolChat.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('terminated unexpectedly')) {
+      console.warn(`♻️ [CHAT-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+      return await poolChat.query(text, params);
     }
     throw err;
   }
