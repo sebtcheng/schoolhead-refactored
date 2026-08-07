@@ -33,17 +33,13 @@
 }
 
 .siif-app-layout {
-  display: grid;
-  grid-template-columns: 72px 1fr;
+  display: block;
   min-height: 100vh;
+  position: relative;
 }
 
 /* On mobile/tablet: sidebar becomes bottom nav, grid becomes full-width */
 @media (max-width: 1000px) {
-  .siif-app-layout {
-    grid-template-columns: 1fr;
-  }
-
   .siif-main-area {
     padding: 0 0 100px 0;
     overflow-x: hidden;
@@ -51,7 +47,7 @@
 }
 
 .siif-sidebar {
-  position: relative;
+  box-sizing: border-box;
   color: white;
   padding: 24px;
   display: flex;
@@ -66,9 +62,14 @@
 
 @media (min-width: 1001px) {
   .siif-sidebar {
-    width: 72px;
-    transition: width 0.18s ease;
-    z-index: 50;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 80px;
+    box-sizing: border-box;
+    transition: width 0.2s ease;
+    z-index: 100;
   }
 
   .siif-sidebar:hover {
@@ -110,6 +111,20 @@
 
   .siif-sidebar:not(:hover) .siif-nav a span {
     display: none;
+  }
+
+  .siif-sidebar:not(:hover) .siif-text-label {
+    display: none !important;
+  }
+
+  .siif-sidebar:hover .siif-text-label {
+    display: inline-block !important;
+  }
+
+  .siif-sidebar:not(:hover) .siif-sidebar-footer button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .siif-sidebar .siif-nav a:focus {
@@ -198,6 +213,14 @@
 .siif-main-area {
   padding: 0 24px 24px 24px;
   overflow-y: auto;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1001px) {
+  .siif-main-area {
+    padding-left: 108px !important;
+    padding-right: 28px !important;
+  }
 }
 
 .siif-topbar-flush {
@@ -319,8 +342,9 @@
     overflow: hidden;
   }
 
-  .siif-brand {
-    display: none;
+  .siif-brand,
+  .siif-sidebar-footer {
+    display: none !important;
   }
 
   .siif-nav {
@@ -1005,8 +1029,8 @@
 
 .siif-action-layout {
     display: grid;
-    grid-template-columns: minmax(0, 3.35fr) minmax(270px, .65fr);
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    gap: 16px;
     align-items: start;
 }
 
@@ -1263,6 +1287,29 @@
     .siif-sidebar {
         display: none !important;
     }
+}
+
+/* ── Intervention Card Scroll Zone ─────────────────────────── */
+.siif-intervention-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.siif-intervention-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.siif-intervention-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.siif-intervention-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #CBD5E1, #94A3B8);
+  border-radius: 999px;
+}
+
+.siif-intervention-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
 }
 
 /* ================================================================

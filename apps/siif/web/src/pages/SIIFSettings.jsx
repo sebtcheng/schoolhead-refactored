@@ -1,5 +1,5 @@
 import React from 'react';
-import UserProfile from '../../UserProfile';
+import UserProfile from '../../../../school-head/web/src/modules/UserProfile';
 
 const SIIFSettings = () => {
     return (

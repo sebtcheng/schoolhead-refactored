@@ -7,10 +7,11 @@ import {
     TbChevronLeft, TbCircleCheck, TbLock,
     TbTarget, TbUsers, TbBulb, TbCurrencyPeso,
     TbChevronRight, TbClock, TbTrendingUp,
-    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit
+    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit,
+    TbSettings, TbClipboardList, TbCalculator, TbChartBar
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
-import { logger } from '../../../utils/logger';
+import { logger } from '../utils/logger';
 import PriorityImprovementAreaCard from './cards/PriorityImprovementAreaCard';
 import InterventionsCard from './cards/InterventionsCard';
 import BeneficiariesCard from './cards/BeneficiariesCard';
@@ -34,7 +35,7 @@ const CARDS = [
         step: 1,
         label: 'Priority Improvement Areas',
         sublabel: 'Identify priority improvement areas',
-        icon: TbTarget,
+        icon: TbTrendingUp, // Performance icon
         color: 'bg-siif-blue',
     },
     {
@@ -452,7 +453,7 @@ const SIIFFormsHub = ({ user, token }) => {
     }
 
     return (
-        <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
 
             {/* ── Header ── */}
             <header className="topbar print:hidden">
@@ -464,15 +465,15 @@ const SIIFFormsHub = ({ user, token }) => {
                     
                     <div className="flex flex-row items-center gap-1.5 mt-3 opacity-90 w-full overflow-hidden">
                         {deadline && (
-                            <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200 flex items-center gap-1 bg-blue-900/30 px-1.5 sm:px-2 py-1 rounded-md border border-blue-500/20 whitespace-nowrap shrink">
-                                <TbClock size={12} className="shrink-0" />
+                            <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md shadow-sm whitespace-nowrap shrink" style={{ backgroundColor: '#EF4444', color: 'white', border: '1px solid #DC2626' }}>
+                                <TbClock size={12} className="shrink-0" style={{ color: 'white' }} />
                                 <span className="hidden sm:inline">Deadline: {new Date(deadline).toLocaleString()}</span>
                                 <span className="sm:hidden truncate">Due: {new Date(deadline).toLocaleDateString()}</span>
                             </p>
                         )}
                         {isLocked && (
-                            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest bg-red-500/20 text-red-200 px-1.5 sm:px-2 py-1 rounded-md border border-red-500/30 flex items-center gap-1 whitespace-nowrap shrink-0">
-                                <TbLock size={12} className="shrink-0" /> 
+                            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest px-2 sm:px-3 py-1 rounded-md shadow-sm flex items-center gap-1 whitespace-nowrap shrink-0" style={{ backgroundColor: '#F59E0B', color: 'white', border: '1px solid #D97706' }}>
+                                <TbLock size={12} className="shrink-0" style={{ color: 'white' }} /> 
                                 <span className="hidden sm:inline">Read-Only Mode</span>
                                 <span className="sm:hidden">Read-Only</span>
                             </span>
@@ -585,7 +586,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             initial={{ opacity: 0, y: 24 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.07, duration: 0.3 }}
-                            style={{ flex: done ? '1.5' : '1', minWidth: done ? '340px' : '240px', transition: 'all 0.4s ease' }}
+                            style={{ flex: done ? '1.5' : '1', minWidth: '150px', transition: 'all 0.4s ease' }}
                         >
                             <button
                                 onClick={() => handleCardClick(card.id)}
@@ -765,7 +766,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                             <TbArrowLeft size={16} />
                                         </button>
                                         <div>
-                                            <h2 className="text-base font-black italic uppercase tracking-tight">Implementation Plan Summary</h2>
+                                            <h2 className="text-base font-black italic uppercase tracking-tight" style={{ color: 'var(--gold)' }}>Implementation Plan Summary</h2>
                                             <p className="text-[9px] font-bold text-blue-200 uppercase tracking-widest mt-0.5">
                                                 FY {allocation?.fiscal_year || new Date().getFullYear()} · {allocation?.school_name || user?.school_name || 'Your School'}
                                             </p>
@@ -986,7 +987,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                         </div>
                                         <button
                                             onClick={() => setShowSummaryModal(false)}
-                                            className="w-full py-4.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
+                                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
                                         >
                                             Close Summary View
                                         </button>

@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { fetchDeadline, fetchAllocation, fetchSubmission } from '../services/siifService';
 import { emptyIntData } from '../constants/siifConstants';
-import { logger } from '../../../utils/logger';
+import { logger } from '../utils/logger';
 
 /**
  * @param {object} user

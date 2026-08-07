@@ -45,7 +45,7 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 import NodesDashboard from './modules/NexusDashboard';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
-import SIIFModule from './modules/siif/SIIFModule';
+import SIIFModule from '../../../siif/web/src/SIIFModule';
 
 // --- WRAPPER COMPONENT TO HANDLE LOCATION ---
 const AnimatedRoutes = () => {

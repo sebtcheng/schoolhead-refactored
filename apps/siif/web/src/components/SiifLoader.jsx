@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import insightedLogoCollapsed from '../../../assets/insightedlogo2.png';
+import insightedLogoCollapsed from '../../../../school-head/web/src/assets/insightedlogo2.png';
 
 const SiifLoader = ({ text = "Loading..." }) => {
     return (

@@ -1,13 +1,15 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { TbLayoutDashboard, TbClipboardList, TbChartBar } from 'react-icons/tb';
-import { FiSettings, FiGrid } from 'react-icons/fi';
-import insightedLogo from '../../../assets/insightedlogo.png';
-import insightedLogoCollapsed from '../../../assets/insightedlogo2.png';
+import { FiSettings, FiGrid, FiArrowLeft, FiLogOut } from 'react-icons/fi';
+import { useAuth } from '../../../../school-head/web/src/context/AuthContext';
+import InsightEdLogoExpanded from '../../../../school-head/web/src/assets/InsightEdLogoApp.png';
+import InsightEdLogoCollapsed from '../../../../school-head/web/src/assets/insightedlogo.png';
 
 const BottomNav = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user, confirmLogout } = useAuth();
 
     // Insert Nexus in the middle for mobile layout
     const navItems = [
@@ -23,21 +25,21 @@ const BottomNav = () => {
             {/* Desktop Brand Block */}
             <div className="siif-brand">
                 <img
-                    src={insightedLogo}
-                    alt="InsightEd Logo"
-                    className="siif-brand-logo w-full max-w-[140px]"
-                    style={{ objectFit: 'contain' }}
+                    src={InsightEdLogoCollapsed}
+                    alt="InsightEd Logo Icon"
+                    className="siif-brand-logo-collapsed object-contain w-10 h-10"
                 />
                 <img
-                    src={insightedLogoCollapsed}
-                    alt="InsightEd Logo Icon"
-                    className="siif-brand-logo-collapsed"
+                    src={InsightEdLogoExpanded}
+                    alt="InsightEd Logo"
+                    className="siif-brand-logo object-contain"
+                    style={{ width: '10rem', height: '4rem' }}
                 />
             </div>
 
             <nav className="siif-nav">
                 {navItems.map((item) => {
-                    const isActive = location.pathname === item.path || (item.path === '/siif' && location.pathname === '/siif/');
+                    const isActive = location.pathname === item.path || (item.path === '/siif' && (location.pathname === '/siif/' || location.pathname === '/siif'));
                     const Icon = item.icon;
 
                     if (item.isFab) {
@@ -77,6 +79,22 @@ const BottomNav = () => {
                     );
                 })}
             </nav>
+
+            {/* Desktop Sidebar Footer */}
+            <div className="siif-sidebar-footer mt-auto pt-4 border-t border-white/10 flex flex-col gap-2 transition-all duration-300 w-full">
+                <div className="px-2 siif-text-label overflow-hidden">
+                    <p className="text-xs font-bold truncate text-[#7DD3FC]">SCHOOL HEAD</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/50 truncate">{user?.school_name || "SIIF Hub"}</p>
+                </div>
+
+                <button
+                    onClick={confirmLogout}
+                    className="w-full mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-300 hover:text-rose-400 hover:bg-rose-950/20 text-xs font-bold transition-all overflow-hidden border-0 bg-transparent cursor-pointer"
+                >
+                    <FiLogOut size={16} className="shrink-0" />
+                    <span className="siif-text-label">Secure Sign Out</span>
+                </button>
+            </div>
         </aside>
     );
 };

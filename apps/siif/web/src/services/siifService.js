@@ -5,7 +5,7 @@
 // Architecture Guardian Rule 4: no fetch in components/pages.
 // Architecture Guardian Rule 5: named exports only.
 
-import { api } from '../../../lib/api';
+import { api } from '../../../../school-head/web/src/lib/api';
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 

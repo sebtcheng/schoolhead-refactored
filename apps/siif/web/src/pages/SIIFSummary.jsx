@@ -8,7 +8,7 @@ import {
     TbTrendingUp, TbInfoCircle, TbEdit, TbCheck, TbBook, TbX
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
-import { logger } from '../../../utils/logger';
+import { logger } from '../utils/logger';
 import { fetchAllocation, fetchSubmission, fetchDeadline, submitPlan } from '../services/siifService';
 import { INTERVENTIONS, INTERVENTION_ICONS, GRADE_LABELS } from '../constants/siifConstants';
 import SiifLoader from '../components/SiifLoader';
