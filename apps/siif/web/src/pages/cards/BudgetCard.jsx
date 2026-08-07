@@ -4,7 +4,7 @@
 // Task 5: Excess budget indicator + 10-sec timer warning modal
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TbChevronLeft, TbChevronRight, TbArrowLeft, TbX, TbUsers, TbAlertTriangle, TbCheck } from 'react-icons/tb';
+import { TbChevronLeft, TbChevronRight, TbArrowLeft, TbX, TbUsers, TbAlertTriangle, TbCheck, TbShieldCheck, TbCalculator, TbChecklist } from 'react-icons/tb';
 import { FiInfo } from 'react-icons/fi';
 import { INTERVENTIONS, INTERVENTION_ICONS, GRADE_LABELS, KEY_STAGES } from './siifConstants.jsx';
 
@@ -136,17 +136,36 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
     // ── FORM SCREEN ──────────────────────────────────────────────────────────────
     const renderFormScreen = () => (
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
-            {/* Header Info Card */}
-            <div className="siif-card p-6 space-y-3 relative overflow-hidden">
-                {allocAmt > 0 && (
-                    <div className="absolute top-0 right-0 px-4 py-1.5 bg-siif-blue/5 text-siif-blue text-[9px] font-black uppercase rounded-bl-2xl border-b border-l border-siif-blue/10">
-                        Official Allocation: {formatCurrency(allocAmt)}
+            {/* Bento Metrics Dashboard Header */}
+            {allocAmt > 0 && (
+                <div className="grid grid-cols-3 gap-3 mb-2">
+                    {/* Remaining Balance Tile (2/3 width) */}
+                    <div className="col-span-2 p-5 bg-slate-900 text-white rounded-2xl flex flex-col justify-between shadow-md relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Remaining Balance</span>
+                        <span className={`text-2xl font-black tracking-tight mt-2 ${isOver ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            {formatCurrency(Math.max(0, excess))}
+                        </span>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                            Allocation: {formatCurrency(allocAmt)}
+                        </p>
                     </div>
-                )}
-                <h3 className="text-sm font-black text-slate-800 mb-1 leading-snug pr-12 pt-2">
+                    {/* Percent Tile (1/3 width) */}
+                    <div className="p-4 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl flex flex-col items-center justify-center shadow-sm">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-center">Utilized</span>
+                        <span className="text-xl font-black mt-1">
+                            {allocAmt > 0 ? Math.min(100, Math.round((totalBudget / allocAmt) * 100)) : 0}%
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Header Info Card */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                     How much is the budget for each intervention?
                 </h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed pr-12">
+                <p className="text-xs text-slate-500 leading-relaxed">
                     {isLocked ? 'Viewing the approved budget for each intervention.' : 'Enter the estimated budget amount per intervention.'}
                 </p>
 
@@ -219,40 +238,44 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                 </AnimatePresence>
             </div>
 
-            {/* Intervention Budget Inputs */}
-            <div className="flex flex-row overflow-x-auto flex-nowrap scrollbar-hide gap-4 pb-4 mt-2">
-                {interventions.map(intId => {
-                    const info = INTERVENTIONS.find(i => i.id === intId);
-                    const bData = beneficiaries?.[intId] || {};
-                    const counts = bData.beneficiaryCounts || {};
-                    const learnersCount = (bData.selectedGrades || []).reduce((s, g) => s + (parseInt(counts[g]) || 0), 0);
-                    const activeGrades = (bData.selectedGrades || []).filter(g => (parseInt(counts[g]) || 0) > 0);
+                {/* Intervention Budget Inputs */}
+                <div className="flex flex-col gap-3.5 mt-2">
+                    {interventions.map(intId => {
+                        const info = INTERVENTIONS.find(i => i.id === intId);
+                        const bData = beneficiaries?.[intId] || {};
+                        const counts = bData.beneficiaryCounts || {};
+                        const learnersCount = (bData.selectedGrades || []).reduce((s, g) => s + (parseInt(counts[g]) || 0), 0);
+                        const activeGrades = (bData.selectedGrades || []).filter(g => (parseInt(counts[g]) || 0) > 0);
 
-                    return (
-                        <div key={intId} className="siif-card shrink-0 w-[320px] p-4 sm:p-5 flex flex-col justify-start gap-3 hover:border-siif-blue transition-all duration-300">
-                            {/* Header & Budget Row */}
-                            <div className="flex flex-col gap-3">
-                                <div className="flex items-center gap-3 sm:gap-4 flex-1">
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
-                                        {INTERVENTION_ICONS[intId]}
+                        return (
+                            <div key={intId} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 shadow-sm">
+                                {/* Header & Budget Input Row */}
+                                <div className="flex flex-col gap-2.5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                                            {INTERVENTION_ICONS[intId]}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-base text-slate-900 dark:text-white leading-snug truncate">{info?.label}</p>
+                                            <p className="text-xs text-slate-500 font-medium">Estimated Budget</p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-black text-xs text-slate-800 uppercase tracking-tight break-words whitespace-normal leading-snug">{info?.label}</p>
-                                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">Estimated Budget</p>
+                                    <div className="relative rounded-xl shadow-sm w-full">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <span className="text-slate-500 font-bold text-base">₱</span>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            pattern="[0-9]*"
+                                            placeholder="0.00"
+                                            readOnly={isLocked}
+                                            value={(!safeBudgets[intId] || safeBudgets[intId] === '0' || safeBudgets[intId] === 0) ? '' : safeBudgets[intId]}
+                                            onChange={e => handleAmountChange(intId, e.target.value)}
+                                            className="block w-full pl-8 pr-4 py-3 text-base font-semibold border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none min-h-[48px]"
+                                        />
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-center gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2 w-full shrink-0 cursor-text" onClick={(e) => e.currentTarget.querySelector('input')?.focus()}>
-                                    <span className="text-[10px] font-black text-slate-400">₱</span>
-                                    <input
-                                        type="text"
-                                        placeholder="0.00"
-                                        readOnly={isLocked}
-                                        value={(!safeBudgets[intId] || safeBudgets[intId] === '0' || safeBudgets[intId] === 0) ? '' : safeBudgets[intId]}
-                                        onChange={e => handleAmountChange(intId, e.target.value)}
-                                        className="w-24 bg-transparent text-center text-xs font-black text-slate-800 focus:outline-none placeholder-slate-300"
-                                    />
-                                </div>
-                            </div>
 
                             {/* Target Learners Row (Below Budget) */}
                             <div className="bg-slate-50/70 rounded-xl p-3 border border-slate-100/50 mt-1">
@@ -307,7 +330,18 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
             <div className="siif-card p-6 space-y-5">
                 <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Summary — Budget Estimations</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
+                            <TbCalculator size={18} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                            <span className="text-xs font-black uppercase tracking-wider">
+                                Budget Estimations Summary
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
+                            <TbChecklist size={14} className="text-blue-600 dark:text-blue-400" />
+                            <span>{interventions.length} Allocations</span>
+                        </div>
+                    </div>
                     <div className="space-y-3">
                         {interventions.map(intId => {
                             const info = INTERVENTIONS.find(i => i.id === intId);
@@ -345,49 +379,62 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
             {!isLocked && (
                 <button
                     onClick={() => setScreen('form')}
-                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-200 transition-colors"
+                    className="w-full py-3.5 px-4 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 rounded-xl font-extrabold text-xs uppercase tracking-widest border border-rose-200 dark:border-rose-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-sm"
                 >
-                    ← Edit Estimates
+                    <TbArrowLeft size={16} /> Edit Budget Estimates
                 </button>
             )}
 
-            <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
+            <div className="p-5 bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/70 dark:from-slate-900 dark:to-blue-950/40 rounded-2xl border-2 border-blue-200/90 dark:border-blue-800/80 shadow-md space-y-4">
                 {isLocked ? (
-                    <div className="space-y-4">
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
-                            This section is now read-only as the plan is submitted.
+                    <div className="space-y-4 text-center">
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed">
+                            This section is finalized and read-only as the plan is submitted.
                         </p>
-                        <button onClick={onClose} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform">
+                        <button onClick={onClose} className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
                             Close View
                         </button>
                     </div>
                 ) : (
                     <>
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
-                            Please confirm the estimated budget allocations above are accurate.
-                        </p>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                            Type <span className="text-siif-blue font-black">CONFIRM</span> to save
-                        </p>
-                        <input
-                            type="text"
-                            placeholder="Type CONFIRM here..."
-                            value={confirmText}
-                            onChange={e => setConfirmText(e.target.value)}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
-                                ? 'border-red-400 bg-red-50 text-red-600'
-                                : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
+                        {/* Authenticity & Accuracy Declaration Card */}
+                        <div className="flex items-start gap-3 p-3.5 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-blue-200/80 dark:border-blue-900/50 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                                <TbShieldCheck size={22} />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                                <p className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                                    Data Authenticity & Accuracy Declaration
+                                </p>
+                                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+                                    By typing <span className="font-extrabold text-blue-700 dark:text-blue-300">CONFIRM</span> below, you certify that the estimated budget allocation data submitted above is true, accurate, and officially authorized.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <input
+                                type="text"
+                                placeholder="Type CONFIRM to certify..."
+                                value={confirmText}
+                                onChange={e => setConfirmText(e.target.value)}
+                                className={`w-full px-4 py-3.5 rounded-xl border-2 font-mono font-black text-sm tracking-widest text-center transition-all focus:outline-none focus:ring-4 ${
+                                    confirmError
+                                        ? 'border-red-400 bg-red-50 text-red-600 focus:ring-red-500/20 dark:bg-red-950/40 dark:text-red-300'
+                                        : 'border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900'
                                 }`}
-                        />
-                        {confirmError && (
-                            <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
-                        )}
-                        <div className="mt-3">
+                            />
+                            {confirmError && (
+                                <p className="text-center text-xs text-red-500 font-extrabold animate-bounce">Please type CONFIRM exactly to certify data</p>
+                            )}
+                        </div>
+
+                        <div className="pt-0.5">
                             <button
                                 onClick={handleSave}
-                                className="w-full py-5 bg-siif-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform"
+                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
-                                Save Estimates ✓
+                                <TbShieldCheck size={18} /> Confirm & Certify Estimates
                             </button>
                         </div>
                     </>
@@ -397,36 +444,37 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
     );
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
-            {/* Header */}
-            <div className="siif-topbar !m-0 !border-x-0 !border-t-0 !rounded-b-[2rem] flex-col items-stretch !items-start !justify-start shrink-0 z-20 print:hidden relative">
-                <div className="flex items-center justify-between w-full mb-4">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={screen === 'summary' ? () => setScreen('form') : onClose}
-                            className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600"
-                        >
-                            {screen === 'summary' ? <TbArrowLeft size={20} /> : <TbChevronLeft size={20} />}
-                        </button>
-                        <div>
-                            <p className="eyebrow">
-                                Step 4 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Estimate'}
-                            </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">Budget Estimations</h1>
-                        </div>
-                    </div>
+        <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+            {/* ── v5 Ultra-Compact Low-Profile Header ── */}
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-20">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <button
-                        onClick={onClose}
-                        className="p-3 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 shrink-0"
-                        title="Close"
+                        onClick={screen === 'summary' ? () => setScreen('form') : onClose}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
-                        <TbX size={20} />
+                        {screen === 'summary' ? <TbArrowLeft size={17} /> : <TbChevronLeft size={17} />}
                     </button>
+                    <div className="min-w-0 flex-1">
+                        <span className="block text-[9px] font-extrabold uppercase tracking-widest text-blue-600 dark:text-blue-400 siif-font-header leading-none mb-0.5">
+                            Step 4 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Estimate'}
+                        </span>
+                        <h2 className="siif-font-header text-sm font-extrabold text-slate-800 dark:text-slate-100 tracking-tight leading-tight truncate">
+                            Budget Estimations
+                        </h2>
+                    </div>
                 </div>
-                <div className="flex gap-2 w-full mt-2">
-                    <div className="h-1.5 flex-1 rounded-full bg-siif-blue" />
-                    <div className={`h-1.5 flex-1 rounded-full transition-all ${screen === 'summary' ? 'bg-siif-blue' : 'bg-slate-200'}`} />
-                </div>
+                <button
+                    onClick={onClose}
+                    className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    title="Close"
+                >
+                    <TbX size={17} />
+                </button>
+            </div>
+            {/* Step progress dots */}
+            <div className="flex gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <div className="h-0.5 flex-1 rounded-full bg-blue-600" />
+                <div className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${screen === 'summary' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`} />
             </div>
 
             <AnimatePresence mode="wait">

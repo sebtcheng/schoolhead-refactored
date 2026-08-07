@@ -453,15 +453,16 @@ const SIIFFormsHub = ({ user, token }) => {
     }
 
     return (
-        <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <div className="w-full min-h-screen pb-28 text-lg">
 
-            {/* ── Header ── */}
-            <header className="topbar print:hidden">
-                <div className="page-title">
+            {/* ── Wide Hero Card Header Container (25% wider on each side than step cards) ── */}
+            <div className="w-full max-w-3xl sm:max-w-4xl md:max-w-5xl lg:max-w-6xl mx-auto px-4 pt-4 md:pt-6">
+                <header className="topbar print:hidden transition-all duration-300">
+                    <div className="page-title">
                     <p className="eyebrow">
                         DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
                     </p>
-                    <h1>School Innovation and Improvement Fund</h1>
+                    <h1 className="text-slate-950 dark:text-white font-extrabold text-xl sm:text-2xl md:text-3xl">School Innovation and Improvement Fund</h1>
                     
                     <div className="flex flex-row items-center gap-1.5 mt-3 opacity-90 w-full overflow-hidden">
                         {deadline && (
@@ -509,9 +510,12 @@ const SIIFFormsHub = ({ user, token }) => {
                     </section>
                 </div>
             </header>
+            </div>
 
-            {/* ── Warning Banner Area (Repositioned to Top) ── */}
-            <div className="px-5 relative z-20 mt-4 space-y-3">
+            {/* ── Center Form Step Cards Stack (Narrower max-w-2xl layout) ── */}
+            <main className="w-full max-w-lg sm:max-w-xl md:max-w-2xl mx-auto px-4">
+                {/* ── Warning Banner Area (Repositioned to Top) ── */}
+                <div className="relative z-20 mt-4 space-y-3">
                 <AnimatePresence>
                     {isExpired && (
                         <motion.div
@@ -570,7 +574,7 @@ const SIIFFormsHub = ({ user, token }) => {
             </div>
 
             {/* ── Cards ── */}
-            <div className="px-5 relative z-20 flex flex-row overflow-x-auto flex-nowrap scrollbar-hide gap-4 mt-4 pb-4">
+            <div className="px-1 relative z-20 flex flex-col gap-3 mt-4">
                 {CARDS.map((card, idx) => {
                     const status = getCardStatus(card.id);
                     const locked = status === 'locked';
@@ -583,160 +587,160 @@ const SIIFFormsHub = ({ user, token }) => {
                     return (
                         <motion.div
                             key={card.id}
-                            initial={{ opacity: 0, y: 24 }}
+                            initial={{ opacity: 0, y: 16 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.07, duration: 0.3 }}
-                            style={{ flex: done ? '1.5' : '1', minWidth: '150px', transition: 'all 0.4s ease' }}
+                            transition={{ delay: idx * 0.05, duration: 0.25 }}
+                            className="w-full"
                         >
                             <button
                                 onClick={() => handleCardClick(card.id)}
                                 disabled={locked}
-                                className={`w-full h-full p-6 rounded-[2.5rem] border border-b-8 flex flex-col items-start gap-4 text-left relative transition-all duration-300 group active:scale-[0.98] ${locked
-                                    ? 'bg-slate-100 border-slate-100 opacity-60 cursor-not-allowed'
+                                className={`w-full p-4 sm:p-5 rounded-2xl border flex items-center gap-4 text-left relative transition-all duration-200 group active:scale-[0.98] ${locked
+                                    ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed'
                                     : done
-                                        ? 'bg-[#f0fdf4] border-[#bbf7d0] shadow-md border-b-[#16A34A]'
+                                        ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 shadow-sm'
                                         : missing
-                                            ? 'bg-red-50/50 border-red-100 shadow-lg shadow-red-500/10 hover:border-red-200 border-b-red-400'
-                                            : 'bg-white border-blue-50 border-b-[#0284C7] shadow-lg shadow-blue-500/10 hover:border-blue-100'
+                                            ? 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-800/50 shadow-sm'
+                                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm hover:border-blue-300'
                                     }`}
                             >
-                                {/* Status strip */}
+                                {/* Status indicator bar */}
                                 {!locked && (
-                                    <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${done ? 'bg-[#16A34A]' : missing ? 'bg-red-500 animate-pulse' : 'bg-orange-400 animate-pulse'}`} />
+                                    <div className={`absolute left-0 top-3 bottom-3 w-1.5 rounded-r-full ${done ? 'bg-emerald-500' : missing ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
                                 )}
 
                                 {/* Icon */}
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0 transition-transform duration-150 ease-in-out group-hover:scale-[1.08] group-hover:-translate-y-1 shadow-md ${locked ? 'bg-slate-300' : done ? 'bg-[#16A34A]' : card.color}`}>
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm ${locked ? 'bg-slate-300 dark:bg-slate-700' : done ? 'bg-emerald-600' : 'bg-blue-600'}`}>
                                     {locked
-                                        ? <TbLock size={24} />
+                                        ? <TbLock size={22} />
                                         : done
-                                            ? <TbCircleCheck size={26} />
+                                            ? <TbCircleCheck size={24} />
                                             : (typeof Icon === 'string'
-                                                ? <img src={Icon} alt={card.label} className="w-8 h-8 object-contain" />
-                                                : <Icon size={26} />
+                                                ? <img src={Icon} alt={card.label} className="w-7 h-7 object-contain" />
+                                                : <Icon size={24} />
                                             )}
                                 </div>
 
                                 {/* Text */}
-                                <div className="flex-1 min-w-0 w-full">
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <p className={`font-black text-sm uppercase tracking-tight ${locked ? 'text-slate-400' : 'text-slate-800'}`}>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                                        <p className={`font-bold text-base tracking-tight ${locked ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`}>
                                             {card.label}
                                         </p>
                                         {done && (
-                                            <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">Done</span>
+                                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">Done</span>
                                         )}
-                                        {!done && !locked && (
-                                            missing ? (
-                                                <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full border border-red-200 uppercase tracking-widest flex items-center gap-1 animate-pulse shadow-sm">
-                                                    Needs Input
-                                                </span>
-                                            ) : (
-                                                <FiAlertCircle className="text-orange-400 text-xs animate-pulse" />
-                                            )
+                                        {!done && !locked && missing && (
+                                            <span className="text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 animate-pulse">
+                                                Needs Input
+                                            </span>
                                         )}
                                         {locked && (
-                                            <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase tracking-widest">Locked</span>
+                                            <span className="text-[10px] font-bold bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">Locked</span>
                                         )}
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-relaxed mt-2" style={{ minHeight: done && summary ? 'auto' : '30px' }}>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
                                         {done && summary ? summary : locked ? (isNotYetOpen ? 'Scheduled to open soon' : `Complete step ${card.step - 1} first`) : card.sublabel}
                                     </p>
                                 </div>
+                                <TbChevronRight className="text-slate-400 shrink-0" size={20} />
                             </button>
                         </motion.div>
                     );
                 })}
             </div>
 
-            {/* ── Submit / View Summary CTA ── */}
-            <AnimatePresence>
-                {(priorityAreas.length > 0 || selectedInterventions.length > 0 || isLocked || isExpired) && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="mt-6 space-y-4 px-5"
+            {/* ── Persistent Sticky Bottom Navigation Bar ── */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 shadow-lg">
+                <div className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto flex items-center justify-between gap-4">
+                    <button
+                        onClick={() => setShowSummaryModal(true)}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-base shadow-md active:scale-95 transition-all focus:ring-4 focus:ring-blue-500 focus:outline-none min-h-[48px]"
                     >
-                        <button
-                            onClick={() => setShowSummaryModal(true)}
-                            className="w-full py-6 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
-                        >
-                            {isLocked || isExpired ? 'View Submitted Plan Summary' : 'View Summary'}
-                        </button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        {isLocked || isExpired ? 'View Submitted Plan Summary' : 'Save & Next →'}
+                    </button>
+                </div>
+            </div>
 
-            {/* ── Full-screen card panels ── */}
+            {/* ── Mobile-First Modal Card Panels Overlay ── */}
             <AnimatePresence>
-                {activeCard === 'pia' && (
-                    <motion.div key="pia" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <PriorityImprovementAreaCard
-                            value={priorityAreas}
-                            onChange={setPriorityAreas}
-                            onConfirm={() => confirm('pia')}
-                            onClose={() => closeCard('pia')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'interventions' && (
-                    <motion.div key="int" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <InterventionsCard
-                            value={selectedInterventions}
-                            aral={aral}
-                            onChange={setSelectedInterventions}
-                            onAralChange={setAral}
-                            onConfirm={() => confirm('interventions')}
-                            onClose={() => closeCard('interventions')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'beneficiaries' && (
-                    <motion.div key="ben" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <BeneficiariesCard
-                            selectedInterventions={selectedInterventions}
-                            value={beneficiaries}
-                            aral={aral}
-                            onChange={setBeneficiaries}
-                            onConfirm={() => confirm('beneficiaries')}
-                            onClose={() => closeCard('beneficiaries')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'activities' && (
-                    <motion.div key="act" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <ActivitiesCard
-                            selectedInterventions={selectedInterventions}
-                            value={activities}
-                            onChange={setActivities}
-                            onConfirm={() => confirm('activities')}
-                            onClose={() => closeCard('activities')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'budget' && (
-                    <motion.div key="bud" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <BudgetCard
-                            user={user}
-                            interventions={selectedInterventions}
-                            budgets={budgets}
-                            setBudgets={setBudgets}
-                            beneficiaries={beneficiaries}
-                            onConfirm={() => confirm('budget')}
-                            onClose={() => closeCard('budget')}
-                            isLocked={isExpired || isNotYetOpen || isLocked}
-                            allocation={allocation}
-                        />
+                {activeCard && (
+                    <motion.div
+                        key="card-modal-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ zIndex: 9990 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9990] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
+                    >
+                        <motion.div
+                            key={`card-modal-${activeCard}`}
+                            initial={{ y: '100%', opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: '100%', opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="bg-slate-50 dark:bg-slate-900 w-full max-w-lg sm:max-w-xl md:max-w-2xl h-[94vh] sm:h-[88vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
+                        >
+                            {activeCard === 'pia' && (
+                                <PriorityImprovementAreaCard
+                                    value={priorityAreas}
+                                    onChange={setPriorityAreas}
+                                    onConfirm={() => confirm('pia')}
+                                    onClose={() => closeCard('pia')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'interventions' && (
+                                <InterventionsCard
+                                    value={selectedInterventions}
+                                    aral={aral}
+                                    onChange={setSelectedInterventions}
+                                    onAralChange={setAral}
+                                    onConfirm={() => confirm('interventions')}
+                                    onClose={() => closeCard('interventions')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'beneficiaries' && (
+                                <BeneficiariesCard
+                                    selectedInterventions={selectedInterventions}
+                                    value={beneficiaries}
+                                    aral={aral}
+                                    onChange={setBeneficiaries}
+                                    onConfirm={() => confirm('beneficiaries')}
+                                    onClose={() => closeCard('beneficiaries')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'activities' && (
+                                <ActivitiesCard
+                                    selectedInterventions={selectedInterventions}
+                                    value={activities}
+                                    onChange={setActivities}
+                                    onConfirm={() => confirm('activities')}
+                                    onClose={() => closeCard('activities')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'budget' && (
+                                <BudgetCard
+                                    user={user}
+                                    interventions={selectedInterventions}
+                                    budgets={budgets}
+                                    setBudgets={setBudgets}
+                                    beneficiaries={beneficiaries}
+                                    onConfirm={() => confirm('budget')}
+                                    onClose={() => closeCard('budget')}
+                                    isLocked={isExpired || isNotYetOpen || isLocked}
+                                    allocation={allocation}
+                                />
+                            )}
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* ── View Summary Overlay Modal ── */}
+            {/* ── View Summary Overlay Bottom Sheet Modal ── */}
             <AnimatePresence>
                 {showSummaryModal && (
                     <motion.div
@@ -744,15 +748,14 @@ const SIIFFormsHub = ({ user, token }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         style={{ zIndex: 9999 }}
-                        className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[9999] flex flex-col justify-center items-center p-4 overflow-hidden"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4"
                     >
                         <motion.div
                             initial={{ y: '100%', opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="siif-card w-full sm:max-w-2xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden border-[2.5px] border-slate-300"
-                            style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
+                            className="bg-white dark:bg-slate-900 w-full max-w-lg sm:max-w-2xl rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[85vh] animate-slide-up flex flex-col border border-slate-200 dark:border-slate-800"
                         >
                             {/* Modal Header */}
                             <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 rounded-b-[2rem] shadow-lg relative overflow-hidden shrink-0">
@@ -1074,6 +1077,7 @@ const SIIFFormsHub = ({ user, token }) => {
                 )}
             </AnimatePresence>
         </main>
+    </div>
     );
 };
 
