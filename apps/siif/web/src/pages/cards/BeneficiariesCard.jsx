@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    TbChevronLeft, TbChevronRight, TbArrowLeft, TbUsers, TbCheck, TbX
+    TbChevronLeft, TbChevronRight, TbArrowLeft, TbUsers, TbCheck, TbX, TbShieldCheck, TbChecklist
 } from 'react-icons/tb';
 import { INTERVENTIONS, INTERVENTION_ICONS, KEY_STAGES, GRADE_LABELS } from './siifConstants.jsx';
 
@@ -144,7 +144,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                 </p>
             </div>
 
-            <div className="flex flex-row overflow-x-auto gap-4 pb-4">
+            <div className="flex flex-col gap-3.5">
                 {selectedInterventions.map(intId => {
                     const info = INTERVENTIONS.find(i => i.id === intId);
                     const data = value[intId] || {};
@@ -156,16 +156,17 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                         <div
                             key={intId}
                             onClick={() => !readOnly && setActiveModalInt(intId)}
-                            className={`siif-card shrink-0 w-[280px] p-4 sm:p-5 flex flex-col gap-3 transition-all duration-300 ${!readOnly ? 'cursor-pointer hover:border-siif-blue hover:shadow-lg' : ''
+                            className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-3.5 transition-all shadow-sm ${!readOnly ? 'cursor-pointer hover:border-blue-400' : ''
                                 }`}
                         >
-                            <div className="flex flex-col gap-3 w-full">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-14 h-14 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
+                            <div className="flex items-center justify-between gap-3 w-full">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                                         {INTERVENTION_ICONS[intId]}
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-black text-xs sm:text-sm text-slate-800 uppercase tracking-tight break-words whitespace-normal leading-snug">{info?.label}</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-bold text-base text-slate-900 dark:text-white leading-snug truncate">{info?.label}</p>
+                                        <p className="text-xs text-slate-500">{gradeCount > 0 ? `${gradeCount} grade level${gradeCount > 1 ? 's' : ''} configured` : 'Tap to configure grade levels'}</p>
                                     </div>
                                 </div>
                                 {!readOnly && (
@@ -174,29 +175,29 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                             e.stopPropagation();
                                             setActiveModalInt(intId);
                                         }}
-                                        className="w-full h-[40px] bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-md flex items-center justify-center"
+                                        className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-blue-600 dark:hover:bg-blue-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm min-h-[44px]"
                                     >
                                         Configure
                                     </button>
                                 )}
                             </div>
 
-                            <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50 flex-1 overflow-y-auto max-h-[200px]">
+                            <div className="space-y-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
                                 {gradeCount > 0 ? (
                                     KEY_STAGES.map(ks => {
                                         const activeGradesInKs = ks.grades.filter(g => selectedGrades.includes(g));
                                         if (activeGradesInKs.length === 0) return null;
                                         const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts[g]) || 0), 0);
                                         return (
-                                            <div key={ks.id} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
-                                                <div className="flex justify-between items-center mb-1.5">
-                                                    <span className="text-[13px] font-black text-slate-500 uppercase tracking-wider">{ks.label}</span>
-                                                    <span className="text-[11px] font-black text-siif-blue bg-siif-blue/5 px-2 py-1 rounded-md border border-siif-blue/10">Total: {ksTotal.toLocaleString()}</span>
+                                            <div key={ks.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">{ks.label}</span>
+                                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/40 px-2.5 py-0.5 rounded-md border border-blue-100 dark:border-blue-800">Total: {ksTotal.toLocaleString()}</span>
                                                 </div>
-                                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                                <div className="flex flex-wrap gap-2">
                                                     {activeGradesInKs.map(g => (
-                                                        <span key={g} className="text-[11px] font-black bg-slate-50 text-slate-600 px-3 py-1 rounded-lg border border-slate-100 whitespace-nowrap inline-flex items-center gap-1">
-                                                            {GRADE_LABELS[g] || g}: <span className="text-siif-blue">{beneficiaryCounts[g] || 0}</span>
+                                                        <span key={g} className="text-xs font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 inline-flex items-center gap-1.5">
+                                                            {GRADE_LABELS[g] || g}: <span className="text-blue-600 dark:text-blue-400 font-bold">{beneficiaryCounts[g] || 0}</span>
                                                         </span>
                                                     ))}
                                                 </div>
@@ -204,8 +205,8 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                         );
                                     })
                                 ) : (
-                                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
-                                        ⚠️ Click Configure to add learners
+                                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        ⚠️ Click Configure to add grade levels and learner counts
                                     </span>
                                 )}
                             </div>
@@ -244,9 +245,17 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
             <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
                 <div className="siif-card p-6 space-y-5">
                     <div>
-                        <div className="flex items-center justify-between mb-4">
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Summary — Target Beneficiaries</p>
-                            <p className="text-[11px] font-black text-siif-blue bg-siif-blue/10 px-3 py-1 rounded-full">Card {currentSlideIndex + 1} of {validInterventions.length}</p>
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
+                                <TbUsers size={18} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                                <span className="text-xs font-black uppercase tracking-wider">
+                                    Target Beneficiaries Summary
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
+                                <TbChecklist size={14} className="text-blue-600 dark:text-blue-400" />
+                                <span>Card {currentSlideIndex + 1} of {validInterventions.length}</span>
+                            </div>
                         </div>
 
                         <div className="overflow-hidden relative">
@@ -354,93 +363,106 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                 {!readOnly && (
                     <button
                         onClick={() => setScreen('form')}
-                        className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-200 transition-colors"
+                        className="w-full py-3.5 px-4 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 rounded-xl font-extrabold text-xs uppercase tracking-widest border border-rose-200 dark:border-rose-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-sm"
                     >
-                        ← Edit Target Beneficiaries
+                        <TbArrowLeft size={16} /> Edit Target Beneficiaries
                     </button>
                 )}
 
-                <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
-                    {readOnly ? (
-                        <div className="space-y-4">
-                            <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
-                                This section is now read-only as the plan is submitted.
-                            </p>
-                            <button
-                                onClick={onClose}
-                                className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"
-                            >
-                                Close View
-                            </button>
+            <div className="p-5 bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/70 dark:from-slate-900 dark:to-blue-950/40 rounded-2xl border-2 border-blue-200/90 dark:border-blue-800/80 shadow-md space-y-4">
+                {readOnly ? (
+                    <div className="space-y-4 text-center">
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed">
+                            This section is finalized and read-only as the plan is submitted.
+                        </p>
+                        <button
+                            onClick={onClose}
+                            className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all"
+                        >
+                            Close View
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {/* Authenticity & Accuracy Declaration Card */}
+                        <div className="flex items-start gap-3 p-3.5 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-blue-200/80 dark:border-blue-900/50 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                                <TbShieldCheck size={22} />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                                <p className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                                    Data Authenticity & Accuracy Declaration
+                                </p>
+                                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+                                    By typing <span className="font-extrabold text-blue-700 dark:text-blue-300">CONFIRM</span> below, you certify that the target beneficiary count data submitted above is true, accurate, and officially authorized.
+                                </p>
+                            </div>
                         </div>
-                    ) : (
-                        <>
-                            <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
-                                Please confirm the beneficiary counts above are accurate.
-                            </p>
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                Type <span className="text-siif-blue font-black">CONFIRM</span> to save
-                            </p>
+
+                        <div className="space-y-1.5">
                             <input
                                 type="text"
-                                placeholder="Type CONFIRM here..."
+                                placeholder="Type CONFIRM to certify..."
                                 value={confirmText}
                                 onChange={e => setConfirmText(e.target.value)}
-                                className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
-                                    }`}
+                                className={`w-full px-4 py-3.5 rounded-xl border-2 font-mono font-black text-sm tracking-widest text-center transition-all focus:outline-none focus:ring-4 ${
+                                    confirmError
+                                        ? 'border-red-400 bg-red-50 text-red-600 focus:ring-red-500/20 dark:bg-red-950/40 dark:text-red-300'
+                                        : 'border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:ring-blue-500/20'
+                                }`}
                             />
                             {confirmError && (
-                                <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
+                                <p className="text-center text-xs text-red-500 font-extrabold animate-bounce">Please type CONFIRM exactly to certify data</p>
                             )}
-                            <div className="mt-3">
-                                <button
-                                    onClick={handleSave}
-                                    className="w-full py-5 bg-siif-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform"
-                                >
-                                    Save Beneficiaries ✓
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </div>
+                        </div>
+
+                        <div className="pt-0.5">
+                            <button
+                                onClick={handleSave}
+                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            >
+                                <TbShieldCheck size={18} /> Confirm & Certify Beneficiaries
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
             </div>
         );
     };
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
-            {/* Header */}
-            <div className="siif-topbar !m-0 !border-x-0 !border-t-0 !rounded-b-[2rem] flex-col items-stretch !items-start !justify-start shrink-0 z-20 print:hidden relative">
-                <div className="flex items-center justify-between w-full mb-4">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={screen === 'summary' ? () => setScreen('form') : onClose}
-                            className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600"
-                        >
-                            {screen === 'summary' ? <TbArrowLeft size={20} /> : <TbChevronLeft size={20} />}
-                        </button>
-                        <div>
-                            <p className="eyebrow">
-                                Step 2 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Select'}
-                            </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">Target Beneficiaries</h1>
-                        </div>
-                    </div>
+        <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+            {/* ── v5 Ultra-Compact Low-Profile Header ── */}
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-20">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <button
-                        onClick={onClose}
-                        className="p-3 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 shrink-0"
-                        title="Close"
+                        onClick={screen === 'summary' ? () => setScreen('form') : onClose}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
-                        <TbX size={20} />
+                        {screen === 'summary' ? <TbArrowLeft size={17} /> : <TbChevronLeft size={17} />}
                     </button>
+                    <div className="min-w-0 flex-1">
+                        <span className="block text-[9px] font-extrabold uppercase tracking-widest text-blue-600 dark:text-blue-400 siif-font-header leading-none mb-0.5">
+                            Step 2 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Configure'}
+                        </span>
+                        <h2 className="siif-font-header text-sm font-extrabold text-slate-800 dark:text-slate-100 tracking-tight leading-tight truncate">
+                            Target Beneficiaries
+                        </h2>
+                    </div>
                 </div>
-                {/* Step tabs */}
-                <div className="flex gap-2 w-full mt-2">
-                    <div className="h-1.5 flex-1 rounded-full bg-siif-blue" />
-                    <div className={`h-1.5 flex-1 rounded-full transition-all ${screen === 'summary' ? 'bg-siif-blue' : 'bg-slate-200'}`} />
-                </div>
+                <button
+                    onClick={onClose}
+                    className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    title="Close"
+                >
+                    <TbX size={17} />
+                </button>
+            </div>
+            {/* Step progress dots */}
+            <div className="flex gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <div className="h-0.5 flex-1 rounded-full bg-blue-600" />
+                <div className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${screen === 'summary' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`} />
             </div>
 
             <AnimatePresence mode="wait">
@@ -506,7 +528,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                         return (
                                             <div key={ks.id} className="space-y-2">
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{ks.label}</p>
-                                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                                <div className="grid grid-cols-2 gap-3 mb-3">
                                                     {relevantGrades.map(g => {
                                                         const active = selectedGrades.includes(g);
                                                         return (
@@ -514,9 +536,12 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                                                 key={g}
                                                                 disabled={readOnly}
                                                                 onClick={() => toggleGrade(intId, g)}
-                                                                className={`px-3.5 py-2 rounded-xl text-[9px] font-black uppercase transition-all duration-200 ${active ? 'bg-siif-blue text-white shadow-sm border border-siif-blue' : 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                                className={`p-3.5 rounded-2xl border text-center transition-all min-h-[52px] flex flex-col items-center justify-center ${active ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-[1.02]' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
                                                                     }`}
-                                                            >{GRADE_LABELS[g] || g}</button>
+                                                            >
+                                                                <span className="block text-[9px] uppercase opacity-75 font-semibold tracking-wider">Grade Level</span>
+                                                                <span className="text-sm font-extrabold">{GRADE_LABELS[g] || g}</span>
+                                                            </button>
                                                         );
                                                     })}
                                                 </div>

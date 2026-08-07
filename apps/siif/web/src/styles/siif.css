@@ -1,4 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+/* ── v5 Premium Typography Utilities ──────────────────────────────────────── */
+.siif-font-header {
+  font-family: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+}
+.siif-font-body {
+  font-family: 'Inter', 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+}
+
+/* ── Compact Card Header Slide-up Animation ───────────────────────────────── */
+@keyframes siif-slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.siif-animate-slide-up {
+  animation: siif-slide-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 .siif-module-root {
   --navy: #08315F;
@@ -275,15 +292,8 @@
   font-weight: 900;
   letter-spacing: 0.01em;
   color: var(--blue);
-  -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
-  paint-order: stroke fill;
-  text-shadow:
-    -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-    1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-    -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-    1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-    0 4px 10px rgba(11, 31, 77, 0.34),
-    0 12px 28px rgba(15, 23, 42, 0.26);
+  /* v5: Removed text-stroke outline for filled high-contrast solid typography */
+  text-shadow: 0 2px 8px rgba(11, 31, 77, 0.28);
 }
 
 .siif-topbar .eyebrow {
@@ -471,15 +481,8 @@
   font-weight: 900;
   letter-spacing: 0.01em;
   color: var(--blue);
-  -webkit-text-stroke: 1.15px rgba(214, 222, 235, 0.92);
-  paint-order: stroke fill;
-  text-shadow:
-    -1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-    1.25px -1.25px 0 rgba(214, 222, 235, 0.96),
-    -1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-    1.25px 1.25px 0 rgba(214, 222, 235, 0.96),
-    0 4px 10px rgba(11, 31, 77, 0.34),
-    0 12px 28px rgba(15, 23, 42, 0.26);
+  /* v5: Removed text-stroke outline for filled high-contrast solid typography */
+  text-shadow: 0 2px 8px rgba(11, 31, 77, 0.28);
 }
 
 .siif-topbar .eyebrow {
@@ -1537,4 +1540,45 @@ html.dark .siif-module-root input::placeholder,
 html.dark .siif-module-root textarea::placeholder {
   color: #64748B !important;
 }
+
+/* Mobile-first bottom sheet overlay animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Touch drag handle utilities */
+.cursor-row-resize {
+  cursor: row-resize;
+  touch-action: none;
+}
+
+/* Hide scrollbar for kinetic outcome carousel */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tactile 3D Drag & Selection Pod animations */
+.tactile-tilt {
+  transform: rotate(1deg) scale(1.02);
+}
+
+.pod-glow {
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.12);
+}
+
 
