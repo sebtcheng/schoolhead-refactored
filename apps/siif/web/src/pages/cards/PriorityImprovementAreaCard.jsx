@@ -258,7 +258,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
             };
 
             return (
-                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
                         <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest block mb-0.5">Step 1 — Domain Category</span>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
@@ -331,7 +331,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         if (subScreen === 'io') {
             const ios = Object.keys(PIA_DATA[selectedCategory]);
             return (
-                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-36">
+                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8">
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-4">
                         <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">{selectedCategory}</p>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
@@ -384,7 +384,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         if (subScreen === 'pias') {
             const pias = PIA_DATA[selectedCategory][selectedIO];
             return (
-                <div className="flex-1 overflow-y-auto px-5 py-6 pb-36 flex flex-col">
+                <div className="flex-1 overflow-y-auto px-5 py-6 pb-6 sm:pb-8 flex flex-col">
                     <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-4 shrink-0">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 line-clamp-1">{selectedCategory} / {selectedIO.split(':')[0]}</p>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
@@ -447,7 +447,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
 
         // Default 'list' view
         return (
-            <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-36">
+            <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-2">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                         Select or Review Improvement Areas
@@ -556,7 +556,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
 
     // ── SUMMARY SCREEN ───────────────────────────────────────────────────────────
     const renderSummaryScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
             <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">

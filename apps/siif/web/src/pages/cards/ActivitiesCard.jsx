@@ -145,7 +145,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
 
     // ── FORM SCREEN ──────────────────────────────────────────────────────────────
     const renderFormScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-36">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                     What activities does your school plan to conduct for this intervention?
@@ -253,7 +253,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
 
     // ── SUMMARY SCREEN ───────────────────────────────────────────────────────────
     const renderSummaryScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
             <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">

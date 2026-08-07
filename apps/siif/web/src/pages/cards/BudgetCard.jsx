@@ -135,7 +135,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
 
     // ── FORM SCREEN ──────────────────────────────────────────────────────────────
     const renderFormScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
             {/* Bento Metrics Dashboard Header */}
             {allocAmt > 0 && (
                 <div className="grid grid-cols-3 gap-3 mb-2">
@@ -327,7 +327,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
 
     // ── SUMMARY SCREEN ────────────────────────────────────────────────────────────
     const renderSummaryScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
             <div className="siif-card p-6 space-y-5">
                 <div>
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-4 border-b border-slate-100 dark:border-slate-800">

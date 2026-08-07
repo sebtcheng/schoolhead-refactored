@@ -132,7 +132,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
 
     // ── FORM SCREEN ─────────────────────────────────────────────────────────────
     const renderFormScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-36">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8">
             <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
                 <h3 className="text-sm font-black text-slate-800 mb-1 leading-snug">
                     Who will be the beneficiaries of each intervention?
@@ -242,7 +242,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
         const canNext = currentSlideIndex < validInterventions.length - 1;
 
         return (
-            <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
+            <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
                 <div className="siif-card p-6 space-y-5">
                     <div>
                         <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-4 border-b border-slate-100 dark:border-slate-800">
