@@ -191,7 +191,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                 )}
 
                 {/* Live Totals */}
-                <div className="pt-2 grid grid-cols-3 gap-4">
+                <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Budget</p>
                         <p className="text-xl font-black text-slate-700 tracking-tight">
@@ -205,7 +205,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                         </p>
                     </div>
                     {allocAmt > 0 && (
-                        <div className="text-right">
+                        <div className="text-left sm:text-right">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                 {excess >= 0 ? 'Remaining' : 'Over Limit'}
                             </p>

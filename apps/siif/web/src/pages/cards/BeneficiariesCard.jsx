@@ -528,7 +528,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                         return (
                                             <div key={ks.id} className="space-y-2">
                                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{ks.label}</p>
-                                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                                     {relevantGrades.map(g => {
                                                         const active = selectedGrades.includes(g);
                                                         return (
@@ -569,7 +569,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                                                 {isAralActive && (
                                                                     <div className="pt-2 border-t border-slate-200 mt-1">
                                                                         <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest mb-2">ARAL Subjects</p>
-                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                                             {aral.subjects.map(subj => (
                                                                                 <div key={subj} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
                                                                                     <span className="text-[9px] font-bold text-slate-600 truncate mr-2">{subj}</span>

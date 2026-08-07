@@ -679,7 +679,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="bg-slate-50 dark:bg-slate-900 w-full max-w-lg sm:max-w-xl md:max-w-2xl h-[94vh] sm:h-[88vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
+                            className="bg-slate-50 dark:bg-slate-900 w-full max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl h-[94vh] sm:h-[88vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
                         >
                             {activeCard === 'pia' && (
                                 <PriorityImprovementAreaCard
