@@ -256,19 +256,38 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 
                 // 3. Attempt Server Sync for existing data
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}`));
-                    if (res.ok) {
-                        const sData = await res.json();
-                        if (sData.exists && sData.data) {
-                            const d = sData.data;
-                            if (d.iern) setIern(d.iern);
-                            // Fallback offering from DB if nothing local
-                            if (!resolvedOffering) resolvedOffering = d.curricular_offering || "";
-                            
-                            // If Unit 2 is already submitted to the unit2_school_learners table AND we have no local changes, set to read-only
-                            if (d.unit2_has_data && (d.unit2_completed || d.unit2) && !draft2 && !pendingUnit2) {
+                    const [profileRes, subRes] = await Promise.all([
+                        fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`)).catch(() => null),
+                        fetch(api(`/api/ph_schools/unit2/${storedId}`)).catch(() => null)
+                    ]);
+
+                    let baseline = {};
+                    if (profileRes?.ok) {
+                        const profData = await profileRes.json();
+                        if (profData.exists && profData.data) {
+                            baseline = profData.data;
+                            if (baseline.iern) setIern(baseline.iern);
+                            if (!resolvedOffering) resolvedOffering = baseline.curricular_offering || "";
+                        }
+                    }
+
+                    let subData = {};
+                    if (subRes?.ok) {
+                        const sData = await subRes.json();
+                        if (sData.validation_status) {
+                            if (sData.validation_status === 'submitted' || sData.validation_status === 'validated') {
                                 setHasSubmitted(true);
                                 setIsReadOnly(true);
+                            }
+                        }
+                        if (sData.is_completed !== undefined) {
+                            setIsCertified(sData.is_completed);
+                        }
+                        subData = sData.payload ? sData.payload : (sData.data ? sData.data : {});
+                    }
+
+                    const d = { ...baseline, ...subData };
+                    if (d && Object.keys(d).length > 0) {
                                 
                                 try {
                                     setKinderEnrollment((d.enroll_kinder || 0).toString());
@@ -388,9 +407,7 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 } catch (e) {
                                     console.warn("Unit 2 Database Map error", e);
                                 }
-                            }
                         }
-                    }
                 } catch (e) {
                     console.log("📍 [Unit2] Offline: Skipping server record check.");
                 }

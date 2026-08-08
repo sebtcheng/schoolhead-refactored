@@ -256,58 +256,25 @@ export async function cachedQuery(key, fn) {
 export async function updateSchoolTotalCompletion(iern, schoolYr = 'SY 26-27') {
   if (!iern) return;
   try {
-    const res = await safeQuery(
-      `SELECT ps.school_id,
-              COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
-              CASE WHEN u1.unit1_completed = TRUE THEN 1.00 ELSE COALESCE(u1.unit1, 0)::numeric / 100.00 END AS unit1,
-              COALESCE(u2.unit2_completed = 100.00, FALSE) AS unit2_completed,
-              CASE WHEN COALESCE(u2.unit2_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit2,
-              COALESCE(u3.unit3_completed = 100.00, FALSE) AS unit3_completed,
-              CASE WHEN COALESCE(u3.unit3_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit3,
-              COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
-              CASE WHEN COALESCE(u4.unit4_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit4,
-              COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
-              CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u5.unit5, 0)::numeric / 100.00 END AS unit5,
-              COALESCE(u6.unit6_completed, FALSE) AS unit6_completed,
-              CASE WHEN COALESCE(u6.unit6_completed, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit6,
-              COALESCE(u7.unit7_completed, FALSE) AS unit7_completed,
-              CASE WHEN COALESCE(u7.unit7_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u7.unit7, 0)::numeric / 100.00 END AS unit7,
-              COALESCE(u8.unit8_completed, FALSE) AS unit8_completed,
-              CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u8.unit8, 0)::numeric / 100.00 END AS unit8,
-              COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
-              CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u9.unit9, 0)::numeric / 100.00 END AS unit9
-       FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
-       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
-       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
-       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
-       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
-       LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
-       LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
-       LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
-       LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
-       WHERE ps.iern = $1`,
-      [iern, schoolYr]
-    );
-    if (res.rows.length === 0) return;
+    const schoolRes = await safeQuery('SELECT school_id FROM ph_schools WHERE iern = $1 OR school_id = $1 LIMIT 1', [iern]);
+    const schoolId = schoolRes.rows[0]?.school_id || iern;
 
-    const row = res.rows[0];
-    const schoolId = row.school_id;
-    const dbCols = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const res = await safeQuery(
+      `SELECT unit_number, is_completed
+       FROM ph_school_unit_submissions WHERE iern = $1 OR iern = $2`,
+      [iern, schoolId]
+    );
+
+    const compMap = {};
+    res.rows.forEach(r => {
+      compMap[r.unit_number] = r.is_completed === true;
+    });
+
     let completedCount = 0;
     const boolValues = [];
-    for (const idx of dbCols) {
-      const val = parseFloat(row[`unit${idx}`]) || 0;
-      const isDone = row[`unit${idx}_completed`] === true || val >= 1;
-
-      let unitProgress = 0;
-      if (isDone) {
-        unitProgress = 1;
-      } else if (val > 0) {
-        unitProgress = val;
-      }
-
-      completedCount += unitProgress;
+    for (let u = 1; u <= 9; u++) {
+      const isDone = compMap[u] === true;
+      if (isDone) completedCount++;
       boolValues.push(isDone);
     }
 
@@ -318,17 +285,17 @@ export async function updateSchoolTotalCompletion(iern, schoolYr = 'SY 26-27') {
          (iern, school_id, unit1_completion, unit2_completion, unit3_completion, unit4_completion,
           unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, total_completion, updated_at)
        VALUES ($11, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $1, CURRENT_TIMESTAMP)
-       ON CONFLICT (school_id) DO UPDATE SET
-         iern = EXCLUDED.iern, unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
+       ON CONFLICT (iern) DO UPDATE SET
+         school_id = EXCLUDED.school_id, unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
          unit5_completion=$6, unit6_completion=$7, unit7_completion=$8, unit8_completion=$9,
          unit9_completion=$10, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
       [percentage, ...boolValues, iern, schoolId]
-    );
+    ).catch(() => {});
 
     await safeQuery(
-      'UPDATE ph_schools SET unit_completion=$1 WHERE iern=$2',
+      'UPDATE ph_schools SET unit_completion=$1 WHERE iern=$2 OR school_id=$2',
       [percentage, iern]
-    );
+    ).catch(() => {});
 
     console.log(`[SYNC] Updated completion for ${iern}: ${percentage}% (${completedCount}/9)`);
   } catch (err) {

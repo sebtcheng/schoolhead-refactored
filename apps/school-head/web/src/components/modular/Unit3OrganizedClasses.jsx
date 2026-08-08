@@ -386,10 +386,19 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 // 2. Reconstruct school baseline
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}`));
+                    const res = await fetch(api(`/api/ph_schools/unit3/${storedId}`));
                     if (res.ok) {
                         const saved = await res.json();
-                        if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
+                        const activeData = saved.payload ? saved.payload : (saved.data ? saved.data : saved);
+                        if (saved.validation_status) {
+                            if (saved.validation_status === 'submitted' || saved.validation_status === 'validated') {
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (saved.is_completed !== undefined) {
+                            setIsCertified(saved.is_completed);
+                        }
+                        if (activeData) baseline = { ...baseline, ...activeData };
                     }
                 } catch (e) {
                     console.log("📍 [Unit3] Offline: Using local sources for baseline.");

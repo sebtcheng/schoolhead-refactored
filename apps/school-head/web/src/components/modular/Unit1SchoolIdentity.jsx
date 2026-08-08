@@ -199,6 +199,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [showFullscreenPdf, setShowFullscreenPdf] = useState(false);
     const [schoolNameWarning, setSchoolNameWarning] = useState("");
     const [isCertified, setIsCertified] = useState(false);
+    const [submitErrorBanner, setSubmitErrorBanner] = useState("");
 
     // ── IDENTITY SHIFT STATE ────────────────────────────────────────────────
     const [initialSchoolId] = useState(targetSchoolId || user?.school_id || localStorage.getItem("schoolId"));
@@ -243,17 +244,17 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     fetch(api(`/ph_schools/${storedId}`))
                       .then(async r => {
                         console.log('[ph_schools] load', r.status, r.headers.get('content-type'));
-                        if (!r.ok) console.error('[ph_schools] load body:', await r.clone().text());
+                        if (!r.ok) console.warn('[ph_schools] lookup error bypassed gracefully:', r.status);
                         return r;
                       })
-                      .catch(err => { console.error('[ph_schools] load network:', err); return null; }),
+                      .catch(err => { console.warn('[ph_schools] lookup network error bypassed gracefully:', err); return null; }),
                     fetch(api(`/schools_iern/${storedId}`))
                       .then(async r => {
                         console.log('[schools_iern] load', r.status, r.headers.get('content-type'));
-                        if (!r.ok) console.error('[schools_iern] load body:', await r.clone().text());
+                        if (!r.ok) console.warn('[schools_iern] lookup error bypassed gracefully:', r.status);
                         return r;
                       })
-                      .catch(err => { console.error('[schools_iern] load network:', err); return null; }),
+                      .catch(err => { console.warn('[schools_iern] lookup network error bypassed gracefully:', err); return null; }),
                     getUnitDraft(1, storedId).catch(() => null)
                 ]);
 
@@ -265,7 +266,16 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 if (txt) {
                     try {
                         const parsed = JSON.parse(txt);
-                        if (parsed.exists && parsed.data) d = parsed.data;
+                        const activeData = parsed.payload ? parsed.payload : (parsed.data ? parsed.data : parsed);
+                        if (parsed.validation_status) {
+                            if (parsed.validation_status === 'submitted' || parsed.validation_status === 'validated') {
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (parsed.is_completed !== undefined) {
+                            setIsCertified(parsed.is_completed);
+                        }
+                        if (activeData) d = activeData;
                     } catch(e) {}
                 }
             }
@@ -1050,6 +1060,24 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 }
             }
 
+            setSubmitErrorBanner("");
+
+            const sanitizeCoordinate = (val) => {
+                if (val === undefined || val === null || val === false || val === 'false' || val === '' || val === 'null') {
+                    return null;
+                }
+                const parsed = parseFloat(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+
+            const sanitizeInt = (val) => {
+                if (val === undefined || val === null || val === false || val === 'false' || val === '' || val === 'null') {
+                    return null;
+                }
+                const parsed = parseInt(val, 10);
+                return isNaN(parsed) ? null : parsed;
+            };
+
             // Prepare JSON payload (no more files - using Google Drive links)
             dataToSend = {
                 school_yr: "SY 26-27",
@@ -1063,8 +1091,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 district: formData.district,
                 leg_district: formData.leg_district,
                 curricular_offering: formData.curricular_offering,
-                latitude: formData.latitude,
-                longitude: formData.longitude,
+                latitude: sanitizeCoordinate(formData.latitude),
+                longitude: sanitizeCoordinate(formData.longitude),
                 iern: finalIern || null,
                 school_head: formData.school_head,
                 contact_number: formData.contact_number,
@@ -1092,7 +1120,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 local_file_path: formData.local_file_path,
                 local_file_name: formData.local_file_name,
                 local_file_size: formData.local_file_size,
-                ownership_doc_id: formData.ownership_doc_id,
+                ownership_doc_id: sanitizeInt(formData.ownership_doc_id),
                 ownership_document_path: formData.ownership_document_path,
             };
             
@@ -1181,7 +1209,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 setShowOfflineSuccess(true);
             } else {
                 const errorMsg = err.message || "Unknown error";
-                alert(`Failed to sync: ${errorMsg}\n\nProgress saved locally.`);
+                setSubmitErrorBanner("Form Submission Failed: Please ensure location/coordinate points are valid.");
+                alert(`Form Submission Failed: Please ensure location/coordinate points are valid.\n\nDetails: ${errorMsg}`);
             }
         } finally {
             setLoading(false);
@@ -2530,7 +2559,14 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                         )}
 
 
-                                        {/* Certification Checkbox */}
+                                         {submitErrorBanner && (
+                                            <div className="p-4 mb-4 bg-rose-50 border-2 border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 font-bold text-sm">
+                                                <FiAlertTriangle className="w-6 h-6 flex-shrink-0 text-rose-500" />
+                                                <span>{submitErrorBanner}</span>
+                                            </div>
+                                         )}
+
+                                         {/* Certification Checkbox */}
                                         <div 
                                             onClick={() => setIsCertified(!isCertified)}
                                             className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}

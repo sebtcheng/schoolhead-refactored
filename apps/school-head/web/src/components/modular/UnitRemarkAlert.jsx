@@ -3,29 +3,37 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertTriangle, FiCheckCircle, FiSend } from 'react-icons/fi';
 import { api } from "../../lib/api";
 
-const UnitRemarkAlert = ({ unitId, schoolId }) => {
+const UnitRemarkAlert = ({ unitId, schoolId, sdoRemark: propSdoRemark }) => {
     const [remarks, setRemarks] = useState([]);
     const [sdoRemark, setSdoRemark] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const fetchRemarks = async () => {
-        if (!schoolId || !unitId) return;
+        if (propSdoRemark) {
+            setSdoRemark(typeof propSdoRemark === 'string' ? { status: 'returned', remarks: propSdoRemark } : propSdoRemark);
+        }
+        if (!schoolId || !unitId) {
+            setLoading(false);
+            return;
+        }
         try {
             // 1. Fetch SDO Validation remarks from unified submissions endpoint
-            const progRes = await fetch(api(`/api/ph_schools/progress/${schoolId}`));
-            if (progRes.ok) {
-                const progData = await progRes.json();
-                const uKey = typeof unitId === 'number' ? `unit${unitId}` : (unitId.startsWith('unit') ? unitId : `unit${unitId.replace(/[^0-9]/g, '')}`);
-                const sub = progData.data?.submissions?.[uKey];
-                if (sub && (sub.status === 'returned' || sub.status === 'rejected')) {
-                    setSdoRemark({
-                        status: sub.status,
-                        remarks: sub.remarks || 'Revisions requested by Schools Division Office.',
-                        validated_by: sub.validated_by || 'SDO Officer',
-                        validated_at: sub.validated_at
-                    });
-                } else {
-                    setSdoRemark(null);
+            if (!propSdoRemark) {
+                const progRes = await fetch(api(`/api/ph_schools/progress/${schoolId}`));
+                if (progRes.ok) {
+                    const progData = await progRes.json();
+                    const uKey = typeof unitId === 'number' ? `unit${unitId}` : (unitId.startsWith('unit') ? unitId : `unit${unitId.replace(/[^0-9]/g, '')}`);
+                    const sub = progData.data?.submissions?.[uKey];
+                    if (sub && (sub.status === 'returned' || sub.status === 'rejected')) {
+                        setSdoRemark({
+                            status: sub.status,
+                            remarks: sub.remarks || 'Revisions requested by Schools Division Office.',
+                            validated_by: sub.validated_by || 'SDO Officer',
+                            validated_at: sub.validated_at
+                        });
+                    } else {
+                        setSdoRemark(null);
+                    }
                 }
             }
 

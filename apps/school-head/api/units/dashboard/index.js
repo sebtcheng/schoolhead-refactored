@@ -10,11 +10,11 @@ const router = express.Router();
 router.get('/api/announcements/latest', async (req, res) => {
   try {
     const result = await safeQuery("SELECT content, created_at FROM ticket_announcements WHERE is_deleted = false ORDER BY created_at DESC LIMIT 1");
-    if (result.rows.length === 0) return res.json({ success: true, data: null });
+    if (!result || !result.rows || result.rows.length === 0) return res.json({ success: true, data: null });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
-    console.error('Fetch latest announcement error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.warn('Fetch latest announcement error handled gracefully:', err.message);
+    res.json({ success: true, data: null });
   }
 });
 
@@ -67,7 +67,9 @@ router.get('/api/schools/:schoolId/activity', async (req, res) => {
         COALESCE(u3.unit3_completed = 100.00, FALSE) AS unit3_completed,
         CASE WHEN u3.unit3 = TRUE THEN 100 ELSE 0 END AS unit3,
         COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
-        CASE WHEN u4.unit4 = TRUE THEN 100 ELSE 0 END AS unit4
+        CASE WHEN u4.unit4 = TRUE THEN 100 ELSE 0 END AS unit4,
+        COALESCE(ps.unit9_completed, FALSE) AS unit9_completed,
+        CASE WHEN COALESCE(ps.unit9_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(ps.unit9, 0) END AS unit9
        FROM ph_schools ps
        LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
        LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
@@ -260,33 +262,33 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              COALESCE(u2.main_sned, COALESCE(ps.sned_male, 0) + COALESCE(ps.sned_female, 0)) AS main_sned,
              COALESCE(u2.main_sned_male, ps.sned_male) AS main_sned_male,
              COALESCE(u2.main_sned_female, ps.sned_female) AS main_sned_female,
-             COALESCE(u2.self_sned, ps.sned_self_contained_count) AS self_sned,
-             COALESCE(u2.self_sned, ps.sned_self_contained_count) AS sned_self_contained_count,
+             COALESCE(u2.self_sned, 0) AS self_sned,
+             COALESCE(u2.self_sned, 0) AS sned_self_contained_count,
              COALESCE(u2.self_sned_male, 0) AS self_sned_male,
              COALESCE(u2.self_sned_female, 0) AS self_sned_female,
-             COALESCE(u2.self_sned_org_class, ps.sned_organized_class_count) AS self_sned_org_class,
-             COALESCE(u2.self_sned_org_class, ps.sned_organized_class_count) AS sned_organized_class_count,
+             COALESCE(u2.self_sned_org_class, 0) AS self_sned_org_class,
+             COALESCE(u2.self_sned_org_class, 0) AS sned_organized_class_count,
              COALESCE(u2.has_aral_math, FALSE) AS has_aral_math,
-             COALESCE(u2.aral_math_learners_g1, ps.aral_math_g1) AS aral_math_learners_g1,
-             COALESCE(u2.aral_math_learners_g2, ps.aral_math_g2) AS aral_math_learners_g2,
-             COALESCE(u2.aral_math_learners_g3, ps.aral_math_g3) AS aral_math_learners_g3,
-             COALESCE(u2.aral_math_learners_g4, ps.aral_math_g4) AS aral_math_learners_g4,
-             COALESCE(u2.aral_math_learners_g5, ps.aral_math_g5) AS aral_math_learners_g5,
-             COALESCE(u2.aral_math_learners_g6, ps.aral_math_g6) AS aral_math_learners_g6,
+             COALESCE(u2.aral_math_learners_g1, 0) AS aral_math_learners_g1,
+             COALESCE(u2.aral_math_learners_g2, 0) AS aral_math_learners_g2,
+             COALESCE(u2.aral_math_learners_g3, 0) AS aral_math_learners_g3,
+             COALESCE(u2.aral_math_learners_g4, 0) AS aral_math_learners_g4,
+             COALESCE(u2.aral_math_learners_g5, 0) AS aral_math_learners_g5,
+             COALESCE(u2.aral_math_learners_g6, 0) AS aral_math_learners_g6,
              COALESCE(u2.has_aral_reading, FALSE) AS has_aral_reading,
-             COALESCE(u2.aral_reading_learners_g1, ps.aral_read_g1) AS aral_reading_learners_g1,
-             COALESCE(u2.aral_reading_learners_g2, ps.aral_read_g2) AS aral_reading_learners_g2,
-             COALESCE(u2.aral_reading_learners_g3, ps.aral_read_g3) AS aral_reading_learners_g3,
-             COALESCE(u2.aral_reading_learners_g4, ps.aral_read_g4) AS aral_reading_learners_g4,
-             COALESCE(u2.aral_reading_learners_g5, ps.aral_read_g5) AS aral_reading_learners_g5,
-             COALESCE(u2.aral_reading_learners_g6, ps.aral_read_g6) AS aral_reading_learners_g6,
+             COALESCE(u2.aral_reading_learners_g1, 0) AS aral_reading_learners_g1,
+             COALESCE(u2.aral_reading_learners_g2, 0) AS aral_reading_learners_g2,
+             COALESCE(u2.aral_reading_learners_g3, 0) AS aral_reading_learners_g3,
+             COALESCE(u2.aral_reading_learners_g4, 0) AS aral_reading_learners_g4,
+             COALESCE(u2.aral_reading_learners_g5, 0) AS aral_reading_learners_g5,
+             COALESCE(u2.aral_reading_learners_g6, 0) AS aral_reading_learners_g6,
              COALESCE(u2.has_aral_science, FALSE) AS has_aral_science,
-             COALESCE(u2.aral_science_learners_g1, ps.aral_sci_g1) AS aral_science_learners_g1,
-             COALESCE(u2.aral_science_learners_g2, ps.aral_sci_g2) AS aral_science_learners_g2,
-             COALESCE(u2.aral_science_learners_g3, ps.aral_sci_g3) AS aral_science_learners_g3,
-             COALESCE(u2.aral_science_learners_g4, ps.aral_sci_g4) AS aral_science_learners_g4,
-             COALESCE(u2.aral_science_learners_g5, ps.aral_sci_g5) AS aral_science_learners_g5,
-             COALESCE(u2.aral_science_learners_g6, ps.aral_sci_g6) AS aral_science_learners_g6,
+             COALESCE(u2.aral_science_learners_g1, 0) AS aral_science_learners_g1,
+             COALESCE(u2.aral_science_learners_g2, 0) AS aral_science_learners_g2,
+             COALESCE(u2.aral_science_learners_g3, 0) AS aral_science_learners_g3,
+             COALESCE(u2.aral_science_learners_g4, 0) AS aral_science_learners_g4,
+             COALESCE(u2.aral_science_learners_g5, 0) AS aral_science_learners_g5,
+             COALESCE(u2.aral_science_learners_g6, 0) AS aral_science_learners_g6,
              COALESCE(u2.multigrade_groupings_1, ps.multigrade_groupings_1) AS multigrade_groupings_1,
              COALESCE(u2.multigrade_groupings_2, ps.multigrade_groupings_2) AS multigrade_groupings_2,
              COALESCE(u2.multigrade_groupings_3, ps.multigrade_groupings_3) AS multigrade_groupings_3,
@@ -338,53 +340,19 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              u1.ownership_na_reason, u1.ownership_doc_id,
              u1.established_month, u1.established_year,
              u1.mother_school_id, u1.extension_mother_school_name,
-             -- COALESCE: unit1_school_identity is the authoritative source for these fields.
-             -- ph_schools may have nulls if not synced after Unit 1 submission.
-             COALESCE(NULLIF(u1.school_type, ''), ps.school_type) AS school_type,
-             COALESCE(NULLIF(u1.curricular_offering, ''), ps.curricular_offering) AS curricular_offering,
-             COALESCE(NULLIF(u1.latitude, ''), ps.latitude) AS latitude,
-             COALESCE(NULLIF(u1.longitude, ''), ps.longitude) AS longitude,
+             COALESCE(NULLIF(u1.school_type, ''), NULL) AS school_type,
+             COALESCE(NULLIF(u1.curricular_offering, ''), NULL) AS curricular_offering,
+             COALESCE(NULLIF(u1.latitude, ''), NULL) AS latitude,
+             COALESCE(NULLIF(u1.longitude, ''), NULL) AS longitude,
              
              -- Unit 5 Shifting & Modality
-             COALESCE(u5.has_standard_shifting, ps.has_standard_shifting) AS has_standard_shifting,
+             COALESCE(u5.has_standard_shifting, FALSE) AS has_standard_shifting,
              COALESCE(u5.has_adms, FALSE) AS has_adms,
-             COALESCE(u5.shifting_modality, ps.shifting_modality) AS shifting_modality,
-             COALESCE(u5.adm_mdl, ps.adm_mdl) AS adm_mdl,
-             COALESCE(u5.adm_odl, ps.adm_odl) AS adm_odl,
-             COALESCE(u5.adm_tvi, ps.adm_tvi) AS adm_tvi,
-             COALESCE(u5.adm_blended, ps.adm_blended) AS adm_blended,
-             COALESCE(u5.shift_kinder, ps.shift_kinder) AS shift_kinder,
-             COALESCE(u5.shift_g1, ps.shift_g1) AS shift_g1,
-             COALESCE(u5.shift_g2, ps.shift_g2) AS shift_g2,
-             COALESCE(u5.shift_g3, ps.shift_g3) AS shift_g3,
-             COALESCE(u5.shift_g4, ps.shift_g4) AS shift_g4,
-             COALESCE(u5.shift_g5, ps.shift_g5) AS shift_g5,
-             COALESCE(u5.shift_g6, ps.shift_g6) AS shift_g6,
-             COALESCE(u5.shift_g7, ps.shift_g7) AS shift_g7,
-             COALESCE(u5.shift_g8, ps.shift_g8) AS shift_g8,
-             COALESCE(u5.shift_g9, ps.shift_g9) AS shift_g9,
-             COALESCE(u5.shift_g10, ps.shift_g10) AS shift_g10,
-             COALESCE(u5.shift_g11, ps.shift_g11) AS shift_g11,
-             COALESCE(u5.shift_g12, ps.shift_g12) AS shift_g12,
-             COALESCE(u5.shift_mg_1, ps.shift_mg_1) AS shift_mg_1,
-             COALESCE(u5.shift_mg_2, ps.shift_mg_2) AS shift_mg_2,
-             COALESCE(u5.shift_mg_3, ps.shift_mg_3) AS shift_mg_3,
-             COALESCE(u5.mode_kinder, ps.mode_kinder) AS mode_kinder,
-             COALESCE(u5.mode_g1, ps.mode_g1) AS mode_g1,
-             COALESCE(u5.mode_g2, ps.mode_g2) AS mode_g2,
-             COALESCE(u5.mode_g3, ps.mode_g3) AS mode_g3,
-             COALESCE(u5.mode_g4, ps.mode_g4) AS mode_g4,
-             COALESCE(u5.mode_g5, ps.mode_g5) AS mode_g5,
-             COALESCE(u5.mode_g6, ps.mode_g6) AS mode_g6,
-             COALESCE(u5.mode_g7, ps.mode_g7) AS mode_g7,
-             COALESCE(u5.mode_g8, ps.mode_g8) AS mode_g8,
-             COALESCE(u5.mode_g9, ps.mode_g9) AS mode_g9,
-             COALESCE(u5.mode_g10, ps.mode_g10) AS mode_g10,
-             COALESCE(u5.mode_g11, ps.mode_g11) AS mode_g11,
-             COALESCE(u5.mode_g12, ps.mode_g12) AS mode_g12,
-             COALESCE(u5.mode_mg_1, ps.mode_mg_1) AS mode_mg_1,
-             COALESCE(u5.mode_mg_2, ps.mode_mg_2) AS mode_mg_2,
-             COALESCE(u5.mode_mg_3, ps.mode_mg_3) AS mode_mg_3,
+             COALESCE(u5.mode_g11, NULL) AS mode_g11,
+             COALESCE(u5.mode_g12, NULL) AS mode_g12,
+             COALESCE(u5.mode_mg_1, NULL) AS mode_mg_1,
+             COALESCE(u5.mode_mg_2, NULL) AS mode_mg_2,
+             COALESCE(u5.mode_mg_3, NULL) AS mode_mg_3,
              COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
              CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit5,
              (u5.iern IS NOT NULL) AS unit5_has_data,
@@ -401,26 +369,25 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit8,
              (u8.school_id IS NOT NULL) AS unit8_has_data,
              -- Unit9: only count as completed if the unit9 table row actually exists
-             COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
-             CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit9,
-             (u9.school_id IS NOT NULL) AS unit9_has_data
+             COALESCE(ps.unit9_completed, FALSE) AS unit9_completed,
+             CASE WHEN COALESCE(ps.unit9_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(ps.unit9, 0) END AS unit9,
+             (ps.unit9_completed IS NOT NULL) AS unit9_has_data
       FROM ph_schools ps
       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
-      LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
-      LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
-      LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
-      LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
-      LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
-      LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
-      LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
-      LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
+      LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
+      LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern
+      LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern
+      LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern
+      LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id
+      LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id
+      LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id
       WHERE ps.school_id = $1 OR ps.iern = $1
     `;
     try {
-      result = await safeQuery(query, [id, schoolYr]);
+      result = await safeQuery(query, [id]);
     } catch (err) {
       if (err.message.includes('terminated unexpectedly')) {
-        result = await safeQuery(query, [id, schoolYr]);
+        result = await safeQuery(query, [id]);
       } else {
         throw err;
       }
@@ -432,12 +399,12 @@ router.get('/api/ph_schools/:id', async (req, res) => {
 
       if (iern) {
         // Fetch Unit 6 resources flat row
-        const resRow = await safeQuery('SELECT * FROM unit6_school_resources WHERE iern = $1 AND school_yr = $2', [iern, schoolYr]);
+        const resRow = await safeQuery('SELECT * FROM unit6_school_resources WHERE iern = $1 OR school_id = $1', [iern]);
         if (resRow.rows.length > 0) {
           const r = resRow.rows[0];
 
           // 1. Rebuild unit7_furniture
-          const gradesRows = await safeQuery('SELECT * FROM unit6_furniture_grades WHERE iern = $1 AND school_yr = $2', [iern, schoolYr]);
+          const gradesRows = await safeQuery('SELECT * FROM unit6_furniture_grades WHERE iern = $1', [iern]);
           const grades = gradesRows.rows.map(g => ({
             id: g.grade_level,
             grade_level: g.grade_level === 'kinder' ? 'Kinder' : 
@@ -520,7 +487,7 @@ router.get('/api/ph_schools/:id', async (req, res) => {
 
           // 3. Rebuild unit7_has_ecart and unit7_ecarts
           schoolData.unit7_has_ecart = r.unit7_has_ecart;
-          const ecartRows = await safeQuery('SELECT * FROM unit6_ecart_batches WHERE iern = $1 AND school_yr = $2', [iern, schoolYr]);
+          const ecartRows = await safeQuery('SELECT * FROM unit6_ecart_batches WHERE iern = $1', [iern]);
           schoolData.unit7_ecarts = ecartRows.rows.map(c => ({
             batches_name: c.batches_name || "",
             year_received: String(c.year_received || 0),
@@ -755,9 +722,9 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
        COALESCE(u8.unit8_completed, FALSE) AS unit8_completed,
        CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u8.unit8, 0) END AS unit8,
        u8.unit8_updated_at AS unit8_updated_at,
-       COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
-       CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u9.unit9, 0) END AS unit9,
-       u9.unit9_updated_at AS unit9_updated_at,
+       COALESCE(ps.unit9_completed, FALSE) AS unit9_completed,
+       CASE WHEN COALESCE(ps.unit9_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(ps.unit9, 0) END AS unit9,
+       ps.unit9_updated_at AS unit9_updated_at,
        COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
        CASE WHEN u1.unit1_completed = TRUE THEN 100 ELSE COALESCE(u1.unit1, 0) END AS unit1,
        u1.unit1_updated_at AS unit1_updated_at,
@@ -770,23 +737,21 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
        COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
        CASE WHEN COALESCE(u4.unit4_completed = 100.00, FALSE) = TRUE THEN 100 ELSE 0 END AS unit4,
        u4.updated_at AS unit4_updated_at,
-       COALESCE(u1.unit1_completed, FALSE) AS unit1_validated,
        v.unit2_validated, v.unit3_validated, v.unit4_validated, v.unit5_validated,
        v.unit6_validated, v.unit7_validated, v.unit8_validated, v.unit9_validated,
        v.validation_percentage
        FROM ph_schools ps
        LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
-       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
-       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
-       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
-       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
-       LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
-       LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
-       LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
-       LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
+       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern
+       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern
+       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern
+       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern
+       LEFT JOIN unit6_school_resources u6 ON (ps.school_id = u6.school_id OR ps.iern = u6.iern)
+       LEFT JOIN unit7_facilities u7 ON (ps.school_id = u7.school_id OR ps.iern = u7.iern)
+       LEFT JOIN unit8_location u8 ON (ps.school_id = u8.school_id OR ps.iern = u8.iern)
        LEFT JOIN ph_schools_validate v ON ps.school_id = v.school_id
        WHERE ps.school_id = $1 OR ps.iern = $1`,
-      [schoolId, schoolYr]
+      [schoolId]
     );
     
     if (schoolRes.rowCount === 0) return res.status(404).json({ error: 'School not found' });

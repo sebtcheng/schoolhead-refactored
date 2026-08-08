@@ -1,177 +1,133 @@
 import express from 'express';
-import { pool, safeQuery } from '@shared/db';
+import { safeQuery, updateSchoolTotalCompletion } from '@shared/db';
 
 const router = express.Router();
 
+async function resolveIdent(id) {
+    if (!id) return { iern: null, school_id: null };
+    const sRes = await safeQuery('SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
+    if (sRes.rows[0]) return { iern: sRes.rows[0].iern, school_id: sRes.rows[0].school_id };
+
+    const iernRes = await safeQuery('SELECT "IERN" as iern, "SchoolID" as school_id FROM "schools_IERN" WHERE "SchoolID" = $1 OR "IERN" = $1 LIMIT 1', [id]);
+    if (iernRes.rows[0]) return { iern: iernRes.rows[0].iern, school_id: iernRes.rows[0].school_id };
+
+    const fallbackIern = id.startsWith('IERN-') ? id : `IERN-${id}`;
+    return { iern: fallbackIern, school_id: id };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// [QUEST] UNIT 8: TERRAIN / SCHOOL LOCATION PROFILE
+// [QUEST] UNIT 8: SCHOOL LOCATION & TERRAIN
 // ─────────────────────────────────────────────────────────────────────────────
 
-// GET /api/school-location/:id
-router.get('/api/school-location/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const schoolYr = req.query.school_yr || 'SY 26-27';
-    const result = await safeQuery('SELECT * FROM unit8_location WHERE school_id = $1 AND school_yr = $2', [id, schoolYr]);
-    res.json({ success: true, exists: result.rowCount > 0, data: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// GET /api/school-location/:id or GET /api/ph_schools/unit8/:id
+const getUnit8Handler = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { iern } = await resolveIdent(id);
 
-// POST /api/school-location
-router.post('/api/school-location', async (req, res) => {
-  try {
-    const data = req.body;
-    const { school_id, iern } = data;
+        if (!iern) {
+            return res.status(404).json({ success: false, error: 'School not found' });
+        }
 
-    const school_yr = data.school_yr || 'SY 26-27';
+        const subRes = await safeQuery(
+            'SELECT payload, is_completed, validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 8',
+            [iern]
+        );
 
-    if (!school_id) return res.status(400).json({ error: "Missing school_id" });
+        if (subRes.rowCount > 0) {
+            const row = subRes.rows[0];
+            return res.json({
+                success: true,
+                exists: true,
+                payload: row.payload || {},
+                is_completed: row.is_completed || false,
+                validation_status: row.validation_status || 'draft',
+                validation_remarks: row.validation_remarks || null,
+                data: row.payload || {}
+            });
+        }
 
-    // Resolve IERN if not passed directly
-    let resolvedIern = iern;
-    if (!resolvedIern) {
-      const sRes = await safeQuery('SELECT iern FROM ph_schools WHERE school_id = $1 LIMIT 1', [school_id]);
-      resolvedIern = sRes.rows[0]?.iern || school_id;
+        res.json({
+            success: true,
+            exists: false,
+            payload: {},
+            is_completed: false,
+            validation_status: 'draft',
+            validation_remarks: null,
+            data: {}
+        });
+    } catch (err) {
+        console.error("Unit 8 Fetch Error:", err);
+        res.status(500).json({ error: err.message });
     }
+};
 
-    // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
-    const checkLock = await safeQuery(
-        'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 8',
-        [resolvedIern]
-    );
-    if (checkLock.rows[0]?.validation_status === 'validated') {
-        return res.status(403).json({ error: 'This module is validated and locked.' });
+router.get('/api/school-location/:id', getUnit8Handler);
+router.get('/api/ph_schools/unit8/:id', getUnit8Handler);
+
+// POST /api/school-location or POST /api/ph_schools/unit8
+const saveUnit8Handler = async (req, res) => {
+    try {
+        const body = req.body || {};
+        const inputPayload = body.payload || body;
+        const schoolId = body.school_id || inputPayload.school_id || req.params.id;
+
+        let { iern, school_id: resolvedSchoolId } = await resolveIdent(schoolId || body.iern || inputPayload.iern);
+        if (!iern) return res.status(400).json({ error: "Missing school_id or iern identifier" });
+
+        // Ensure parent ph_schools record exists
+        await safeQuery(
+            `INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (iern) DO NOTHING`,
+            [iern, resolvedSchoolId || iern]
+        );
+
+        // Lock Check
+        const checkLock = await safeQuery(
+            'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 8',
+            [iern]
+        );
+        if (checkLock.rows[0]?.validation_status === 'validated') {
+            return res.status(403).json({ error: 'This module is validated and locked.' });
+        }
+
+        const isCompleted = body.is_completed !== false && inputPayload.is_completed !== false;
+        const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
+        const isResubmission = ['returned', 'rejected'].includes(currentStatus);
+        const nextStatus = isResubmission ? 'submitted' : (isCompleted ? 'submitted' : 'draft');
+        const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
+
+        const upsertRes = await safeQuery(`
+            INSERT INTO ph_school_unit_submissions 
+                (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
+            VALUES ($1, 8, $2::jsonb, $3, $4, CASE WHEN $4 = 'submitted' THEN NULL ELSE $5 END, CASE WHEN $4 = 'submitted' THEN NOW() ELSE NULL END, NOW())
+            ON CONFLICT (iern, unit_number) DO UPDATE SET
+                payload = EXCLUDED.payload,
+                is_completed = EXCLUDED.is_completed,
+                validation_status = EXCLUDED.validation_status,
+                validation_remarks = CASE WHEN EXCLUDED.validation_status = 'submitted' THEN NULL ELSE ph_school_unit_submissions.validation_remarks END,
+                submitted_at = CASE WHEN EXCLUDED.validation_status = 'submitted' THEN NOW() ELSE ph_school_unit_submissions.submitted_at END,
+                updated_at = NOW()
+            RETURNING *;
+        `, [iern, JSON.stringify(inputPayload), isCompleted, nextStatus, nextRemarks]);
+
+        await updateSchoolTotalCompletion(iern);
+
+        res.json({
+            success: true,
+            data: upsertRes.rows[0],
+            payload: upsertRes.rows[0].payload,
+            validation_status: upsertRes.rows[0].validation_status,
+            validation_remarks: upsertRes.rows[0].validation_remarks
+        });
+    } catch (err) {
+        console.error("Unit 8 Update Error:", err);
+        res.status(500).json({ error: err.message });
     }
+};
 
-    const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
-    const isResubmission = ['returned', 'rejected'].includes(currentStatus);
-    const nextStatus = isResubmission ? 'submitted' : (data.is_completed !== false ? 'submitted' : 'draft');
-    const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
-
-    await safeQuery(`
-        INSERT INTO ph_school_unit_submissions 
-            (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
-        VALUES ($1, 8, $2, TRUE, $3, $4, NOW(), NOW())
-        ON CONFLICT (iern, unit_number) DO UPDATE SET
-            payload = EXCLUDED.payload,
-            is_completed = TRUE,
-            validation_status = EXCLUDED.validation_status,
-            validation_remarks = EXCLUDED.validation_remarks,
-            submitted_at = NOW(),
-            updated_at = NOW()
-    `, [resolvedIern, JSON.stringify(data), nextStatus, nextRemarks]);
-
-    const query = `
-      INSERT INTO unit8_location (
-        school_id, iern, transportation_modes, road_paved_pct, road_unpaved_pct,
-        road_lighting_pct, public_transpo_availability, water_proximity, near_cliff_ravine,
-        road_cliff_pct, near_water, natural_calamities, hazards_experienced,
-        has_insurgency_threats, insurgency_threats_6mo, road_passable_public_transpo_pct,
-        river_crossing_on_foot, river_crossing_count, emergency_response_mins,
-        proximity_hospital_km, proximity_brgy_hall_mins, proximity_brgy_hall_km,
-        proximity_muni_hall_mins, proximity_muni_hall_km, proximity_sdo_mins,
-        proximity_sdo_km, proximity_clinic_mins, proximity_clinic_km,
-        proximity_terminal_mins, proximity_terminal_km, proximity_highway_mins,
-        proximity_highway_km, cellular_coverage, weather_isolation,
-        weather_isolation_6mo, anthropogenic_threats, school_yr,
-        unit8, unit8_completed, unit8_updated_at, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-        $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37,
-        100, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT (school_id, school_yr) DO UPDATE SET
-        iern = EXCLUDED.iern,
-        transportation_modes = EXCLUDED.transportation_modes,
-        road_paved_pct = EXCLUDED.road_paved_pct,
-        road_unpaved_pct = EXCLUDED.road_unpaved_pct,
-        road_lighting_pct = EXCLUDED.road_lighting_pct,
-        public_transpo_availability = EXCLUDED.public_transpo_availability,
-        water_proximity = EXCLUDED.water_proximity,
-        near_cliff_ravine = EXCLUDED.near_cliff_ravine,
-        road_cliff_pct = EXCLUDED.road_cliff_pct,
-        near_water = EXCLUDED.near_water,
-        natural_calamities = EXCLUDED.natural_calamities,
-        hazards_experienced = EXCLUDED.hazards_experienced,
-        has_insurgency_threats = EXCLUDED.has_insurgency_threats,
-        insurgency_threats_6mo = EXCLUDED.insurgency_threats_6mo,
-        road_passable_public_transpo_pct = EXCLUDED.road_passable_public_transpo_pct,
-        river_crossing_on_foot = EXCLUDED.river_crossing_on_foot,
-        river_crossing_count = EXCLUDED.river_crossing_count,
-        emergency_response_mins = EXCLUDED.emergency_response_mins,
-        proximity_hospital_km = EXCLUDED.proximity_hospital_km,
-        proximity_brgy_hall_mins = EXCLUDED.proximity_brgy_hall_mins,
-        proximity_brgy_hall_km = EXCLUDED.proximity_brgy_hall_km,
-        proximity_muni_hall_mins = EXCLUDED.proximity_muni_hall_mins,
-        proximity_muni_hall_km = EXCLUDED.proximity_muni_hall_km,
-        proximity_sdo_mins = EXCLUDED.proximity_sdo_mins,
-        proximity_sdo_km = EXCLUDED.proximity_sdo_km,
-        proximity_clinic_mins = EXCLUDED.proximity_clinic_mins,
-        proximity_clinic_km = EXCLUDED.proximity_clinic_km,
-        proximity_terminal_mins = EXCLUDED.proximity_terminal_mins,
-        proximity_terminal_km = EXCLUDED.proximity_terminal_km,
-        proximity_highway_mins = EXCLUDED.proximity_highway_mins,
-        proximity_highway_km = EXCLUDED.proximity_highway_km,
-        cellular_coverage = EXCLUDED.cellular_coverage,
-        weather_isolation = EXCLUDED.weather_isolation,
-        weather_isolation_6mo = EXCLUDED.weather_isolation_6mo,
-        anthropogenic_threats = EXCLUDED.anthropogenic_threats,
-        unit8 = EXCLUDED.unit8,
-        unit8_completed = EXCLUDED.unit8_completed,
-        unit8_updated_at = EXCLUDED.unit8_updated_at,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-    `;
-
-    const values = [
-      school_id, iern,
-      JSON.stringify(data.transportation_modes || []),
-      parseFloat(data.road_paved_pct) || 0,
-      parseFloat(data.road_unpaved_pct) || 0,
-      parseFloat(data.road_lighting_pct) || 0,
-      parseFloat(data.public_transpo_availability) || 0,
-      JSON.stringify(data.water_proximity || []),
-      data.near_cliff_ravine === true || data.near_cliff_ravine === 'true',
-      parseFloat(data.road_cliff_pct) || 0,
-      data.near_water === true || data.near_water === 'true',
-      JSON.stringify(data.natural_calamities || []),
-      JSON.stringify(data.hazards_experienced || []),
-      data.has_insurgency_threats === true || data.has_insurgency_threats === 'true',
-      parseFloat(data.insurgency_threats_6mo) || 0,
-      parseFloat(data.road_passable_public_transpo_pct) || 0,
-      data.river_crossing_on_foot === true || data.river_crossing_on_foot === 'true',
-      parseFloat(data.river_crossing_count) || 0,
-      parseFloat(data.emergency_response_mins) || 0,
-      parseFloat(data.proximity_hospital_km) || 0,
-      parseFloat(data.proximity_brgy_hall_mins) || 0,
-      parseFloat(data.proximity_brgy_hall_km) || 0,
-      parseFloat(data.proximity_muni_hall_mins) || 0,
-      parseFloat(data.proximity_muni_hall_km) || 0,
-      parseFloat(data.proximity_sdo_mins) || 0,
-      parseFloat(data.proximity_sdo_km) || 0,
-      parseFloat(data.proximity_clinic_mins) || 0,
-      parseFloat(data.proximity_clinic_km) || 0,
-      parseFloat(data.proximity_terminal_mins) || 0,
-      parseFloat(data.proximity_terminal_km) || 0,
-      parseFloat(data.proximity_highway_mins) || 0,
-      parseFloat(data.proximity_highway_km) || 0,
-      data.cellular_coverage,
-      data.weather_isolation === true || data.weather_isolation === 'true',
-      parseFloat(data.weather_isolation_6mo) || 0,
-      JSON.stringify(data.anthropogenic_threats || []),
-      school_yr
-    ];
-
-    const result = await safeQuery(query, values);
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err) {
-    console.error("❌ [API] POST /api/school-location ERROR:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
+router.post('/api/school-location', saveUnit8Handler);
+router.post('/api/ph_schools/unit8', saveUnit8Handler);
+router.put('/api/ph_schools/unit8/:id', saveUnit8Handler);
 
 export { router as unit8Router };
 export default router;

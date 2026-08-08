@@ -443,12 +443,19 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     setShowWelcomeBack(true);
                     setTimeout(() => setShowWelcomeBack(false), 3000);
                 } else {
-                    const resMaster = await fetch(api(`/ph_schools/unit9/${storedId}`));
+                    const resMaster = await fetch(api(`/api/ph_schools/unit9/${storedId}`));
                     if (resMaster.ok) {
                         const masterData = await resMaster.json();
-                        if (masterData.success && masterData.data) {
-                            restoreFromPayload(masterData.data, u6PowerSource);
-                            const completed = !!masterData.data.unit9_completed;
+                        const activeData = masterData.payload ? masterData.payload : (masterData.data ? masterData.data : masterData);
+                        if (masterData.validation_status) {
+                            if (masterData.validation_status === 'submitted' || masterData.validation_status === 'validated') {
+                                setIsReviewMode(true);
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (activeData) {
+                            restoreFromPayload(activeData, u6PowerSource);
+                            const completed = masterData.is_completed !== undefined ? masterData.is_completed : !!activeData.unit9_completed;
                             setIsReviewMode(completed || propReadOnly);
                             setIsReadOnly(completed || propReadOnly);
                             setHasData(true);

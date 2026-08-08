@@ -352,10 +352,19 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", curricular_offering: "", latitude: 14.5995, longitude: 120.9842 };
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}`));
+                    const res = await fetch(api(`/api/ph_schools/unit7/${storedId}`));
                     if (res.ok) {
                         const profile = await res.json();
-                        if (profile.exists && profile.data) baseline = { ...baseline, ...profile.data };
+                        const activeData = profile.payload ? profile.payload : (profile.data ? profile.data : profile);
+                        if (profile.validation_status) {
+                            if (profile.validation_status === 'submitted' || profile.validation_status === 'validated') {
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (profile.is_completed !== undefined) {
+                            setIsCertified(profile.is_completed);
+                        }
+                        if (activeData) baseline = { ...baseline, ...activeData };
                     }
                 } catch (e) { console.log("📍 [Unit7] Offline: Using local sources for baseline."); }
 

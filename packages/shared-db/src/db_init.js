@@ -129,69 +129,52 @@ const initUnitTimestampTrigger = async (client, dbLabel) => {
                 old_json JSONB := to_jsonb(OLD);
                 v_num NUMERIC;
                 v_comp BOOLEAN;
+                u_val TEXT;
+                c_val TEXT;
+                unit_idx INT;
+                col_name TEXT;
+                comp_name TEXT;
+                ts_name TEXT;
             BEGIN
-                -- Unit 1
-                v_num := COALESCE((new_json->>'unit1')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit1_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit1' IS DISTINCT FROM old_json->'unit1' OR new_json->'unit1_completed' IS DISTINCT FROM old_json->'unit1_completed') THEN
-                    IF new_json ? 'unit1_updated_at' THEN NEW.unit1_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
+                FOR unit_idx IN 1..9 LOOP
+                    col_name := 'unit' || unit_idx;
+                    comp_name := col_name || '_completed';
+                    ts_name := col_name || '_updated_at';
 
-                -- Unit 2
-                v_num := COALESCE((new_json->>'unit2')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit2_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit2' IS DISTINCT FROM old_json->'unit2' OR new_json->'unit2_completed' IS DISTINCT FROM old_json->'unit2_completed') THEN
-                    IF new_json ? 'unit2_updated_at' THEN NEW.unit2_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
+                    u_val := LOWER(COALESCE(new_json->>col_name, ''));
+                    IF u_val = 'true' OR u_val = '1' OR u_val = '100' THEN
+                        v_num := 100;
+                    ELSIF u_val = 'false' OR u_val = '0' OR u_val = '' THEN
+                        v_num := 0;
+                    ELSE
+                        BEGIN
+                            v_num := (u_val)::numeric;
+                        EXCEPTION WHEN OTHERS THEN
+                            v_num := 0;
+                        END;
+                    END IF;
 
-                -- Unit 3
-                v_num := COALESCE((new_json->>'unit3')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit3_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit3' IS DISTINCT FROM old_json->'unit3' OR new_json->'unit3_completed' IS DISTINCT FROM old_json->'unit3_completed') THEN
-                    IF new_json ? 'unit3_updated_at' THEN NEW.unit3_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
+                    c_val := LOWER(COALESCE(new_json->>comp_name, ''));
+                    v_comp := (c_val = 'true' OR c_val = '1' OR c_val = '100');
 
-                -- Unit 4
-                v_num := COALESCE((new_json->>'unit4')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit4_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit4' IS DISTINCT FROM old_json->'unit4' OR new_json->'unit4_completed' IS DISTINCT FROM old_json->'unit4_completed') THEN
-                    IF new_json ? 'unit4_updated_at' THEN NEW.unit4_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
-
-                -- Unit 5
-                v_num := COALESCE((new_json->>'unit5')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit5_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit5' IS DISTINCT FROM old_json->'unit5' OR new_json->'unit5_completed' IS DISTINCT FROM old_json->'unit5_completed') THEN
-                    IF new_json ? 'unit5_updated_at' THEN NEW.unit5_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
-
-                -- Unit 6
-                v_num := COALESCE((new_json->>'unit6')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit6_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit6' IS DISTINCT FROM old_json->'unit6' OR new_json->'unit6_completed' IS DISTINCT FROM old_json->'unit6_completed') THEN
-                    IF new_json ? 'unit6_updated_at' THEN NEW.unit6_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
-
-                -- Unit 7
-                v_num := COALESCE((new_json->>'unit7')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit7_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit7' IS DISTINCT FROM old_json->'unit7' OR new_json->'unit7_completed' IS DISTINCT FROM old_json->'unit7_completed') THEN
-                    IF new_json ? 'unit7_updated_at' THEN NEW.unit7_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
-
-                -- Unit 8
-                v_num := COALESCE((new_json->>'unit8')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit8_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit8' IS DISTINCT FROM old_json->'unit8' OR new_json->'unit8_completed' IS DISTINCT FROM old_json->'unit8_completed') THEN
-                    IF new_json ? 'unit8_updated_at' THEN NEW.unit8_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
-
-                -- Unit 9
-                v_num := COALESCE((new_json->>'unit9')::numeric, 0);
-                v_comp := COALESCE((new_json->>'unit9_completed')::boolean, FALSE);
-                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit9' IS DISTINCT FROM old_json->'unit9' OR new_json->'unit9_completed' IS DISTINCT FROM old_json->'unit9_completed') THEN
-                    IF new_json ? 'unit9_updated_at' THEN NEW.unit9_updated_at := CURRENT_TIMESTAMP; END IF;
-                END IF;
+                    IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (
+                        (new_json->col_name) IS DISTINCT FROM (old_json->col_name) OR
+                        (new_json->comp_name) IS DISTINCT FROM (old_json->comp_name)
+                    ) THEN
+                        IF new_json ? ts_name THEN
+                            IF unit_idx = 1 THEN NEW.unit1_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 2 THEN NEW.unit2_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 3 THEN NEW.unit3_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 4 THEN NEW.unit4_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 5 THEN NEW.unit5_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 6 THEN NEW.unit6_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 7 THEN NEW.unit7_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 8 THEN NEW.unit8_updated_at := CURRENT_TIMESTAMP;
+                            ELSIF unit_idx = 9 THEN NEW.unit9_updated_at := CURRENT_TIMESTAMP;
+                            END IF;
+                        END IF;
+                    END IF;
+                END LOOP;
 
                 RETURN NEW;
             END;

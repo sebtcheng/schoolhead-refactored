@@ -95,11 +95,17 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     if (pendingU8.payload.iern) setIern(pendingU8.payload.iern);
                     if (!propReadOnly) setIsReadOnly(true); // Treat as read-only if it's in outbox
                 } else if (effectiveReadOnly) {
-                    const res = await fetch(api(`/school-location/${schoolId}`));
+                    const res = await fetch(api(`/api/ph_schools/unit8/${schoolId}`));
                     const result = await res.json();
-                    if (result.success && result.data) {
-                        setLocationData(result.data);
-                        if (result.data.iern) setIern(result.data.iern);
+                    const activeData = result.payload ? result.payload : (result.data ? result.data : result);
+                    if (result.validation_status) {
+                        if (result.validation_status === 'submitted' || result.validation_status === 'validated') {
+                            setIsReadOnly(true);
+                        }
+                    }
+                    if (activeData) {
+                        setLocationData(activeData);
+                        if (activeData.iern) setIern(activeData.iern);
                     }
                 }
 

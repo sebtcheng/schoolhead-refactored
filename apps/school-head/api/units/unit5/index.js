@@ -1,72 +1,82 @@
 import express from 'express';
-import { safeQuery } from '@shared/db';
+import { safeQuery, updateSchoolTotalCompletion } from '@shared/db';
 
 const router = express.Router();
 
-const toBool = (v) => {
-    if (v === 1 || v === true || v === 'true' || v === '1') return true;
-    if (v === 0 || v === false || v === 'false' || v === '0') return false;
-    return false; 
-};
+async function resolveIdent(id) {
+    if (!id) return { iern: null, school_id: null };
+    const sRes = await safeQuery('SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
+    if (sRes.rows[0]) return { iern: sRes.rows[0].iern, school_id: sRes.rows[0].school_id };
+
+    const iernRes = await safeQuery('SELECT "IERN" as iern, "SchoolID" as school_id FROM "schools_IERN" WHERE "SchoolID" = $1 OR "IERN" = $1 LIMIT 1', [id]);
+    if (iernRes.rows[0]) return { iern: iernRes.rows[0].iern, school_id: iernRes.rows[0].school_id };
+
+    const fallbackIern = id.startsWith('IERN-') ? id : `IERN-${id}`;
+    return { iern: fallbackIern, school_id: id };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [QUEST] UNIT 5: SHIFTING & MODALITY
 // ─────────────────────────────────────────────────────────────────────────────
-router.put('/api/ph_schools/unit5/:id', async (req, res) => {
-    const schoolId = req.params.id;
-    const data = req.body;
 
+// GET /api/ph_schools/unit5/:id
+router.get('/api/ph_schools/unit5/:id', async (req, res) => {
     try {
-        // Resolve canonical IERN & SchoolID
-        let schoolRes = await safeQuery(
-            `SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1`,
-            [schoolId]
+        const { id } = req.params;
+        const { iern } = await resolveIdent(id);
+
+        if (!iern) {
+            return res.status(404).json({ success: false, error: 'School not found' });
+        }
+
+        const subRes = await safeQuery(
+            'SELECT payload, is_completed, validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 5',
+            [iern]
         );
-        if (schoolRes.rows.length === 0) {
-            schoolRes = await safeQuery(
-                `SELECT "IERN" as iern, "SchoolID" as school_id FROM "schools_IERN" WHERE "SchoolID" = $1 OR "IERN" = $1 LIMIT 1`,
-                [schoolId]
-            );
+
+        if (subRes.rowCount > 0) {
+            const row = subRes.rows[0];
+            return res.json({
+                success: true,
+                payload: row.payload || {},
+                is_completed: row.is_completed || false,
+                validation_status: row.validation_status || 'draft',
+                validation_remarks: row.validation_remarks || null,
+                data: row.payload || {}
+            });
         }
-        if (schoolRes.rows.length === 0) {
-            return res.status(404).json({ error: 'School not found' });
-        }
-        const { iern, school_id } = schoolRes.rows[0];
 
-        const school_yr = data.school_yr || 'SY 26-27';
-
-        const insertFields = [
-            'iern', 'school_id', 'school_yr',
-            'has_standard_shifting', 'has_adms', 'adm_mdl', 'adm_odl', 'adm_tvi', 'adm_blended', 'shifting_modality',
-            'shift_kinder', 'shift_g1', 'shift_g2', 'shift_g3', 'shift_g4', 'shift_g5', 'shift_g6', 'shift_g7', 'shift_g8', 'shift_g9', 'shift_g10', 'shift_g11', 'shift_g12', 'shift_mg_1', 'shift_mg_2', 'shift_mg_3',
-            'mode_kinder', 'mode_g1', 'mode_g2', 'mode_g3', 'mode_g4', 'mode_g5', 'mode_g6', 'mode_g7', 'mode_g8', 'mode_g9', 'mode_g10', 'mode_g11', 'mode_g12', 'mode_mg_1', 'mode_mg_2', 'mode_mg_3',
-            'unit5', 'unit5_completed', 'unit5_updated_at'
-        ];
-
-        const values = insertFields.map(f => {
-            if (f === 'iern') return iern;
-            if (f === 'school_id') return school_id;
-            if (f === 'school_yr') return school_yr;
-            if (f === 'unit5') return 100;
-            if (f === 'unit5_completed') return true;
-            if (f === 'unit5_updated_at') return new Date();
-            
-            // Explicit Boolean Casting
-            if (f === 'has_standard_shifting') return toBool(data.has_standard_shifting);
-            if (f === 'has_adms') return toBool(data.has_adms);
-            if (f === 'adm_mdl') return toBool(data.adm_mdl);
-            if (f === 'adm_odl') return toBool(data.adm_odl);
-            if (f === 'adm_tvi') return toBool(data.adm_tvi);
-            if (f === 'adm_blended') return toBool(data.adm_blended);
-            
-            return data[f];
+        res.json({
+            success: true,
+            payload: {},
+            is_completed: false,
+            validation_status: 'draft',
+            validation_remarks: null,
+            data: {}
         });
+    } catch (err) {
+        console.error("Unit 5 Fetch Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        const placeholders = insertFields.map((_, i) => `$${i + 1}`).join(', ');
-        const updateFields = insertFields.filter(f => f !== 'iern' && f !== 'school_id' && f !== 'school_yr');
-        const updateClause = updateFields.map((f, i) => `${f} = $${insertFields.indexOf(f) + 1}`).join(', ');
+// PUT /api/ph_schools/unit5/:id
+router.put('/api/ph_schools/unit5/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const body = req.body || {};
+        const inputPayload = body.payload || body;
 
-        // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
+        let { iern, school_id: resolvedSchoolId } = await resolveIdent(id || body.iern || body.school_id);
+        if (!iern) return res.status(400).json({ error: "Missing school_id or iern identifier" });
+
+        // Ensure parent ph_schools record exists
+        await safeQuery(
+            `INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (iern) DO NOTHING`,
+            [iern, resolvedSchoolId || iern]
+        );
+
+        // Lock Check
         const checkLock = await safeQuery(
             'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 5',
             [iern]
@@ -75,30 +85,37 @@ router.put('/api/ph_schools/unit5/:id', async (req, res) => {
             return res.status(403).json({ error: 'This module is validated and locked.' });
         }
 
+        const isCompleted = body.is_completed !== false && inputPayload.is_completed !== false;
         const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
         const isResubmission = ['returned', 'rejected'].includes(currentStatus);
-        const nextStatus = isResubmission ? 'submitted' : (data.is_completed !== false ? 'submitted' : 'draft');
+        const nextStatus = isResubmission ? 'submitted' : (isCompleted ? 'submitted' : 'draft');
         const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
 
-        await safeQuery(`
+        const upsertRes = await safeQuery(`
             INSERT INTO ph_school_unit_submissions 
                 (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
-            VALUES ($1, 5, $2, TRUE, $3, $4, NOW(), NOW())
+            VALUES ($1, 5, $2::jsonb, $3, $4, CASE WHEN $4 = 'submitted' THEN NULL ELSE $5 END, CASE WHEN $4 = 'submitted' THEN NOW() ELSE NULL END, NOW())
             ON CONFLICT (iern, unit_number) DO UPDATE SET
                 payload = EXCLUDED.payload,
-                is_completed = TRUE,
+                is_completed = EXCLUDED.is_completed,
                 validation_status = EXCLUDED.validation_status,
-                validation_remarks = EXCLUDED.validation_remarks,
-                submitted_at = NOW(),
+                validation_remarks = CASE WHEN EXCLUDED.validation_status = 'submitted' THEN NULL ELSE ph_school_unit_submissions.validation_remarks END,
+                submitted_at = CASE WHEN EXCLUDED.validation_status = 'submitted' THEN NOW() ELSE ph_school_unit_submissions.submitted_at END,
                 updated_at = NOW()
-        `, [iern, JSON.stringify(data), nextStatus, nextRemarks]);
+            RETURNING *;
+        `, [iern, JSON.stringify(inputPayload), isCompleted, nextStatus, nextRemarks]);
 
-        const result = await safeQuery(upsertQuery, values);
+        await updateSchoolTotalCompletion(iern);
 
-
-
-        res.json({ success: true, data: result.rows[0] });
+        res.json({
+            success: true,
+            data: upsertRes.rows[0],
+            payload: upsertRes.rows[0].payload,
+            validation_status: upsertRes.rows[0].validation_status,
+            validation_remarks: upsertRes.rows[0].validation_remarks
+        });
     } catch (err) {
+        console.error("Unit 5 Update Error:", err);
         res.status(500).json({ error: err.message });
     }
 });

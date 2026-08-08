@@ -257,10 +257,19 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
+                    const res = await fetch(api(`/api/ph_schools/unit6/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
-                        if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
+                        const activeData = saved.payload ? saved.payload : (saved.data ? saved.data : saved);
+                        if (saved.validation_status) {
+                            if (saved.validation_status === 'submitted' || saved.validation_status === 'validated') {
+                                setIsReviewMode(true);
+                            }
+                        }
+                        if (saved.is_completed !== undefined) {
+                            setIsCertified(saved.is_completed);
+                        }
+                        if (activeData) baseline = { ...baseline, ...activeData };
                     }
                 } catch (e) {
                     console.log("📍 [Unit6] Offline: Using local sources for baseline.");
