@@ -70,15 +70,33 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
         const placeholders = ['iern', 'school_id', 'school_yr', ...fields].map((_, idx) => `$${idx + 1}`).join(', ');
         const updateClause = fields.map(f => `"${f}" = EXCLUDED."${f}"`).join(', ');
 
-        const query = `
-            INSERT INTO unit1_school_identity (${columnsStr})
-            VALUES (${placeholders})
-            ON CONFLICT (iern, school_yr) DO UPDATE SET
-                ${updateClause},
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING *
-        `;
-        
+        // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
+        const checkLock = await safeQuery(
+            'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 1',
+            [resolvedIern]
+        );
+        if (checkLock.rows[0]?.validation_status === 'validated') {
+            return res.status(403).json({ error: 'This module is validated and locked.' });
+        }
+
+        const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
+        const isResubmission = ['returned', 'rejected'].includes(currentStatus);
+        const nextStatus = isResubmission ? 'submitted' : (data.is_completed !== false ? 'submitted' : 'draft');
+        const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
+
+        await safeQuery(`
+            INSERT INTO ph_school_unit_submissions 
+                (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
+            VALUES ($1, 1, $2, TRUE, $3, $4, NOW(), NOW())
+            ON CONFLICT (iern, unit_number) DO UPDATE SET
+                payload = EXCLUDED.payload,
+                is_completed = TRUE,
+                validation_status = EXCLUDED.validation_status,
+                validation_remarks = EXCLUDED.validation_remarks,
+                submitted_at = NOW(),
+                updated_at = NOW()
+        `, [resolvedIern, JSON.stringify(data), nextStatus, nextRemarks]);
+
         const result = await safeQuery(query, [resolvedIern, school_id, school_yr, ...values]);
         if (result.rowCount === 0) return res.status(404).json({ error: "Failed to save unit 1 data" });
 

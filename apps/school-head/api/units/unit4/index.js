@@ -57,12 +57,32 @@ router.put('/api/ph_schools/unit4/:id', async (req, res) => {
         const valPlaceholders = ['iern', 'school_id', 'school_yr', ...fields].map((_, i) => `$${i + 1}`).join(', ');
         const updateClause = fields.map((f, i) => `${f} = $${i + 4}`).join(', ');
 
-        const query = `
-            INSERT INTO unit4_learner_profile (${colList})
-            VALUES (${valPlaceholders})
-            ON CONFLICT (iern, school_yr) DO UPDATE SET ${updateClause}
-            RETURNING *
-        `;
+        // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
+        const checkLock = await safeQuery(
+            'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 4',
+            [iern]
+        );
+        if (checkLock.rows[0]?.validation_status === 'validated') {
+            return res.status(403).json({ error: 'This module is validated and locked.' });
+        }
+
+        const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
+        const isResubmission = ['returned', 'rejected'].includes(currentStatus);
+        const nextStatus = isResubmission ? 'submitted' : (data.is_completed !== false ? 'submitted' : 'draft');
+        const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
+
+        await safeQuery(`
+            INSERT INTO ph_school_unit_submissions 
+                (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
+            VALUES ($1, 4, $2, TRUE, $3, $4, NOW(), NOW())
+            ON CONFLICT (iern, unit_number) DO UPDATE SET
+                payload = EXCLUDED.payload,
+                is_completed = TRUE,
+                validation_status = EXCLUDED.validation_status,
+                validation_remarks = EXCLUDED.validation_remarks,
+                submitted_at = NOW(),
+                updated_at = NOW()
+        `, [iern, JSON.stringify(data), nextStatus, nextRemarks]);
 
         const result = await safeQuery(query, [iern, school_id, school_yr, ...values]);
         res.json({ success: true, data: result.rows[0] });

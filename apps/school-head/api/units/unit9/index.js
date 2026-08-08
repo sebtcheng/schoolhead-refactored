@@ -79,13 +79,33 @@ router.put('/api/ph_schools/unit9/:id', async (req, res) => {
     const w = typeof body.u9_wiring     === 'string' ? JSON.parse(body.u9_wiring)     : (body.u9_wiring     || {});
     const c = typeof body.u9_cords_cctv === 'string' ? JSON.parse(body.u9_cords_cctv) : (body.u9_cords_cctv || {});
 
-    // Fetch iern for completion update
-    const schoolRes = await safeQuery('SELECT iern FROM ph_schools WHERE school_id = $1', [id]);
-    let iern = schoolRes.rows[0]?.iern ?? null;
-    if (!iern) {
-        const iernRes = await safeQuery('SELECT "IERN" as iern FROM "schools_IERN" WHERE "SchoolID" = $1', [id]);
-        iern = iernRes.rows[0]?.iern ?? null;
+    // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
+    const resolvedIern = iern || id;
+    const checkLock = await safeQuery(
+      'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 9',
+      [resolvedIern]
+    );
+    if (checkLock.rows[0]?.validation_status === 'validated') {
+      return res.status(403).json({ error: 'This module is validated and locked.' });
     }
+
+    const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
+    const isResubmission = ['returned', 'rejected'].includes(currentStatus);
+    const nextStatus = isResubmission ? 'submitted' : (body.is_completed !== false ? 'submitted' : 'draft');
+    const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
+
+    await safeQuery(`
+      INSERT INTO ph_school_unit_submissions 
+        (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
+      VALUES ($1, 9, $2, TRUE, $3, $4, NOW(), NOW())
+      ON CONFLICT (iern, unit_number) DO UPDATE SET
+        payload = EXCLUDED.payload,
+        is_completed = TRUE,
+        validation_status = EXCLUDED.validation_status,
+        validation_remarks = EXCLUDED.validation_remarks,
+        submitted_at = NOW(),
+        updated_at = NOW()
+    `, [resolvedIern, JSON.stringify(body), nextStatus, nextRemarks]);
 
     // ── $1–$59 parameterized + 4 hardcoded = 63 columns ──
     const values = [

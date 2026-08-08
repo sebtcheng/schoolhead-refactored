@@ -29,6 +29,40 @@ router.post('/api/school-location', async (req, res) => {
 
     if (!school_id) return res.status(400).json({ error: "Missing school_id" });
 
+    // Resolve IERN if not passed directly
+    let resolvedIern = iern;
+    if (!resolvedIern) {
+      const sRes = await safeQuery('SELECT iern FROM ph_schools WHERE school_id = $1 LIMIT 1', [school_id]);
+      resolvedIern = sRes.rows[0]?.iern || school_id;
+    }
+
+    // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
+    const checkLock = await safeQuery(
+        'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 8',
+        [resolvedIern]
+    );
+    if (checkLock.rows[0]?.validation_status === 'validated') {
+        return res.status(403).json({ error: 'This module is validated and locked.' });
+    }
+
+    const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
+    const isResubmission = ['returned', 'rejected'].includes(currentStatus);
+    const nextStatus = isResubmission ? 'submitted' : (data.is_completed !== false ? 'submitted' : 'draft');
+    const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
+
+    await safeQuery(`
+        INSERT INTO ph_school_unit_submissions 
+            (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
+        VALUES ($1, 8, $2, TRUE, $3, $4, NOW(), NOW())
+        ON CONFLICT (iern, unit_number) DO UPDATE SET
+            payload = EXCLUDED.payload,
+            is_completed = TRUE,
+            validation_status = EXCLUDED.validation_status,
+            validation_remarks = EXCLUDED.validation_remarks,
+            submitted_at = NOW(),
+            updated_at = NOW()
+    `, [resolvedIern, JSON.stringify(data), nextStatus, nextRemarks]);
+
     const query = `
       INSERT INTO unit8_location (
         school_id, iern, transportation_modes, road_paved_pct, road_unpaved_pct,

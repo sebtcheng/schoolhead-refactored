@@ -16,7 +16,7 @@ dotenv.config({ path: path.join(rootDir, '.env') });
 const { Pool } = pg;
 
 // --- DATABASE CONNECTION ---
-let dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insighted-staging';
+let dbUrl = process.env.CLOUD_DATABASE_URL || process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insighted-staging';
 
 // Auto-redirect local development connections from production (insightEd) to staging (insighted-staging)
 const isLocalMachine = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';

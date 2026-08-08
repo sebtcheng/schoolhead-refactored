@@ -436,6 +436,65 @@ const initUnitTimestampTrigger = async (client, dbLabel) => {
     }
 };
 
+const initHybridSubmissionsSchema = async (client, dbLabel) => {
+    try {
+        console.log(`🏗️ [${dbLabel}] Initializing Hybrid JSONB Submissions Schema (v2 - SDO Validation)...`);
+        
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS ph_schools (
+                iern TEXT PRIMARY KEY,
+                school_id TEXT UNIQUE NOT NULL,
+                school_name TEXT,
+                region TEXT,
+                division TEXT,
+                district TEXT,
+                province TEXT,
+                municipality TEXT,
+                legislative_district TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS ph_school_unit_submissions (
+                iern TEXT NOT NULL REFERENCES ph_schools(iern) ON DELETE CASCADE,
+                unit_number INTEGER NOT NULL CHECK (unit_number BETWEEN 1 AND 9),
+                payload JSONB NOT NULL DEFAULT '{}',
+                schema_version TEXT NOT NULL DEFAULT 'v1',
+                is_completed BOOLEAN DEFAULT FALSE,
+                validation_status TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (validation_status IN ('draft', 'submitted', 'validated', 'returned', 'rejected')),
+                validation_remarks TEXT,
+                submitted_at TIMESTAMPTZ,
+                validated_by TEXT,
+                validated_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (iern, unit_number)
+            );
+        `);
+
+        await client.query(`
+            ALTER TABLE ph_school_unit_submissions
+            ADD COLUMN IF NOT EXISTS validation_remarks TEXT,
+            ADD COLUMN IF NOT EXISTS validated_by TEXT,
+            ADD COLUMN IF NOT EXISTS validated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
+        `);
+
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_school_unit_status ON ph_school_unit_submissions (unit_number, validation_status);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_school_unit_completed ON ph_school_unit_submissions (unit_number, is_completed);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_school_unit_payload_gin ON ph_school_unit_submissions USING gin (payload);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_unit1_division ON ph_school_unit_submissions ((payload->>'division')) WHERE unit_number = 1;`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_unit2_total_learners ON ph_school_unit_submissions (((payload->>'total_learners')::int)) WHERE unit_number = 2;`);
+
+        console.log(`✅ [${dbLabel}] Hybrid Submissions Schema (ph_school_unit_submissions) Initialized.`);
+    } catch (err) {
+        console.error(`❌ [${dbLabel}] Hybrid Submissions Schema Migration Failed:`, err.message);
+    }
+};
+
 const runMigrations = async (client, dbLabel) => {
     // [Master Protocol] Strategic Advisory Lock (ID: 7777777) 
     // Prevents race conditions when multiple workers attempt schema changes simultaneously.
@@ -447,7 +506,8 @@ const runMigrations = async (client, dbLabel) => {
 
     try {
         console.log(`🏗️ [${dbLabel}] Starting comprehensive schema migrations...`);
-        // --- 0. UNIT SCHEMAS ---
+        // --- 0. HYBRID JSONB & UNIT SCHEMAS ---
+        await initHybridSubmissionsSchema(client, dbLabel);
         await initUnit7Schema(client, dbLabel);
         await initUnit8Schema(client, dbLabel);
         await initUnitTimestampTrigger(client, dbLabel);

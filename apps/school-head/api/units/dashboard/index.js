@@ -662,13 +662,75 @@ router.get('/api/schools/:id/activity', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// [SDO VALIDATION] PUT /api/schools/:iern/unit/:unit_number/validate
+// ─────────────────────────────────────────────────────────────────────────────
+router.put('/api/schools/:iern/unit/:unit_number/validate', async (req, res) => {
+  try {
+    const { iern, unit_number } = req.params;
+    const unitNum = parseInt(unit_number, 10);
+    const { status, remarks, user_name, user_role } = req.body;
+
+    if (isNaN(unitNum) || unitNum < 1 || unitNum > 9) {
+      return res.status(400).json({ error: 'Invalid unit_number (must be 1-9).' });
+    }
+
+    const validStatuses = ['draft', 'submitted', 'validated', 'returned', 'rejected'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid validation status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const requesterRole = user_role || req.headers['x-user-role'] || req.user?.role;
+    const allowedRoles = ['SDO', 'School Division Office', 'Admin', 'Super Admin', 'Super User', 'auditor', 'RO/SDO', 'Ro/sdo'];
+    if (requesterRole && !allowedRoles.includes(requesterRole)) {
+      return res.status(403).json({ error: 'Unauthorized: SDO or Admin privileges required.' });
+    }
+
+    const sdoUser = user_name || req.user?.name || req.user?.email || 'SDO Officer';
+
+    let targetIern = iern;
+    const schoolRes = await safeQuery('SELECT iern FROM ph_schools WHERE iern = $1 OR school_id = $1 LIMIT 1', [iern]);
+    if (schoolRes.rows.length > 0) {
+      targetIern = schoolRes.rows[0].iern;
+    }
+
+    const query = `
+      INSERT INTO ph_school_unit_submissions 
+        (iern, unit_number, validation_status, validation_remarks, validated_by, validated_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      ON CONFLICT (iern, unit_number) DO UPDATE SET
+        validation_status = EXCLUDED.validation_status,
+        validation_remarks = EXCLUDED.validation_remarks,
+        validated_by = EXCLUDED.validated_by,
+        validated_at = NOW(),
+        updated_at = NOW()
+      RETURNING *;
+    `;
+
+    const result = await safeQuery(query, [targetIern, unitNum, status, remarks || null, sdoUser]);
+    
+    const valCol = `unit${unitNum}_validated`;
+    await safeQuery(
+      `INSERT INTO ph_schools_validate (school_id, ${valCol})
+       VALUES ($1, $2)
+       ON CONFLICT (school_id) DO UPDATE SET ${valCol} = $2`,
+      [iern, status === 'validated']
+    ).catch(() => {});
+
+    res.json({ success: true, submission: result.rows[0] });
+  } catch (err) {
+    console.error('SDO validation endpoint error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
   try {
     const { schoolId } = req.params;
     const schoolYr = req.query.school_yr || 'SY 26-27';
 
     const schoolRes = await safeQuery(
-      `SELECT ps.school_id, ps.school_name, ps.region, ps.division, ps.unit_completion, ps.is_esf7_opened,
+      `SELECT ps.school_id, ps.iern, ps.school_name, ps.region, ps.division, ps.unit_completion, ps.is_esf7_opened,
        COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
        CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 100 ELSE COALESCE(u5.unit5, 0) END AS unit5,
        u5.unit5_updated_at AS unit5_updated_at,
@@ -711,19 +773,40 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
        LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
        LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
        LEFT JOIN ph_schools_validate v ON ps.school_id = v.school_id
-       WHERE ps.school_id = $1`,
+       WHERE ps.school_id = $1 OR ps.iern = $1`,
       [schoolId, schoolYr]
     );
     
     if (schoolRes.rowCount === 0) return res.status(404).json({ error: 'School not found' });
     const school = schoolRes.rows[0];
+    const resolvedIern = school.iern || schoolId;
+
+    // Fetch consolidated JSONB submissions & validation states
+    const subRes = await safeQuery(
+      `SELECT unit_number, validation_status, validation_remarks, validated_by, validated_at, is_completed, payload
+       FROM ph_school_unit_submissions WHERE iern = $1`,
+      [resolvedIern]
+    ).catch(() => ({ rows: [] }));
+
+    const submissions = {};
+    subRes.rows.forEach(r => {
+      submissions[`unit${r.unit_number}`] = {
+        status: r.validation_status,
+        remarks: r.validation_remarks,
+        validated_by: r.validated_by,
+        validated_at: r.validated_at,
+        is_completed: r.is_completed,
+        payload: r.payload
+      };
+    });
 
     const completedUnits = [];
     const flags = {};
     const validationFlags = {};
     let completedCount = 0;
     for (let i = 1; i <= 9; i++) {
-      const isCompleted = school[`unit${i}_completed`] === true || String(school[`unit${i}_completed`]) === 'true';
+      const sub = submissions[`unit${i}`];
+      const isCompleted = sub?.is_completed || school[`unit${i}_completed`] === true || String(school[`unit${i}_completed`]) === 'true';
       const val = parseFloat(school[`unit${i}`]) || 0;
       const isHundred = Math.round(val) === 100;
       
@@ -736,17 +819,16 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
         unitProgress = val;
       }
       completedCount += (unitProgress / 100);
-      validationFlags[`unit${i}`] = school[`unit${i}_validated`] === true;
+      validationFlags[`unit${i}`] = sub?.status === 'validated' || school[`unit${i}_validated`] === true;
     }
     const dynamicPercentage = parseFloat(((completedCount / 9) * 100).toFixed(2));
 
-
-    const completionRes = await safeQuery('SELECT * FROM ph_school_completion WHERE school_id = $1', [schoolId]);
+    const completionRes = await safeQuery('SELECT * FROM ph_school_completion WHERE school_id = $1 OR iern = $1', [schoolId]);
 
     const esf7Res = await pool.query(
       'SELECT status FROM esf7_link WHERE school_id = $1 ORDER BY updated_at DESC LIMIT 1',
       [schoolId]
-    );
+    ).catch(() => ({ rowCount: 0, rows: [] }));
     let esf7Progress = 0;
     if (esf7Res.rowCount > 0) {
       const status = esf7Res.rows[0].status;
@@ -762,11 +844,13 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
       data: {
         schoolInfo: {
           school_id: school.school_id,
+          iern: school.iern,
           school_name: school.school_name,
           region: school.region,
           division: school.division,
           is_esf7_opened: school.is_esf7_opened === true || String(school.is_esf7_opened) === 'true'
         },
+        submissions,
         progress: {
           percentage: dynamicPercentage,
           validation_percentage: school.validation_percentage ? parseFloat(school.validation_percentage) : 0,
