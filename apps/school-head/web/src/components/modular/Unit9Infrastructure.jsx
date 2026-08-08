@@ -307,6 +307,8 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
     const [showWelcomeBack, setShowWelcomeBack] = useState(false);
     const [showInfoModal, setShowInfoModal] = useState(false);
     const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [schoolId, setSchoolId] = useState("");
     const [iern, setIern] = useState("");
     const [isReadOnly, setIsReadOnly] = useState(propReadOnly);
@@ -448,10 +450,17 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                         const masterData = await resMaster.json();
                         const activeData = masterData.payload ? masterData.payload : (masterData.data ? masterData.data : masterData);
                         if (masterData.validation_status) {
+                            setValidationStatus(masterData.validation_status);
                             if (masterData.validation_status === 'submitted' || masterData.validation_status === 'validated') {
                                 setIsReviewMode(true);
                                 setIsReadOnly(true);
                             }
+                        }
+                        if (masterData.validation_remarks) {
+                            setValidationRemarks(masterData.validation_remarks);
+                        }
+                        if (masterData.is_completed !== undefined) {
+                            setIsCertified(masterData.is_completed);
                         }
                         if (activeData) {
                             restoreFromPayload(activeData, u6PowerSource);
@@ -895,7 +904,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     )}
                 </AnimatePresence>
 
-                <UnitRemarkAlert unitId="u9" schoolId={schoolId} />
+                <UnitRemarkAlert unitId="u9" schoolId={schoolId} sdoRemark={validationRemarks} />
 
                 {propReadOnly && !hasData ? (
                     <motion.div 

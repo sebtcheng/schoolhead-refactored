@@ -288,126 +288,169 @@ const Unit2Learners = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
                     const d = { ...baseline, ...subData };
                     if (d && Object.keys(d).length > 0) {
+                        try {
+                            const q = d.unit2_simplified_enrollment?.questionnaire || d.questionnaire || {};
+
+                            // 1. Kinder
+                            const resolvedKinder = d.kinderEnrollment || q.kinderEnrollment || (d.enroll_kinder !== undefined && d.enroll_kinder !== null ? d.enroll_kinder : "") || "";
+                            setKinderEnrollment(resolvedKinder.toString());
+
+                            // 2. Grade Totals
+                            const resolvedGradeTotals = d.gradeTotals || q.gradeTotals || {};
+                            const gTotals = {};
+                            for (let g = 1; g <= 12; g++) {
+                                const val = resolvedGradeTotals[`g${g}`] ?? d[`enroll_g${g}`] ?? 0;
+                                gTotals[`g${g}`] = val.toString();
+                            }
+                            setGradeTotals(gTotals);
+
+                            // 3. Grade Availability
+                            const resolvedAvailability = d.gradeAvailability || q.gradeAvailability || {};
+                            const gAvailability = { ...resolvedAvailability };
+                            if (resolvedKinder === "0" || resolvedKinder === 0 || d.enroll_kinder === 0) {
+                                if (gAvailability['kinder'] === undefined && (d.enroll_kinder === 0 || resolvedKinder === "0")) {
+                                    gAvailability['kinder'] = false;
+                                }
+                            }
+                            for (let g = 1; g <= 12; g++) {
+                                if ((d[`enroll_g${g}`] || 0) === 0 && gTotals[`g${g}`] === "0" && gAvailability[`g${g}`] === undefined) {
+                                    gAvailability[`g${g}`] = false;
+                                }
+                            }
+                            setGradeAvailability(gAvailability);
+
+                            // 4. SNED
+                            const hasSnedVal = d.has_sned ?? d.hasSNED ?? q.hasSNED ?? (d.main_sned > 0 || d.self_sned > 0 || d.self_sned_org_class > 0);
+                            setHasSNED(!!hasSnedVal);
+
+                            const mainstreamedCount = d.sned_mainstreamed_count ?? d.snedMainstreamedCount ?? q.snedMainstreamedCount ?? d.main_sned ?? 0;
+                            setSnedMainstreamedCount(mainstreamedCount.toString());
+
+                            const selfContainedCount = d.sned_self_contained_count ?? d.snedSelfContainedCount ?? q.snedSelfContainedCount ?? d.self_sned ?? 0;
+                            setSnedSelfContainedCount(selfContainedCount.toString());
+
+                            const snedOrgClassCount = d.sned_organized_class_count ?? d.snedOrganizedClassCount ?? q.snedOrganizedClassCount ?? d.self_sned_org_class ?? 0;
+                            setSnedOrganizedClassCount(snedOrgClassCount.toString());
+
+                            let snedType = d.sned_program_type ?? d.snedProgramType ?? q.snedProgramType;
+                            if (!snedType) {
+                                if (mainstreamedCount > 0 && selfContainedCount > 0) snedType = 'Both';
+                                else if (mainstreamedCount > 0) snedType = 'Mainstreamed';
+                                else if (selfContainedCount > 0) snedType = 'Self-Contained';
+                            }
+                            setSnedProgramType(snedType || null);
+
+                            // 5. ARAL
+                            setHasAralMath(!!(d.has_aral_math ?? d.hasAralMath ?? q.hasAralMath));
+                            const rawAralMath = d.aralMath || q.aralMath || {};
+                            const aMath = {};
+                            for (let g = 1; g <= 6; g++) {
+                                aMath[`g${g}`] = (rawAralMath[`g${g}`] ?? d[`aral_math_learners_g${g}`] ?? 0).toString();
+                            }
+                            setAralMath(aMath);
+
+                            setHasAralReading(!!(d.has_aral_reading ?? d.hasAralReading ?? q.hasAralReading));
+                            const rawAralReading = d.aralReading || q.aralReading || {};
+                            const aReading = {};
+                            for (let g = 1; g <= 6; g++) {
+                                aReading[`g${g}`] = (rawAralReading[`g${g}`] ?? d[`aral_reading_learners_g${g}`] ?? 0).toString();
+                            }
+                            setAralReading(aReading);
+
+                            setHasAralScience(!!(d.has_aral_science ?? d.hasAralScience ?? q.hasAralScience));
+                            const rawAralScience = d.aralScience || q.aralScience || {};
+                            const aScience = {};
+                            for (let g = 1; g <= 6; g++) {
+                                aScience[`g${g}`] = (rawAralScience[`g${g}`] ?? d[`aral_science_learners_g${g}`] ?? 0).toString();
+                            }
+                            setAralScience(aScience);
+
+                            // 6. Grade Gender Map
+                            const rawGenderMap = d.gradeGenderMap || q.gradeGenderMap || {};
+                            const gGenderMap = {};
+
+                            gGenderMap['kinder'] = {
+                                male: (rawGenderMap['kinder']?.male ?? d.kinder_male ?? 0).toString(),
+                                female: (rawGenderMap['kinder']?.female ?? d.kinder_female ?? 0).toString()
+                            };
+
+                            for (let g = 1; g <= 12; g++) {
+                                gGenderMap[`g${g}`] = {
+                                    male: (rawGenderMap[`g${g}`]?.male ?? d[`g${g}_male`] ?? 0).toString(),
+                                    female: (rawGenderMap[`g${g}`]?.female ?? d[`g${g}_female`] ?? 0).toString()
+                                };
+                            }
+
+                            gGenderMap['sned_self_contained'] = {
+                                male: (rawGenderMap['sned_self_contained']?.male ?? d.self_sned_male ?? 0).toString(),
+                                female: (rawGenderMap['sned_self_contained']?.female ?? d.self_sned_female ?? 0).toString()
+                            };
+
+                            gGenderMap['sned_mainstreamed'] = {
+                                male: (rawGenderMap['sned_mainstreamed']?.male ?? d.main_sned_male ?? 0).toString(),
+                                female: (rawGenderMap['sned_mainstreamed']?.female ?? d.main_sned_female ?? 0).toString()
+                            };
+
+                            setGradeGenderMap(gGenderMap);
+
+                            // 7. Organization Type & Multigrade Combinations
+                            const resolvedOrgType = d.orgType || q.orgType || null;
+                            const resolvedMgCombs = d.mgCombinations || q.mgCombinations || [];
+
+                            if (resolvedMgCombs && resolvedMgCombs.length > 0) {
+                                setMgCombinations(resolvedMgCombs);
+                                setOrgType(resolvedOrgType || 'mixed');
+                            } else {
+                                const mgCombs = [];
+                                const parseMgString = (str) => {
+                                    if (!str) return [];
+                                    const matches = str.match(/\d+/g);
+                                    if (!matches) return [];
+                                    return matches.map(num => `g${num}`);
+                                };
                                 
-                                try {
-                                    setKinderEnrollment((d.enroll_kinder || 0).toString());
-                                    
-                                    const gTotals = {};
-                                    for (let g = 1; g <= 12; g++) {
-                                        gTotals[`g${g}`] = (d[`enroll_g${g}`] || 0).toString();
-                                    }
-                                    setGradeTotals(gTotals);
-                                    const gAvailability = {};
-                                    if ((d.enroll_kinder || 0) === 0) {
-                                        gAvailability['kinder'] = false;
-                                    }
-                                    for (let g = 1; g <= 12; g++) {
-                                        if ((d[`enroll_g${g}`] || 0) === 0) {
-                                            gAvailability[`g${g}`] = false;
-                                        }
-                                    }
-                                    setGradeAvailability(gAvailability);
-                                    
-                                    const hasSnedVal = (d.main_sned > 0 || d.self_sned > 0 || d.self_sned_org_class > 0);
-                                    setHasSNED(hasSnedVal);
-                                    setSnedMainstreamedCount((d.main_sned || 0).toString());
-                                    setSnedSelfContainedCount((d.self_sned || 0).toString());
-                                    
-                                    let snedType = null;
-                                    if (d.main_sned > 0 && d.self_sned > 0) snedType = 'Both';
-                                    else if (d.main_sned > 0) snedType = 'Mainstreamed';
-                                    else if (d.self_sned > 0) snedType = 'Self-Contained';
-                                    setSnedProgramType(snedType);
-                                    setSnedOrganizedClassCount((d.self_sned_org_class || 0).toString());
-                                    
-                                    setHasAralMath(!!d.has_aral_math);
-                                    const aMath = {};
-                                    for (let g = 1; g <= 6; g++) {
-                                        aMath[`g${g}`] = (d[`aral_math_learners_g${g}`] || 0).toString();
-                                    }
-                                    setAralMath(aMath);
-                                    
-                                    setHasAralReading(!!d.has_aral_reading);
-                                    const aReading = {};
-                                    for (let g = 1; g <= 6; g++) {
-                                        aReading[`g${g}`] = (d[`aral_reading_learners_g${g}`] || 0).toString();
-                                    }
-                                    setAralReading(aReading);
-                                    
-                                    setHasAralScience(!!d.has_aral_science);
-                                    const aScience = {};
-                                    for (let g = 1; g <= 6; g++) {
-                                        aScience[`g${g}`] = (d[`aral_science_learners_g${g}`] || 0).toString();
-                                    }
-                                    setAralScience(aScience);
-                                    
-                                    const gGenderMap = {};
-                                    gGenderMap['kinder'] = {
-                                        male: (d.kinder_male || 0).toString(),
-                                        female: (d.kinder_female || 0).toString()
-                                    };
-                                    for (let g = 1; g <= 12; g++) {
-                                        gGenderMap[`g${g}`] = {
-                                            male: (d[`g${g}_male`] || 0).toString(),
-                                            female: (d[`g${g}_female`] || 0).toString()
-                                        };
-                                    }
-                                    gGenderMap['sned_self_contained'] = {
-                                        male: (d.self_sned_male || 0).toString(),
-                                        female: (d.self_sned_female || 0).toString()
-                                    };
-                                    gGenderMap['sned_mainstreamed'] = {
-                                        male: (d.main_sned_male || 0).toString(),
-                                        female: (d.main_sned_female || 0).toString()
-                                    };
-                                    setGradeGenderMap(gGenderMap);
-                                    
-                                    const mgCombs = [];
-                                    const parseMgString = (str) => {
-                                        if (!str) return [];
-                                        const matches = str.match(/\d+/g);
-                                        if (!matches) return [];
-                                        return matches.map(num => `g${num}`);
-                                    };
-                                    
-                                    if (d.multigrade_groupings_1) {
-                                        mgCombs.push({
-                                            id: 'mg-comb-0',
-                                            grades: parseMgString(d.multigrade_groupings_1),
-                                            enrollment: d.multigrade_enrollment_1 || 0
-                                        });
-                                    }
-                                    if (d.multigrade_groupings_2) {
-                                        mgCombs.push({
-                                            id: 'mg-comb-1',
-                                            grades: parseMgString(d.multigrade_groupings_2),
-                                            enrollment: d.multigrade_enrollment_2 || 0
-                                        });
-                                    }
-                                    if (d.multigrade_groupings_3) {
-                                        mgCombs.push({
-                                            id: 'mg-comb-2',
-                                            grades: parseMgString(d.multigrade_groupings_3),
-                                            enrollment: d.multigrade_enrollment_3 || 0
-                                        });
-                                    }
-                                    setMgCombinations(mgCombs);
-                                    
-                                    let orgT = 'nano';
-                                    if (mgCombs.length > 0) {
-                                        const locked = new Set();
-                                        mgCombs.forEach(c => c.grades.forEach(g => locked.add(g)));
-                                        if (locked.size >= 6) {
-                                            orgT = 'pure_mg';
-                                        } else {
-                                            orgT = 'mixed';
-                                        }
+                                if (d.multigrade_groupings_1) {
+                                    mgCombs.push({
+                                        id: 'mg-comb-0',
+                                        grades: parseMgString(d.multigrade_groupings_1),
+                                        enrollment: d.multigrade_enrollment_1 || 0
+                                    });
+                                }
+                                if (d.multigrade_groupings_2) {
+                                    mgCombs.push({
+                                        id: 'mg-comb-1',
+                                        grades: parseMgString(d.multigrade_groupings_2),
+                                        enrollment: d.multigrade_enrollment_2 || 0
+                                    });
+                                }
+                                if (d.multigrade_groupings_3) {
+                                    mgCombs.push({
+                                        id: 'mg-comb-2',
+                                        grades: parseMgString(d.multigrade_groupings_3),
+                                        enrollment: d.multigrade_enrollment_3 || 0
+                                    });
+                                }
+                                setMgCombinations(mgCombs);
+                                
+                                if (resolvedOrgType) {
+                                    setOrgType(resolvedOrgType);
+                                } else if (mgCombs.length > 0) {
+                                    const locked = new Set();
+                                    mgCombs.forEach(c => c.grades.forEach(g => locked.add(g)));
+                                    if (locked.size >= 6) {
+                                        orgT = 'pure_mg';
+                                    } else {
+                                        orgT = 'mixed';
                                     }
                                     setOrgType(orgT);
-                                } catch (e) {
-                                    console.warn("Unit 2 Database Map error", e);
+                                } else {
+                                    setOrgType('nano');
                                 }
+                            }
+                        } catch (e) {
+                            console.warn("Unit 2 Database Map error", e);
                         }
+                    }
                 } catch (e) {
                     console.log("📍 [Unit2] Offline: Skipping server record check.");
                 }

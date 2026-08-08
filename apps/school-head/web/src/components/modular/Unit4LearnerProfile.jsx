@@ -83,6 +83,8 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [iern, setIern] = useState("");
     const [showWelcomeBack, setShowWelcomeBack] = useState(false);
     const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [isReviewMode, setIsReviewMode] = useState(false);
     const [savedData, setSavedData] = useState(null);
     const [showDraftModal, setShowDraftModal] = useState(false);
@@ -201,9 +203,13 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         const saved = await res.json();
                         const activeData = saved.payload ? saved.payload : (saved.data ? saved.data : saved);
                         if (saved.validation_status) {
+                            setValidationStatus(saved.validation_status);
                             if (saved.validation_status === 'submitted' || saved.validation_status === 'validated') {
                                 setIsReviewMode(true);
                             }
+                        }
+                        if (saved.validation_remarks) {
+                            setValidationRemarks(saved.validation_remarks);
                         }
                         if (saved.is_completed !== undefined) {
                             setIsCertified(saved.is_completed);
@@ -1063,7 +1069,7 @@ const Unit4LearnerProfile = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 `
             }} />
             <div className="max-w-md mx-auto w-full px-4">
-                <UnitRemarkAlert unitId="u4" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
+                <UnitRemarkAlert unitId="u4" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} sdoRemark={validationRemarks} />
             </div>
             {/* Welcome Back Toast */}
             <AnimatePresence>

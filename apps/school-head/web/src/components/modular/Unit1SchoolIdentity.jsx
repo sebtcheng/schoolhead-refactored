@@ -199,6 +199,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [showFullscreenPdf, setShowFullscreenPdf] = useState(false);
     const [schoolNameWarning, setSchoolNameWarning] = useState("");
     const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [submitErrorBanner, setSubmitErrorBanner] = useState("");
 
     // ── IDENTITY SHIFT STATE ────────────────────────────────────────────────
@@ -240,7 +242,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 }
 
                 // Normal load path
-                const [savedRes, iernRes, draft] = await Promise.all([
+                const [savedRes, unit1Res, iernRes, draft] = await Promise.all([
                     fetch(api(`/ph_schools/${storedId}`))
                       .then(async r => {
                         console.log('[ph_schools] load', r.status, r.headers.get('content-type'));
@@ -248,6 +250,12 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         return r;
                       })
                       .catch(err => { console.warn('[ph_schools] lookup network error bypassed gracefully:', err); return null; }),
+                    fetch(api(`/api/ph_schools/unit1/${storedId}`))
+                      .then(async r => {
+                        if (!r.ok) console.warn('[unit1] lookup error bypassed gracefully:', r.status);
+                        return r;
+                      })
+                      .catch(err => { console.warn('[unit1] lookup network error bypassed gracefully:', err); return null; }),
                     fetch(api(`/schools_iern/${storedId}`))
                       .then(async r => {
                         console.log('[schools_iern] load', r.status, r.headers.get('content-type'));
@@ -268,17 +276,42 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         const parsed = JSON.parse(txt);
                         const activeData = parsed.payload ? parsed.payload : (parsed.data ? parsed.data : parsed);
                         if (parsed.validation_status) {
+                            setValidationStatus(parsed.validation_status);
                             if (parsed.validation_status === 'submitted' || parsed.validation_status === 'validated') {
                                 setIsReadOnly(true);
                             }
                         }
+                        if (parsed.validation_remarks) {
+                            setValidationRemarks(parsed.validation_remarks);
+                        }
                         if (parsed.is_completed !== undefined) {
                             setIsCertified(parsed.is_completed);
                         }
-                        if (activeData) d = activeData;
+                        if (activeData) d = { ...(d || {}), ...activeData };
                     } catch(e) {}
                 }
             }
+
+            if (unit1Res?.ok) {
+                try {
+                    const parsed = await unit1Res.json();
+                    const activeData = parsed.payload ? parsed.payload : (parsed.data ? parsed.data : parsed);
+                    if (parsed.validation_status) {
+                        setValidationStatus(parsed.validation_status);
+                        if (parsed.validation_status === 'submitted' || parsed.validation_status === 'validated') {
+                            setIsReadOnly(true);
+                        }
+                    }
+                    if (parsed.validation_remarks) {
+                        setValidationRemarks(parsed.validation_remarks);
+                    }
+                    if (parsed.is_completed !== undefined) {
+                        setIsCertified(parsed.is_completed);
+                    }
+                    if (activeData) d = { ...(d || {}), ...activeData };
+                } catch(e) {}
+            }
+
             if (iernRes?.ok) {
                 const j = await iernRes.json();
                 if (j.exists && j.data) {
@@ -319,22 +352,45 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 merged.iern = iernRow.iern || iernRow.IERN || merged.iern;
             }
 
-            // 2. ph_schools OVERRIDES Registry (Authoritative Master)
+            // 2. ph_schools & JSONB payload OVERRIDES Registry (Authoritative Master)
             if (d) {
-                const overrideFromPhSchools = (key, dKey = key) => {
-                    const v = d[dKey];
-                    if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "null") {
-                        merged[key] = String(v).trim();
+                const overrideFromPhSchools = (key, ...aliases) => {
+                    const allKeys = [key, ...aliases];
+                    for (const k of allKeys) {
+                        const v = d[k];
+                        if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "null") {
+                            merged[key] = String(v).trim();
+                            return;
+                        }
                     }
                 };
 
-                ["school_name", "region", "province", "municipality", "barangay", 
-                 "division", "district", "leg_district", "curricular_offering", 
-                 "school_head", "contact_number", "ownership", "school_type",
-                 "mother_school_id", "extension_mother_school_name", "ownership_document_type",
-                 "local_file_path", "local_file_name", "head_position_title",
-                 "head_first_name", "head_middle_name", "head_last_name", "head_sex",
-                 "established_month", "established_year", "ownership_na_reason"].forEach(k => overrideFromPhSchools(k));
+                overrideFromPhSchools("school_name", "schoolName", "school_name");
+                overrideFromPhSchools("region", "region");
+                overrideFromPhSchools("province", "province");
+                overrideFromPhSchools("municipality", "municipality", "city");
+                overrideFromPhSchools("barangay", "barangay");
+                overrideFromPhSchools("division", "division");
+                overrideFromPhSchools("district", "district");
+                overrideFromPhSchools("leg_district", "legislativeDistrict", "legDistrict", "leg_district");
+                overrideFromPhSchools("curricular_offering", "curricularOffering", "curricular_offering");
+                overrideFromPhSchools("school_head", "schoolHeadName", "schoolHead", "school_head");
+                overrideFromPhSchools("contact_number", "contactNumber", "contact_number");
+                overrideFromPhSchools("ownership", "ownership");
+                overrideFromPhSchools("school_type", "schoolType", "school_type");
+                overrideFromPhSchools("mother_school_id", "motherSchoolId", "motherSchoolLink", "mother_school_id");
+                overrideFromPhSchools("extension_mother_school_name", "extensionMotherSchoolName", "extension_mother_school_name");
+                overrideFromPhSchools("ownership_document_type", "ownershipDocumentType", "ownership_document_type");
+                overrideFromPhSchools("local_file_path", "localFilePath", "local_file_path");
+                overrideFromPhSchools("local_file_name", "localFileName", "local_file_name");
+                overrideFromPhSchools("head_position_title", "headPositionTitle", "head_position_title");
+                overrideFromPhSchools("head_first_name", "headFirstName", "head_first_name");
+                overrideFromPhSchools("head_middle_name", "headMiddleName", "head_middle_name");
+                overrideFromPhSchools("head_last_name", "headLastName", "head_last_name");
+                overrideFromPhSchools("head_sex", "headSex", "head_sex");
+                overrideFromPhSchools("established_month", "establishedMonth", "established_month");
+                overrideFromPhSchools("established_year", "establishedYear", "yearEstablished", "established_year");
+                overrideFromPhSchools("ownership_na_reason", "ownershipNaReason", "ownership_na_reason");
 
                 if (d.curricular_offering) merged.curricular_offering = normalizeOffering(d.curricular_offering);
 
@@ -1397,7 +1453,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             </AnimatePresence>
 
             <main className="flex-1 relative overflow-y-auto px-6 pt-4 pb-32">
-                <UnitRemarkAlert unitId="u1" schoolId={targetSchoolId || user?.school_id || localStorage.getItem("schoolId")} />
+                <UnitRemarkAlert unitId="u1" schoolId={targetSchoolId || user?.school_id || localStorage.getItem("schoolId")} sdoRemark={validationRemarks} />
                 <AnimatePresence mode="wait">
                     {isReviewMode ? (
                         <div key="review" className="max-w-md mx-auto pb-32 mt-4 space-y-8">

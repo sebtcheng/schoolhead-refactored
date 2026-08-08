@@ -22,6 +22,9 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [iern, setIern] = React.useState("");
     const [showDraftModal, setShowDraftModal] = React.useState(false);
     const [showSuccess, setShowSuccess] = React.useState(false);
+    const [isCertified, setIsCertified] = React.useState(false);
+    const [validationStatus, setValidationStatus] = React.useState("");
+    const [validationRemarks, setValidationRemarks] = React.useState("");
     const [isReadOnly, setIsReadOnly] = React.useState(propReadOnly || false);
     const [loading, setLoading] = React.useState(true);
     const [showOfflineSuccess, setShowOfflineSuccess] = React.useState(false);
@@ -99,9 +102,16 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     const result = await res.json();
                     const activeData = result.payload ? result.payload : (result.data ? result.data : result);
                     if (result.validation_status) {
+                        setValidationStatus(result.validation_status);
                         if (result.validation_status === 'submitted' || result.validation_status === 'validated') {
                             setIsReadOnly(true);
                         }
+                    }
+                    if (result.validation_remarks) {
+                        setValidationRemarks(result.validation_remarks);
+                    }
+                    if (result.is_completed !== undefined) {
+                        setIsCertified(result.is_completed);
                     }
                     if (activeData) {
                         setLocationData(activeData);
@@ -584,7 +594,7 @@ const Unit8SchoolLocation = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             </AnimatePresence>
 
             <main className="max-w-md mx-auto pt-6 px-4">
-                <UnitRemarkAlert unitId="u8" schoolId={schoolId} />
+                <UnitRemarkAlert unitId="u8" schoolId={schoolId} sdoRemark={validationRemarks} />
                 {!loading ? (
                     isReadOnly ? (
                         <SummaryDashboard />

@@ -125,8 +125,9 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
     const [showDraftModal, setShowDraftModal] = useState(false);
     const [showOfflineSuccess, setShowOfflineSuccess] = useState(false);
     const [pendingOutboxId, setPendingOutboxId] = useState(null);
-    const [isReviewMode, setIsReviewMode] = useState(false);
-
+    const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [isFetching, setIsFetching] = useState(true);
     const [fetchError, setFetchError] = useState(null);
 
@@ -194,7 +195,6 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
         }
     }, [propReadOnly]);
     const [totalEnrollment, setTotalEnrollment] = useState(0);
-    const [isCertified, setIsCertified] = useState(false);
 
     const effectiveReadOnly = propReadOnly || isReadOnly;
 
@@ -921,7 +921,7 @@ const Unit3OrganizedClasses = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 }
                 `
             }} />
-            <UnitRemarkAlert unitId="u3" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
+            <UnitRemarkAlert unitId="u3" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} sdoRemark={validationRemarks} />
             <AnimatePresence>
                 {showSuccess && <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message="Section Counts updated." redirectUrl="/modular-dashboard" />}
             </AnimatePresence>
