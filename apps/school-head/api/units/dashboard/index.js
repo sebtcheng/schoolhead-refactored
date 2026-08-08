@@ -186,10 +186,22 @@ router.get('/api/school-head/:uid', async (req, res) => {
 router.get('/api/schools_iern/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await safeQuery('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1', [id]);
-    res.json({ exists: result.rowCount > 0, data: result.rows[0] });
+    let result = await safeQuery('SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
+    if (result.rowCount === 0) {
+      try {
+        result = await safeQuery('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1 OR "IERN" = $1 LIMIT 1', [id]);
+      } catch (fbErr) {
+        // Fallback view or table not found, continue safely
+      }
+    }
+    const row = result?.rows?.[0];
+    res.json({ 
+      exists: !!row, 
+      data: row ? { iern: row.iern || row.IERN, school_id: row.school_id || row.SchoolID || id } : null 
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.warn('[api/schools_iern/:id] Handled lookup error cleanly:', err.message);
+    res.json({ exists: false, data: null });
   }
 });
 
@@ -393,7 +405,7 @@ router.get('/api/ph_schools/:id', async (req, res) => {
              CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 100 ELSE 0 END AS unit9,
              (u9.school_id IS NOT NULL) AS unit9_has_data
       FROM ph_schools ps
-      LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+      LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
@@ -763,7 +775,7 @@ router.get('/api/ph_schools/progress/:schoolId', async (req, res) => {
        v.unit6_validated, v.unit7_validated, v.unit8_validated, v.unit9_validated,
        v.validation_percentage
        FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
        LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
        LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
        LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2

@@ -60,8 +60,17 @@ router.post('/api/schools/:iern/ownership-docs', memoryUpload.single('file'), as
         originalSizeFound = req.file.size;
     }
 
+    // Ensure parent ph_schools record exists first to satisfy fk_school_ownership_iern
+    const schoolIdParam = req.body.school_id || iern;
+    await safeQuery(
+      `INSERT INTO ph_schools (iern, school_id) 
+       VALUES ($1, $2) 
+       ON CONFLICT (iern) DO NOTHING`,
+      [iern, schoolIdParam]
+    );
+
     const schoolRes = await safeQuery('SELECT school_id FROM ph_schools WHERE iern = $1 OR school_id = $1 LIMIT 1', [iern]);
-    const resolvedSchoolId = schoolRes.rows[0]?.school_id || null;
+    const resolvedSchoolId = schoolRes.rows[0]?.school_id || schoolIdParam || iern;
 
     console.log(`📂 [SchoolDocStore] Resolved for ${iern}: SID=${resolvedSchoolId} | Stored=${storedSize}B | Original=${originalSizeFound}B`);
 

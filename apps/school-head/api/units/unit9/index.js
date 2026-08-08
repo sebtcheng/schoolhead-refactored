@@ -22,7 +22,7 @@ router.get('/api/ph_schools/unit9/:id', async (req, res) => {
       `SELECT ps.*, u1.school_name, u1.region, u1.province, u1.municipality,
               u1.barangay, u1.division, u1.district, u1.leg_district
        FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
        WHERE ps.school_id = $1 OR ps.iern = $1`,
       [id, schoolYr]
     );

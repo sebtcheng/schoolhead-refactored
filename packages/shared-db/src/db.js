@@ -277,7 +277,7 @@ export async function updateSchoolTotalCompletion(iern, schoolYr = 'SY 26-27') {
               COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
               CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u9.unit9, 0)::numeric / 100.00 END AS unit9
        FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
+       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern
        LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
        LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
        LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2

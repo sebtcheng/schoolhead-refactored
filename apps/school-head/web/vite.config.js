@@ -10,10 +10,18 @@ const handleProxyError = (proxy, _options) => {
   proxy.on('error', (err, req, res) => {
     if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
       if (!res.headersSent) {
-        res.writeHead(502, { 'Content-Type': 'text/plain' });
-        res.end('Bad Gateway: Backend server is starting or offline.');
+        console.warn('\n⚠️ [Vite Proxy Error]: Backend server is offline or unreachable at http://127.0.0.1:3000.');
+        console.warn('  Setup Checklist:');
+        console.warn('  1. Run `pnpm run dev` or `pnpm dev:sh` to start API + Web concurrently.');
+        console.warn('  2. Verify backend is running on 127.0.0.1:3000.\n');
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          error: 'Backend server offline', 
+          message: 'Express backend is starting or offline. Please check terminal logs.',
+          details: err.message 
+        }));
       }
-      return; // Suppress connection refusal stack trace in console
+      return; // Suppress raw connection refusal stack trace in console
     }
     console.error('Proxy error:', err);
   });

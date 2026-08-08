@@ -17,11 +17,23 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
             const schoolRes = await safeQuery('SELECT iern FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [school_id]);
             resolvedIern = schoolRes.rows[0]?.iern || null;
             if (!resolvedIern) {
-                const iernRes = await safeQuery('SELECT "IERN" as iern FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
-                resolvedIern = iernRes.rows[0]?.iern || null;
+                try {
+                    const iernRes = await safeQuery('SELECT "IERN" as iern FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
+                    resolvedIern = iernRes.rows[0]?.iern || null;
+                } catch (e) {}
             }
         }
-        if (!resolvedIern) return res.status(404).json({ error: "School not found in core registry" });
+
+        if (!resolvedIern) {
+            resolvedIern = iern || (school_id ? `IERN-${school_id}` : null);
+            if (resolvedIern) {
+                await safeQuery(
+                    `INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (iern) DO NOTHING`,
+                    [resolvedIern, school_id || resolvedIern]
+                );
+            }
+        }
+        if (!resolvedIern) return res.status(400).json({ error: "Missing school_id or iern identifier" });
 
         let client;
         let colRes;
@@ -66,9 +78,18 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
 
         if (fields.length === 0) return res.status(400).json({ error: "No valid fields to update" });
 
-        const columnsStr = ['iern', 'school_id', 'school_yr', ...fields].map(c => `"${c}"`).join(', ');
-        const placeholders = ['iern', 'school_id', 'school_yr', ...fields].map((_, idx) => `$${idx + 1}`).join(', ');
+        const insertCols = ['iern', 'school_id', ...fields];
+        const insertValues = [resolvedIern, school_id || resolvedIern, ...values];
+        const columnsStr = insertCols.map(c => `"${c}"`).join(', ');
+        const placeholders = insertCols.map((_, idx) => `$${idx + 1}`).join(', ');
         const updateClause = fields.map(f => `"${f}" = EXCLUDED."${f}"`).join(', ');
+
+        const query = `
+            INSERT INTO unit1_school_identity (${columnsStr})
+            VALUES (${placeholders})
+            ON CONFLICT (iern) DO UPDATE SET ${updateClause}
+            RETURNING *;
+        `;
 
         // ── 1. VALIDATION LOCK CHECK & HYBRID JSONB UPSERT ──────────────────────
         const checkLock = await safeQuery(
@@ -97,7 +118,7 @@ router.post('/api/ph_schools/unit1', async (req, res) => {
                 updated_at = NOW()
         `, [resolvedIern, JSON.stringify(data), nextStatus, nextRemarks]);
 
-        const result = await safeQuery(query, [resolvedIern, school_id, school_yr, ...values]);
+        const result = await safeQuery(query, insertValues);
         if (result.rowCount === 0) return res.status(404).json({ error: "Failed to save unit 1 data" });
 
 

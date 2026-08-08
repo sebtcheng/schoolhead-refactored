@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "dev": "npx turbo run dev",
+    "dev:sh": "concurrently -k -n \"api,web\" -c \"blue,green\" \"pnpm --filter @apps/school-head-api dev\" \"pnpm --filter @apps/school-head-web dev\"",
     "build": "npx turbo run build",
     "lint": "npx turbo run lint",
     "dev:legacy": "vite",

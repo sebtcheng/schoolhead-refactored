@@ -267,8 +267,9 @@ const startServer = async () => {
 
         if (!isVercel) {
             const PORT = process.env.PORT || 3000;
-            app.listen(PORT, () => {
-                console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
+            const HOST = process.env.HOST || '127.0.0.1';
+            app.listen(PORT, HOST, () => {
+                console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
                 
                 // Run cleanup on startup (delay 10s to let server stabilize)
                 setTimeout(() => {

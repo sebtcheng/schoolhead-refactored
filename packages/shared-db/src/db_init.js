@@ -98,7 +98,109 @@ const initUnit8Schema = async (client, dbLabel) => {
 };
 
 const initUnitTimestampTrigger = async (client, dbLabel) => {
-    // Unit completion timestamps managed by ph_school_unit_submissions
+    try {
+        await client.query(`
+            ALTER TABLE ph_schools 
+            ADD COLUMN IF NOT EXISTS unit1_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit2_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit3_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit4_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit5_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit6_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit7_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit8_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit9_completed BOOLEAN DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS unit1_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit2_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit3_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit4_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit5_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit6_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit7_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit8_updated_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS unit9_updated_at TIMESTAMPTZ;
+        `);
+
+        await client.query(`
+            CREATE OR REPLACE FUNCTION update_unit_timestamp()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                new_json JSONB := to_jsonb(NEW);
+                old_json JSONB := to_jsonb(OLD);
+                v_num NUMERIC;
+                v_comp BOOLEAN;
+            BEGIN
+                -- Unit 1
+                v_num := COALESCE((new_json->>'unit1')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit1_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit1' IS DISTINCT FROM old_json->'unit1' OR new_json->'unit1_completed' IS DISTINCT FROM old_json->'unit1_completed') THEN
+                    IF new_json ? 'unit1_updated_at' THEN NEW.unit1_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 2
+                v_num := COALESCE((new_json->>'unit2')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit2_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit2' IS DISTINCT FROM old_json->'unit2' OR new_json->'unit2_completed' IS DISTINCT FROM old_json->'unit2_completed') THEN
+                    IF new_json ? 'unit2_updated_at' THEN NEW.unit2_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 3
+                v_num := COALESCE((new_json->>'unit3')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit3_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit3' IS DISTINCT FROM old_json->'unit3' OR new_json->'unit3_completed' IS DISTINCT FROM old_json->'unit3_completed') THEN
+                    IF new_json ? 'unit3_updated_at' THEN NEW.unit3_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 4
+                v_num := COALESCE((new_json->>'unit4')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit4_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit4' IS DISTINCT FROM old_json->'unit4' OR new_json->'unit4_completed' IS DISTINCT FROM old_json->'unit4_completed') THEN
+                    IF new_json ? 'unit4_updated_at' THEN NEW.unit4_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 5
+                v_num := COALESCE((new_json->>'unit5')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit5_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit5' IS DISTINCT FROM old_json->'unit5' OR new_json->'unit5_completed' IS DISTINCT FROM old_json->'unit5_completed') THEN
+                    IF new_json ? 'unit5_updated_at' THEN NEW.unit5_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 6
+                v_num := COALESCE((new_json->>'unit6')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit6_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit6' IS DISTINCT FROM old_json->'unit6' OR new_json->'unit6_completed' IS DISTINCT FROM old_json->'unit6_completed') THEN
+                    IF new_json ? 'unit6_updated_at' THEN NEW.unit6_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 7
+                v_num := COALESCE((new_json->>'unit7')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit7_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit7' IS DISTINCT FROM old_json->'unit7' OR new_json->'unit7_completed' IS DISTINCT FROM old_json->'unit7_completed') THEN
+                    IF new_json ? 'unit7_updated_at' THEN NEW.unit7_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 8
+                v_num := COALESCE((new_json->>'unit8')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit8_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit8' IS DISTINCT FROM old_json->'unit8' OR new_json->'unit8_completed' IS DISTINCT FROM old_json->'unit8_completed') THEN
+                    IF new_json ? 'unit8_updated_at' THEN NEW.unit8_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                -- Unit 9
+                v_num := COALESCE((new_json->>'unit9')::numeric, 0);
+                v_comp := COALESCE((new_json->>'unit9_completed')::boolean, FALSE);
+                IF (v_num = 1 OR v_num = 100 OR v_comp = TRUE) AND (new_json->'unit9' IS DISTINCT FROM old_json->'unit9' OR new_json->'unit9_completed' IS DISTINCT FROM old_json->'unit9_completed') THEN
+                    IF new_json ? 'unit9_updated_at' THEN NEW.unit9_updated_at := CURRENT_TIMESTAMP; END IF;
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        `);
+        console.log(`✅ [${dbLabel}] Unit Timestamp Trigger Function Initialized.`);
+    } catch (err) {
+        console.warn(`⚠️ [${dbLabel}] Unit Timestamp Trigger initialization warning: ${err.message}`);
+    }
 };
 
 const initHybridSubmissionsSchema = async (client, dbLabel) => {
@@ -760,6 +862,18 @@ const runMigrations = async (client, dbLabel) => {
             console.log(`✅ [${dbLabel}] ph_public_schools_location View Initialized`);
         } catch (viewErr) {
             console.error(`❌ [${dbLabel}] Failed to init ph_public_schools_location view:`, viewErr.message);
+        }
+
+        // --- COMPATIBILITY VIEW: schools_IERN ---
+        try {
+            await client.query(`
+                CREATE OR REPLACE VIEW "schools_IERN" AS 
+                SELECT iern AS "IERN", school_id AS "SchoolID", iern, school_id 
+                FROM ph_schools;
+            `);
+            console.log(`✅ [${dbLabel}] Compatibility VIEW "schools_IERN" Initialized`);
+        } catch (viewErr) {
+            console.warn(`⚠️ [${dbLabel}] Optional "schools_IERN" view creation skipped:`, viewErr.message);
         }
 
 

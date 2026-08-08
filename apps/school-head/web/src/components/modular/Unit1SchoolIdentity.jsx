@@ -1009,14 +1009,16 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             setLoading(true);
             let finalIern = formData.iern;
             if (!finalIern && formData.school_id) {
-                const r = await fetch(api(`/schools_iern/${formData.school_id}`))
-                    .then(async r => {
-                        console.log('[schools_iern] iern-fallback', r.status, r.headers.get('content-type'));
-                        if (!r.ok) console.error('[schools_iern] iern-fallback body:', await r.clone().text());
-                        return r;
-                    })
-                    .catch(err => { console.error('[schools_iern] iern-fallback network:', err); return null; });
-                if (r?.ok) { const j = await r.json(); if (j.exists && j.data?.iern) finalIern = j.data.iern; }
+                try {
+                    const r = await fetch(api(`/schools_iern/${formData.school_id}`))
+                        .catch(err => { console.warn('[schools_iern] iern-fallback network:', err); return null; });
+                    if (r?.ok) { 
+                        const j = await r.json().catch(() => null); 
+                        if (j?.exists && j.data?.iern) finalIern = j.data.iern; 
+                    }
+                } catch (e) {
+                    console.warn('[schools_iern] iern-fallback error caught gracefully:', e);
+                }
             }
             // STRICT VALIDATION WARNING (Frontend)
             const requiredFields = [
@@ -1034,19 +1036,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             const missing = requiredFields.filter(f => !formData[f.key]).map(f => f.label);
             
-            // Document Guard: Ensure compression is finished
-            const docRequired = formData.ownership !== "na" && formData.ownership !== "na_reason";
-            // Leniency: If we have the doc ID and a path (even if it's the original one), it's "ready"
-            const docReady = 
-                !!formData.ownership_document_path || 
-                (!!formData.local_file_path && !!formData.ownership_doc_id) ||
-                docStatus === "secured";
-            
-            if (docRequired && !docReady) {
-                alert("Please wait for your ownership document to finish securing/compressing before submitting.");
-                setLoading(false);
-                return;
-            }
+            // Document Guard: Ownership document is completely optional.
+            // If a document is currently uploading or compressing, isDocBlocking above handles it.
 
             if (missing.length > 0) {
                 const proceed = window.confirm(

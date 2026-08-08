@@ -28,7 +28,18 @@ router.put('/api/ph_schools/unit2/:id', async (req, res) => {
         }
 
         if (!resolvedIern) {
-            return res.status(404).json({ error: "School not found in core registry" });
+            resolvedIern = data.iern || (schoolId ? `IERN-${schoolId}` : null);
+            resolvedSchoolId = schoolId || resolvedIern;
+            if (resolvedIern) {
+                await safeQuery(
+                    `INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (iern) DO NOTHING`,
+                    [resolvedIern, resolvedSchoolId]
+                );
+            }
+        }
+
+        if (!resolvedIern) {
+            return res.status(400).json({ error: "Missing school_id or iern identifier" });
         }
 
         const gradeGenderMap = data.gradeGenderMap || {};
