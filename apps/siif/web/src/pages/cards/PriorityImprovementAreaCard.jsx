@@ -544,7 +544,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             onClick={goToSummary}
-                            className="w-full py-5 bg-siif-blue hover:bg-[var(--blue)] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+                            className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3"
                         >
                             {readOnly ? 'View Summary' : 'Review Summary'} <TbChevronRight size={18} />
                         </motion.button>
@@ -710,7 +710,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                         onClick={handleBack}
                         className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
-                        {screen === 'summary' || subScreen === 'list' ? <TbX size={17} /> : <TbArrowLeft size={17} />}
+                        {screen === 'summary' ? <TbArrowLeft size={17} /> : <TbChevronLeft size={17} />}
                     </button>
                     <div className="min-w-0 flex-1">
                         <span className="block text-[9px] font-extrabold uppercase tracking-widest text-blue-600 dark:text-blue-400 siif-font-header leading-none mb-0.5">
@@ -721,24 +721,13 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                         </h2>
                     </div>
                 </div>
-                {screen !== 'summary' && subScreen !== 'list' && (
-                    <button
-                        onClick={onClose}
-                        className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
-                        title="Close"
-                    >
-                        <TbX size={17} />
-                    </button>
-                )}
-                {(screen === 'summary' || subScreen === 'list') && (
-                    <button
-                        onClick={onClose}
-                        className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
-                        title="Close"
-                    >
-                        <TbX size={17} />
-                    </button>
-                )}
+                <button
+                    onClick={onClose}
+                    className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    title="Close"
+                >
+                    <TbX size={17} />
+                </button>
             </div>
             {/* Step progress dots */}
             <div className="flex gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">

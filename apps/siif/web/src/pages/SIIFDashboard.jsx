@@ -56,7 +56,15 @@ const SIIFDashboard = ({ user, token }) => {
 
     // Calculate Summary Totals
     const innovationsCount = submission?.interventions?.length || 0;
-    const totalBudgetEstimate = submission?.totalBudget || 0;
+    const totalBudgetEstimate = useMemo(() => {
+        if (submission?.totalBudget !== undefined && parseFloat(submission.totalBudget) > 0) {
+            return parseFloat(submission.totalBudget);
+        }
+        if (submission?.budgetEstimates) {
+            return Object.values(submission.budgetEstimates).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+        }
+        return 0;
+    }, [submission]);
 
     let totalBeneficiaries = 0;
     if (submission?.interventionData) {
@@ -106,7 +114,7 @@ const SIIFDashboard = ({ user, token }) => {
 
     const completedPhases = useMemo(() => {
         let count = 0;
-        if (submission?.pia || submission) count++; // PIA
+        if (submission?.priorityAreas?.length > 0) count++; // PIA
         if (submission?.interventions?.length > 0) count++; // Interventions
         if (totalBeneficiaries > 0) count++; // Beneficiaries
         if (totalBudgetEstimate > 0) count++; // Budget
@@ -164,15 +172,13 @@ const SIIFDashboard = ({ user, token }) => {
                         <h1>School Innovation and Improvement Fund</h1>
                     </div>
 
-                    <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0">
-                        <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
-                            <div className="flex flex-col items-start sm:items-end">
-                                <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Forms Completion</small>
-                                <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
-                                    {Math.round((completedPhases / 5) * 100)}%
-                                </strong>
-                            </div>
-                            <div className="flex-1 sm:w-full" style={{ maxWidth: '120px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div className="siif-topbar-actions shrink-0">
+                        <section className="siif-school-pill">
+                            <small style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.05em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms Completion</small>
+                            <strong style={{ fontSize: '22px', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: '3px 0', lineHeight: 1, fontWeight: 900, display: 'block' }}>
+                                {Math.round((completedPhases / 5) * 100)}%
+                            </strong>
+                            <div style={{ width: '80%', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', margin: '2px auto 0' }}>
                                 <div style={{ width: `${(completedPhases / 5) * 100}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
                             </div>
                         </section>
@@ -180,23 +186,23 @@ const SIIFDashboard = ({ user, token }) => {
                 </header>
 
                 <section className="siif-grid mt-3 sm:mt-6">
-                    {/* KPI Cards Row */}
-                    <div className="siif-kpis grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Total Allocated Budget</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: 'var(--navy)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(allocation.allocation_amount)}</h3>
+                    {/* KPI Cards Row - Strictly 1 Row */}
+                    <div className="siif-kpis grid grid-cols-4 gap-2 sm:gap-3">
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Allocated Budget</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--navy)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.allocation_amount)}</h3>
                         </div>
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Total Estimated Budget</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: 'var(--blue-600)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(totalBudgetEstimate)}</h3>
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Estimated Budget</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--blue-600)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(totalBudgetEstimate)}</h3>
                         </div>
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Remaining Funds</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: (allocation.allocation_amount - totalBudgetEstimate) < 0 ? 'var(--red)' : 'var(--green)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(allocation.allocation_amount - totalBudgetEstimate)}</h3>
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Remaining Funds</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: (allocation.allocation_amount - totalBudgetEstimate) < 0 ? 'var(--red)' : 'var(--green)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.allocation_amount - totalBudgetEstimate)}</h3>
                         </div>
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Budget Utilized</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: 'var(--purple)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(allocation.spent_amount)}</h3>
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Budget Utilized</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--purple)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.spent_amount)}</h3>
                         </div>
                     </div>
 
@@ -323,15 +329,15 @@ const SIIFDashboard = ({ user, token }) => {
                                     </div>
                                 )}
 
-                                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 sm:p-6 bg-white rounded-3xl border border-slate-100 shadow-sm mt-2">
+                                <div className="siif-queue-content">
                                     {/* Donut Chart SVG */}
-                                    <div className="flex-shrink-0 w-[200px] sm:w-[240px] h-[200px] sm:h-[240px] relative mx-auto lg:mx-0 group">
+                                    <div className="flex-shrink-0 w-[160px] sm:w-[190px] h-[160px] sm:h-[190px] relative mx-auto sm:mx-0 group">
                                         {chartData.length > 0 ? (
                                             <>
                                                 {/* Outer decorative ring */}
                                                 <div className="absolute inset-0 rounded-full border border-slate-50 scale-110 transition-transform duration-500 group-hover:scale-105 opacity-50" />
                                                 <svg viewBox="-4 -4 44 44" className="w-full h-full -rotate-90 drop-shadow-lg">
-                                                    {chartData.map((slice, idx) => (
+                                                    {chartData.map((slice) => (
                                                         <circle
                                                             key={slice.id}
                                                             r="15.9155"
@@ -351,9 +357,11 @@ const SIIFDashboard = ({ user, token }) => {
                                                         />
                                                     ))}
                                                 </svg>
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-white/40 backdrop-blur-[1px] m-[30px] rounded-full shadow-inner border border-white/60">
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Total Budget</span>
-                                                    <strong className="text-xl font-black bg-gradient-to-br from-slate-800 to-slate-600 bg-clip-text text-transparent">{formatCurrency(totalBudgetEstimate)}</strong>
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-slate-50/90 backdrop-blur-[1px] m-[20px] rounded-full shadow-inner border border-slate-100">
+                                                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-0.5">Total Budget Estimate</span>
+                                                    <strong className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-none text-center px-1">
+                                                        {formatCurrency(totalBudgetEstimate)}
+                                                    </strong>
                                                 </div>
                                             </>
                                         ) : (
@@ -365,36 +373,35 @@ const SIIFDashboard = ({ user, token }) => {
                                     </div>
 
                                     {/* Modern List */}
-                                    <div className="flex-1 custom-scrollbar overflow-y-auto max-h-[260px] pr-2 space-y-2.5">
+                                    <div className="flex-1 w-full min-w-0 custom-scrollbar overflow-y-auto max-h-[260px] pr-1 space-y-2">
                                         {chartData.length > 0 ? (
                                             chartData.map(slice => {
                                                 return (
                                                     <div
                                                         key={slice.id}
-                                                        className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-md transition-all duration-300 cursor-pointer group"
+                                                        className="flex items-center justify-between p-2.5 sm:p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-md transition-all duration-300 cursor-pointer group gap-3"
                                                         onClick={() => setSelectedModalIntervention(slice.id)}
                                                     >
-                                                        <div className="flex items-center gap-3.5">
+                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                             <div
-                                                                className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform duration-300 group-hover:scale-110"
+                                                                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform duration-300 group-hover:scale-105 shrink-0"
                                                                 style={{ backgroundColor: slice.color, backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), rgba(0,0,0,0.1))' }}
                                                             >
-                                                                {/* Optional: Add icon mapping here if desired, using initials for now */}
-                                                                <span className="font-black text-sm">{slice.label.charAt(0)}</span>
+                                                                <span className="font-black text-xs">{slice.label.charAt(0)}</span>
                                                             </div>
-                                                            <div>
-                                                                <span className="font-bold text-[13px] text-slate-700 block mb-0.5">{slice.label}</span>
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="h-1.5 w-16 bg-slate-200 rounded-full overflow-hidden">
+                                                            <div className="min-w-0 flex-1">
+                                                                <span className="font-bold text-[12px] sm:text-[13px] text-slate-700 block truncate leading-tight">{slice.label}</span>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <div className="h-1.5 w-12 sm:w-16 bg-slate-200 rounded-full overflow-hidden shrink-0">
                                                                         <div className="h-full rounded-full" style={{ width: `${slice.percentage}%`, backgroundColor: slice.color }} />
                                                                     </div>
-                                                                    <span className="text-[10px] font-black text-slate-400">{slice.percentage.toFixed(1)}%</span>
+                                                                    <span className="text-[10px] font-black text-slate-500 shrink-0">{slice.percentage.toFixed(1)}%</span>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <strong className="block text-[14px] font-black text-slate-800">{formatCurrency(slice.budget)}</strong>
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-siif-blue transition-colors">Details →</span>
+                                                        <div className="text-right shrink-0">
+                                                            <strong className="block text-[12px] sm:text-[13px] font-black text-slate-800 leading-tight">{formatCurrency(slice.budget)}</strong>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-siif-blue transition-colors">Details →</span>
                                                         </div>
                                                     </div>
                                                 );
@@ -600,61 +607,123 @@ const SIIFDashboard = ({ user, token }) => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[1000] flex items-center justify-center p-5 pb-28"
+                            className="siif-modal-overlay"
+                            onClick={() => setSelectedModalIntervention(null)}
                         >
                             <motion.div
-                                initial={{ scale: 0.95, y: 20 }}
-                                animate={{ scale: 1, y: 0 }}
-                                exit={{ scale: 0.95, y: 20 }}
-                                className="siif-card w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh] border-[2.5px] border-slate-300"
-                                style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
+                                initial={{ scale: 0.92, y: 15, opacity: 0 }}
+                                animate={{ scale: 1, y: 0, opacity: 1 }}
+                                exit={{ scale: 0.92, y: 15, opacity: 0 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                className="siif-modal-card"
+                                onClick={(e) => e.stopPropagation()}
                             >
-                                {/* Modal Header (InsightED rules) */}
-                                <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-8 py-6 shadow-lg relative overflow-hidden shrink-0">
-                                    <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-                                    <div className="relative z-10 flex items-start justify-between gap-4">
-                                        <div>
-                                            <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1.5" style={{ color: 'var(--gold)' }}>
-                                                Intervention Disaggregation
-                                            </p>
-                                            <h2 className="text-[20px] font-black italic uppercase tracking-tight leading-tight" style={{ color: 'var(--gold)' }}>
-                                                {info?.label || intId}
-                                            </h2>
+                                {/* Header */}
+                                <div className="siif-modal-header">
+                                    <div>
+                                        <span className="siif-modal-eyebrow">
+                                            Intervention Disaggregation
+                                        </span>
+                                        <h2 className="siif-modal-title">
+                                            {info?.label || intId}
+                                        </h2>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedModalIntervention(null)}
+                                        className="siif-modal-close-btn"
+                                        aria-label="Close modal"
+                                    >
+                                        <TbX size={20} />
+                                    </button>
+                                </div>
+
+                                {/* Body */}
+                                <div className="siif-modal-body">
+                                    {/* 3 Metric Cards */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Estimated Budget</span>
+                                            <strong className="text-xs sm:text-sm md:text-base font-black text-emerald-600 truncate w-full">{formatCurrency(budget)}</strong>
                                         </div>
-                                        <button
-                                            onClick={() => setSelectedModalIntervention(null)}
-                                            className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/10 text-white shrink-0"
-                                        >
-                                            <TbX size={20} />
-                                        </button>
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Target Learners</span>
+                                            <strong className="text-base sm:text-lg font-black text-[#0284C7]">{learners.toLocaleString()}</strong>
+                                        </div>
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Planned Activities</span>
+                                            <strong className="text-base sm:text-lg font-black text-purple-600">{acts.length + (intData.otherActivity ? 1 : 0)}</strong>
+                                        </div>
+                                    </div>
+
+                                    {/* Beneficiaries Breakdown */}
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                                        <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#08315F] flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                            <TbUsers size={16} className="text-[#0284C7]" />
+                                            Target Beneficiaries Breakdown
+                                        </h4>
+                                        {Object.keys(intData.beneficiaryCounts || {}).length > 0 ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {Object.entries(intData.beneficiaryCounts || {}).map(([grade, count]) => {
+                                                    const cntInt = parseInt(count) || 0;
+                                                    if (cntInt <= 0) return null;
+                                                    const aralObj = intData.aralCounts?.[grade] || {};
+                                                    const aralStr = Object.entries(aralObj)
+                                                        .filter(([, c]) => parseInt(c) > 0)
+                                                        .map(([subj, c]) => `${subj}: ${c}`)
+                                                        .join(', ');
+                                                    return (
+                                                        <div key={grade} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                                            <div className="min-w-0 flex-1 pr-2">
+                                                                <span className="font-bold text-xs text-slate-700 block truncate">{GRADE_LABELS[grade] || grade}</span>
+                                                                {aralStr && <span className="text-[10px] text-slate-500 block truncate italic">ARAL: {aralStr}</span>}
+                                                            </div>
+                                                            <span className="bg-blue-50 text-[#0284C7] font-black text-xs px-2.5 py-1 rounded-lg border border-blue-100 shrink-0">
+                                                                {cntInt}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">No beneficiary details specified.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Planned Activities */}
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                                        <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#08315F] flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                            <TbChecklist size={16} className="text-emerald-600" />
+                                            Planned Activities List
+                                        </h4>
+                                        {acts.length > 0 || intData.otherActivity ? (
+                                            <ul className="space-y-2">
+                                                {acts.map((act, i) => (
+                                                    <li key={i} className="flex items-start gap-2.5 text-xs text-slate-700 font-semibold p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                                        <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">✓</span>
+                                                        <span>{act}</span>
+                                                    </li>
+                                                ))}
+                                                {intData.otherActivity && (
+                                                    <li className="flex items-start gap-2.5 text-xs text-slate-700 font-semibold p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                                        <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">★</span>
+                                                        <span>Other: {intData.otherActivity}</span>
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">No activities selected.</p>
+                                        )}
                                     </div>
                                 </div>
 
-                                {/* Modal Body */}
-                                <div className="p-8 overflow-y-auto space-y-6 flex-1 text-slate-800 text-[14px] bg-slate-50">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Estimated Budget</span>
-                                            <strong className="text-lg md:text-base lg:text-xl font-black text-emerald-600 whitespace-nowrap leading-tight">{formatCurrency(budget)}</strong>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Beneficiaries</span>
-                                            <strong className="text-xl md:text-lg lg:text-2xl font-black text-blue-600 whitespace-nowrap leading-tight">{learners.toLocaleString()}</strong>
-                                            <span className="text-[10px] sm:text-xs font-medium text-slate-500 mt-1">Learners targeted</span>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Planned Activities</span>
-                                            <strong className="text-xl md:text-lg lg:text-2xl font-black text-purple-600 whitespace-nowrap leading-tight">{acts.length + (intData.otherActivity ? 1 : 0)}</strong>
-                                            <span className="text-[10px] sm:text-xs font-medium text-slate-500 mt-1">Total activities</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="p-6 bg-slate-50 border-t border-slate-200 shrink-0 flex justify-end">
+                                {/* Footer */}
+                                <div className="siif-modal-footer">
+                                    <span className="siif-modal-footer-info">SIIF Implementation Details</span>
                                     <button
                                         onClick={() => setSelectedModalIntervention(null)}
-                                        className="px-6 py-3 bg-siif-blue text-white font-black text-sm uppercase rounded-xl hover:bg-siif-blue-dark transition-all"
+                                        className="siif-modal-btn-primary"
                                     >
-                                        Close Details
+                                        Close
                                     </button>
                                 </div>
                             </motion.div>

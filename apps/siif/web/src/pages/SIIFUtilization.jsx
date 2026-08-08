@@ -521,7 +521,7 @@ const SIIFUtilization = ({ user, token }) => {
     };
 
     return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg siif-utilization-page">
             
             {/* ── Header ── */}
             <header className="topbar print:hidden mb-8">
@@ -535,10 +535,10 @@ const SIIFUtilization = ({ user, token }) => {
                 <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     
                     {/* Overall Progress Pill */}
-                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)] px-4 py-2">
                         <div className="flex flex-col items-start sm:items-end">
                             <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Total Utilized</small>
-                            <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
+                            <strong style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1.1 }}>
                                 {overallProgress.toFixed(1)}%
                             </strong>
                         </div>
@@ -568,14 +568,18 @@ const SIIFUtilization = ({ user, token }) => {
                             </span>
                         </div>
 
-                        <div className="siif-allocation-summary relative z-10" style={{ paddingTop: '24px', paddingBottom: '20px' }}>
-                            <div>
-                                <p className="siif-card-subtitle">Total Utilized</p>
-                                <h3 className="siif-big-number">₱{totalUtilized.toLocaleString()}</h3>
+                        <div className="flex flex-row items-baseline justify-between w-full gap-4 relative z-10" style={{ paddingTop: '20px', paddingBottom: '16px' }}>
+                            <div className="min-w-0">
+                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-500 mb-1">Total Utilized</p>
+                                <h3 className="siif-big-number text-xl sm:text-2xl md:text-3xl font-black text-[#08315F] leading-none whitespace-nowrap" style={{ letterSpacing: 'normal' }}>
+                                    ₱{totalUtilized.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                                </h3>
                             </div>
-                            <div className="text-right flex flex-col items-end">
-                                <p className="siif-card-subtitle">Total Allocated</p>
-                                <h3 className="siif-big-number" style={{ fontSize: '1.25rem', color: 'var(--slate-400)' }}>/ ₱{totalAllocated.toLocaleString()}</h3>
+                            <div className="text-right shrink-0 flex flex-col items-end">
+                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-400 mb-1">Total Allocated</p>
+                                <h3 className="siif-big-number text-sm sm:text-base md:text-xl font-bold text-slate-400 leading-none whitespace-nowrap" style={{ letterSpacing: 'normal' }}>
+                                    / ₱{totalAllocated.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                                </h3>
                             </div>
                         </div>
 
@@ -673,7 +677,7 @@ const SIIFUtilization = ({ user, token }) => {
                                         <div className="min-w-0">
                                             <h2 className="truncate" style={{ fontSize: '14px', lineHeight: 1.2 }} title={intId}>{intId}</h2>
                                             <p className="siif-card-subtitle mt-1 leading-tight">
-                                                Allocated: <strong style={{ color: 'var(--blue)' }}>₱{allocation.toLocaleString()}</strong>
+                                                Allocated: <strong style={{ color: 'var(--blue)' }}>₱ {allocation.toLocaleString()}</strong>
                                             </p>
                                         </div>
                                     </div>
@@ -704,14 +708,15 @@ const SIIFUtilization = ({ user, token }) => {
                                     return (
                                         <div className="relative flex flex-col gap-3">
                                             <div className="relative">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">₱</span>
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm select-none pointer-events-none z-10">₱</span>
                                                 <input
                                                     type="number"
                                                     value={typeof currentVal === 'object' ? '' : currentVal}
                                                     onChange={(e) => handleUpdateUtilization(intId, e.target.value)}
                                                     disabled={isInputLocked}
                                                     placeholder={isInputLocked ? (isOffSeason ? "WINDOW CLOSED" : isNotActiveWindow ? "NOT ACTIVE PHASE" : "ALLOCATION EXHAUSTED") : "0.00"}
-                                                    className={`w-full border-none rounded-2xl py-4 pl-8 pr-4 text-sm font-bold transition-all ${isInputLocked
+                                                    style={{ paddingLeft: '48px' }}
+                                                    className={`w-full border-none rounded-2xl py-4 pr-4 text-sm font-bold transition-all ${isInputLocked
                                                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
                                                             : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
                                                         }`}

@@ -28,7 +28,7 @@ const SIIFModuleContent = () => {
         <div className="siif-module-root min-h-screen">
             <div className="siif-app-layout">
                 <BottomNav />
-                <div className="siif-main-area">
+                <div className="siif-main-area pb-24 md:pb-6">
                     <Routes>
                         <Route path="/" element={<SIIFDashboard user={user} token={token} />} />
                         <Route path="/forms"       element={<SIIFFormsHub user={user} token={token} />} />

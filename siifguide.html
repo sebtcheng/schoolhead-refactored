@@ -1,0 +1,2070 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SIIF Hub User Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=Plus+Jakarta+Sans:wght@600;700;800;900&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --paper: #ffffff;
+      --canvas: #f0f9ff;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #bae6fd;
+      --accent: #075985;
+      --accent-soft: #e0f2fe;
+      --brand-blue: #0284c7;
+      --brand-navy: #08315f;
+      --brand-gold: #fbbf24;
+      --good: #16a34a;
+      --good-soft: #dcfce7;
+      --warn: #d97706;
+      --warn-soft: #fef3c7;
+      --bad: #b91c1c;
+      --bad-soft: #fee2e2;
+      --radius: 18px;
+      --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --print-header: "InsightED School Head · SIIF Hub User Guide";
+      --print-footer: "SIIF Hub Form Accomplishment Guide";
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(14, 165, 233, .16), transparent 32%),
+        radial-gradient(circle at 90% 100%, rgba(2, 132, 199, .10), transparent 36%),
+        linear-gradient(180deg, #f0f9ff 0%, #f8fbff 50%, #eef7ff 100%);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15.5px;
+      line-height: 1.55;
+      padding-left: 96px;
+      transition: padding-left .2s ease-out;
+    }
+
+    body.nav-expanded {
+      padding-left: 310px;
+    }
+
+    .sheet {
+      width: min(1180px, calc(100% - 36px));
+      min-height: calc(100vh - 48px);
+      margin: 24px auto;
+      padding: 30px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: 0 20px 60px rgba(8, 49, 95, .08);
+    }
+
+    /* Print action bar on top */
+    .print-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .print-button {
+      appearance: none;
+      border: 1px solid var(--brand-navy);
+      background: linear-gradient(135deg, var(--brand-navy) 0%, var(--accent) 100%);
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-family: var(--font-heading);
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(8, 49, 95, .20);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    .print-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(8, 49, 95, .30);
+    }
+
+    /* Hero / Cover Section */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 380px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 48px 30px;
+      margin-bottom: 24px;
+      border-radius: 24px;
+      color: #ffffff;
+      background:
+        radial-gradient(circle at 90% 15%, rgba(251, 191, 36, .18), transparent 28%),
+        radial-gradient(circle at 10% 85%, rgba(56, 189, 248, .30), transparent 32%),
+        linear-gradient(135deg, #08315f 0%, #075985 54%, #0284c7 100%);
+      box-shadow: 0 16px 40px rgba(8, 49, 95, .22);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -90px -120px auto;
+      width: 320px;
+      height: 320px;
+      border: 36px solid rgba(255, 255, 255, .08);
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 860px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .15);
+      border: 1px solid rgba(255, 255, 255, .28);
+      color: #ffffff;
+      font-family: var(--font-heading);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      backdrop-filter: blur(8px);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-family: var(--font-heading);
+      font-size: clamp(30px, 4.5vw, 50px);
+      line-height: 1.12;
+      letter-spacing: -.04em;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin: 14px auto 0;
+      color: rgba(255, 255, 255, .88);
+      font-size: 16.5px;
+      line-height: 1.5;
+    }
+
+    .quick-note {
+      max-width: 820px;
+      margin: 20px auto 0;
+      padding: 13px 18px;
+      border: 1px solid rgba(186, 230, 253, .45);
+      border-left: 6px solid var(--brand-gold);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .12);
+      backdrop-filter: blur(10px);
+      text-align: left;
+      font-size: 14px;
+      color: #f0f9ff;
+    }
+
+    /* Video Player Container */
+    .section-video {
+      margin: 0 0 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #000000;
+      box-shadow: 0 10px 28px rgba(8, 49, 95, .10);
+      position: relative;
+    }
+
+    .section-video video {
+      display: block;
+      width: 100%;
+      max-height: 420px;
+      aspect-ratio: 16 / 9;
+      background: #091326;
+      object-fit: cover;
+    }
+
+    .video-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(8, 49, 95, .85);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      font-family: var(--font-heading);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, .2);
+      z-index: 2;
+    }
+
+    /* Sticky Section Header Bar */
+    .guide-header {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding: 16px 20px;
+      border: 1px solid var(--line);
+      border-left: 8px solid var(--accent);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 96% 0%, rgba(251, 191, 36, .18), transparent 24%),
+        linear-gradient(135deg, #ffffff 0%, var(--accent-soft) 100%);
+      box-shadow: 0 12px 32px rgba(8, 49, 95, .06);
+    }
+
+    .guide-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .guide-header .guide-kicker {
+      margin-bottom: 2px;
+      color: var(--accent);
+      font-family: var(--font-heading);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .guide-header .guide-title {
+      color: var(--ink);
+      font-family: var(--font-heading);
+      font-size: clamp(20px, 2.8vw, 30px);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -.03em;
+    }
+
+    .guide-header .guide-section {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 13.5px;
+      font-weight: 600;
+    }
+
+    /* Section Cards */
+    .guide-grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .section-card {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 24px;
+      background: var(--paper);
+      box-shadow: 0 6px 24px rgba(8, 49, 95, .04);
+    }
+
+    /* Chunked Navigation Display Modes */
+    body.cover-active .guide-header,
+    body.cover-active .guide-grid,
+    body.cover-active .footer-note {
+      display: none;
+    }
+
+    body.section-active .hero,
+    body.section-active .footer-note {
+      display: none;
+    }
+
+    body.section-active .guide-header {
+      display: flex;
+    }
+
+    body.section-active .section-card {
+      display: none;
+    }
+
+    body.section-active .section-card.is-active {
+      display: block;
+      animation: fadeIn .18s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(5px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .letter {
+      display: inline-grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--brand-navy) 0%, var(--accent) 100%);
+      color: #ffffff;
+      font-family: var(--font-heading);
+      font-size: 17px;
+      font-weight: 900;
+      flex: 0 0 auto;
+      box-shadow: 0 4px 12px rgba(7, 89, 133, .20);
+    }
+
+    .section-head h2 {
+      font-family: var(--font-heading);
+      font-size: clamp(20px, 3vw, 28px);
+      line-height: 1.2;
+      letter-spacing: -.025em;
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    .section-intro {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14.5px;
+      line-height: 1.5;
+    }
+
+    /* Micro-Step Chips Pill Bar */
+    .section-step-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 18px;
+      padding: 8px 12px;
+      border-radius: 14px;
+      background: var(--canvas);
+      border: 1px solid var(--line);
+    }
+
+    .step-chip {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--accent);
+      padding: 5px 12px;
+      font-family: var(--font-heading);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+
+    .step-chip:hover {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .step-chip.is-active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 3px 8px rgba(7, 89, 133, .25);
+    }
+
+    /* Steps within Card */
+    .step {
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .step:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .step.is-current {
+      border-color: var(--brand-blue);
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, .12);
+    }
+
+    .step h3 {
+      font-family: var(--font-heading);
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 16.5px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    ol,
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    /* Card Highlights & Callouts */
+    .callout {
+      margin: 12px 0 0;
+      padding: 12px 14px;
+      border-left: 4px solid var(--accent);
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: #0c4a6e;
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+
+    .callout.warning {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+      color: #92400e;
+    }
+
+    .callout.success {
+      border-left-color: var(--good);
+      background: var(--good-soft);
+      color: #14532d;
+    }
+
+    /* Simple Tables */
+    .status-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13.5px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .status-table th,
+    .status-table td {
+      border: 1px solid var(--line);
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .status-table th {
+      background: #f0f9ff;
+      color: var(--accent);
+      font-family: var(--font-heading);
+      font-size: 11.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    /* Status Tags */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 800;
+      font-family: var(--font-heading);
+    }
+
+    .tag.blue {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .tag.green {
+      background: var(--good-soft);
+      color: var(--good);
+    }
+
+    .tag.orange {
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+
+    .tag.red {
+      background: var(--bad-soft);
+      color: var(--bad);
+    }
+
+    /* Interactive Checklists */
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: #fafafa;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+
+    .check-item:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .check-item input {
+      width: 17px;
+      height: 17px;
+      margin-top: 2px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .check-item:has(input:checked) {
+      border-color: var(--good);
+      background: var(--good-soft);
+      color: #14532d;
+    }
+
+    .check-item:has(input:checked) span {
+      text-decoration: line-through;
+      text-decoration-thickness: 2px;
+      text-decoration-color: rgba(22, 163, 74, .6);
+    }
+
+    .mini-flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .flow-card {
+      padding: 10px 8px;
+      border-radius: 12px;
+      background: #f0f9ff;
+      border: 1px solid var(--line);
+      font-family: var(--font-heading);
+      font-weight: 800;
+      font-size: 12px;
+      color: var(--accent);
+      text-align: center;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--brand-navy) 0%, var(--accent) 100%);
+      color: #e0f2fe;
+      text-align: center;
+      font-weight: 700;
+      font-size: 13.5px;
+    }
+
+    /* Fixed Modern Sidebar */
+    .side-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 96px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 16px 10px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background: linear-gradient(180deg, #08315F 0%, #075985 58%, #0284C7 100%);
+      color: #fff;
+      box-shadow: 14px 0 40px rgba(8, 49, 95, .18);
+      transition: width .16s ease-out, padding .16s ease-out;
+    }
+
+    .side-nav:not(.is-expanded) {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .side-nav:not(.is-expanded)::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
+    .side-nav.is-expanded {
+      width: 310px;
+      padding: 18px 14px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+    }
+
+    .side-nav.is-expanded::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .side-nav.is-expanded::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.35);
+      border-radius: 999px;
+    }
+
+    .side-nav .side-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding: 4px 4px 10px;
+      border-bottom: 1px solid rgba(224, 242, 254, .22);
+    }
+
+    .side-nav .side-brand {
+      padding: 0 6px;
+      font-family: var(--font-heading);
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--brand-gold);
+      white-space: nowrap;
+      display: none;
+    }
+
+    .side-nav.is-expanded .side-brand {
+      display: block;
+    }
+
+    .side-toggle {
+      appearance: none;
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .12);
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 900;
+      font-size: 15px;
+      transition: background .15s ease;
+      margin: 0 auto;
+    }
+
+    .side-nav.is-expanded .side-toggle {
+      margin: 0;
+    }
+
+    .side-toggle:hover {
+      background: rgba(255, 255, 255, .22);
+    }
+
+    .side-nav .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex: 1 1 auto;
+    }
+
+    .side-nav a,
+    .side-nav .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 40px;
+      padding: 7px 10px;
+      border-radius: 13px;
+      border: 1px solid transparent;
+      color: #e0f2fe;
+      background: transparent;
+      text-decoration: none;
+      font-family: var(--font-body);
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.3;
+      cursor: pointer;
+      text-align: left;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+      width: 100%;
+    }
+
+    .side-nav .nav-item:hover {
+      background: rgba(255, 255, 255, .12);
+      color: #ffffff;
+    }
+
+    .side-nav .nav-item.is-active {
+      background: rgba(255, 255, 255, .20);
+      border-color: rgba(251, 191, 36, .45);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
+    }
+
+    /* Sub-items in sidebar for Forms tab */
+    .side-nav .nav-item.is-sub {
+      margin-left: 10px;
+      width: calc(100% - 10px);
+      min-height: 36px;
+      padding: 5px 8px;
+      font-size: 12px;
+      border-left: 2px solid rgba(251, 191, 36, .35);
+      border-radius: 0 10px 10px 0;
+    }
+
+    .side-nav .nav-item.is-sub .side-badge {
+      width: 24px;
+      height: 24px;
+      font-size: 11px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .side-badge {
+      display: inline-grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .16);
+      color: #ffffff;
+      font-family: var(--font-heading);
+      font-size: 12.5px;
+      font-weight: 900;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255, 255, 255, .22);
+    }
+
+    .side-nav .nav-item.is-active .side-badge {
+      background: var(--brand-gold);
+      color: #08315f;
+      border-color: var(--brand-gold);
+      font-weight: 900;
+    }
+
+    .side-label {
+      white-space: normal;
+      word-break: normal;
+      overflow-wrap: break-word;
+      line-height: 1.3;
+      display: none;
+      flex: 1 1 auto;
+    }
+
+    .side-nav.is-expanded .side-label {
+      display: block;
+    }
+
+    .side-footer {
+      margin-top: auto;
+      display: grid;
+      gap: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(224, 242, 254, .22);
+    }
+
+    .side-print-btn {
+      appearance: none;
+      width: 100%;
+      padding: 9px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, .24);
+      background: rgba(255, 255, 255, .10);
+      color: #ffffff;
+      font-family: var(--font-heading);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background .15s ease;
+    }
+
+    .side-print-btn:hover {
+      background: rgba(255, 255, 255, .20);
+    }
+
+    .side-print-btn span {
+      display: none;
+    }
+
+    .side-nav.is-expanded .side-print-btn span {
+      display: inline;
+    }
+
+    /* Mobile Adaptations */
+    @media (max-width: 900px) {
+      body {
+        padding-left: 0 !important;
+        padding-top: 60px;
+      }
+
+      .side-nav {
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: auto;
+        width: 100% !important;
+        height: 56px;
+        flex-direction: row;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 0;
+      }
+
+      .side-nav .side-top {
+        margin-bottom: 0;
+        padding: 0;
+        border-bottom: 0;
+      }
+
+      .side-nav .side-brand {
+        display: none !important;
+      }
+
+      .side-nav .nav-list {
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 0 6px;
+      }
+
+      .side-nav a,
+      .side-nav .nav-item {
+        min-height: 36px;
+        padding: 4px 8px;
+        width: auto;
+      }
+
+      .side-nav .nav-item.is-sub {
+        margin-left: 0;
+        width: auto;
+        border-left: 0;
+      }
+
+      .side-label {
+        display: none !important;
+      }
+
+      .side-footer {
+        display: none !important;
+      }
+
+      .sheet {
+        width: min(100% - 16px, 1140px);
+        padding: 16px;
+        margin: 10px auto;
+      }
+
+      .hero {
+        min-height: auto;
+        padding: 30px 16px;
+      }
+
+      .section-card {
+        padding: 16px;
+      }
+
+      .mini-flow {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* High-Fidelity Print Engine */
+    @media print {
+      @page {
+        size: A4;
+        margin: 12mm;
+      }
+
+      .side-nav,
+      .guide-header,
+      .print-actions,
+      .section-step-nav,
+      .section-video {
+        display: none !important;
+      }
+
+      body {
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-size: 10pt;
+        line-height: 1.4;
+      }
+
+      .sheet {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+      }
+
+      .hero {
+        min-height: auto !important;
+        padding: 14mm 8mm !important;
+        margin-bottom: 6mm !important;
+        background: #08315f !important;
+        color: #ffffff !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .guide-grid,
+      .footer-note,
+      .section-card {
+        display: block !important;
+      }
+
+      .section-card {
+        margin: 0 0 8mm !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .section-head {
+        display: flex !important;
+        border-bottom: 1px solid #bae6fd !important;
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+
+      .section-head h2 {
+        font-size: 15pt !important;
+      }
+
+      .step {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        border: 1px solid #e2e8f0 !important;
+        margin-bottom: 5mm !important;
+      }
+
+      .step h3 {
+        font-size: 11.5pt !important;
+      }
+
+      .tag,
+      .check-item,
+      .callout,
+      .hero,
+      .letter,
+      .flow-card {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .print-wrap {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+
+      .print-wrap thead {
+        display: table-header-group !important;
+      }
+
+      .print-wrap tfoot {
+        display: table-footer-group !important;
+      }
+
+      .print-wrap td {
+        padding: 0 !important;
+        border: 0 !important;
+      }
+
+      .print-head {
+        margin: 0 0 4mm;
+        padding: 0 0 2mm;
+        border-bottom: 1px solid var(--line);
+        color: var(--accent);
+        font-family: var(--font-heading);
+        font-size: 8.5pt;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .print-foot {
+        margin: 4mm 0 0;
+        padding: 2mm 0 0;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 8pt;
+        font-weight: 700;
+      }
+    }
+  </style>
+</head>
+
+<body class="cover-active">
+  <main class="sheet">
+    <div class="print-actions">
+      <button class="print-button" type="button" onclick="window.print()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+          <path d="M6 14h12v8H6z" />
+        </svg>
+        Print / Save as PDF
+      </button>
+    </div>
+
+    <!-- Title / Cover Hero -->
+    <header class="hero" id="cover">
+      <div class="hero-inner">
+        <div class="eyebrow">InsightED School Head · SIIF Hub</div>
+        <h1>SIIF Hub User Guide</h1>
+        <p class="subtitle">A practical guide for School Heads on preparing, reviewing, submitting, and monitoring the
+          School Innovation and Improvement Fund plan.</p>
+        <div class="quick-note">
+          <strong>Quick Rule:</strong> Finish the SIIF Hub step-by-step: Check Allocation ➔ Draft Form Sections in Order
+          ➔ Attest & Submit ➔ Track Utilization after Approval.
+        </div>
+      </div>
+    </header>
+
+    <!-- Sticky Guide Section Header -->
+    <div class="guide-header">
+      <div class="guide-header-left">
+        <div class="letter" id="headerLetter">A</div>
+        <div>
+          <div class="guide-kicker">SIIF User Manual</div>
+          <div class="guide-title" id="headerTitle">Section Title</div>
+          <div class="guide-section" id="headerSub">Follow the simple steps below.</div>
+        </div>
+      </div>
+      <div class="guide-print">
+        <button class="print-button" type="button" onclick="window.print()">Print</button>
+      </div>
+    </div>
+
+    <!-- Chunked Guide Sections Grid -->
+    <section class="guide-grid">
+
+      <!-- SECTION A: NAVIGATING INSIGHTED -->
+      <article class="section-card" data-letter="A">
+        <div class="section-head">
+          <div class="letter">A</div>
+          <h2>Navigating InsightED</h2>
+        </div>
+        <p class="section-intro">Access the official InsightED portal gateway and open the SIIF Hub module.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Gateway Access</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Access the SIIF Module via InsightED Platform</h3>
+          <ol>
+            <li>Go to the official link: <a href="https://stride.deped.gov.ph/insighted/" target="_blank"
+                rel="noopener noreferrer"><strong>https://stride.deped.gov.ph/insighted/</strong></a></li>
+            <li>Click the <strong>ENTER INSIGHTED</strong> button.</li>
+            <li>Select <strong>HROD Portals</strong> from the available portal cards.</li>
+            <li>Click <strong>Continue with the School Head</strong>.</li>
+            <li>Click the <strong>SIIF</strong> card to launch the module.</li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- SECTION B: LOGGING IN WITH SCHOOL CREDENTIALS -->
+      <article class="section-card" data-letter="B">
+        <div class="section-head">
+          <div class="letter">B</div>
+          <h2>Login</h2>
+        </div>
+        <p class="section-intro">Sign into your official School Head account and verify school profile details.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Account Sign In</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Sign in with School Credentials</h3>
+          <ol>
+            <li>Enter your official <strong>School ID</strong>.</li>
+            <li>Enter your authorized <strong>Password / Passcode</strong>.</li>
+            <li>Click <strong>Sign In</strong>.</li>
+          </ol>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Verify School Identity & Fiscal Year</h3>
+          <ol>
+            <li>Check the top bar to ensure your <strong>School Name</strong>, <strong>School ID</strong>, and active
+              <strong>Fiscal Year</strong> are correct.
+            </li>
+          </ol>
+          <div class="callout warning">
+            <strong>Security Warning:</strong> If the wrong school appears, log out immediately. Never enter or modify
+            data under another school's ID.
+          </div>
+        </div>
+      </article>
+
+      <!-- SECTION C: OVERVIEW -->
+      <article class="section-card" data-letter="C">
+        <div class="section-head">
+          <div class="letter">C</div>
+          <h2>Overview</h2>
+        </div>
+        <p class="section-intro">Understand the primary navigation tabs and the complete 5-step operational workflow.
+        </p>
+
+        <div class="step">
+          <h3>Step 1: Navigation Tabs Breakdown</h3>
+          <table class="status-table">
+            <tr>
+              <th>Tab</th>
+              <th>Primary Purpose</th>
+            </tr>
+            <tr>
+              <td><strong>Dashboard</strong></td>
+              <td>Checking allocation, estimated budget, remaining funds, status, and quick actions.</td>
+            </tr>
+            <tr>
+              <td><strong>Forms</strong></td>
+              <td>Preparing or revising the SIIF plan.</td>
+            </tr>
+            <tr>
+              <td><strong>Utilization</strong></td>
+              <td>Recording quarterly spending and implementation progress after the plan is ready for tracking.</td>
+            </tr>
+            <tr>
+              <td><strong>Settings</strong></td>
+              <td>Viewing or managing available SIIF settings when allowed by the system.</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: The 5-Step Operating Sequence</h3>
+          <div class="mini-flow">
+            <div class="flow-card">1. Dashboard Review</div>
+            <div class="flow-card">2. Forms Hub Draft</div>
+            <div class="flow-card">3. Summary Review</div>
+            <div class="flow-card">4. Submit Attestation</div>
+            <div class="flow-card">5. Utilization Tracking</div>
+          </div>
+          <div class="callout">
+            Follow the sequential sequence in order: review allocation ceiling ➔ draft proposal ➔ confirm all sections ➔
+            submit for review ➔ update quarterly utilization.
+          </div>
+        </div>
+      </article>
+
+      <!-- SECTION D: DASHBOARD TAB -->
+      <article class="section-card" data-letter="D">
+        <div class="section-head">
+          <div class="letter">D</div>
+          <h2>Dashboard Tab</h2>
+        </div>
+        <p class="section-intro">Review your official spending limit and proposal progress before drafting.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Dashboard Overview</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Review the dashboard figures</h3>
+          <ul>
+            <li><strong>Total Allocated Budget:</strong> The budget granted to your school.</li>
+            <li><strong>Total Estimated Budget:</strong> The total cost of all your planned interventions.</li>
+            <li><strong>Budget Utilized:</strong> The total cumulative funds spent and recorded under the utilization tab.</li>
+            <li><strong>Remaining Balance:</strong> What is left from your allocation (computed from Allocation - Total
+              Estimated Budget).
+            </li>
+            <li><strong>Forms Completion:</strong> Percentage of completed forms in the planning/forms section.</li>
+          </ul>
+          <div class="callout">
+            <strong>Golden Rule:</strong> Your Total Estimated Budget must <strong>never exceed</strong> the Total
+            Allocated Budget.
+          </div>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Quick Actions</h3>
+          <ol>
+            <li><strong>Plan Intervention:</strong> opens the form for creating or editing the proposal.</li>
+            <li><strong>Review Flagged Items:</strong> Takes you right to missing or incomplete sections.</li>
+            <li><strong>Export Report:</strong> Downloads or prints a summary copy of your proposal.</li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- SECTION E: FORMS TAB OVERVIEW -->
+      <article class="section-card" data-letter="E">
+        <div class="section-head">
+          <div class="letter">E</div>
+          <h2>Forms Tab</h2>
+        </div>
+        <p class="section-intro">The planning workspace where you draft and sequentially lock all 5 core proposal
+          sections.</p>
+
+        <!-- Note — Form Availability & Common Lock Messages -->
+        <div class="callout warning" style="margin: 0 0 18px; border-radius: 14px; padding: 16px 18px;">
+          <div
+            style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-family: var(--font-heading); font-weight: 800; font-size: 14.5px; color: #92400e;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            Note — Form Availability & Common Lock Messages
+          </div>
+
+          <div style="font-size: 13.5px; line-height: 1.5; color: #78350f;">
+            <p style="margin-bottom: 6px;"><strong>Check whether the form is open:</strong></p>
+            <ul style="margin: 0 0 10px; padding-left: 20px;">
+              <li>Look for deadline or opening schedule notices at the top of the SIIF page.</li>
+              <li>If the form is not yet open, prepare your data offline but wait before submitting.</li>
+              <li>If the form is closed, review existing data but do not expect edits to save.</li>
+            </ul>
+
+            <p style="margin-bottom: 6px;"><strong>Interpret common lock messages:</strong></p>
+            <table class="status-table" style="background: #ffffff; margin-top: 4px;">
+              <tr>
+                <th style="width: 38%;">Lock Message</th>
+                <th>Meaning / Explanation</th>
+              </tr>
+              <tr>
+                <td><strong style="color: #0369a1;">Opening Soon / Not Yet Open</strong></td>
+                <td>The form is scheduled for a later date.</td>
+              </tr>
+              <tr>
+                <td><strong style="color: #b91c1c;">Window Closed</strong></td>
+                <td>The submission deadline has passed.</td>
+              </tr>
+              <tr>
+                <td><strong style="color: #d97706;">Read-Only Mode</strong></td>
+                <td>The plan can be viewed but cannot be changed.</td>
+              </tr>
+              <tr>
+                <td><strong style="color: #15803d;">Pending Review</strong></td>
+                <td>The plan has been submitted and is awaiting action from the Division Office.</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Understanding Sequential Locking</h3>
+          <div
+            style="margin: 8px 0 12px; padding: 12px 14px; border-radius: 14px; background: #fffdf0; border: 1.5px solid #fde047;">
+            <div
+              style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 800; font-size: 12px;">
+              <span style="padding: 3px 8px; border-radius: 999px; background: #075985; color: #fff;">1. Priority
+                Improvement Areas</span>
+              <span style="color: #d97706;">➔</span>
+              <span style="padding: 3px 8px; border-radius: 999px; background: #0284c7; color: #fff;">2.
+                Interventions</span>
+              <span style="color: #d97706;">➔</span>
+              <span style="padding: 3px 8px; border-radius: 999px; background: #0369a1; color: #fff;">3.
+                Beneficiaries</span>
+              <span style="color: #d97706;">➔</span>
+              <span style="padding: 3px 8px; border-radius: 999px; background: #075985; color: #fff;">4.
+                Activities</span>
+              <span style="color: #d97706;">➔</span>
+              <span style="padding: 3px 8px; border-radius: 999px; background: #15803d; color: #fff;">5. Budget
+                Estimation</span>
+            </div>
+          </div>
+          <p style="font-size: 13.5px; color: var(--muted);">Each section prepares data for the next. You must click
+            <strong>Confirm</strong> on each step to unlock the subsequent section.
+          </p>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Proposal Status Lifecycle</h3>
+          <table class="status-table">
+            <tr>
+              <th>Status</th>
+              <th>Meaning</th>
+              <th>Action Needed</th>
+            </tr>
+            <tr>
+              <td><span class="tag blue">Draft</span></td>
+              <td>The school has an in-progress plan</td>
+              <td>Complete and confirm all 5 sections.</td>
+            </tr>
+            <tr>
+              <td><span class="tag orange">Submitted</span></td>
+              <td>Sent to Division Office for review.</td>
+              <td>Wait for review or open the plan only to view it.</td>
+            </tr>
+            <tr>
+              <td><span class="tag green">Reviewed</span></td>
+              <td>Plan is officially approved.</td>
+              <td>Proceed to Utilization when tracking opens.</td>
+            </tr>
+          </table>
+        </div>
+      </article>
+
+      <!-- FORMS SUB-SECTION 1 -->
+      <article class="section-card" data-badge="I" data-parent="forms">
+        <div class="section-head">
+          <div class="letter"
+            style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); font-size: 13px; font-weight: 900;">I
+          </div>
+          <h2>Selecting Priority Improvement Areas</h2>
+        </div>
+        <p class="section-intro">Forms Tab Step 1: Identify and confirm the school's primary SIP/AIP priorities.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Priority Areas</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Choose Priority Improvement Areas</h3>
+          <ol>
+            <li>Open <strong>Priority Improvement Areas</strong> in the Forms Hub.</li>
+            <li>Select or enter the school’s most important improvement needs.</li>
+            <li>Review the selected Priority Improvement Areas to make sure they align with your school's SIP/AIP
+              development plan.</li>
+            <li>Click <strong>Confirm Priority Improvement Areas</strong> to unlock Interventions.</li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- FORMS SUB-SECTION 2 -->
+      <article class="section-card" data-badge="II" data-parent="forms">
+        <div class="section-head">
+          <div class="letter"
+            style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); font-size: 12px; font-weight: 900;">II
+          </div>
+          <h2>Selecting Interventions</h2>
+        </div>
+        <p class="section-intro">Forms Tab Step 2: Select the specific interventions your school will execute.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Select Interventions</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Choose Intervention Categories</h3>
+          <table class="status-table">
+            <tr>
+              <th>Available intervention area</th>
+              <th>Purpose</th>
+            </tr>
+            <tr>
+              <td><strong>Remediation, Enhancement, Enrichment</strong></td>
+              <td>Improve learning recovery, strengthen regular instruction, or extend learning.</td>
+            </tr>
+            <tr>
+              <td><strong>Prevention, Wellness, Learning Environment</strong></td>
+              <td>Address early learning risks, health/readiness needs, or classroom conditions.</td>
+            </tr>
+            <tr>
+              <td><strong>Acceleration, Inclusive, Engagement</strong></td>
+              <td>Support fast progress, equitable access, participation, and retention.</td>
+            </tr>
+            <tr>
+              <td><strong>Behavioral, Instructional Improvement, Technology-enabled</strong></td>
+              <td>Address social-emotional barriers, teacher effectiveness, or technology-supported learning.</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: ARAL Remediation Questions</h3>
+          <ol>
+            <li>If choosing <strong>Remediation (ARAL)</strong>, answer the ARAL tutor and subject questions.</li>
+            <li>Review the selected Interventions and ensure they align with the chosen Priority Improvement Areas.</li>
+            <li>Click <strong>Confirm Interventions</strong> to proceed to Beneficiaries.</li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- FORMS SUB-SECTION 3 -->
+      <article class="section-card" data-badge="III" data-parent="forms">
+        <div class="section-head">
+          <div class="letter"
+            style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); font-size: 11px; font-weight: 900;">
+            III</div>
+          <h2>Inputting Target Beneficiaries</h2>
+        </div>
+        <p class="section-intro">Forms Tab Step 3: Enter target learner counts by grade level for each intervention.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Beneficiary Counts</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Select Grade Levels</h3>
+          <table class="status-table">
+            <tr>
+              <th>Key Stage</th>
+              <th>Grades Covered</th>
+            </tr>
+            <tr>
+              <td><strong>Key Stage 1</strong></td>
+              <td>Kindergarten, Grade 1, Grade 2, Grade 3</td>
+            </tr>
+            <tr>
+              <td><strong>Key Stage 2</strong></td>
+              <td>Grade 4, Grade 5, Grade 6</td>
+            </tr>
+            <tr>
+              <td><strong>Key Stage 3</strong></td>
+              <td>Grade 7, Grade 8, Grade 9, Grade 10</td>
+            </tr>
+            <tr>
+              <td><strong>Key Stage 4</strong></td>
+              <td>Grade 11, Grade 12 (SHS)</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Enter Learner Counts</h3>
+          <ol>
+            <li>Enter the number of target learners per grade level.</li>
+
+            <li>Review entered learner beneficiary counts to verify that they are realistic and correct for each
+              intervention.</li>
+            <li>Click <strong>Confirm Beneficiaries</strong> to unlock Activities.</li>
+          </ol>
+          <div class="callout warning">
+            Do not enter your total school population unless the project truly covers every single student.
+          </div>
+        </div>
+      </article>
+
+      <!-- FORMS SUB-SECTION 4 -->
+      <article class="section-card" data-badge="IV" data-parent="forms">
+        <div class="section-head">
+          <div class="letter"
+            style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); font-size: 12px; font-weight: 900;">IV
+          </div>
+          <h2>Selecting Activities</h2>
+        </div>
+        <p class="section-intro">Forms Tab Step 4: Pick the exact activities and materials needed per intervention.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Activity Selection</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Select Activity Types</h3>
+          <table class="status-table">
+            <tr>
+              <th>Activity group</th>
+              <th>Examples</th>
+            </tr>
+            <tr>
+              <td><strong>School improvement and annual planning activities</strong></td>
+              <td>Learning materials, learning sessions, instructional supplies, feeding support, minor repairs,
+                printing or reproduction.</td>
+            </tr>
+            <tr>
+              <td><strong>Action research or innovation</strong></td>
+              <td>Research-based or innovative activities designed to improve learner performance.</td>
+            </tr>
+            <tr>
+              <td><strong>Operational support activities</strong></td>
+              <td>Semi-expendable items, workshops, capacity-building, and other day-to-day school needs.</td>
+            </tr>
+            <tr>
+              <td><strong>Other activity</strong></td>
+              <td>A clearly written activity that does not fit the listed choices.</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Confirm Activities</h3>
+          <ol>
+            <li>Ensure every intervention has at least one active activity selected(If choosing Others, specify, write
+              a clear description).</li>
+            <li>Review all selected activities to ensure they are appropriate and feasible for each intervention.</li>
+            <li>Click <strong>Confirm Activities</strong> to unlock Budget Estimation.</li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- FORMS SUB-SECTION 5 -->
+      <article class="section-card" data-badge="V" data-parent="forms">
+        <div class="section-head">
+          <div class="letter"
+            style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); font-size: 13px; font-weight: 900;">V
+          </div>
+          <h2>Inputting of Budget Estimation</h2>
+        </div>
+        <p class="section-intro">Forms Tab Step 5: Encode cost estimates and ensure they stay within your allocation
+          ceiling.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Budget Entry</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Enter Realistic Costs</h3>
+          <ol>
+            <li>Input the estimated budget for each intervention.</li>
+            <li>No intervention should be left with a zero (0) or blank budget.</li>
+          </ol>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Check Budget Ceiling</h3>
+          <ol>
+            <li>Compare <strong>Total Estimated Budget</strong> with your <strong>Total Allocation</strong>.</li>
+            <li>If estimated budget is higher, reduce costs or activities before submitting.</li>
+            <li>Review all estimated itemized costs to ensure accuracy before confirming.</li>
+            <li>Click <strong>Confirm Budget</strong>.</li>
+          </ol>
+          <div class="callout warning">
+            The system will block submission if your total estimate exceeds your school's allocation.
+          </div>
+        </div>
+      </article>
+
+      <!-- FORMS SUB-SECTION 6 -->
+      <article class="section-card" data-badge="VI" data-parent="forms">
+        <div class="section-head">
+          <div class="letter"
+            style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); font-size: 12px; font-weight: 900;">VI
+          </div>
+          <h2>Summary & Submission</h2>
+        </div>
+        <p class="section-intro">Forms Tab Step 6: Review your consolidated proposal and execute the official
+          submission.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Final Submission</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Review the Plan Summary</h3>
+          <ol>
+            <li>Click <strong>View Implementation Summary</strong>.</li>
+            <li>Verify total interventions, total learners, activities, and total budget.</li>
+          </ol>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Type CONFIRM & Submit</h3>
+          <ol>
+            <li>Click <strong>Submit Final Plan</strong>.</li>
+            <li>Type <strong>CONFIRM</strong> in the confirmation box.</li>
+            <li>Click <strong>Confirm & Submit</strong>.</li>
+            <li>Verify your status pill switches to <span class="tag orange">Submitted</span>.</li>
+          </ol>
+          <div class="callout success">
+            After submission, wait for Division Office review before treating the plan as ready for utilization
+            tracking.
+          </div>
+        </div>
+      </article>
+
+      <!-- SECTION F: QUARTERLY UTILIZATION -->
+      <article class="section-card" data-letter="F">
+        <div class="section-head">
+          <div class="letter">F</div>
+          <h2>Utilization Tab</h2>
+        </div>
+        <p class="section-intro">Record actual spending and milestones once the plan is approved.</p>
+
+        <div class="section-video">
+          <div class="video-badge">Video · Utilization Tracking</div>
+          <video controls playsinline preload="metadata">
+            <source src="" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+        </div>
+
+        <div class="step">
+          <h3>Step 1: Check Quarter Status</h3>
+          <table class="status-table">
+            <tr>
+              <th>Quarter</th>
+              <th>Period Covered</th>
+            </tr>
+            <tr>
+              <td><strong>Phase 1 (Q1)</strong></td>
+              <td>July, August, September</td>
+            </tr>
+            <tr>
+              <td><strong>Phase 2 (Q2)</strong></td>
+              <td>October, November, December</td>
+            </tr>
+            <tr>
+              <td><strong>Phase 3 (Q3)</strong></td>
+              <td>January, February, March</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Record Spending & Status</h3>
+          <ol>
+            <li>For each planned intervention, enter the amount utilized for the active quarter.</li>
+            <li>Select status: <strong>Not Started</strong>, <strong>Ongoing</strong>, or <strong>Completed</strong>.
+            </li>
+            <li>If the amount is higher than the original estimate for that intervention, provide a clear justification.
+            </li>
+            <li>Click <strong>Save Quarterly Updates</strong>.</li>
+          </ol>
+          <div class="callout warning">
+            <strong>Budget Allocation Limit Note:</strong> Quarterly utilization for a specific intervention can exceed
+            its original estimated budget as long as a clear justification is provided. However, total cumulative
+            utilization across all interventions must never exceed the school's official total budget allocation.
+          </div>
+        </div>
+      </article>
+
+      <!-- SECTION G: TROUBLESHOOTING & CHECKLIST -->
+      <article class="section-card" data-letter="G">
+        <div class="section-head">
+          <div class="letter">G</div>
+          <h2>Troubleshooting & Checklist</h2>
+        </div>
+        <p class="section-intro">Quick solutions to common issues and pre-submission readiness checklist.</p>
+
+        <div class="step">
+          <h3>Step 1: Resolve common planning issues</h3>
+          <table class="status-table">
+            <tr>
+              <th>Issue</th>
+              <th>Likely cause</th>
+              <th>Action</th>
+            </tr>
+            <tr>
+              <td><strong>A section is locked</strong></td>
+              <td>A previous section has not been confirmed.</td>
+              <td>Return to the earlier section and confirm it first.</td>
+            </tr>
+            <tr>
+              <td><strong>Budget cannot be submitted</strong></td>
+              <td>The total estimate may exceed the allocation.</td>
+              <td>Reduce or reprioritize the plan.</td>
+            </tr>
+            <tr>
+              <td><strong>Beneficiaries are flagged</strong></td>
+              <td>One or more interventions have no learner counts.</td>
+              <td>Add realistic target learners for each intervention.</td>
+            </tr>
+            <tr>
+              <td><strong>Activities are flagged</strong></td>
+              <td>One or more interventions have no selected activity.</td>
+              <td>Add at least one activity or a clear Other activity.</td>
+            </tr>
+            <tr>
+              <td><strong>Utilization is unavailable</strong></td>
+              <td>The plan may still be in planning, pending review, or disapproved.</td>
+              <td>Check the dashboard status before continuing.</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Use this review checklist</h3>
+          <div class="checklist">
+            <label class="check-item"><input type="checkbox" /> <span>The logged-in school is correct.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>The official allocation is visible and
+                reviewed.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>The submission window is open before final
+                submission.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>All required planning sections are
+                confirmed.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>Total budget is within the official
+                allocation.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>The Dashboard status matches the expected
+                stage.</span></label>
+          </div>
+        </div>
+
+        <div class="step">
+          <h3>Step 3: Ask for help when needed</h3>
+          <ol>
+            <li>Take note of the school name, fiscal year, page where the issue happened, and the exact message shown.
+            </li>
+            <li>Capture a screenshot if possible.</li>
+            <li>Report the issue to the designated system support or Division Office focal person.</li>
+          </ol>
+        </div>
+      </article>
+
+      <!-- SECTION H: PRE-SUBMISSION AND POST-SUBMISSION CHECKLIST -->
+      <article class="section-card" data-letter="H">
+        <div class="section-head">
+          <div class="letter">H</div>
+          <h2>Pre-submission and post-submission checklist</h2>
+        </div>
+        <p class="section-intro">Use this final checklist before typing CONFIRM or before reporting a plan as ready for review.</p>
+
+        <div class="step">
+          <h3>Step 1: Check completeness</h3>
+          <div class="checklist">
+            <label class="check-item"><input type="checkbox" /> <span>Priority Improvement Areas are selected and confirmed.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>At least one intervention is selected and confirmed.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>Every intervention has target learners and counts.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>Every intervention has at least one activity or a clear Other activity.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>Every intervention has a reasonable budget estimate.</span></label>
+            <label class="check-item"><input type="checkbox" /> <span>Budget total is within official allocation.</span></label>
+          </div>
+        </div>
+
+        <div class="step">
+          <h3>Step 2: Check review quality</h3>
+          <ol>
+            <li>Make sure priority areas, interventions, beneficiaries, activities, and budgets tell one coherent story.</li>
+            <li>Remove interventions with zero beneficiaries, zero budget, or no activities.</li>
+            <li>Use remarks or Other activity text only when it adds clear review value.</li>
+            <li>Print or save the report if the school needs an internal copy before submission.</li>
+          </ol>
+        </div>
+
+        <div class="step">
+          <h3>Step 3: Track what happens after submission</h3>
+          <ol>
+            <li>The Dashboard should show the plan as Submitted or Pending Review.</li>
+            <li>If reviewed, move to utilization when the tracking period opens.</li>
+            <li>When utilization opens, update only the active quarter and save quarterly updates.</li>
+          </ol>
+          <div class="callout success">
+            <strong>Final operating rule:</strong> Move through SIIF in order: allocation review ➔ plan draft ➔ confirmed sections ➔ final submission ➔ review status ➔ utilization tracking.
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <div class="footer-note">
+      InsightED SIIF Hub · Check Allocation ➔ Draft Sections in Order ➔ Attest & Submit ➔ Track Utilization
+    </div>
+  </main>
+
+  <!-- Script for Dynamic Navigation, Step Pills, Auto-Collapsible Sidebar & Print Framing -->
+  <script>
+    (function () {
+      var body = document.body;
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.section-card'));
+
+      // Create Modern Collapsible Sidebar
+      var aside = document.createElement('aside');
+      aside.className = 'side-nav';
+      aside.innerHTML = [
+        '<div class="side-top">',
+        '  <span class="side-brand">SIIF HUB GUIDE</span>',
+        '  <button class="side-toggle" type="button" title="Toggle Sidebar">☰</button>',
+        '</div>',
+        '<div class="nav-list"></div>',
+        '<div class="side-footer">',
+        '  <button class="side-print-btn" type="button" onclick="window.print()">',
+        '    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>',
+        '    <span>Print / PDF</span>',
+        '  </button>',
+        '</div>'
+      ].join('');
+      document.body.appendChild(aside);
+
+      var navList = aside.querySelector('.nav-list');
+      var headerLetter = document.getElementById('headerLetter');
+      var headerTitle = document.getElementById('headerTitle');
+      var headerSub = document.getElementById('headerSub');
+      var sideToggle = aside.querySelector('.side-toggle');
+
+      function makeNavButton(label, letter, index, isSub) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'nav-item' + (isSub ? ' is-sub' : '');
+        btn.dataset.index = index;
+        btn.title = label;
+        btn.innerHTML = '<span class="side-badge">' + letter + '</span><span class="side-label">' + label + '</span>';
+        btn.addEventListener('click', function () {
+          index === -1 ? showCover() : showSection(index);
+        });
+        navList.appendChild(btn);
+      }
+
+      // 1. Cover / Title Page Navigation Item
+      makeNavButton('Title Page', '★', -1, false);
+
+      // 2. Sections Navigation Items
+      cards.forEach(function (card, index) {
+        var isSub = card.dataset.parent === 'forms';
+        var badge = card.dataset.badge || card.dataset.letter || card.querySelector('.letter').textContent.trim();
+        var title = card.querySelector('h2').textContent.trim();
+        makeNavButton(title, badge, index, isSub);
+      });
+
+      var navItems = Array.prototype.slice.call(aside.querySelectorAll('.nav-item'));
+
+      function setActiveNav(index) {
+        navItems.forEach(function (item) {
+          item.classList.toggle('is-active', Number(item.dataset.index) === index);
+        });
+      }
+
+      function buildStepNav(card) {
+        var old = card.querySelector('.section-step-nav');
+        if (old) old.remove();
+
+        var steps = Array.prototype.slice.call(card.querySelectorAll('.step'));
+        if (!steps.length) return;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'section-step-nav';
+
+        steps.forEach(function (step, index) {
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'step-chip';
+          chip.textContent = 'Step ' + (index + 1);
+          chip.addEventListener('click', function () {
+            step.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            markStep(card, index);
+          });
+          wrap.appendChild(chip);
+        });
+
+        var firstStep = card.querySelector('.step');
+        if (firstStep) {
+          card.insertBefore(wrap, firstStep);
+        }
+        markStep(card, 0);
+      }
+
+      function markStep(card, index) {
+        var steps = Array.prototype.slice.call(card.querySelectorAll('.step'));
+        var chips = Array.prototype.slice.call(card.querySelectorAll('.step-chip'));
+
+        steps.forEach(function (step, i) {
+          step.classList.toggle('is-current', i === index);
+        });
+
+        chips.forEach(function (chip, i) {
+          chip.classList.toggle('is-active', i === index);
+        });
+      }
+
+      function showCover() {
+        body.classList.add('cover-active');
+        body.classList.remove('section-active');
+        cards.forEach(function (card) {
+          card.classList.remove('is-active');
+        });
+        setActiveNav(-1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function showSection(index) {
+        var card = cards[index];
+        if (!card) return;
+
+        body.classList.remove('cover-active');
+        body.classList.add('section-active');
+
+        cards.forEach(function (item, i) {
+          item.classList.toggle('is-active', i === index);
+        });
+
+        var letter = card.dataset.badge || card.dataset.letter || card.querySelector('.letter').textContent.trim();
+        var title = card.querySelector('h2').textContent.trim();
+
+        if (headerLetter) headerLetter.textContent = letter;
+        if (headerTitle) headerTitle.textContent = title;
+        if (headerSub) headerSub.textContent = 'Follow the steps below.';
+
+        setActiveNav(index);
+        buildStepNav(card);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      // Sidebar expand/collapse toggle
+      sideToggle.addEventListener('click', function () {
+        aside.classList.toggle('is-expanded');
+        body.classList.toggle('nav-expanded');
+      });
+
+      // Hover to auto-expand sidebar on desktop
+      aside.addEventListener('mouseenter', function () {
+        if (window.innerWidth > 900) {
+          aside.classList.add('is-expanded');
+          body.classList.add('nav-expanded');
+        }
+      });
+
+      aside.addEventListener('mouseleave', function () {
+        if (window.innerWidth > 900) {
+          aside.classList.remove('is-expanded');
+          body.classList.remove('nav-expanded');
+        }
+      });
+
+      // Intersection Observer for active step highlights
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            var card = entry.target.closest('.section-card');
+            if (card && card.classList.contains('is-active')) {
+              var steps = Array.prototype.slice.call(card.querySelectorAll('.step'));
+              markStep(card, steps.indexOf(entry.target));
+            }
+          }
+        });
+      }, { rootMargin: '-20% 0px -60% 0px', threshold: 0.1 });
+
+      cards.forEach(function (card) {
+        Array.prototype.slice.call(card.querySelectorAll('.step')).forEach(function (step) {
+          observer.observe(step);
+        });
+      });
+
+      // Initial State: Cover active
+      setActiveNav(-1);
+
+      // Print Frame Construction for Multi-page PDF output
+      function buildPrintFrame() {
+        var main = document.querySelector('.sheet');
+        if (!main || main._printFramed) return;
+
+        var headerText = "InsightED School Head · SIIF Hub User Guide";
+        var footerText = "SIIF Hub Form Accomplishment Guide";
+
+        var table = document.createElement('table');
+        table.className = 'print-wrap';
+
+        var thead = document.createElement('thead');
+        thead.innerHTML = '<tr><td><div class="print-head">' + headerText + '</div></td></tr>';
+
+        var tfoot = document.createElement('tfoot');
+        tfoot.innerHTML = '<tr><td><div class="print-foot">' + footerText + '</div></td></tr>';
+
+        var tbody = document.createElement('tbody');
+        var cell = document.createElement('td');
+        cell.className = 'print-body-cell';
+
+        while (main.firstChild) cell.appendChild(main.firstChild);
+
+        var row = document.createElement('tr');
+        row.appendChild(cell);
+        tbody.appendChild(row);
+
+        table.appendChild(thead);
+        table.appendChild(tfoot);
+        table.appendChild(tbody);
+
+        main.appendChild(table);
+        main._printFramed = true;
+        main._printTable = table;
+      }
+
+      function teardownPrintFrame() {
+        var main = document.querySelector('.sheet');
+        if (!main || !main._printFramed) return;
+
+        var table = main._printTable;
+        var cell = table && table.querySelector('.print-body-cell');
+
+        while (cell && cell.firstChild) main.insertBefore(cell.firstChild, table);
+        if (table && table.parentNode) table.parentNode.removeChild(table);
+
+        main._printFramed = false;
+        main._printTable = null;
+      }
+
+      window.addEventListener('beforeprint', buildPrintFrame);
+      window.addEventListener('afterprint', teardownPrintFrame);
+    })();
+  </script>
+</body>
+
+</html>

@@ -260,10 +260,8 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                                             <p className="text-xs text-slate-500 font-medium">Estimated Budget</p>
                                         </div>
                                     </div>
-                                    <div className="relative rounded-xl shadow-sm w-full">
-                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                            <span className="text-slate-500 font-bold text-base">₱</span>
-                                        </div>
+                                    <div className="flex items-center w-full border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-blue-500 min-h-[48px] shadow-sm overflow-hidden">
+                                        <span className="pl-4 pr-1 text-slate-500 font-bold text-base shrink-0 select-none">₱</span>
                                         <input
                                             type="text"
                                             inputMode="decimal"
@@ -272,7 +270,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                                             readOnly={isLocked}
                                             value={(!safeBudgets[intId] || safeBudgets[intId] === '0' || safeBudgets[intId] === 0) ? '' : safeBudgets[intId]}
                                             onChange={e => handleAmountChange(intId, e.target.value)}
-                                            className="block w-full pl-8 pr-4 py-3 text-base font-semibold border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none min-h-[48px]"
+                                            className="flex-1 min-w-0 pr-4 py-3 text-base font-semibold bg-transparent text-slate-900 dark:text-slate-100 focus:outline-none"
                                         />
                                     </div>
                                 </div>
@@ -317,7 +315,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     onClick={goToSummary}
-                    className="w-full py-5 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform flex items-center justify-center gap-3"
+                    className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-transform flex items-center justify-center gap-3"
                 >
                     Review Summary <TbChevronRight size={18} />
                 </motion.button>
@@ -331,13 +329,13 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
             <div className="siif-card p-6 space-y-5">
                 <div>
                     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-4 border-b border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
+                        <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
                             <TbCalculator size={18} className="text-blue-600 dark:text-blue-400 shrink-0" />
                             <span className="text-xs font-black uppercase tracking-wider">
                                 Budget Estimations Summary
                             </span>
                         </div>
-                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
+                        <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
                             <TbChecklist size={14} className="text-blue-600 dark:text-blue-400" />
                             <span>{interventions.length} Allocations</span>
                         </div>
@@ -504,22 +502,25 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: 50, opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-                            className="siif-card w-full max-w-md shadow-2xl overflow-hidden max-h-[85vh] flex flex-col border-[2.5px] border-slate-300"
-                            style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
+                            className="bg-white w-full max-w-md shadow-2xl overflow-hidden max-h-[85vh] flex flex-col border-[2.5px] border-slate-300 rounded-3xl"
                         >
-                            <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 flex items-center justify-between shrink-0">
+                            <div
+                                className="text-white px-6 py-5 flex items-center justify-between shrink-0"
+                                style={{ background: 'linear-gradient(135deg, #0B1F4D 0%, #10346B 100%)' }}
+                            >
                                 <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center">
+                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.12)' }}>
                                         <TbUsers size={18} />
                                     </div>
                                     <div>
-                                        <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest">Reference</p>
-                                        <h3 className="font-black text-sm uppercase tracking-tight">Target Beneficiaries</h3>
+                                        <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#93C5FD' }}>Reference</p>
+                                        <h3 className="font-black text-sm uppercase tracking-tight text-white">Target Beneficiaries</h3>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => setShowBeneficiariesModal(false)}
-                                    className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/10"
+                                    className="p-2 rounded-xl transition-all border"
+                                    style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)' }}
                                 >
                                     <TbX size={16} />
                                 </button>
@@ -562,7 +563,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                             <div className="p-5 border-t border-slate-100 shrink-0">
                                 <button
                                     onClick={() => setShowBeneficiariesModal(false)}
-                                    className="w-full py-4 bg-siif-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
+                                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
                                 >
                                     Got It — Close Reference
                                 </button>
@@ -635,7 +636,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                                     <button
                                         onClick={handleConfirmWithExcess}
                                         disabled={excessCountdown > 0}
-                                        className="flex-1 py-3 bg-siif-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                                        className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-md transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         Proceed Anyway
                                     </button>

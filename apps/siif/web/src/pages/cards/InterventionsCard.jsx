@@ -144,7 +144,7 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         onClick={goToSummary}
-                        className="w-full py-5 bg-siif-blue hover:bg-[var(--blue)] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3"
                     >
                         {readOnly ? 'View Summary' : 'Review Summary'} <TbChevronRight size={18} />
                     </motion.button>
@@ -158,13 +158,13 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
             <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
+                    <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
                         <TbPuzzle size={18} className="text-blue-600 dark:text-blue-400 shrink-0" />
                         <span className="text-xs font-black uppercase tracking-wider">
                             Selected School Interventions
                         </span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
                         <TbChecklist size={14} className="text-blue-600 dark:text-blue-400" />
                         <span>{value.length} Selected</span>
                     </div>
@@ -174,11 +174,11 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                     {value.map(id => {
                         const info = INTERVENTIONS.find(i => i.id === id);
                         return (
-                            <div key={id} className="flex items-center gap-3.5 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div key={id} className="flex items-center gap-6 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
                                 <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                                     {INTERVENTION_ICONS[id]}
                                 </div>
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0 pl-2">
                                     <p className="text-xs font-extrabold text-slate-900 dark:text-slate-100 tracking-tight leading-snug">{info?.label}</p>
                                     <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{info?.desc}</p>
                                 </div>
