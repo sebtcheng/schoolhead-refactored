@@ -18,7 +18,7 @@ export async function resolveSchoolId(schoolId, user) {
         if ((!finalId || finalId.length > 10) && user?.email) {
             try {
                 const userLookup = await poolUsers.query(
-                    'SELECT school_id FROM user_SchoolHead WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                    'SELECT school_id FROM user_schoolhead WHERE LOWER(email) = LOWER($1) LIMIT 1',
                     [user.email]
                 );
                 if (userLookup.rows[0]?.school_id) {

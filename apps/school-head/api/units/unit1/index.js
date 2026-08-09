@@ -1,5 +1,5 @@
 import express from 'express';
-import { safeQuery, updateSchoolTotalCompletion } from '@shared/db';
+import { safeQuery, safeUsersQuery, updateSchoolTotalCompletion } from '@shared/db';
 
 const router = express.Router();
 
@@ -9,7 +9,7 @@ async function resolveIdent(id) {
     const sRes = await safeQuery('SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
     if (sRes.rows[0]) return { iern: sRes.rows[0].iern, school_id: sRes.rows[0].school_id };
     
-    const iernRes = await safeQuery('SELECT "IERN" as iern, "SchoolID" as school_id FROM "schools_IERN" WHERE "SchoolID" = $1 OR "IERN" = $1 LIMIT 1', [id]);
+    const iernRes = await safeUsersQuery('SELECT iern, school_id FROM schools_iern WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
     if (iernRes.rows[0]) return { iern: iernRes.rows[0].iern, school_id: iernRes.rows[0].school_id };
 
     const fallbackIern = id.startsWith('IERN-') ? id : `IERN-${id}`;

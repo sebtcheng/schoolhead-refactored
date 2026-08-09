@@ -1,5 +1,5 @@
 import express from 'express';
-import { pool, safeQuery } from '@shared/db';
+import { pool, safeQuery, safeUsersQuery } from '@shared/db';
 
 const router = express.Router();
 
@@ -163,8 +163,8 @@ router.get('/api/school-by-user/:uid', async (req, res) => {
 router.get('/api/iern/:school_id', async (req, res) => {
   try {
     const { school_id } = req.params;
-    const result = await safeQuery(
-      `SELECT "IERN" FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1`,
+    const result = await safeUsersQuery(
+      `SELECT iern AS "IERN" FROM schools_iern WHERE school_id = $1 LIMIT 1`,
       [school_id]
     );
     if (result.rows.length === 0) return res.json({ iern: null });
@@ -177,7 +177,7 @@ router.get('/api/iern/:school_id', async (req, res) => {
 router.get('/api/school-head/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
-    const result = await safeQuery('SELECT first_name, last_name, office, region, division, account_category FROM users WHERE uid = $1', [uid]);
+    const result = await safeUsersQuery('SELECT first_name, last_name, office, region, division, account_category FROM user_schoolhead WHERE uid = $1', [uid]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'School Head not found' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -188,18 +188,11 @@ router.get('/api/school-head/:uid', async (req, res) => {
 router.get('/api/schools_iern/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    let result = await safeQuery('SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
-    if (result.rowCount === 0) {
-      try {
-        result = await safeQuery('SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1 OR "IERN" = $1 LIMIT 1', [id]);
-      } catch (fbErr) {
-        // Fallback view or table not found, continue safely
-      }
-    }
+    const result = await safeUsersQuery('SELECT iern, school_id FROM schools_iern WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
     const row = result?.rows?.[0];
     res.json({ 
       exists: !!row, 
-      data: row ? { iern: row.iern || row.IERN, school_id: row.school_id || row.SchoolID || id } : null 
+      data: row ? { iern: row.iern, school_id: row.school_id } : null 
     });
   } catch (err) {
     console.warn('[api/schools_iern/:id] Handled lookup error cleanly:', err.message);
