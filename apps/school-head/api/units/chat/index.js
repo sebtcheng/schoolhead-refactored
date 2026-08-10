@@ -78,12 +78,18 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
 
     if (self.role === 'School Head' || self.role === 'school_head' || self.school_id) {
       const sdoQuery = `
-        SELECT uid, first_name, last_name, role, position 
+        SELECT uid, first_name, last_name, role, position, designation 
         FROM user_rosdo 
         WHERE (role ILIKE '%School Division Office%' OR role ILIKE '%RO/SDO%' OR role ILIKE '%sdo%')
           AND LOWER(TRIM(division)) = LOWER(TRIM($1)) 
           AND (disabled = false OR disabled IS NULL)
-        ORDER BY last_name ASC, first_name ASC
+          AND (
+            LOWER(COALESCE(designation, '')) LIKE '%division sbm coordinator%' 
+            OR LOWER(COALESCE(designation, '')) LIKE '%sbm coordinator%'
+          )
+        ORDER BY 
+          CASE WHEN LOWER(COALESCE(designation, '')) LIKE '%division sbm coordinator%' THEN 0 ELSE 1 END,
+          last_name ASC, first_name ASC
       `;
       const hrmoQuery = `
         SELECT uid, first_name, last_name, role, position 

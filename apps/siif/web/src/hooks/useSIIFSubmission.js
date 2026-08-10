@@ -82,7 +82,7 @@ export function useSIIFSubmission(user, token) {
                     setSubmissionId(subData.submissionId || subData.siif_sub_id || null);
                     
                     const statusVal = subData.status?.toLowerCase() || '';
-                    setIsLocked(statusVal === 'reviewed');
+                    setIsLocked(statusVal === 'reviewed' || statusVal === 'submitted');
                     setIsReviewed(statusVal === 'reviewed');
                     setIsSubmitted(statusVal === 'submitted');
                     setIsDisapproved(statusVal === 'disapproved');

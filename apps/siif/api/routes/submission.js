@@ -121,7 +121,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             division: submission.division,
             fiscalYear: submission.fiscal_year,
             totalBudget: submission.total_budget_estimate,
-            status: submission.submission_status || submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
+            status: submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
             remarks: submission.remarks || submission.rejection_reason || null,
             rejection_reason: submission.remarks || submission.rejection_reason || null,
             rejectionReason: submission.remarks || submission.rejection_reason || null,
@@ -134,7 +134,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             priorityAreas: submission.priority_improvement_area || [],
         };
 
-        console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB submission_status: ${submission.submission_status} | DB status: ${submission.status}`);
+        console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB status: ${submission.status}`);
 
         res.json({ success: true, ...submissionResponse, submission: submissionResponse });
         console.log(`📦 [SIIF-API] Sent JSON with ${interventions.length} interventions and interventionData keys:`, Object.keys(interventionData));
@@ -254,14 +254,13 @@ router.post('/submit', async (req, res) => {
         let existingRemarks = null;
 
         // Clear previous children for this school/year (interventions, beneficiaries, activities)
-        const oldSubRes = await client.query('SELECT siif_sub_id, submission_status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
         
         let submissionId;
 
         if (oldSubRes.rows.length > 0) {
             const oldSub = oldSubRes.rows[0];
             submissionId = oldSub.siif_sub_id;
-            existingSubmissionStatus = oldSub.submission_status;
             existingRemarks = oldSub.remarks;
 
             const existingIntRes = await client.query(
@@ -289,18 +288,13 @@ router.post('/submit', async (req, res) => {
                 console.log(`🧹 [SIIF-API] Cleaned up ${removedIntIds.length} removed interventions.`);
             }
 
-            // If explicit submit, update submission_status to submitted
-            let finalSubmissionStatus = existingSubmissionStatus;
-            if (status === 'submitted') {
-                finalSubmissionStatus = 'submitted';
-            }
-
             // Update existing submission header
             await client.query(
                 `UPDATE siif_submissions 
                  SET school_name = $1, region = $2, division = $3, district = $4, total_budget_estimate = $5, 
-                     submitted_at = $6, status = $7, submission_status = $8, priority_improvement_area = $9
-                 WHERE siif_sub_id = $10`,
+                     submitted_at = $6, status = $7, priority_improvement_area = $8,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE siif_sub_id = $9`,
                 [
                     req.body.schoolName || 'Unknown School',
                     req.body.region || 'Unknown Region',
@@ -309,7 +303,6 @@ router.post('/submit', async (req, res) => {
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
-                    finalSubmissionStatus,
                     JSON.stringify(priorityAreas),
                     submissionId
                 ]
@@ -320,8 +313,8 @@ router.post('/submit', async (req, res) => {
             // Insert new submission header
             const submissionResult = await client.query(
                 `INSERT INTO siif_submissions
-                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks, priority_improvement_area)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, remarks, priority_improvement_area, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                  RETURNING siif_sub_id`,
                 [
                     finalSchoolId,
@@ -333,7 +326,6 @@ router.post('/submit', async (req, res) => {
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
-                    null,
                     null,
                     JSON.stringify(priorityAreas)
                 ]

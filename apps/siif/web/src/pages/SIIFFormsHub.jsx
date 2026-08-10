@@ -106,7 +106,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
-        if (loading || isExpired || isNotYetOpen || isLocked) return;
+        if (loading || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
@@ -119,7 +119,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
+    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked, isSubmitted, isReviewed]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
@@ -315,12 +315,12 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Save Draft ───────────────────────────────────────────────────────────
     const handleSaveDraft = async (silent = false) => {
-        if (isLocked) {
-            console.warn('⚠️ [SIIFFormsHub] Plan is locked, cannot save draft.');
+        if (isLocked || isSubmitted || isReviewed) {
+            console.warn('⚠️ [SIIFFormsHub] Plan is submitted/reviewed or locked, skipping draft auto-save.');
             return;
         }
         if (!silent) setSaving(true);
-        const currentStatus = isLocked ? 'submitted' : 'draft';
+        const currentStatus = (isSubmitted || isReviewed) ? (isReviewed ? 'Reviewed' : 'submitted') : 'draft';
         const payload = buildPayload(currentStatus);
         console.log('📤 [SIIFFormsHub] Saving draft (silent=' + silent + ', status=' + currentStatus + ')');
         try {
