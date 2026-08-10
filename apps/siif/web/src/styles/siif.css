@@ -1877,7 +1877,8 @@ html.dark .siif-module-root textarea::placeholder {
 }
 
 @media (max-width: 1000px) {
-  .siif-utilization-page ~ .siif-sidebar,
+
+  .siif-utilization-page~.siif-sidebar,
   .siif-utilization-page .siif-sidebar,
   body:has(.siif-utilization-page) .siif-sidebar {
     display: none !important;

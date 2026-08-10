@@ -15,10 +15,8 @@ const execAsync = util.promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, '..', '..');
-dotenv.config({ path: path.join(rootDir, 'apps', 'school-head', 'api', '.env') });
-dotenv.config({ path: path.join(rootDir, 'apps', 'siif', 'api', '.env') });
-dotenv.config({ path: path.join(process.cwd(), '.env') });
 dotenv.config({ path: path.join(rootDir, '.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 // --- ROLE NORMALIZER ---
 export function normalizeRole(role) {

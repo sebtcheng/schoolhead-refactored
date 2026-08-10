@@ -4,7 +4,7 @@ import { useAuth } from '../../../school-head/web/src/context/AuthContext';
 
 // Pages
 import SIIFDashboard from './pages/SIIFDashboard';
-import SIIFFormsHub  from './pages/SIIFFormsHub';
+import SIIFFormsHub from './pages/SIIFFormsHub';
 import SIIFUtilization from './pages/SIIFUtilization';
 import SIIFSettings from './pages/SIIFSettings';
 
@@ -31,9 +31,9 @@ const SIIFModuleContent = () => {
                 <div className="siif-main-area pb-24 md:pb-6">
                     <Routes>
                         <Route path="/" element={<SIIFDashboard user={user} token={token} />} />
-                        <Route path="/forms"       element={<SIIFFormsHub user={user} token={token} />} />
+                        <Route path="/forms" element={<SIIFFormsHub user={user} token={token} />} />
                         <Route path="/utilization" element={<SIIFUtilization user={user} token={token} />} />
-                        <Route path="/settings"    element={<SIIFSettings user={user} token={token} />} />
+                        <Route path="/settings" element={<SIIFSettings user={user} token={token} />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </div>

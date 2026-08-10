@@ -6,12 +6,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Layered Dotenv Loading: Load module-level .env files, then fallback to root .env
+// Centralized Dotenv Loading: Load root .env file
 const rootDir = path.join(__dirname, '..', '..', '..');
-dotenv.config({ path: path.join(rootDir, 'apps', 'school-head', 'api', '.env') });
-dotenv.config({ path: path.join(rootDir, 'apps', 'siif', 'api', '.env') });
-dotenv.config({ path: path.join(process.cwd(), '.env') });
 dotenv.config({ path: path.join(rootDir, '.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const { Pool } = pg;
 

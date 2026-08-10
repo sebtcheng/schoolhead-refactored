@@ -56,7 +56,8 @@ console.log("📌 >>> RUNNING: [apps/school-head/api/index.js] <<< 📌");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 // --- Global Safety Handlers ---
 process.on('unhandledRejection', (reason, promise) => {
@@ -266,7 +267,7 @@ const startServer = async () => {
         }
 
         if (!isVercel) {
-            const PORT = process.env.PORT || 3000;
+            const PORT = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 3000;
             const HOST = process.env.HOST || '127.0.0.1';
             app.listen(PORT, HOST, () => {
                 console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
