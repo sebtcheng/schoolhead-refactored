@@ -15,9 +15,13 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
     const [currentFormSlide, setCurrentFormSlide] = useState(0);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
+    const [expandedCategoryKey, setExpandedCategoryKey] = useState(null);
 
     // Collapse editor when navigating to a different slide
-    useEffect(() => { setIsEditing(false); }, [currentFormSlide]);
+    useEffect(() => {
+        setIsEditing(false);
+        setExpandedCategoryKey(null);
+    }, [currentFormSlide]);
 
     const toggleActivity = (intId, category, choice) => {
         if (readOnly) return;
@@ -227,7 +231,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                             )}
                         </div>
 
-                        {/* ── Inline editing panel ── */}
+                        {/* ── Inline editing panel with Accordion Heads ── */}
                         <AnimatePresence>
                             {isEditing && (
                                 <motion.div
@@ -237,40 +241,116 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                     transition={{ duration: 0.22 }}
                                     className="overflow-hidden"
                                 >
-                                    <div className="p-4 space-y-6 border-t border-slate-100">
-                                        {/* SIP-AIP */}
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] font-black text-slate-700 italic flex items-center gap-2 uppercase tracking-wider">
-                                                <TbBook size={14} className="text-blue-600" /> SIP–AIP–Aligned Activities
-                                            </p>
-                                            <div className="space-y-2">
-                                                {SIP_AIP_ACTIVITIES.map(c => renderActivityRow(intId, 'sip_aip', c))}
-                                            </div>
-                                        </div>
+                                    <div className="p-4 space-y-3 border-t border-slate-100 bg-slate-50/40">
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 mb-1">
+                                            Activity Categories — Tap to expand options
+                                        </p>
 
-                                        {/* Action Research */}
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] font-black text-slate-700 italic flex items-center gap-2 uppercase tracking-wider">
-                                                <TbChartBar size={14} className="text-blue-600" /> Action Research (AR)
-                                            </p>
-                                            <div className="space-y-2">
-                                                {renderActivityRow(intId, 'action_research', ACTION_RESEARCH_ACTIVITY)}
-                                            </div>
-                                        </div>
+                                        {[
+                                            {
+                                                key: 'sip_aip',
+                                                title: 'SIP–AIP–Aligned Activities',
+                                                icon: <TbBook size={16} />,
+                                                items: SIP_AIP_ACTIVITIES
+                                            },
+                                            {
+                                                key: 'action_research',
+                                                title: 'Action Research (AR)',
+                                                icon: <TbChartBar size={16} />,
+                                                items: [ACTION_RESEARCH_ACTIVITY]
+                                            },
+                                            {
+                                                key: 'remaining',
+                                                title: 'Remaining SIIF Balance',
+                                                icon: <TbWallet size={16} />,
+                                                items: REMAINING_ACTIVITIES
+                                            }
+                                        ].map((cat) => {
+                                            const isExpanded = expandedCategoryKey === cat.key;
+                                            const selectedList = Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : [];
+                                            const count = selectedList.filter(Boolean).length;
 
-                                        {/* Remaining balance */}
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] font-black text-slate-700 italic flex items-center gap-2 uppercase tracking-wider">
-                                                <TbWallet size={14} className="text-blue-600" /> Remaining SIIF Balance
-                                            </p>
-                                            <div className="space-y-2">
-                                                {REMAINING_ACTIVITIES.map(c => renderActivityRow(intId, 'remaining', c))}
-                                            </div>
-                                        </div>
+                                            return (
+                                                <div
+                                                    key={cat.key}
+                                                    className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                                                        isExpanded
+                                                            ? 'border-blue-500 ring-2 ring-blue-500/80 shadow-md bg-white'
+                                                            : 'border-slate-200 bg-white hover:border-blue-300 shadow-sm'
+                                                    }`}
+                                                >
+                                                    {/* Accordion Head */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExpandedCategoryKey(prev => prev === cat.key ? null : cat.key)}
+                                                        className={`w-full p-3.5 text-left flex items-center justify-between gap-3 transition-colors ${
+                                                            isExpanded ? 'bg-blue-50/80 text-blue-950 font-bold' : 'hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                                                isExpanded ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-600 font-bold'
+                                                            }`}>
+                                                                {cat.icon}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-xs leading-snug transition-colors ${
+                                                                    isExpanded ? 'font-extrabold text-blue-950' : 'font-bold text-slate-800'
+                                                                }`}>
+                                                                    {cat.title}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            {count > 0 && (
+                                                                <span className="flex items-center justify-center bg-blue-600 text-white text-[11px] font-extrabold rounded-full w-5 h-5 shadow-sm">
+                                                                    {count}
+                                                                </span>
+                                                            )}
+                                                            <TbChevronRight
+                                                                size={18}
+                                                                className={`transition-transform duration-200 ${
+                                                                    isExpanded ? 'rotate-90 text-blue-600 font-bold' : 'text-slate-400'
+                                                                }`}
+                                                            />
+                                                        </div>
+                                                    </button>
+
+                                                    {/* Accordion Content Panel with Motion */}
+                                                    <AnimatePresence initial={false}>
+                                                        {isExpanded && (
+                                                            <motion.div
+                                                                key={`cat-panel-${cat.key}`}
+                                                                initial={{ height: 0, opacity: 0 }}
+                                                                animate={{ height: 'auto', opacity: 1 }}
+                                                                exit={{ height: 0, opacity: 0 }}
+                                                                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                                                                className="overflow-hidden border-t border-blue-100 bg-slate-50/70 p-3.5 space-y-2.5"
+                                                            >
+                                                                <div className="flex items-center justify-between px-1 mb-1 pb-1 border-b border-slate-200/60">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 flex items-center gap-1.5">
+                                                                        <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                                                                        Selecting {cat.title}
+                                                                    </span>
+                                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                                        {cat.items.length} option{cat.items.length > 1 ? 's' : ''}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="space-y-2">
+                                                                    {cat.items.map(choice => renderActivityRow(intId, cat.key, choice))}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            );
+                                        })}
 
                                         <button
                                             onClick={handleDoneEditing}
-                                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                            className="w-full py-3.5 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                                         >
                                             <TbCheck size={16} /> Save & Done
                                         </button>

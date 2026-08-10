@@ -136,26 +136,28 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
     // ── FORM SCREEN ──────────────────────────────────────────────────────────────
     const renderFormScreen = () => (
         <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
-            {/* Bento Metrics Dashboard Header */}
+            {/* Bento Metrics Dashboard Header (Sticky Frozen Header) */}
             {allocAmt > 0 && (
-                <div className="grid grid-cols-3 gap-3 mb-2">
-                    {/* Remaining Balance Tile (2/3 width) */}
-                    <div className="col-span-2 p-5 bg-slate-900 text-white rounded-2xl flex flex-col justify-between shadow-md relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Remaining Balance</span>
-                        <span className={`text-2xl font-black tracking-tight mt-2 ${isOver ? 'text-rose-400' : 'text-emerald-400'}`}>
-                            {formatCurrency(Math.max(0, excess))}
-                        </span>
-                        <p className="text-[10px] text-slate-400 font-semibold mt-1">
-                            Allocation: {formatCurrency(allocAmt)}
-                        </p>
-                    </div>
-                    {/* Percent Tile (1/3 width) */}
-                    <div className="p-4 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl flex flex-col items-center justify-center shadow-sm">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-center">Utilized</span>
-                        <span className="text-xl font-black mt-1">
-                            {allocAmt > 0 ? Math.min(100, Math.round((totalBudget / allocAmt) * 100)) : 0}%
-                        </span>
+                <div className="sticky top-0 z-30 bg-slate-50 dark:bg-slate-900 pt-1 pb-3 -mx-5 px-5 border-b border-slate-200/50 dark:border-slate-800/50 mb-2">
+                    <div className="grid grid-cols-3 gap-3">
+                        {/* Remaining Balance Tile (2/3 width) */}
+                        <div className="col-span-2 p-5 bg-slate-900 text-white rounded-2xl flex flex-col justify-between shadow-md relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Remaining Balance</span>
+                            <span className={`text-2xl font-black tracking-tight mt-2 ${isOver ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {formatCurrency(Math.max(0, excess))}
+                            </span>
+                            <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                                Allocation: {formatCurrency(allocAmt)}
+                            </p>
+                        </div>
+                        {/* Percent Tile (1/3 width) */}
+                        <div className="p-4 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl flex flex-col items-center justify-center shadow-sm">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-center">Utilized</span>
+                            <span className="text-xl font-black mt-1">
+                                {allocAmt > 0 ? Math.min(100, Math.round((totalBudget / allocAmt) * 100)) : 0}%
+                            </span>
+                        </div>
                     </div>
                 </div>
             )}

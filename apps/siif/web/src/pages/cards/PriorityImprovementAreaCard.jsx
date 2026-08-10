@@ -126,12 +126,13 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
 
-    // Form Sub-screens: 'list' | 'category' | 'io' | 'pias'
+    // Form Sub-screens: 'list' | 'category' | 'io'
     const [subScreen, setSubScreen] = useState('list');
 
     // Drill-down state
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedIO, setSelectedIO] = useState('');
+    const [expandedIoId, setExpandedIoId] = useState(null);
     const [draftPIAs, setDraftPIAs] = useState([]); // PIAs selected in the current session
 
     console.log('🛡️ [PriorityImprovementAreaCard] Rendered with:', { readOnly, value, screen, subScreen });
@@ -147,23 +148,68 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
             setScreen('form');
             setSubScreen('list');
         } else {
-            if (subScreen === 'pias') setSubScreen('io');
-            else if (subScreen === 'io') setSubScreen('category');
-            else if (subScreen === 'category') setSubScreen('list');
-            else onClose();
+            if (subScreen === 'io') {
+                setSubScreen('category');
+                setExpandedIoId(null);
+            } else if (subScreen === 'category') {
+                setSubScreen('list');
+            } else {
+                onClose();
+            }
         }
     };
 
-    const toggleDraftPIA = (pia) => {
-        if (draftPIAs.includes(pia)) {
-            setDraftPIAs(draftPIAs.filter(p => p !== pia));
+    const handleIoToggle = (ioId) => {
+        setExpandedIoId(prev => prev === ioId ? null : ioId);
+    };
+
+    const isPiaSelectedInDraft = (pia, ioKey = selectedIO) => {
+        return draftPIAs.some(item => {
+            if (typeof item === 'object' && item !== null) {
+                const itemId = item.id || item.pia || item.name;
+                const itemIo = item.io || item.ioId;
+                return itemId === pia && (!itemIo || itemIo === ioKey);
+            }
+            return item === pia;
+        });
+    };
+
+    const getSelectedCountForIO = (ioKey) => {
+        const pias = PIA_DATA[selectedCategory]?.[ioKey] || [];
+        if (!pias || !draftPIAs) return 0;
+        return pias.filter(pia => isPiaSelectedInDraft(pia, ioKey)).length;
+    };
+
+    const isAlreadyAdded = (pia, ioKey = selectedIO) => {
+        return value.includes(`[${selectedCategory}] ${ioKey} - ${pia}`);
+    };
+
+    const toggleDraftPIA = (pia, ioKey = selectedIO) => {
+        const existingIndex = draftPIAs.findIndex(item => {
+            if (typeof item === 'object' && item !== null) {
+                const itemId = item.id || item.pia || item.name;
+                const itemIo = item.io || item.ioId;
+                return itemId === pia && (!itemIo || itemIo === ioKey);
+            }
+            return item === pia;
+        });
+
+        if (existingIndex >= 0) {
+            setDraftPIAs(draftPIAs.filter((_, idx) => idx !== existingIndex));
         } else {
-            setDraftPIAs([...draftPIAs, pia]);
+            setDraftPIAs([...draftPIAs, { io: ioKey, pia: pia, id: pia }]);
         }
     };
 
     const saveDraftPIAs = () => {
-        const newEntries = draftPIAs.map(pia => `[${selectedCategory}] ${selectedIO} - ${pia}`);
+        const newEntries = draftPIAs.map(item => {
+            if (typeof item === 'object' && item !== null) {
+                const itemIo = item.io || item.ioId || selectedIO;
+                const itemPia = item.pia || item.name || item.id;
+                return `[${selectedCategory}] ${itemIo} - ${itemPia}`;
+            }
+            return `[${selectedCategory}] ${selectedIO} - ${item}`;
+        });
 
         // Prevent exact duplicates
         const uniqueNext = [...value];
@@ -177,6 +223,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         setDraftPIAs([]);
         setSelectedCategory('');
         setSelectedIO('');
+        setExpandedIoId(null);
         setSubScreen('list');
     };
 
@@ -285,6 +332,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
                                     key={cat}
                                     onClick={() => {
                                         setSelectedCategory(cat);
+                                        setExpandedIoId(null);
                                         setSubScreen('io');
                                     }}
                                     className={`group relative w-full p-5 rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 shadow-md hover:shadow-xl text-left flex items-start gap-4 transition-all duration-200 active:scale-[0.98] overflow-hidden ${meta.ribbonColor}`}
@@ -329,111 +377,158 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         }
 
         if (subScreen === 'io') {
-            const ios = Object.keys(PIA_DATA[selectedCategory]);
+            const ios = Object.keys(PIA_DATA[selectedCategory] || {});
             return (
-                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8">
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-4">
-                        <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">{selectedCategory}</p>
+                <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8 flex flex-col justify-start">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-2 shrink-0">
+                        <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{selectedCategory}</p>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                             Select Intermediate Outcome
                         </h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            Swipe horizontally to explore outcomes or tap to select.
+                            Tap an outcome to expand its priority improvement areas. Check the areas you want to add.
                         </p>
                     </div>
 
-                    {/* Vertical Fallback Deck */}
+                    {/* Accordion Deck */}
                     <div className="space-y-3">
                         {ios.map((io) => {
                             const [ioKey, ...rest] = io.split(':');
                             const ioDesc = rest.join(':').trim();
+                            const isExpanded = expandedIoId === io;
+                            const count = getSelectedCountForIO(io);
+                            const pias = PIA_DATA[selectedCategory][io] || [];
+
                             return (
-                                <button
+                                <div
                                     key={io}
-                                    onClick={() => {
-                                        setSelectedIO(io);
-                                        setDraftPIAs([]);
-                                        setSubScreen('pias');
-                                    }}
-                                    className={`w-full p-4 rounded-2xl border bg-white dark:bg-slate-900 hover:border-blue-400 shadow-sm text-left flex items-start gap-4 transition-all duration-200 active:scale-[0.98] ${getCategoryRibbon(selectedCategory)}`}
+                                    className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                                        isExpanded
+                                            ? 'border-blue-500 ring-2 ring-blue-500/80 dark:ring-blue-400/80 shadow-md bg-white dark:bg-slate-900'
+                                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 shadow-sm'
+                                    } ${getCategoryRibbon(selectedCategory)}`}
                                 >
-                                    <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
-                                        <span className="font-extrabold text-xs">{ioKey}</span>
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-sm leading-snug text-slate-800 dark:text-slate-100">{ioDesc}</p>
-                                    </div>
-                                    <TbChevronRight className="text-slate-400 mt-2" size={20} />
-                                </button>
+                                    {/* Accordion Header */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleIoToggle(io)}
+                                        className={`w-full p-4 text-left flex items-center justify-between gap-3 transition-colors ${
+                                            isExpanded
+                                                ? 'bg-blue-50/70 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100'
+                                                : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
+                                        }`}
+                                    >
+                                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                                                isExpanded
+                                                    ? 'bg-blue-600 text-white shadow-sm font-black'
+                                                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 font-extrabold'
+                                            }`}>
+                                                <span className="text-xs">{ioKey}</span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm leading-snug transition-colors ${
+                                                    isExpanded
+                                                        ? 'font-bold text-blue-950 dark:text-blue-100'
+                                                        : 'font-semibold text-slate-800 dark:text-slate-100'
+                                                }`}>
+                                                    {ioDesc}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {count > 0 && (
+                                                <span className="flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow-sm">
+                                                    {count}
+                                                </span>
+                                            )}
+                                            <TbChevronRight
+                                                size={20}
+                                                className={`transition-transform duration-200 ${
+                                                    isExpanded ? 'rotate-90 text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-400'
+                                                }`}
+                                            />
+                                        </div>
+                                    </button>
+
+                                    {/* Accordion Content Panel with Smooth Animation */}
+                                    <AnimatePresence initial={false}>
+                                        {isExpanded && (
+                                            <motion.div
+                                                key={`panel-${io}`}
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                                                className="overflow-hidden border-t border-blue-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-4 space-y-2.5"
+                                            >
+                                                {/* Active Selection Banner */}
+                                                <div className="flex items-center justify-between px-1 mb-1 pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                                                        <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                                                        Selecting Priority Areas for {ioKey}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                                                        {pias.length} options available
+                                                    </span>
+                                                </div>
+
+                                                {pias.map((pia) => {
+                                                    const isChecked = isPiaSelectedInDraft(pia, io);
+                                                    const alreadyAdded = isAlreadyAdded(pia, io);
+
+                                                    return (
+                                                        <button
+                                                            type="button"
+                                                            key={pia}
+                                                            onClick={() => !alreadyAdded && toggleDraftPIA(pia, io)}
+                                                            disabled={alreadyAdded}
+                                                            className={`w-full p-3.5 rounded-xl border text-left flex items-center gap-3 transition-all ${
+                                                                isChecked
+                                                                    ? 'border-blue-600 bg-blue-50/90 dark:bg-blue-950/60 text-blue-950 dark:text-blue-100 shadow-sm ring-1 ring-blue-400/30'
+                                                                    : alreadyAdded
+                                                                        ? 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/60 opacity-60 cursor-not-allowed'
+                                                                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 text-slate-700 dark:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                                                                isChecked || alreadyAdded ? 'border-blue-600 bg-blue-600' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
+                                                            }`}>
+                                                                {(isChecked || alreadyAdded) && <TbCheck size={12} className="text-white font-bold" />}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-xs font-semibold leading-snug ${isChecked || alreadyAdded ? 'font-bold text-blue-950 dark:text-blue-100' : ''}`}>
+                                                                    {pia}
+                                                                </p>
+                                                                {alreadyAdded && (
+                                                                    <p className="text-[10px] text-slate-400 mt-0.5 italic">Already added to list</p>
+                                                                )}
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                             );
                         })}
                     </div>
 
-                    <div className="pt-2 mt-4">
+                    <div className="pt-3 mt-4 flex items-center gap-3 w-full shrink-0">
                         <button
-                            onClick={() => setSubScreen('category')}
-                            className="w-full py-4 bg-white text-slate-600 rounded-2xl font-bold text-xs uppercase tracking-widest border-2 border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            type="button"
+                            onClick={() => {
+                                setSubScreen('category');
+                                setExpandedIoId(null);
+                            }}
+                            className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold text-xs uppercase tracking-widest border-2 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
                             <TbArrowLeft size={18} /> Back to Categories
                         </button>
-                    </div>
-                </div>
-            );
-        }
-
-        if (subScreen === 'pias') {
-            const pias = PIA_DATA[selectedCategory][selectedIO];
-            return (
-                <div className="flex-1 overflow-y-auto px-5 py-6 pb-6 sm:pb-8 flex flex-col">
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-4 shrink-0">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 line-clamp-1">{selectedCategory} / {selectedIO.split(':')[0]}</p>
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
-                            Select Priority Areas
-                        </h3>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                            Select priority areas serving as basis of SIIF interventions.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3 flex-1 mb-6">
-                        {pias.map((pia) => {
-                            const active = draftPIAs.includes(pia);
-                            const isAlreadyAdded = value.includes(`[${selectedCategory}] ${selectedIO} - ${pia}`);
-
-                            return (
-                                <button
-                                    key={pia}
-                                    onClick={() => toggleDraftPIA(pia)}
-                                    disabled={isAlreadyAdded}
-                                    className={`w-full p-4 rounded-2xl border text-left flex items-center gap-4 transition-all duration-200 ${getCategoryRibbon(selectedCategory)} ${!isAlreadyAdded ? 'active:scale-[0.98]' : ''} ${active
-                                        ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-950/30 shadow-md pod-glow'
-                                        : isAlreadyAdded
-                                            ? 'border-slate-200 bg-slate-100 dark:bg-slate-800 opacity-60 cursor-not-allowed'
-                                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 shadow-sm'
-                                        }`}
-                                >
-                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${active || isAlreadyAdded ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'
-                                        }`}>
-                                        {(active || isAlreadyAdded) && <TbCheck size={13} className="text-white" />}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className={`font-semibold text-sm leading-snug ${active || isAlreadyAdded ? 'text-blue-900 dark:text-blue-200 font-bold' : 'text-slate-800 dark:text-slate-100'
-                                            }`}>{pia}</p>
-                                        {isAlreadyAdded && <p className="text-xs text-slate-500 mt-1 italic">Already added to list</p>}
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <div className="pt-2 flex items-center gap-3 w-full shrink-0">
                         <button
-                            onClick={() => setSubScreen('io')}
-                            className="flex-1 py-4 bg-white text-slate-600 rounded-2xl font-bold text-xs uppercase tracking-widest border-2 border-slate-200 hover:bg-slate-50 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                        >
-                            <TbArrowLeft size={18} /> Back
-                        </button>
-                        <button
+                            type="button"
                             onClick={saveDraftPIAs}
                             disabled={draftPIAs.length === 0}
                             className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -681,8 +776,7 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         if (screen === 'summary') return 'Review & Confirm';
         if (subScreen === 'list') return 'List Areas';
         if (subScreen === 'category') return 'Select Category';
-        if (subScreen === 'io') return 'Select Outcome';
-        if (subScreen === 'pias') return 'Select Priority';
+        if (subScreen === 'io') return 'Select Outcome & Areas';
         return 'Priority Areas';
     };
 
@@ -691,7 +785,6 @@ const PriorityImprovementAreaCard = ({ value = [], onChange, onConfirm, onClose,
         if (subScreen === 'list') return 'Priority Improvement Areas';
         if (subScreen === 'category') return 'Category';
         if (subScreen === 'io') return 'Intermediate Outcomes';
-        if (subScreen === 'pias') return 'Priority Improvement Areas';
         return 'List Priority Improvement Areas';
     };
 
