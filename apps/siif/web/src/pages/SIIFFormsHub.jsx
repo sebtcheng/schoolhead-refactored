@@ -452,11 +452,79 @@ const SIIFFormsHub = ({ user, token }) => {
         );
     }
 
+    // ─── NOT YET OPEN LOCK SCREEN (Matching SIIFUtilization.jsx design) ──────
+    if (isNotYetOpen) {
+        return (
+            <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12 px-4">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-8 sm:p-10">
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-amber-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-amber-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbClock size={56} className="text-amber-500 animate-pulse" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbLock size={28} className="text-amber-600" />
+                                </div>
+                            </motion.div>
+
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                Submission Window Scheduled
+                            </h1>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-400" />
+
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    The <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">SIIF Planning Form</strong> is currently not open for submission of plans. Forms will unlock automatically on the scheduled start date.
+                                </p>
+
+                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 md:p-5 border border-amber-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-amber-100">
+                                        <TbClock size={24} className="text-amber-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-amber-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Scheduled Opening Date
+                                        </p>
+                                        <p className="text-sm text-slate-900 font-bold leading-relaxed">
+                                            {openDate ? new Date(openDate).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'To Be Announced'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            <button
+                                onClick={() => navigate('/siif')}
+                                className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
+                                style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
+                            >
+                                Return to Dashboard
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
+                </div>
+            </main>
+        );
+    }
+
     return (
         <div className="w-full min-h-screen pb-48 sm:pb-48 text-lg">
 
             {/* ── Topbar Header matching SIIFDashboard.jsx full width ── */}
-            <main className="w-full pt-3 sm:pt-4 lg:pt-8 print:hidden">
+            <main className="siif-main-area w-full pt-3 sm:pt-4 lg:pt-8 print:hidden">
                 <header className="topbar print:hidden">
                     <div className="page-title">
                         <p className="eyebrow">
@@ -464,36 +532,45 @@ const SIIFFormsHub = ({ user, token }) => {
                         </p>
                         <h1>School Innovation and Improvement Fund</h1>
 
-                        {/* Deadline & Lock badges — sit below the h1 */}
-                        {(deadline || isLocked) && (
-                            <div className="flex flex-row items-center gap-1.5 mt-2 flex-wrap">
-                                {deadline && (
-                                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 px-2 py-1 rounded-lg shadow-sm whitespace-nowrap" style={{ backgroundColor: '#EF4444', color: 'white', border: '1px solid #DC2626' }}>
-                                        <TbClock size={12} className="shrink-0 text-white" />
-                                        <span>Deadline: {new Date(deadline).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                                    </p>
-                                )}
-                                {isLocked && (
-                                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg shadow-sm flex items-center gap-1 whitespace-nowrap" style={{ backgroundColor: '#F59E0B', color: 'white', border: '1px solid #D97706' }}>
-                                        <TbLock size={12} className="shrink-0 text-white" />
-                                        <span>Read-Only</span>
-                                    </span>
-                                )}
-                            </div>
-                        )}
+                        {/* Deadline & Lock badges — Identical Sizing & Alignment */}
+                        <div className="flex flex-row items-center gap-2 mt-2 flex-wrap max-w-full">
+                            {deadline && (
+                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest flex items-start sm:items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm leading-tight max-w-[170px] xs:max-w-[210px] sm:max-w-none break-words sm:whitespace-nowrap" style={{ backgroundColor: '#EF4444', color: '#FFFFFF', border: '1px solid #DC2626' }}>
+                                    <TbClock size={14} className="shrink-0 text-white mt-0.5 sm:mt-0" />
+                                    <span className="leading-snug">Deadline: {new Date(deadline).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                </span>
+                            )}
+                            {(isLocked || isExpired) ? (
+                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap" style={{ backgroundColor: '#F59E0B', color: '#FFFFFF', border: '1px solid #D97706' }}>
+                                    <TbLock size={14} className="shrink-0 text-white" />
+                                    <span>Read-Only</span>
+                                </span>
+                            ) : (
+                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap" style={{ backgroundColor: '#059669', color: '#FFFFFF', border: '1px solid #047857' }}>
+                                    <TbEdit size={14} className="shrink-0 text-white" />
+                                    <span>Editable</span>
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     <div className="siif-topbar-actions shrink-0">
-                        {/* Submission Status Pill */}
-                        <div className={`
-                            flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider text-white shadow-sm border border-white/10 shrink-0
-                            ${isReviewed ? 'bg-emerald-500' : isDisapproved ? 'bg-red-500' : isSubmitted ? 'bg-blue-600' : 'bg-slate-500'}
-                        `}>
-                            {isReviewed ? <TbCheck size={15} /> :
-                                isDisapproved ? <TbX size={15} /> :
-                                    isSubmitted ? <TbArrowRight size={15} /> :
-                                        <TbEdit size={15} />}
-                            <span>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
+                        {/* Submission Status Pill — Solid High-Contrast Dark Navy Badge */}
+                        <div
+                            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider shadow-md shrink-0"
+                            style={{
+                                backgroundColor: isReviewed ? '#059669' : isDisapproved ? '#DC2626' : isSubmitted ? '#0284C7' : '#08315F',
+                                color: '#FFFFFF',
+                                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                                boxShadow: '0 4px 12px rgba(8, 49, 95, 0.3)',
+                                opacity: 1,
+                            }}
+                        >
+                            {isReviewed ? <TbCheck size={15} className="text-white" /> :
+                                isDisapproved ? <TbX size={15} className="text-white" /> :
+                                    isSubmitted ? <TbArrowRight size={15} className="text-white" /> :
+                                        <TbEdit size={15} style={{ color: '#FBBF24' }} />}
+                            <span style={{ color: '#FFFFFF', fontWeight: 900 }}>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
                         </div>
 
                         {/* Overall Progress Square Pill */}
@@ -976,22 +1053,42 @@ const SIIFFormsHub = ({ user, token }) => {
 
                             {/* Modal Footer / Submit Attestation */}
                             <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-2.5">
-                                {isExpired ? (
+                                {isReviewed ? (
                                     <div className="space-y-3">
-                                        <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center gap-2.5">
-                                            <div className="w-7 h-7 bg-white/10 rounded-lg flex items-center justify-center shrink-0">
-                                                <TbLock size={15} className="text-slate-300" />
+                                        <div className="p-3.5 bg-emerald-950 text-white rounded-2xl flex items-center gap-3 shadow-md border border-emerald-800/60">
+                                            <div className="w-8 h-8 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0 border border-emerald-400/30">
+                                                <TbCheck size={18} className="text-emerald-400" />
                                             </div>
                                             <div>
-                                                <p className="text-[8px] font-black uppercase text-slate-400">Read-Only Mode</p>
-                                                <p className="text-[10px] font-bold leading-tight">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Official Plan Reviewed</p>
+                                                <p className="text-[11px] font-bold leading-snug text-slate-200">
+                                                    This implementation plan has been reviewed and approved by the SDO.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowSummaryModal(false)}
+                                            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
+                                        >
+                                            Close Summary View
+                                        </button>
+                                    </div>
+                                ) : isExpired ? (
+                                    <div className="space-y-3">
+                                        <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex items-center gap-3 shadow-md border border-slate-800">
+                                            <div className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center shrink-0 border border-white/20">
+                                                <TbLock size={18} className="text-slate-300" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Read-Only Mode</p>
+                                                <p className="text-[11px] font-bold leading-snug text-slate-200">
                                                     The submission deadline has passed. This proposal cannot be modified.
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => setShowSummaryModal(false)}
-                                            className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
+                                            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
                                         >
                                             Close Summary View
                                         </button>

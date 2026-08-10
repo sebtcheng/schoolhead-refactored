@@ -205,12 +205,12 @@ router.post('/submit', async (req, res) => {
 
         // ─── 🛡️ ABSOLUTE LOCK: Enforce Global Deadline Interval ─────────────
         const settingsRes = await client.query(
-            "SELECT key, value FROM settings WHERE key IN ('siif_deadline', 'siif_form_start', 'siif_form_end')"
+            "SELECT key, value FROM settings WHERE key IN ('siif_form_start', 'siif_form_end')"
         );
         const settings = {};
         settingsRes.rows.forEach(row => (settings[row.key] = row.value));
 
-        const deadlineStr = settings['siif_form_end'] || settings['siif_deadline'];
+        const deadlineStr = settings['siif_form_end'] ?? null;
         const startStr = settings['siif_form_start'];
         const now = new Date();
 

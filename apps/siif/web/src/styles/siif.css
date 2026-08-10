@@ -416,9 +416,9 @@ html.dark .siif-forms-footer {
   background: linear-gradient(135deg, var(--blue-50), white);
   box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
   overflow: hidden;
+  margin-top: 18px;
   margin-bottom: 24px;
-  border-radius: 0 0 22px 22px;
-  /* Smooth top corners if inside layout */
+  border-radius: 22px;
 }
 
 /* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
@@ -613,9 +613,9 @@ html.dark .siif-forms-footer {
   background: linear-gradient(135deg, var(--blue-50), white);
   box-shadow: 0 16px 34px color-mix(in srgb, var(--navy) 12%, transparent);
   overflow: hidden;
+  margin-top: 18px;
   margin-bottom: 24px;
-  border-radius: 0 0 22px 22px;
-  /* Smooth top corners if inside layout */
+  border-radius: 22px;
 }
 
 /* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
@@ -858,7 +858,7 @@ html.dark .siif-forms-footer {
   position: relative;
   isolation: isolate;
   min-height: 118px;
-  margin: 0;
+  margin: 20px 0 24px 0;
   padding: 28px 44px;
   display: flex;
   align-items: center;
