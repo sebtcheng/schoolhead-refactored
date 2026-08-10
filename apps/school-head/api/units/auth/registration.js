@@ -46,7 +46,7 @@ router.post('/api/check-existing-school', async (req, res) => {
   let client;
   try {
     client = await poolUsers.connect();
-    const query = "SELECT uid FROM user_SchoolHead WHERE school_id = $1";
+    const query = "SELECT uid FROM user_schoolhead WHERE school_id = $1";
     let result;
 
     try {
@@ -85,19 +85,25 @@ router.post('/api/register-beta', async (req, res) => {
     const { email, password, contactNumber, firstName, lastName, schoolData } = validatedData.data;
     const { school_id } = schoolData;
 
-    // Retrieve the active school master record
-    const masterRes = await safeQuery(
-      'SELECT * FROM "schools_IERN" WHERE "SchoolID" = $1 AND "status" = \'Active\' LIMIT 1',
+    // Retrieve the active school master record from users_database
+    const masterRes = await safeUsersQuery(
+      `SELECT 
+        iern AS "IERN", school_id AS "SchoolID", 
+        region AS "Region", division AS "Division", province AS "Province", 
+        municipality AS "Municipality", barangay AS "Barangay", 
+        latitude AS "Latitude", longitude AS "Longitude", status 
+       FROM schools_iern 
+       WHERE school_id = $1 AND (status ILIKE 'Active' OR status IS NULL) LIMIT 1`,
       [school_id]
     );
     if (masterRes.rowCount === 0) {
       return res.status(404).json({ error: "Active School ID not found in Master Record. Please contact support." });
     }
     const master = masterRes.rows[0];
-    const iern = master.IERN || school_id;
+    const iern = master.IERN || master.iern || school_id;
 
-    // Check for duplicate user emails or school IDs in user_SchoolHead
-    const dupRes = await safeUsersQuery('SELECT uid FROM user_SchoolHead WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
+    // Check for duplicate user emails or school IDs in user_schoolhead
+    const dupRes = await safeUsersQuery('SELECT uid FROM user_schoolhead WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
     if (dupRes.rowCount > 0) {
       return res.status(400).json({ error: "Email or School ID is already registered." });
     }
@@ -113,16 +119,9 @@ router.post('/api/register-beta', async (req, res) => {
       ? String(schoolData.longitude)
       : String(master.Longitude);
 
-    // 1. Insert user into users_database (user_SchoolHead & users)
+    // 1. Insert user into user_schoolhead table
     const userQuery = `
-      INSERT INTO users (
-        uid, email, password_hash, hash_version, role, first_name, last_name,
-        school_id, iern, contact_number, region, division, province, city, barangay,
-        disabled, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
-    `;
-    const shUserQuery = `
-      INSERT INTO user_SchoolHead (
+      INSERT INTO user_schoolhead (
         uid, email, password_hash, hash_version, role, first_name, last_name,
         school_id, iern, contact_number, region, division, province, city, barangay,
         disabled, created_at
@@ -136,7 +135,6 @@ router.post('/api/register-beta', async (req, res) => {
       false
     ];
     await safeUsersQuery(userQuery, userValues);
-    await safeUsersQuery(shUserQuery, userValues).catch(e => console.warn('⚠️ user_SchoolHead insert notice:', e.message));
 
     // 2. Insert or update ph_schools and unit1_school_identity in main database
     const client = await pool.connect();

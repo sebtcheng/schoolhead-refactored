@@ -20,7 +20,7 @@ async function findUserByUid(userUid) {
   if (!userUid) return null;
   try {
     const shRes = await poolUsers.query(
-      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM user_schoolhead WHERE uid = $1',
+      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM users WHERE uid = $1',
       [userUid]
     );
     if (shRes.rowCount > 0) return shRes.rows[0];
@@ -46,7 +46,7 @@ async function getUsersByUids(uids) {
 
   try {
     const shRes = await poolUsers.query(
-      'SELECT uid, first_name, last_name, email, role, position, school_id FROM user_schoolhead WHERE uid = ANY($1)',
+      'SELECT uid, first_name, last_name, email, role, position, school_id FROM users WHERE uid = ANY($1)',
       [uniqueUids]
     );
     shRes.rows.forEach(u => { userMap[u.uid] = u; });
@@ -65,7 +65,7 @@ async function getUsersByUids(uids) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [CONTACTS] GET /api/chat/contacts
-// Looks up valid target chat contacts strictly from user_rosdo and user_schoolhead in poolUsers.
+// Looks up valid target chat contacts strictly from user_rosdo and users in poolUsers.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
   const userUid = req.user.uid;
@@ -122,7 +122,7 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
     } else {
       const schoolHeadsQuery = `
         SELECT uid, first_name, last_name, school_id, role 
-        FROM user_schoolhead 
+        FROM users 
         WHERE (role ILIKE '%School Head%') 
           AND LOWER(TRIM(division)) = LOWER(TRIM($1)) AND (disabled = false OR disabled IS NULL)
         ORDER BY last_name ASC

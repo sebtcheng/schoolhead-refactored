@@ -847,17 +847,7 @@ const runMigrations = async (client, dbLabel) => {
             console.error(`❌ [${dbLabel}] Failed to init ph_public_schools_location view:`, viewErr.message);
         }
 
-        // --- COMPATIBILITY VIEW: schools_IERN ---
-        try {
-            await client.query(`
-                CREATE OR REPLACE VIEW "schools_IERN" AS 
-                SELECT iern AS "IERN", school_id AS "SchoolID", iern, school_id 
-                FROM ph_schools;
-            `);
-            console.log(`✅ [${dbLabel}] Compatibility VIEW "schools_IERN" Initialized`);
-        } catch (viewErr) {
-            console.warn(`⚠️ [${dbLabel}] Optional "schools_IERN" view creation skipped:`, viewErr.message);
-        }
+        // COMPATIBILITY VIEW: Disabled (schools_IERN is authoritative in users_database)
 
 
 
