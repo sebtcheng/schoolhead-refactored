@@ -199,6 +199,9 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [showFullscreenPdf, setShowFullscreenPdf] = useState(false);
     const [schoolNameWarning, setSchoolNameWarning] = useState("");
     const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
+    const [submitErrorBanner, setSubmitErrorBanner] = useState("");
 
     // ── IDENTITY SHIFT STATE ────────────────────────────────────────────────
     const [initialSchoolId] = useState(targetSchoolId || user?.school_id || localStorage.getItem("schoolId"));
@@ -239,21 +242,27 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 }
 
                 // Normal load path
-                const [savedRes, iernRes, draft] = await Promise.all([
+                const [savedRes, unit1Res, iernRes, draft] = await Promise.all([
                     fetch(api(`/ph_schools/${storedId}`))
                       .then(async r => {
                         console.log('[ph_schools] load', r.status, r.headers.get('content-type'));
-                        if (!r.ok) console.error('[ph_schools] load body:', await r.clone().text());
+                        if (!r.ok) console.warn('[ph_schools] lookup error bypassed gracefully:', r.status);
                         return r;
                       })
-                      .catch(err => { console.error('[ph_schools] load network:', err); return null; }),
+                      .catch(err => { console.warn('[ph_schools] lookup network error bypassed gracefully:', err); return null; }),
+                    fetch(api(`/api/ph_schools/unit1/${storedId}`))
+                      .then(async r => {
+                        if (!r.ok) console.warn('[unit1] lookup error bypassed gracefully:', r.status);
+                        return r;
+                      })
+                      .catch(err => { console.warn('[unit1] lookup network error bypassed gracefully:', err); return null; }),
                     fetch(api(`/schools_iern/${storedId}`))
                       .then(async r => {
                         console.log('[schools_iern] load', r.status, r.headers.get('content-type'));
-                        if (!r.ok) console.error('[schools_iern] load body:', await r.clone().text());
+                        if (!r.ok) console.warn('[schools_iern] lookup error bypassed gracefully:', r.status);
                         return r;
                       })
-                      .catch(err => { console.error('[schools_iern] load network:', err); return null; }),
+                      .catch(err => { console.warn('[schools_iern] lookup network error bypassed gracefully:', err); return null; }),
                     getUnitDraft(1, storedId).catch(() => null)
                 ]);
 
@@ -265,10 +274,44 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 if (txt) {
                     try {
                         const parsed = JSON.parse(txt);
-                        if (parsed.exists && parsed.data) d = parsed.data;
+                        const activeData = parsed.payload ? parsed.payload : (parsed.data ? parsed.data : parsed);
+                        if (parsed.validation_status) {
+                            setValidationStatus(parsed.validation_status);
+                            if (parsed.validation_status === 'submitted' || parsed.validation_status === 'validated') {
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (parsed.validation_remarks) {
+                            setValidationRemarks(parsed.validation_remarks);
+                        }
+                        if (parsed.is_completed !== undefined) {
+                            setIsCertified(parsed.is_completed);
+                        }
+                        if (activeData) d = { ...(d || {}), ...activeData };
                     } catch(e) {}
                 }
             }
+
+            if (unit1Res?.ok) {
+                try {
+                    const parsed = await unit1Res.json();
+                    const activeData = parsed.payload ? parsed.payload : (parsed.data ? parsed.data : parsed);
+                    if (parsed.validation_status) {
+                        setValidationStatus(parsed.validation_status);
+                        if (parsed.validation_status === 'submitted' || parsed.validation_status === 'validated') {
+                            setIsReadOnly(true);
+                        }
+                    }
+                    if (parsed.validation_remarks) {
+                        setValidationRemarks(parsed.validation_remarks);
+                    }
+                    if (parsed.is_completed !== undefined) {
+                        setIsCertified(parsed.is_completed);
+                    }
+                    if (activeData) d = { ...(d || {}), ...activeData };
+                } catch(e) {}
+            }
+
             if (iernRes?.ok) {
                 const j = await iernRes.json();
                 if (j.exists && j.data) {
@@ -309,22 +352,45 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 merged.iern = iernRow.iern || iernRow.IERN || merged.iern;
             }
 
-            // 2. ph_schools OVERRIDES Registry (Authoritative Master)
+            // 2. ph_schools & JSONB payload OVERRIDES Registry (Authoritative Master)
             if (d) {
-                const overrideFromPhSchools = (key, dKey = key) => {
-                    const v = d[dKey];
-                    if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "null") {
-                        merged[key] = String(v).trim();
+                const overrideFromPhSchools = (key, ...aliases) => {
+                    const allKeys = [key, ...aliases];
+                    for (const k of allKeys) {
+                        const v = d[k];
+                        if (v !== undefined && v !== null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "null") {
+                            merged[key] = String(v).trim();
+                            return;
+                        }
                     }
                 };
 
-                ["school_name", "region", "province", "municipality", "barangay", 
-                 "division", "district", "leg_district", "curricular_offering", 
-                 "school_head", "contact_number", "ownership", "school_type",
-                 "mother_school_id", "extension_mother_school_name", "ownership_document_type",
-                 "local_file_path", "local_file_name", "head_position_title",
-                 "head_first_name", "head_middle_name", "head_last_name", "head_sex",
-                 "established_month", "established_year", "ownership_na_reason"].forEach(k => overrideFromPhSchools(k));
+                overrideFromPhSchools("school_name", "schoolName", "school_name");
+                overrideFromPhSchools("region", "region");
+                overrideFromPhSchools("province", "province");
+                overrideFromPhSchools("municipality", "municipality", "city");
+                overrideFromPhSchools("barangay", "barangay");
+                overrideFromPhSchools("division", "division");
+                overrideFromPhSchools("district", "district");
+                overrideFromPhSchools("leg_district", "legislativeDistrict", "legDistrict", "leg_district");
+                overrideFromPhSchools("curricular_offering", "curricularOffering", "curricular_offering");
+                overrideFromPhSchools("school_head", "schoolHeadName", "schoolHead", "school_head");
+                overrideFromPhSchools("contact_number", "contactNumber", "contact_number");
+                overrideFromPhSchools("ownership", "ownership");
+                overrideFromPhSchools("school_type", "schoolType", "school_type");
+                overrideFromPhSchools("mother_school_id", "motherSchoolId", "motherSchoolLink", "mother_school_id");
+                overrideFromPhSchools("extension_mother_school_name", "extensionMotherSchoolName", "extension_mother_school_name");
+                overrideFromPhSchools("ownership_document_type", "ownershipDocumentType", "ownership_document_type");
+                overrideFromPhSchools("local_file_path", "localFilePath", "local_file_path");
+                overrideFromPhSchools("local_file_name", "localFileName", "local_file_name");
+                overrideFromPhSchools("head_position_title", "headPositionTitle", "head_position_title");
+                overrideFromPhSchools("head_first_name", "headFirstName", "head_first_name");
+                overrideFromPhSchools("head_middle_name", "headMiddleName", "head_middle_name");
+                overrideFromPhSchools("head_last_name", "headLastName", "head_last_name");
+                overrideFromPhSchools("head_sex", "headSex", "head_sex");
+                overrideFromPhSchools("established_month", "establishedMonth", "established_month");
+                overrideFromPhSchools("established_year", "establishedYear", "yearEstablished", "established_year");
+                overrideFromPhSchools("ownership_na_reason", "ownershipNaReason", "ownership_na_reason");
 
                 if (d.curricular_offering) merged.curricular_offering = normalizeOffering(d.curricular_offering);
 
@@ -1009,14 +1075,16 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             setLoading(true);
             let finalIern = formData.iern;
             if (!finalIern && formData.school_id) {
-                const r = await fetch(api(`/schools_iern/${formData.school_id}`))
-                    .then(async r => {
-                        console.log('[schools_iern] iern-fallback', r.status, r.headers.get('content-type'));
-                        if (!r.ok) console.error('[schools_iern] iern-fallback body:', await r.clone().text());
-                        return r;
-                    })
-                    .catch(err => { console.error('[schools_iern] iern-fallback network:', err); return null; });
-                if (r?.ok) { const j = await r.json(); if (j.exists && j.data?.iern) finalIern = j.data.iern; }
+                try {
+                    const r = await fetch(api(`/schools_iern/${formData.school_id}`))
+                        .catch(err => { console.warn('[schools_iern] iern-fallback network:', err); return null; });
+                    if (r?.ok) { 
+                        const j = await r.json().catch(() => null); 
+                        if (j?.exists && j.data?.iern) finalIern = j.data.iern; 
+                    }
+                } catch (e) {
+                    console.warn('[schools_iern] iern-fallback error caught gracefully:', e);
+                }
             }
             // STRICT VALIDATION WARNING (Frontend)
             const requiredFields = [
@@ -1034,19 +1102,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             const missing = requiredFields.filter(f => !formData[f.key]).map(f => f.label);
             
-            // Document Guard: Ensure compression is finished
-            const docRequired = formData.ownership !== "na" && formData.ownership !== "na_reason";
-            // Leniency: If we have the doc ID and a path (even if it's the original one), it's "ready"
-            const docReady = 
-                !!formData.ownership_document_path || 
-                (!!formData.local_file_path && !!formData.ownership_doc_id) ||
-                docStatus === "secured";
-            
-            if (docRequired && !docReady) {
-                alert("Please wait for your ownership document to finish securing/compressing before submitting.");
-                setLoading(false);
-                return;
-            }
+            // Document Guard: Ownership document is completely optional.
+            // If a document is currently uploading or compressing, isDocBlocking above handles it.
 
             if (missing.length > 0) {
                 const proceed = window.confirm(
@@ -1058,6 +1115,24 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     return;
                 }
             }
+
+            setSubmitErrorBanner("");
+
+            const sanitizeCoordinate = (val) => {
+                if (val === undefined || val === null || val === false || val === 'false' || val === '' || val === 'null') {
+                    return null;
+                }
+                const parsed = parseFloat(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+
+            const sanitizeInt = (val) => {
+                if (val === undefined || val === null || val === false || val === 'false' || val === '' || val === 'null') {
+                    return null;
+                }
+                const parsed = parseInt(val, 10);
+                return isNaN(parsed) ? null : parsed;
+            };
 
             // Prepare JSON payload (no more files - using Google Drive links)
             dataToSend = {
@@ -1072,8 +1147,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 district: formData.district,
                 leg_district: formData.leg_district,
                 curricular_offering: formData.curricular_offering,
-                latitude: formData.latitude,
-                longitude: formData.longitude,
+                latitude: sanitizeCoordinate(formData.latitude),
+                longitude: sanitizeCoordinate(formData.longitude),
                 iern: finalIern || null,
                 school_head: formData.school_head,
                 contact_number: formData.contact_number,
@@ -1101,7 +1176,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 local_file_path: formData.local_file_path,
                 local_file_name: formData.local_file_name,
                 local_file_size: formData.local_file_size,
-                ownership_doc_id: formData.ownership_doc_id,
+                ownership_doc_id: sanitizeInt(formData.ownership_doc_id),
                 ownership_document_path: formData.ownership_document_path,
             };
             
@@ -1190,7 +1265,8 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 setShowOfflineSuccess(true);
             } else {
                 const errorMsg = err.message || "Unknown error";
-                alert(`Failed to sync: ${errorMsg}\n\nProgress saved locally.`);
+                setSubmitErrorBanner("Form Submission Failed: Please ensure location/coordinate points are valid.");
+                alert(`Form Submission Failed: Please ensure location/coordinate points are valid.\n\nDetails: ${errorMsg}`);
             }
         } finally {
             setLoading(false);
@@ -1377,7 +1453,7 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             </AnimatePresence>
 
             <main className="flex-1 relative overflow-y-auto px-6 pt-4 pb-32">
-                <UnitRemarkAlert unitId="u1" schoolId={targetSchoolId || user?.school_id || localStorage.getItem("schoolId")} />
+                <UnitRemarkAlert unitId="u1" schoolId={targetSchoolId || user?.school_id || localStorage.getItem("schoolId")} sdoRemark={validationRemarks} />
                 <AnimatePresence mode="wait">
                     {isReviewMode ? (
                         <div key="review" className="max-w-md mx-auto pb-32 mt-4 space-y-8">
@@ -2539,7 +2615,14 @@ const Unit1SchoolIdentity = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                         )}
 
 
-                                        {/* Certification Checkbox */}
+                                         {submitErrorBanner && (
+                                            <div className="p-4 mb-4 bg-rose-50 border-2 border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 font-bold text-sm">
+                                                <FiAlertTriangle className="w-6 h-6 flex-shrink-0 text-rose-500" />
+                                                <span>{submitErrorBanner}</span>
+                                            </div>
+                                         )}
+
+                                         {/* Certification Checkbox */}
                                         <div 
                                             onClick={() => setIsCertified(!isCertified)}
                                             className={`p-8 rounded-[2.5rem] mt-8 mb-4 border-4 transition-all duration-300 flex items-start gap-6 cursor-pointer ${isCertified ? 'bg-emerald-50 border-emerald-500 shadow-xl shadow-emerald-100' : 'bg-white border-slate-100 opacity-60'}`}

@@ -5,7 +5,7 @@ import {
 } from 'react-icons/tb';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
-import { logger } from '../../../utils/logger';
+import { logger } from '../utils/logger';
 import { INTERVENTIONS, INTERVENTION_ICONS, GRADE_LABELS, KEY_STAGES } from '../constants/siifConstants';
 import { fetchAllocation, fetchSubmission } from '../services/siifService';
 import SiifLoader from '../components/SiifLoader';
@@ -15,6 +15,10 @@ const SIIFDashboard = ({ user, token }) => {
     const [loading, setLoading] = useState(true);
     const [selectedModalIntervention, setSelectedModalIntervention] = useState(null);
 
+    // ── Revision Alert Modal State ───────────────────────────────────────────
+    const [showRevisionModal, setShowRevisionModal] = useState(false);
+    const [countdown, setCountdown] = useState(10);
+    const [isAckEnabled, setIsAckEnabled] = useState(false);
 
     const [allocation, setAllocation] = useState({
         allocation_amount: '0.00',
@@ -54,9 +58,67 @@ const SIIFDashboard = ({ user, token }) => {
             });
     }, [user, token]);
 
+    // ── Revision Detection: purely DB-driven — fires on every mount/refetch ──
+    // No sessionStorage or localStorage — the ONLY authority is for_revision in DB.
+    // Modal fires whenever for_revision === true, regardless of browser state.
+    useEffect(() => {
+        if (!submission) return;
+        const forRevision = submission.for_revision ?? false;
+        if (forRevision) {
+            setShowRevisionModal(true);
+            setCountdown(10);
+            setIsAckEnabled(false);
+        }
+    }, [submission]);
+
+    // ── Countdown Timer: decrements every second while modal is open ─────────
+    useEffect(() => {
+        if (!showRevisionModal) return;
+        if (countdown <= 0) {
+            setIsAckEnabled(true);
+            return;
+        }
+        const timer = setInterval(() => {
+            setCountdown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    setIsAckEnabled(true);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [showRevisionModal, countdown]);
+
+    // ── Escape Key Blocker: prevents keyboard dismissal of the modal ─────────
+    useEffect(() => {
+        if (!showRevisionModal) return;
+        const blockEscape = (e) => {
+            if (e.key === 'Escape') e.preventDefault();
+        };
+        window.addEventListener('keydown', blockEscape, true);
+        return () => window.removeEventListener('keydown', blockEscape, true);
+    }, [showRevisionModal]);
+
+    // ── Acknowledge Handler ──────────────────────────────────────────────────
+    // No persistence — closing is in-memory only. On next page load or navigation
+    // back to dashboard, submission refetches and modal fires again if still flagged.
+    const handleAcknowledge = () => {
+        setShowRevisionModal(false);
+    };
+
     // Calculate Summary Totals
     const innovationsCount = submission?.interventions?.length || 0;
-    const totalBudgetEstimate = submission?.totalBudget || 0;
+    const totalBudgetEstimate = useMemo(() => {
+        if (submission?.totalBudget !== undefined && parseFloat(submission.totalBudget) > 0) {
+            return parseFloat(submission.totalBudget);
+        }
+        if (submission?.budgetEstimates) {
+            return Object.values(submission.budgetEstimates).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+        }
+        return 0;
+    }, [submission]);
 
     let totalBeneficiaries = 0;
     if (submission?.interventionData) {
@@ -106,7 +168,7 @@ const SIIFDashboard = ({ user, token }) => {
 
     const completedPhases = useMemo(() => {
         let count = 0;
-        if (submission?.pia || submission) count++; // PIA
+        if (submission?.priorityAreas?.length > 0) count++; // PIA
         if (submission?.interventions?.length > 0) count++; // Interventions
         if (totalBeneficiaries > 0) count++; // Beneficiaries
         if (totalBudgetEstimate > 0) count++; // Budget
@@ -155,7 +217,7 @@ const SIIFDashboard = ({ user, token }) => {
 
 
 
-            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-7 print:hidden">
+            <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-7 print:hidden">
                 <header className="topbar print:hidden">
                     <div className="page-title">
                         <p className="eyebrow">
@@ -164,15 +226,13 @@ const SIIFDashboard = ({ user, token }) => {
                         <h1>School Innovation and Improvement Fund</h1>
                     </div>
 
-                    <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0">
-                        <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
-                            <div className="flex flex-col items-start sm:items-end">
-                                <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Forms Completion</small>
-                                <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
-                                    {Math.round((completedPhases / 5) * 100)}%
-                                </strong>
-                            </div>
-                            <div className="flex-1 sm:w-full" style={{ maxWidth: '120px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div className="siif-topbar-actions shrink-0">
+                        <section className="siif-school-pill">
+                            <small style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.05em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms Completion</small>
+                            <strong style={{ fontSize: '22px', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: '3px 0', lineHeight: 1, fontWeight: 900, display: 'block' }}>
+                                {Math.round((completedPhases / 5) * 100)}%
+                            </strong>
+                            <div style={{ width: '80%', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', margin: '2px auto 0' }}>
                                 <div style={{ width: `${(completedPhases / 5) * 100}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
                             </div>
                         </section>
@@ -180,23 +240,23 @@ const SIIFDashboard = ({ user, token }) => {
                 </header>
 
                 <section className="siif-grid mt-3 sm:mt-6">
-                    {/* KPI Cards Row */}
-                    <div className="siif-kpis grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Total Allocated Budget</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: 'var(--navy)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(allocation.allocation_amount)}</h3>
+                    {/* KPI Cards Row - Strictly 1 Row */}
+                    <div className="siif-kpis grid grid-cols-4 gap-2 sm:gap-3">
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Allocated Budget</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--navy)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.allocation_amount)}</h3>
                         </div>
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Total Estimated Budget</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: 'var(--blue-600)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(totalBudgetEstimate)}</h3>
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Estimated Budget</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--blue-600)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(totalBudgetEstimate)}</h3>
                         </div>
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Remaining Funds</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: (allocation.allocation_amount - totalBudgetEstimate) < 0 ? 'var(--red)' : 'var(--green)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(allocation.allocation_amount - totalBudgetEstimate)}</h3>
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Remaining Funds</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: (allocation.allocation_amount - totalBudgetEstimate) < 0 ? 'var(--red)' : 'var(--green)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.allocation_amount - totalBudgetEstimate)}</h3>
                         </div>
-                        <div className="siif-card kpi-card" style={{ padding: '12px 14px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.3 }}>Budget Utilized</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(13px, 2.2vw, 26px)', color: 'var(--purple)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>{formatCurrency(allocation.spent_amount)}</h3>
+                        <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Budget Utilized</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--purple)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.spent_amount)}</h3>
                         </div>
                     </div>
 
@@ -323,15 +383,15 @@ const SIIFDashboard = ({ user, token }) => {
                                     </div>
                                 )}
 
-                                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 sm:p-6 bg-white rounded-3xl border border-slate-100 shadow-sm mt-2">
+                                <div className="siif-queue-content">
                                     {/* Donut Chart SVG */}
-                                    <div className="flex-shrink-0 w-[200px] sm:w-[240px] h-[200px] sm:h-[240px] relative mx-auto lg:mx-0 group">
+                                    <div className="flex-shrink-0 w-[160px] sm:w-[190px] h-[160px] sm:h-[190px] relative mx-auto sm:mx-0 group">
                                         {chartData.length > 0 ? (
                                             <>
                                                 {/* Outer decorative ring */}
                                                 <div className="absolute inset-0 rounded-full border border-slate-50 scale-110 transition-transform duration-500 group-hover:scale-105 opacity-50" />
                                                 <svg viewBox="-4 -4 44 44" className="w-full h-full -rotate-90 drop-shadow-lg">
-                                                    {chartData.map((slice, idx) => (
+                                                    {chartData.map((slice) => (
                                                         <circle
                                                             key={slice.id}
                                                             r="15.9155"
@@ -351,9 +411,11 @@ const SIIFDashboard = ({ user, token }) => {
                                                         />
                                                     ))}
                                                 </svg>
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-white/40 backdrop-blur-[1px] m-[30px] rounded-full shadow-inner border border-white/60">
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Total Budget</span>
-                                                    <strong className="text-xl font-black bg-gradient-to-br from-slate-800 to-slate-600 bg-clip-text text-transparent">{formatCurrency(totalBudgetEstimate)}</strong>
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-slate-50/90 backdrop-blur-[1px] m-[20px] rounded-full shadow-inner border border-slate-100">
+                                                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mb-0.5">Total Budget Estimate</span>
+                                                    <strong className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-none text-center px-1">
+                                                        {formatCurrency(totalBudgetEstimate)}
+                                                    </strong>
                                                 </div>
                                             </>
                                         ) : (
@@ -365,36 +427,35 @@ const SIIFDashboard = ({ user, token }) => {
                                     </div>
 
                                     {/* Modern List */}
-                                    <div className="flex-1 custom-scrollbar overflow-y-auto max-h-[260px] pr-2 space-y-2.5">
+                                    <div className="flex-1 w-full min-w-0 custom-scrollbar overflow-y-auto max-h-[260px] pr-1 space-y-2">
                                         {chartData.length > 0 ? (
                                             chartData.map(slice => {
                                                 return (
                                                     <div
                                                         key={slice.id}
-                                                        className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-md transition-all duration-300 cursor-pointer group"
+                                                        className="flex items-center justify-between p-2.5 sm:p-3 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-md transition-all duration-300 cursor-pointer group gap-3"
                                                         onClick={() => setSelectedModalIntervention(slice.id)}
                                                     >
-                                                        <div className="flex items-center gap-3.5">
+                                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                             <div
-                                                                className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform duration-300 group-hover:scale-110"
+                                                                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white shadow-sm transition-transform duration-300 group-hover:scale-105 shrink-0"
                                                                 style={{ backgroundColor: slice.color, backgroundImage: 'linear-gradient(to bottom right, rgba(255,255,255,0.2), rgba(0,0,0,0.1))' }}
                                                             >
-                                                                {/* Optional: Add icon mapping here if desired, using initials for now */}
-                                                                <span className="font-black text-sm">{slice.label.charAt(0)}</span>
+                                                                <span className="font-black text-xs">{slice.label.charAt(0)}</span>
                                                             </div>
-                                                            <div>
-                                                                <span className="font-bold text-[13px] text-slate-700 block mb-0.5">{slice.label}</span>
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="h-1.5 w-16 bg-slate-200 rounded-full overflow-hidden">
+                                                            <div className="min-w-0 flex-1">
+                                                                <span className="font-bold text-[12px] sm:text-[13px] text-slate-700 block truncate leading-tight">{slice.label}</span>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <div className="h-1.5 w-12 sm:w-16 bg-slate-200 rounded-full overflow-hidden shrink-0">
                                                                         <div className="h-full rounded-full" style={{ width: `${slice.percentage}%`, backgroundColor: slice.color }} />
                                                                     </div>
-                                                                    <span className="text-[10px] font-black text-slate-400">{slice.percentage.toFixed(1)}%</span>
+                                                                    <span className="text-[10px] font-black text-slate-500 shrink-0">{slice.percentage.toFixed(1)}%</span>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <strong className="block text-[14px] font-black text-slate-800">{formatCurrency(slice.budget)}</strong>
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-siif-blue transition-colors">Details →</span>
+                                                        <div className="text-right shrink-0">
+                                                            <strong className="block text-[12px] sm:text-[13px] font-black text-slate-800 leading-tight">{formatCurrency(slice.budget)}</strong>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-siif-blue transition-colors">Details →</span>
                                                         </div>
                                                     </div>
                                                 );
@@ -581,6 +642,163 @@ const SIIFDashboard = ({ user, token }) => {
 
             {/* ── Intervention Details Modal ─────────────────────────────────────── */}
             <AnimatePresence>
+                {showRevisionModal && (
+                    <motion.div
+                        key="revision-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="fixed inset-0 flex items-center justify-center z-[9999] px-4"
+                        style={{ background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(8px)' }}
+                    >
+                        <motion.div
+                            key="revision-modal-card"
+                            initial={{ scale: 0.93, y: 28, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.93, y: 28, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                            className="relative w-full max-w-lg bg-white rounded-3xl overflow-hidden"
+                            style={{ boxShadow: '0 32px 80px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(220,38,38,0.08)' }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* ── Hero Banner ─────────────────────────────────────── */}
+                            <div className="relative px-10 pt-14 pb-8 text-center overflow-hidden"
+                                style={{ background: 'linear-gradient(160deg, #fff1f2 0%, #ffe4e6 60%, #fecdd3 100%)' }}
+                            >
+                                {/* Decorative rings */}
+                                <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-30" style={{ background: 'radial-gradient(circle, #fca5a5, transparent 70%)' }} />
+                                <div className="absolute -bottom-6 -left-6 w-32 h-32 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #f87171, transparent 70%)' }} />
+
+                                {/* Icon — centered block, full width */}
+                                <div className="relative flex items-center justify-center mb-4">
+                                    <div className="absolute w-20 h-20 rounded-full animate-ping opacity-20" style={{ background: '#ef4444' }} />
+                                    <div className="relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg"
+                                        style={{ background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', boxShadow: '0 8px 24px -4px rgba(220,38,38,0.5)' }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-10 h-10">
+                                            <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                </div>
+
+                                {/* Badge — sits directly below icon */}
+                                <div className="flex justify-center mb-4">
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full"
+                                        style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.2)' }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-red-600">Action Required</span>
+                                    </div>
+                                </div>
+
+                                <h2 className="text-2xl font-black text-slate-800 leading-tight">Plan Returned for Revision</h2>
+                                <p className="text-sm text-slate-500 mt-2 font-medium">
+                                    Your SIIF submission has been flagged by the Division or Regional Office.
+                                    Please review the remarks below carefully.
+                                </p>
+                            </div>
+
+                            {/* ── Body ────────────────────────────────────────────── */}
+                            <div className="px-10 py-8 space-y-6">
+
+                                {/* Remarks Box */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-5 h-5 rounded-md bg-red-100 flex items-center justify-center shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#ef4444" className="w-3 h-3">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Remarks from SDO / RO</span>
+                                    </div>
+                                    <div className="rounded-2xl p-5 text-sm leading-relaxed whitespace-pre-wrap text-slate-700 font-medium min-h-[80px] max-h-[140px] overflow-y-auto custom-scrollbar"
+                                        style={{ background: '#fafafa', border: '1.5px solid #fee2e2' }}
+                                    >
+                                        {submission?.revision_remarks || 'No specific remarks provided. Please contact your SDO for details.'}
+                                    </div>
+                                </div>
+
+                                {/* Countdown section */}
+                                <div className="rounded-2xl p-5 flex items-center gap-5"
+                                    style={{ background: isAckEnabled ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #fff7ed, #fef3c7)', border: `1.5px solid ${isAckEnabled ? '#bbf7d0' : '#fde68a'}` }}
+                                >
+                                    {/* Circular ring countdown */}
+                                    <div className="relative shrink-0 w-16 h-16">
+                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 44 44">
+                                            <circle cx="22" cy="22" r="19" fill="none"
+                                                stroke={isAckEnabled ? '#d1fae5' : '#fde68a'}
+                                                strokeWidth="4"
+                                            />
+                                            <circle cx="22" cy="22" r="19" fill="none"
+                                                stroke={isAckEnabled ? '#10b981' : '#f59e0b'}
+                                                strokeWidth="4"
+                                                strokeLinecap="round"
+                                                strokeDasharray={`${(isAckEnabled ? 1 : countdown / 10) * 119.38} 119.38`}
+                                                style={{ transition: 'stroke-dasharray 0.9s linear, stroke 0.4s ease' }}
+                                            />
+                                        </svg>
+                                        <span className="absolute inset-0 flex items-center justify-center text-lg font-black"
+                                            style={{ color: isAckEnabled ? '#10b981' : '#d97706' }}
+                                        >
+                                            {isAckEnabled ? '✓' : countdown}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black" style={{ color: isAckEnabled ? '#065f46' : '#92400e' }}>
+                                            {isAckEnabled ? 'You may now acknowledge' : `Please wait ${countdown} second${countdown !== 1 ? 's' : ''}`}
+                                        </p>
+                                        <p className="text-xs mt-0.5 font-medium" style={{ color: isAckEnabled ? '#059669' : '#d97706', opacity: 0.85 }}>
+                                            {isAckEnabled
+                                                ? 'Click the button below to proceed to your dashboard.'
+                                                : 'Carefully read the remarks before acknowledging.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Acknowledge Button */}
+                                <button
+                                    id="revision-modal-acknowledge-btn"
+                                    disabled={!isAckEnabled}
+                                    onClick={handleAcknowledge}
+                                    className="w-full py-4 rounded-2xl font-black text-sm tracking-wide transition-all duration-300"
+                                    style={isAckEnabled ? {
+                                        background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                                        color: '#fff',
+                                        boxShadow: '0 8px 28px -6px rgba(220,38,38,0.55)',
+                                        cursor: 'pointer',
+                                    } : {
+                                        background: '#f1f5f9',
+                                        color: '#94a3b8',
+                                        cursor: 'not-allowed',
+                                        border: '1.5px solid #e2e8f0',
+                                    }}
+                                >
+                                    {isAckEnabled ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+                                            </svg>
+                                            I Acknowledge &amp; Will Revise
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                <path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" />
+                                            </svg>
+                                            Locked — {countdown}s remaining
+                                        </span>
+                                    )}
+                                </button>
+
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Intervention Details Modal ─────────────────────────────────────── */}
+            <AnimatePresence>
                 {selectedModalIntervention && (() => {
                     const intId = selectedModalIntervention;
                     const info = INTERVENTIONS.find(i => i.id === intId);
@@ -600,98 +818,123 @@ const SIIFDashboard = ({ user, token }) => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[1000] flex items-center justify-center p-5 pb-28"
+                            className="siif-modal-overlay"
+                            onClick={() => setSelectedModalIntervention(null)}
                         >
                             <motion.div
-                                initial={{ scale: 0.95, y: 20 }}
-                                animate={{ scale: 1, y: 0 }}
-                                exit={{ scale: 0.95, y: 20 }}
-                                className="siif-card w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[85vh] border-[2.5px] border-slate-300"
-                                style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
+                                initial={{ scale: 0.92, y: 15, opacity: 0 }}
+                                animate={{ scale: 1, y: 0, opacity: 1 }}
+                                exit={{ scale: 0.92, y: 15, opacity: 0 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                className="siif-modal-card"
+                                onClick={(e) => e.stopPropagation()}
                             >
-                                {/* Modal Header (InsightED rules) */}
-                                <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-8 py-6 shadow-lg relative overflow-hidden shrink-0">
-                                    <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-                                    <div className="relative z-10 flex items-start justify-between gap-4">
-                                        <div>
-                                            <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-1.5" style={{ color: 'var(--gold)' }}>
-                                                Intervention Disaggregation
-                                            </p>
-                                            <h2 className="text-[20px] font-black italic uppercase tracking-tight leading-tight">
-                                                {info?.label || intId}
-                                            </h2>
-                                        </div>
-                                        <button
-                                            onClick={() => setSelectedModalIntervention(null)}
-                                            className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/10 text-white shrink-0"
-                                        >
-                                            <TbX size={20} />
-                                        </button>
+                                {/* Header */}
+                                <div className="siif-modal-header">
+                                    <div>
+                                        <span className="siif-modal-eyebrow">
+                                            Intervention Disaggregation
+                                        </span>
+                                        <h2 className="siif-modal-title">
+                                            {info?.label || intId}
+                                        </h2>
                                     </div>
-                                </div>
-
-                                {/* Modal Body */}
-                                <div className="p-8 overflow-y-auto space-y-6 flex-1 text-slate-800 text-[14px] bg-slate-50">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-600 text-sm">Search:</span>
-                                            <input type="text" placeholder="Search records..." className="border border-slate-300 rounded px-2 py-1 text-sm outline-none focus:border-siif-blue" />
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-600 text-sm">Showing 1 of 1</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white shadow-sm" style={{ maxHeight: '400px' }}>
-                                        <table className="w-full text-left" style={{ tableLayout: 'fixed' }}>
-                                            <thead className="bg-slate-100 sticky top-0 z-10">
-                                                <tr>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer">Record ID ↕</th>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer">Beneficiaries ↕</th>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer">Activities ↕</th>
-                                                    <th className="p-3 font-bold text-slate-600 uppercase text-[11px] border-b border-slate-200 cursor-pointer text-center">Value ↕</th>
-                                                </tr>
-                                                <tr>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                    <th className="p-1 border-b border-slate-200 bg-white"><input type="text" placeholder="Filter..." className="w-full text-[10px] p-1 border rounded" /></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr className="hover:bg-slate-50 border-b border-slate-100">
-                                                    <td className="p-3 text-slate-700 font-medium truncate">{info?.label || intId}</td>
-                                                    <td className="p-3 text-slate-700 truncate">{learners.toLocaleString()} learners</td>
-                                                    <td className="p-3 text-slate-700 truncate">{acts.length + (intData.otherActivity ? 1 : 0)} activities</td>
-                                                    <td className="p-3 text-emerald-700 font-bold text-center">{formatCurrency(budget)}</td>
-                                                </tr>
-                                                <tr className="sticky bottom-0 bg-slate-100 border-t-2 border-slate-300">
-                                                    <td className="p-3 font-black text-slate-800" colSpan="3">Total</td>
-                                                    <td className="p-3 font-black text-emerald-700 text-center">{formatCurrency(budget)}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div className="flex items-center justify-between mt-4">
-                                        <span className="text-xs font-bold text-slate-500">Rows 1–1 of 1 · Page 1 of 1</span>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span className="font-bold text-slate-600">Rows per page:</span>
-                                            <select className="border border-slate-300 rounded px-2 py-1 outline-none" defaultValue="25">
-                                                <option value="10">10</option>
-                                                <option value="25">25</option>
-                                                <option value="50">50</option>
-                                                <option value="100">100</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="p-6 bg-slate-50 border-t border-slate-200 shrink-0 flex justify-end">
                                     <button
                                         onClick={() => setSelectedModalIntervention(null)}
-                                        className="px-6 py-3 bg-siif-blue text-white font-black text-sm uppercase rounded-xl hover:bg-siif-blue-dark transition-all"
+                                        className="siif-modal-close-btn"
+                                        aria-label="Close modal"
                                     >
-                                        Close Details
+                                        <TbX size={20} />
+                                    </button>
+                                </div>
+
+                                {/* Body */}
+                                <div className="siif-modal-body">
+                                    {/* 3 Metric Cards */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Estimated Budget</span>
+                                            <strong className="text-xs sm:text-sm md:text-base font-black text-emerald-600 truncate w-full">{formatCurrency(budget)}</strong>
+                                        </div>
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Target Learners</span>
+                                            <strong className="text-base sm:text-lg font-black text-[#0284C7]">{learners.toLocaleString()}</strong>
+                                        </div>
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center text-center">
+                                            <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Planned Activities</span>
+                                            <strong className="text-base sm:text-lg font-black text-purple-600">{acts.length + (intData.otherActivity ? 1 : 0)}</strong>
+                                        </div>
+                                    </div>
+
+                                    {/* Beneficiaries Breakdown */}
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                                        <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#08315F] flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                            <TbUsers size={16} className="text-[#0284C7]" />
+                                            Target Beneficiaries Breakdown
+                                        </h4>
+                                        {Object.keys(intData.beneficiaryCounts || {}).length > 0 ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {Object.entries(intData.beneficiaryCounts || {}).map(([grade, count]) => {
+                                                    const cntInt = parseInt(count) || 0;
+                                                    if (cntInt <= 0) return null;
+                                                    const aralObj = intData.aralCounts?.[grade] || {};
+                                                    const aralStr = Object.entries(aralObj)
+                                                        .filter(([, c]) => parseInt(c) > 0)
+                                                        .map(([subj, c]) => `${subj}: ${c}`)
+                                                        .join(', ');
+                                                    return (
+                                                        <div key={grade} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                                                            <div className="min-w-0 flex-1 pr-2">
+                                                                <span className="font-bold text-xs text-slate-700 block truncate">{GRADE_LABELS[grade] || grade}</span>
+                                                                {aralStr && <span className="text-[10px] text-slate-500 block truncate italic">ARAL: {aralStr}</span>}
+                                                            </div>
+                                                            <span className="bg-blue-50 text-[#0284C7] font-black text-xs px-2.5 py-1 rounded-lg border border-blue-100 shrink-0">
+                                                                {cntInt}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">No beneficiary details specified.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Planned Activities */}
+                                    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                                        <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#08315F] flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                                            <TbChecklist size={16} className="text-emerald-600" />
+                                            Planned Activities List
+                                        </h4>
+                                        {acts.length > 0 || intData.otherActivity ? (
+                                            <ul className="space-y-2">
+                                                {acts.map((act, i) => (
+                                                    <li key={i} className="flex items-start gap-2.5 text-xs text-slate-700 font-semibold p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                                        <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">✓</span>
+                                                        <span>{act}</span>
+                                                    </li>
+                                                ))}
+                                                {intData.otherActivity && (
+                                                    <li className="flex items-start gap-2.5 text-xs text-slate-700 font-semibold p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                                        <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">★</span>
+                                                        <span>Other: {intData.otherActivity}</span>
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-xs text-slate-400 italic">No activities selected.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="siif-modal-footer">
+                                    <span className="siif-modal-footer-info">SIIF Implementation Details</span>
+                                    <button
+                                        onClick={() => setSelectedModalIntervention(null)}
+                                        className="siif-modal-btn-primary"
+                                    >
+                                        Close
                                     </button>
                                 </div>
                             </motion.div>

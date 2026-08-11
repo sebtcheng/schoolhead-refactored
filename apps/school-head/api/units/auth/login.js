@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { FirebaseScrypt } from 'firebase-scrypt';
 
 import authMiddleware from '@shared/auth';
-import { pool } from '@shared/db';
+import { pool, poolUsers } from '@shared/db';
 
 const router = express.Router();
 
@@ -32,11 +32,10 @@ router.post('/api/auth/migrate-login', async (req, res) => {
 
     const query = `
       SELECT ${SELECT_COLS} 
-      FROM users 
+      FROM user_schoolhead 
       WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1) 
-        AND disabled = false 
-        AND (registration_status = 'Valid' OR registration_status IS NULL) 
-      ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC
+        AND (disabled = false OR disabled IS NULL) 
+      ORDER BY created_at DESC
     `;
 
     const processUserRes = (resObj) => {
@@ -45,7 +44,7 @@ router.post('/api/auth/migrate-login', async (req, res) => {
     };
 
     let user;
-    let loginClient = await pool.connect();
+    let loginClient = await poolUsers.connect();
     try {
       const searchTarget = identifier.toLowerCase();
       console.log(`\n=================== [LOGIN DEBUG TRACE] ===================`);
@@ -65,7 +64,7 @@ router.post('/api/auth/migrate-login', async (req, res) => {
       console.error(`❌ [LOGIN DEBUG TRACE ERROR]:`, err);
       if (err.message.includes('terminated unexpectedly')) {
         loginClient.release();
-        loginClient = await pool.connect();
+        loginClient = await poolUsers.connect();
         const retryRes = await loginClient.query(query, [identifier.toLowerCase()]);
         user = processUserRes(retryRes);
       } else {
@@ -101,7 +100,7 @@ router.post('/api/auth/migrate-login', async (req, res) => {
         console.log(`[LAZY MIGRATION] Upgrading hash for user: ${user.email}`);
         const saltRounds = 10;
         bcrypt.hash(password, saltRounds).then(newBcryptHash => {
-          pool.query(
+          poolUsers.query(
             `UPDATE users SET password_hash = $1, password_salt = NULL, hash_version = 'bcrypt' WHERE uid = $2`,
             [newBcryptHash, user.uid]
           ).catch(e => console.error('[LAZY MIGRATION] Update failed:', e.message));
@@ -124,7 +123,7 @@ router.post('/api/auth/migrate-login', async (req, res) => {
       }
 
       if (finalCategory !== user.account_category) {
-        pool.query('UPDATE users SET account_category = $1 WHERE uid = $2', [finalCategory, user.uid])
+        poolUsers.query('UPDATE users SET account_category = $1 WHERE uid = $2', [finalCategory, user.uid])
           .catch(e => console.error('[MIGRATE LOGIN] Category update failed:', e.message));
       }
     }
@@ -187,15 +186,14 @@ router.post('/api/auth/pin-login', async (req, res) => {
     const selectCols = 'uid, email, role, region, division, office, account_category, passcode, first_name, last_name, school_id';
     const query = `
       SELECT ${selectCols} 
-      FROM users 
+      FROM user_schoolhead 
       WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1) 
-        AND disabled = false 
-        AND (registration_status = 'Valid' OR registration_status IS NULL) 
-      ORDER BY CASE WHEN role = 'School Head' THEN 2 ELSE 1 END, created_at DESC
+        AND (disabled = false OR disabled IS NULL) 
+      ORDER BY created_at DESC
     `;
 
     let user;
-    let client = await pool.connect();
+    let client = await poolUsers.connect();
     try {
       const searchTarget = identifier.toLowerCase();
       console.log(`\n=================== [PIN-LOGIN DEBUG TRACE] ===================`);
@@ -209,7 +207,7 @@ router.post('/api/auth/pin-login', async (req, res) => {
       } catch (err) {
         if (err.message.includes('terminated unexpectedly')) {
           client.release();
-          client = await pool.connect();
+          client = await poolUsers.connect();
           userRes = await client.query(query, [searchTarget]);
         } else {
           throw err;
@@ -281,7 +279,8 @@ router.post('/api/auth/pin-login', async (req, res) => {
         passcode: user.passcode,
         office: user.office,
         firstName: user.first_name,
-        lastName: user.last_name
+        lastName: user.last_name,
+        user_sh_index: user.user_sh_index
       }
     });
 
@@ -297,14 +296,14 @@ router.post('/api/auth/pin-login', async (req, res) => {
 router.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const { uid } = req.user;
-    const query = 'SELECT uid, email, role, region, division, office, account_category, first_name, last_name, school_id, passcode, province, city FROM users WHERE uid = $1';
+    const query = 'SELECT uid, email, role, region, division, office, account_category, first_name, last_name, school_id, passcode, province, city FROM user_schoolhead WHERE uid = $1';
 
     let result;
     try {
-      result = await pool.query(query, [uid]);
+      result = await poolUsers.query(query, [uid]);
     } catch (err) {
       if (err.message.includes('terminated unexpectedly')) {
-        result = await pool.query(query, [uid]);
+        result = await poolUsers.query(query, [uid]);
       } else {
         throw err;
       }
@@ -347,7 +346,7 @@ router.post('/api/auth/change-password', authMiddleware, async (req, res) => {
   }
 
   try {
-    const userRes = await pool.query('SELECT password_hash FROM users WHERE uid = $1', [uid]);
+    let userRes = await poolUsers.query('SELECT password_hash FROM user_schoolhead WHERE uid = $1', [uid]);
     if (userRes.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
     const { password_hash } = userRes.rows[0];
@@ -356,7 +355,7 @@ router.post('/api/auth/change-password', authMiddleware, async (req, res) => {
     if (!isMatch) return res.status(401).json({ error: "Incorrect current password" });
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password_hash = $1, hash_version = \'bcrypt\' WHERE uid = $1', [newHash, uid]);
+    await poolUsers.query('UPDATE user_schoolhead SET password_hash = $1, hash_version = \'bcrypt\' WHERE uid = $2', [newHash, uid]);
 
     res.json({ success: true, message: "Password updated successfully" });
   } catch (err) {
@@ -376,10 +375,8 @@ router.post('/api/auth/verify-passcode', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, error: "Passcode is required." });
     }
 
-    const userRes = await pool.query('SELECT passcode FROM users WHERE uid = $1', [uid]);
-    if (userRes.rowCount === 0) {
-      return res.status(404).json({ success: false, error: "User not found." });
-    }
+    let userRes = await poolUsers.query('SELECT passcode FROM user_schoolhead WHERE uid = $1', [uid]);
+    if (userRes.rowCount === 0) return res.status(404).json({ success: false, error: "User not found." });
 
     const storedPasscode = userRes.rows[0].passcode;
     if (!storedPasscode) {
@@ -415,7 +412,7 @@ router.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
 
   try {
     if (oldPasscode) {
-      const userRes = await pool.query('SELECT passcode FROM users WHERE uid = $1', [uid]);
+      let userRes = await poolUsers.query('SELECT passcode FROM user_schoolhead WHERE uid = $1', [uid]);
       if (userRes.rowCount > 0 && userRes.rows[0].passcode) {
         const stored = userRes.rows[0].passcode;
         const isMatch = stored.startsWith('$2b$')
@@ -426,7 +423,7 @@ router.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
     }
 
     const dbPasscode = (role === 'School Head') ? finalPasscode : await bcrypt.hash(finalPasscode, 10);
-    await pool.query('UPDATE users SET passcode = $1 WHERE uid = $2', [dbPasscode, uid]);
+    await poolUsers.query('UPDATE user_schoolhead SET passcode = $1 WHERE uid = $2', [dbPasscode, uid]);
 
     res.json({ success: true, message: "Passcode updated successfully" });
   } catch (err) {
@@ -443,7 +440,7 @@ router.put('/api/users/update', authMiddleware, async (req, res) => {
   const { uid } = req.user;
 
   try {
-    const userRes = await pool.query('SELECT email, passcode FROM users WHERE uid = $1', [uid]);
+    let userRes = await poolUsers.query('SELECT email, passcode FROM user_schoolhead WHERE uid = $1', [uid]);
     if (userRes.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
     const user = userRes.rows[0];
@@ -480,8 +477,8 @@ router.put('/api/users/update', authMiddleware, async (req, res) => {
     if (updates.length === 0) return res.json({ success: true, message: "No changes detected" });
 
     values.push(uid);
-    const query = `UPDATE users SET ${updates.join(', ')} WHERE uid = $${pIdx} RETURNING *`;
-    await pool.query(query, values);
+    const query = `UPDATE user_schoolhead SET ${updates.join(', ')} WHERE uid = $${pIdx} RETURNING *`;
+    await poolUsers.query(query, values);
 
     res.json({ success: true, emailChanged });
   } catch (err) {

@@ -136,22 +136,21 @@ const Login = ({ mode = 'login' }) => {
         document.documentElement.classList.remove('dark');
 
         if (authUser && !authLoading) {
-            // If the user explicitly chose a portal from LaunchPad, check for role compatibility
-            const pathId = location.state?.pathId;
-            let isRoleCompatible = true;
+            // Check for specific module target requested via card click
+            const targetFromState = location.state?.from;
+            const targetFromStorage = sessionStorage.getItem('login_target_redirect');
+            const targetModuleRoute = targetFromState || targetFromStorage;
 
-            if (pathId === 'path_school_head') {
-                isRoleCompatible = authUser.role === 'School Head' || authUser.role === 'Super User' || authUser.role === 'Super Admin';
-            } else if (pathId === 'path_ro_sd') {
-                isRoleCompatible = ['Regional Office', 'School Division Office', 'Super User', 'Super Admin'].includes(authUser.role);
-            } else if (pathId === 'path_central_office') {
-                isRoleCompatible = ['Central Office', 'Super User', 'Super Admin'].includes(authUser.role);
+            if (targetModuleRoute) {
+                console.log(`[Login] Target module route found: ${targetModuleRoute}. Redirecting directly...`);
+                sessionStorage.removeItem('login_target_redirect');
+                navigate(targetModuleRoute, { replace: true });
+                return;
             }
 
-
-            // Always redirect to the correct dashboard based on the user's role to prevent them from getting stuck
+            // Default dashboard path based on role
             const destPath = getDashboardPath(authUser.role, authUser.account_category);
-            navigate(destPath);
+            navigate(destPath, { replace: true });
         } else if (!authLoading) {
             setLoading(false);
         }

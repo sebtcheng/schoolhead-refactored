@@ -3,17 +3,44 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertTriangle, FiCheckCircle, FiSend } from 'react-icons/fi';
 import { api } from "../../lib/api";
 
-const UnitRemarkAlert = ({ unitId, schoolId }) => {
+const UnitRemarkAlert = ({ unitId, schoolId, sdoRemark: propSdoRemark }) => {
     const [remarks, setRemarks] = useState([]);
+    const [sdoRemark, setSdoRemark] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const fetchRemarks = async () => {
-        if (!schoolId || !unitId) return;
+        if (propSdoRemark) {
+            setSdoRemark(typeof propSdoRemark === 'string' ? { status: 'returned', remarks: propSdoRemark } : propSdoRemark);
+        }
+        if (!schoolId || !unitId) {
+            setLoading(false);
+            return;
+        }
         try {
+            // 1. Fetch SDO Validation remarks from unified submissions endpoint
+            if (!propSdoRemark) {
+                const progRes = await fetch(api(`/api/ph_schools/progress/${schoolId}`));
+                if (progRes.ok) {
+                    const progData = await progRes.json();
+                    const uKey = typeof unitId === 'number' ? `unit${unitId}` : (unitId.startsWith('unit') ? unitId : `unit${unitId.replace(/[^0-9]/g, '')}`);
+                    const sub = progData.data?.submissions?.[uKey];
+                    if (sub && (sub.status === 'returned' || sub.status === 'rejected')) {
+                        setSdoRemark({
+                            status: sub.status,
+                            remarks: sub.remarks || 'Revisions requested by Schools Division Office.',
+                            validated_by: sub.validated_by || 'SDO Officer',
+                            validated_at: sub.validated_at
+                        });
+                    } else {
+                        setSdoRemark(null);
+                    }
+                }
+            }
+
+            // 2. Fetch legacy audit remarks as secondary task items
             const res = await fetch(api(`/audit/remarks/${schoolId}`));
             if (res.ok) {
                 const result = await res.json();
-                // Backend returns array directly. Also using 'instruction' column from DB.
                 const active = (Array.isArray(result) ? result : (result.data || [])).filter(r => r.unit_id === unitId && !r.is_resolved);
                 setRemarks(active);
             }
@@ -36,17 +63,54 @@ const UnitRemarkAlert = ({ unitId, schoolId }) => {
                 body: JSON.stringify({ status: 'fixed' })
             });
             if (res.ok) {
-                fetchRemarks(); // Refresh
+                fetchRemarks();
             }
         } catch (e) {
             console.error('Failed to update remark status:', e);
         }
     };
 
-    if (loading || remarks.length === 0) return null;
+    if (loading) return null;
+    if (!sdoRemark && remarks.length === 0) return null;
 
     return (
         <div className="mb-6 space-y-3">
+            {/* SDO Validation Remark Banner */}
+            {sdoRemark && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-5 rounded-3xl border shadow-md ${
+                        sdoRemark.status === 'returned'
+                            ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-300 dark:border-amber-700'
+                            : 'bg-rose-50 dark:bg-rose-900/10 border-rose-300 dark:border-rose-700'
+                    }`}
+                >
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-lg text-white ${sdoRemark.status === 'returned' ? 'bg-amber-500' : 'bg-rose-500'}`}>
+                                <FiAlertTriangle size={16} />
+                            </div>
+                            <span className={`text-[11px] font-black uppercase tracking-wider ${sdoRemark.status === 'returned' ? 'text-amber-700 dark:text-amber-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                                {sdoRemark.status === 'returned' ? 'Revisions Requested by Division Office' : 'Module Rejected by Division Office'}
+                            </span>
+                        </div>
+                        {sdoRemark.validated_by && (
+                            <span className="text-[10px] font-bold text-slate-400">
+                                SDO Officer: {sdoRemark.validated_by}
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-2">
+                        "{sdoRemark.remarks}"
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-2 italic">
+                        Please update and resubmit this module to clear division remarks.
+                    </p>
+                </motion.div>
+            )}
+
+            {/* Legacy Audit Remarks */}
             {remarks.map((rem) => (
                 <motion.div
                     key={rem.id}

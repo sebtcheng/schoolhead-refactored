@@ -11,11 +11,9 @@ const ProtectedRoute = ({ children, allowedRoles, allowedGroups }) => {
         return <LoadingScreen />;
     }
 
-    // If not logged in, redirect to login
+    // If not logged in, redirect to Nexus
     if (!user) {
-        const lastRole = localStorage.getItem('lastRole');
-        const state = lastRole === 'School Head' ? { pathId: 'path_school_head' } : null;
-        return <Navigate to="/login" replace state={state} />;
+        return <Navigate to="/nodes-dashboard" replace />;
     }
 
     // Role Normalization: Map DB role names to UI Display Names

@@ -1,128 +1,126 @@
 import express from 'express';
-import { pool, safeQuery } from '@shared/db';
+import { safeQuery, safeUsersQuery, updateSchoolTotalCompletion } from '@shared/db';
 
 const router = express.Router();
+
+// Helper to resolve canonical IERN and School ID
+async function resolveIdent(id) {
+    if (!id) return { iern: null, school_id: null };
+    const sRes = await safeQuery('SELECT iern, school_id FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
+    if (sRes.rows[0]) return { iern: sRes.rows[0].iern, school_id: sRes.rows[0].school_id };
+    
+    const iernRes = await safeUsersQuery('SELECT iern, school_id FROM schools_iern WHERE school_id = $1 OR iern = $1 LIMIT 1', [id]);
+    if (iernRes.rows[0]) return { iern: iernRes.rows[0].iern, school_id: iernRes.rows[0].school_id };
+
+    const fallbackIern = id.startsWith('IERN-') ? id : `IERN-${id}`;
+    return { iern: fallbackIern, school_id: id };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [QUEST] UNIT 1: SCHOOL IDENTITY
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/api/ph_schools/unit1', async (req, res) => {
-    const data = req.body;
-    const { school_id, iern } = data;
-    if (!school_id && !iern) return res.status(400).json({ error: "Missing school_id or iern" });
 
+// GET /api/ph_schools/unit1/:id
+router.get('/api/ph_schools/unit1/:id', async (req, res) => {
     try {
-        let resolvedIern = iern;
-        if (!resolvedIern && school_id) {
-            const schoolRes = await safeQuery('SELECT iern FROM ph_schools WHERE school_id = $1 OR iern = $1 LIMIT 1', [school_id]);
-            resolvedIern = schoolRes.rows[0]?.iern || null;
-            if (!resolvedIern) {
-                const iernRes = await safeQuery('SELECT "IERN" as iern FROM "schools_IERN" WHERE "SchoolID" = $1 LIMIT 1', [school_id]);
-                resolvedIern = iernRes.rows[0]?.iern || null;
-            }
+        const { id } = req.params;
+        const { iern } = await resolveIdent(id);
+
+        if (!iern) {
+            return res.status(404).json({ success: false, error: 'School not found' });
         }
-        if (!resolvedIern) return res.status(404).json({ error: "School not found in core registry" });
 
-        let client;
-        let colRes;
-        try {
-            colRes = await safeQuery(`SELECT column_name FROM information_schema.columns WHERE table_name = 'unit1_school_identity'`);
-        } catch (err) {
-            if (err.message && err.message.includes('terminated unexpectedly')) {
-                client = await pool.connect();
-                try { colRes = await client.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'unit1_school_identity'`); }
-                finally { client.release(); }
-            } else { throw err; }
+        const subRes = await safeQuery(
+            'SELECT payload, is_completed, validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 1',
+            [iern]
+        );
+
+        if (subRes.rowCount > 0) {
+            const row = subRes.rows[0];
+            return res.json({
+                success: true,
+                payload: row.payload || {},
+                is_completed: row.is_completed || false,
+                validation_status: row.validation_status || 'draft',
+                validation_remarks: row.validation_remarks || null,
+                data: row.payload || {}
+            });
         }
-        const existingCols = new Set(colRes.rows.map(r => r.column_name));
 
-        const allPotentialFields = [
-            'school_name', 'region', 'province', 'municipality', 'barangay', 'division', 'district', 'leg_district',
-            'curricular_offering', 'latitude', 'longitude',
-            'school_type', 'mother_school_id', 'extension_mother_school_name', 'established_month', 'established_year', 
-            'head_first_name', 'head_middle_name', 'head_last_name', 'head_sex', 'head_position_title', 'head_date_hired',
-            'ownership_na_reason', 'ownership_doc_id',
-            'ownership_type', 'document_type', 'multiple_ownership', 'multiple_document_type', 'document_path', 'annexes',
-            'unit1', 'unit1_completed', 'unit1_updated_at'
-        ];
-
-        const fields = allPotentialFields.filter(f => existingCols.has(f));
-        const school_yr = data.school_yr || 'SY 26-27';
-
-        const values = fields.map(f => {
-            if (f === 'unit1') return 100;
-            if (f === 'unit1_completed') return true;
-            if (f === 'unit1_updated_at') return new Date();
-            
-            if (f === 'ownership_type') return data.ownership;
-            if (f === 'document_type') return data.ownership_document_type;
-            if (f === 'multiple_ownership') return Array.isArray(data.ownership_multiple) ? JSON.stringify(data.ownership_multiple) : null;
-            if (f === 'multiple_document_type') return Array.isArray(data.ownership_document_multiple) ? JSON.stringify(data.ownership_document_multiple) : null;
-            if (f === 'document_path') return data.ownership_document_path || data.local_file_path || null;
-            if (f === 'annexes') return data.school_type === 'with_annex' && Array.isArray(data.annex_details) ? JSON.stringify({ count: data.annex_details.length, details: data.annex_details }) : null;
-
-            return data[f];
+        res.json({
+            success: true,
+            payload: {},
+            is_completed: false,
+            validation_status: 'draft',
+            validation_remarks: null,
+            data: {}
         });
+    } catch (err) {
+        console.error("Unit 1 Fetch Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        if (fields.length === 0) return res.status(400).json({ error: "No valid fields to update" });
+// POST /api/ph_schools/unit1
+router.post('/api/ph_schools/unit1', async (req, res) => {
+    try {
+        const body = req.body || {};
+        const inputPayload = body.payload || body;
+        const school_id = body.school_id || inputPayload.school_id;
+        const inputIern = body.iern || inputPayload.iern;
 
-        const columnsStr = ['iern', 'school_id', 'school_yr', ...fields].map(c => `"${c}"`).join(', ');
-        const placeholders = ['iern', 'school_id', 'school_yr', ...fields].map((_, idx) => `$${idx + 1}`).join(', ');
-        const updateClause = fields.map(f => `"${f}" = EXCLUDED."${f}"`).join(', ');
-
-        const query = `
-            INSERT INTO unit1_school_identity (${columnsStr})
-            VALUES (${placeholders})
-            ON CONFLICT (iern, school_yr) DO UPDATE SET
-                ${updateClause},
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING *
-        `;
-        
-        const result = await safeQuery(query, [resolvedIern, school_id, school_yr, ...values]);
-        if (result.rowCount === 0) return res.status(404).json({ error: "Failed to save unit 1 data" });
-
-
-
-        const ownershipDocId = data.ownership_doc_id || null;
-
-        // Transactional update to school_ownership_records mapping
-        const dbClient = await pool.connect();
-        try {
-            await dbClient.query('BEGIN');
-            await dbClient.query('DELETE FROM school_ownership_records WHERE iern = $1 AND school_yr = $2', [resolvedIern, school_yr]);
-
-            const owners = Array.isArray(data.ownership_multiple) ? data.ownership_multiple : [];
-            const docs = Array.isArray(data.ownership_document_multiple) ? data.ownership_document_multiple : [];
-
-            if (owners.length > 0) {
-                for (let i = 0; i < owners.length; i++) {
-                    const oType = owners[i];
-                    const dType = docs[i] || null;
-                    if (oType) {
-                        await dbClient.query(
-                            `INSERT INTO school_ownership_records (iern, ownership_type, document_type, ownership_doc_id, school_yr)
-                             VALUES ($1, $2, $3, $4, $5)`,
-                            [resolvedIern, oType, dType, ownershipDocId, school_yr]
-                        );
-                    }
-                }
-            } else if (data.ownership) {
-                await dbClient.query(
-                    `INSERT INTO school_ownership_records (iern, ownership_type, document_type, ownership_doc_id, school_yr)
-                     VALUES ($1, $2, $3, $4, $5)`,
-                    [resolvedIern, data.ownership, data.ownership_document_type || null, ownershipDocId, school_yr]
-                );
-            }
-            await dbClient.query('COMMIT');
-        } catch (txnErr) {
-            await dbClient.query('ROLLBACK');
-            console.error("❌ Failed to transactionally save school_ownership_records:", txnErr.message);
-        } finally {
-            dbClient.release();
+        if (!school_id && !inputIern) {
+            return res.status(400).json({ error: "Missing school_id or iern identifier" });
         }
 
-        res.json({ success: true, data: result.rows[0] });
+        let { iern, school_id: resolvedSchoolId } = await resolveIdent(inputIern || school_id);
+        if (!iern) iern = inputIern || `IERN-${school_id}`;
+        if (!resolvedSchoolId) resolvedSchoolId = school_id || iern;
+
+        // Ensure parent ph_schools record exists
+        await safeQuery(
+            `INSERT INTO ph_schools (iern, school_id) VALUES ($1, $2) ON CONFLICT (iern) DO NOTHING`,
+            [iern, resolvedSchoolId]
+        );
+
+        // Lock Check
+        const checkLock = await safeQuery(
+            'SELECT validation_status, validation_remarks FROM ph_school_unit_submissions WHERE iern = $1 AND unit_number = 1',
+            [iern]
+        );
+        if (checkLock.rows[0]?.validation_status === 'validated') {
+            return res.status(403).json({ error: 'This module is validated and locked.' });
+        }
+
+        const isCompleted = body.is_completed !== false && inputPayload.is_completed !== false;
+        const currentStatus = checkLock.rows[0]?.validation_status || 'draft';
+        const isResubmission = ['returned', 'rejected'].includes(currentStatus);
+        const nextStatus = isResubmission ? 'submitted' : (isCompleted ? 'submitted' : 'draft');
+        const nextRemarks = isResubmission ? null : (checkLock.rows[0]?.validation_remarks || null);
+
+        const upsertRes = await safeQuery(`
+            INSERT INTO ph_school_unit_submissions 
+                (iern, unit_number, payload, is_completed, validation_status, validation_remarks, submitted_at, updated_at)
+            VALUES ($1, 1, $2::jsonb, $3, $4, CASE WHEN $4 = 'submitted' THEN NULL ELSE $5 END, CASE WHEN $4 = 'submitted' THEN NOW() ELSE NULL END, NOW())
+            ON CONFLICT (iern, unit_number) DO UPDATE SET
+                payload = EXCLUDED.payload,
+                is_completed = EXCLUDED.is_completed,
+                validation_status = EXCLUDED.validation_status,
+                validation_remarks = CASE WHEN EXCLUDED.validation_status = 'submitted' THEN NULL ELSE ph_school_unit_submissions.validation_remarks END,
+                submitted_at = CASE WHEN EXCLUDED.validation_status = 'submitted' THEN NOW() ELSE ph_school_unit_submissions.submitted_at END,
+                updated_at = NOW()
+            RETURNING *;
+        `, [iern, JSON.stringify(inputPayload), isCompleted, nextStatus, nextRemarks]);
+
+        await updateSchoolTotalCompletion(iern);
+
+        res.json({
+            success: true,
+            data: upsertRes.rows[0],
+            payload: upsertRes.rows[0].payload,
+            validation_status: upsertRes.rows[0].validation_status,
+            validation_remarks: upsertRes.rows[0].validation_remarks
+        });
     } catch (err) {
         console.error("Unit 1 Update Error:", err);
         res.status(500).json({ error: err.message });

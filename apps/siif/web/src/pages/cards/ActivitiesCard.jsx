@@ -1,8 +1,8 @@
-// ActivitiesCard.jsx — Step 3 of 4 (Modal Configuration & SIIF Theme)
-import React, { useState } from 'react';
+// ActivitiesCard.jsx — Step 3 of 4 (Inline Slider Configuration & SIIF Theme)
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    TbChevronLeft, TbChevronRight, TbArrowLeft, TbBook, TbCheck, TbChartBar, TbWallet, TbX
+    TbChevronLeft, TbChevronRight, TbArrowLeft, TbBook, TbCheck, TbChartBar, TbWallet, TbX, TbShieldCheck, TbClipboardList, TbChecklist
 } from 'react-icons/tb';
 import {
     INTERVENTIONS, INTERVENTION_ICONS,
@@ -11,33 +11,27 @@ import {
 
 const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onClose, readOnly }) => {
     const [screen, setScreen] = useState('form');
-    const [activeModalInt, setActiveModalInt] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentFormSlide, setCurrentFormSlide] = useState(0);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
+    const [expandedCategoryKey, setExpandedCategoryKey] = useState(null);
 
-    console.log('🖊️ [ActivitiesCard_DIAGNOSTIC]', {
-        screen,
-        readOnly,
-        interventionCount: selectedInterventions.length
-    });
+    // Collapse editor when navigating to a different slide
+    useEffect(() => {
+        setIsEditing(false);
+        setExpandedCategoryKey(null);
+    }, [currentFormSlide]);
 
     const toggleActivity = (intId, category, choice) => {
         if (readOnly) return;
         const current = value[intId] || {};
         const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
         const list = Array.isArray(selectedActivities[category]) ? selectedActivities[category] : [];
-
         const next = list.includes(choice) ? list.filter(x => x !== choice) : [...list, choice];
-        console.log(`🔄 [ActivitiesCard] "${intId}" category "${category}" toggled "${choice}".`);
         onChange({
             ...value,
-            [intId]: {
-                ...current,
-                selectedActivities: {
-                    ...selectedActivities,
-                    [category]: next
-                }
-            }
+            [intId]: { ...current, selectedActivities: { ...selectedActivities, [category]: next } }
         });
     };
 
@@ -45,14 +39,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         if (readOnly) return;
         const current = value[intId] || {};
         const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
-        onChange({
-            ...value,
-            [intId]: {
-                ...current,
-                selectedActivities,
-                otherActivity: text
-            }
-        });
+        onChange({ ...value, [intId]: { ...current, selectedActivities, otherActivity: text } });
     };
 
     const goToSummary = () => {
@@ -67,22 +54,16 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
             alert('Please select or specify at least one activity for every selected intervention.');
             return;
         }
-        console.log('➡️ [ActivitiesCard] Moving to summary.');
         setScreen('summary');
     };
 
     const handleSave = () => {
-        if (readOnly) {
-            onClose();
-            return;
-        }
+        if (readOnly) { onClose(); return; }
         if (confirmText.trim().toUpperCase() !== 'CONFIRM') {
             setConfirmError(true);
             setTimeout(() => setConfirmError(false), 1500);
-            console.warn('⚠️ [ActivitiesCard] CONFIRM mismatch.');
             return;
         }
-        console.log('✅ [ActivitiesCard] Confirmed.');
         onConfirm();
     };
 
@@ -92,31 +73,35 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         const list = Array.isArray(selectedActivities[category]) ? selectedActivities[category] : [];
         const active = list.includes(choice);
         const isOthers = choice === 'Others (specify)';
-
         if (readOnly && !active) return null;
-
         return (
             <React.Fragment key={choice}>
-                <button
+                <label
                     onClick={() => toggleActivity(intId, category, choice)}
-                    disabled={readOnly}
-                    className={`w-full p-4 rounded-2xl text-left text-[11px] font-bold flex items-start gap-3 transition-all border-2 ${active ? 'border-siif-blue bg-siif-blue/5 text-siif-blue' : 'border-slate-50 bg-slate-50/50 text-slate-500'
-                        } ${readOnly ? 'cursor-default' : ''}`}
+                    className={`group relative flex items-start gap-3.5 p-4 border rounded-2xl cursor-pointer select-none transition-all duration-200 min-h-[52px] ${
+                        active
+                            ? 'border-blue-600 bg-gradient-to-br from-blue-50/50 to-white scale-[1.01]'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                    } ${readOnly ? 'cursor-default' : ''}`}
                 >
-                    <div className={`w-5 h-5 rounded-md mt-0.5 shrink-0 flex items-center justify-center ${active ? 'bg-siif-blue' : 'bg-slate-200'}`}>
-                        {active && <TbCheck size={11} className="text-white" />}
+                    <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm leading-snug ${active ? 'text-blue-950 font-bold' : 'text-slate-800'}`}>{choice}</p>
                     </div>
-                    <span className="leading-relaxed">{choice}</span>
-                </button>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all shrink-0 mt-0.5 ${
+                        active ? 'bg-blue-600 border-blue-600 text-white scale-110 shadow-sm' : 'border-slate-300 bg-white'
+                    }`}>
+                        {active && <TbCheck size={14} />}
+                    </div>
+                </label>
                 {active && isOthers && (
-                    <div className="px-2 pb-1">
+                    <div className="px-1 pb-1">
                         <input
                             type="text"
                             placeholder="Please specify activity..."
                             readOnly={readOnly}
                             value={current.otherActivity || ''}
                             onChange={e => setOther(intId, e.target.value)}
-                            className="w-full bg-white border border-siif-blue/30 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-700 focus:ring-2 focus:ring-siif-blue/20 focus:outline-none"
+                            className="w-full bg-white border border-blue-400 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[48px]"
                         />
                     </div>
                 )}
@@ -124,130 +109,344 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
         );
     };
 
-    // Summary lines
-    const summaryLines = selectedInterventions.flatMap(intId => {
-        const current = value[intId] || {};
-        const selectedActivities = current.selectedActivities || {};
-        const list = Object.values(selectedActivities).flat().filter(Boolean);
-        const other = current.otherActivity;
-        if (other && list.includes('Others (specify)')) {
-            list.push(`Other: ${other}`);
-        }
-        return list.filter(a => a !== 'Others (specify)').map(a => ({ intId, activity: a }));
-    });
-
     // ── FORM SCREEN ──────────────────────────────────────────────────────────────
-    const renderFormScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-36">
-            <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
-                <h3 className="text-sm font-black text-slate-800 mb-1 leading-snug">
-                    What activities does your school plan to conduct for this intervention?
-                </h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                    {readOnly
-                        ? "Viewing planned activities for each intervention."
-                        : "For each intervention, configure the planned activities to be implemented using popup panels."}
-                </p>
-            </div>
+    const renderFormScreen = () => {
+        const total = selectedInterventions.length;
+        const intId = selectedInterventions[currentFormSlide] || selectedInterventions[0];
+        const info = INTERVENTIONS.find(i => i.id === intId);
+        const current = value[intId] || {};
+        const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
+        const otherActivity = current.otherActivity || '';
+        const canPrev = currentFormSlide > 0;
+        const canNext = currentFormSlide < total - 1;
 
-            <div className="flex flex-row overflow-x-auto gap-4 pb-4">
-                {selectedInterventions.map(intId => {
-                    const info = INTERVENTIONS.find(i => i.id === intId);
-                    const current = value[intId] || {};
-                    const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
-                    const otherActivity = current.otherActivity || '';
+        const actsList = [];
+        Object.entries(selectedActivities).forEach(([, list]) => {
+            if (Array.isArray(list)) {
+                list.forEach(a => {
+                    if (a === 'Others (specify)') { if (otherActivity) actsList.push(`Other: ${otherActivity}`); }
+                    else actsList.push(a);
+                });
+            }
+        });
 
-                    const actsList = [];
-                    Object.entries(selectedActivities).forEach(([cat, list]) => {
-                        if (Array.isArray(list)) {
-                            list.forEach(a => {
-                                if (a === 'Others (specify)') {
-                                    if (otherActivity) actsList.push(`Other: ${otherActivity}`);
-                                } else {
-                                    actsList.push(a);
-                                }
-                            });
-                        }
-                    });
+        const handleDoneEditing = () => {
+            const totalActCount = Object.values(selectedActivities).flat().filter(Boolean).length;
+            if (totalActCount === 0 && !otherActivity) {
+                alert('Please select at least one activity before saving.');
+                return;
+            }
+            setIsEditing(false);
+        };
 
-                    return (
-                        <div key={intId} className="siif-card shrink-0 w-[280px] p-4 sm:p-5 flex flex-col gap-3 hover:border-siif-blue transition-all duration-300">
-                            <div className="flex flex-col gap-3 w-full">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-14 h-14 rounded-2xl bg-siif-blue/5 text-siif-blue flex items-center justify-center shrink-0 shadow-inner">
-                                        {INTERVENTION_ICONS[intId]}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-black text-xs sm:text-sm text-slate-800 uppercase tracking-tight break-words whitespace-normal leading-snug">{info?.label}</p>
-                                    </div>
-                                </div>
-                                {!readOnly && (
+        return (
+            <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-6 sm:pb-8">
+                {/* Header */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900 mb-1 leading-snug">
+                        What activities does your school plan to conduct?
+                    </h3>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {readOnly ? 'Viewing planned activities for each intervention.'
+                            : isEditing ? 'Select all applicable planned activities below.'
+                            : 'Use the arrows to navigate through interventions and configure each one.'}
+                    </p>
+                </div>
+
+                {/* Slider nav — hidden while editing */}
+                {!isEditing && (
+                    <>
+                        <div className="flex items-center justify-between gap-3 px-1">
+                            <button
+                                onClick={() => setCurrentFormSlide(p => Math.max(0, p - 1))}
+                                disabled={!canPrev}
+                                className={`p-2.5 rounded-2xl transition-all shrink-0 ${canPrev ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:scale-90 shadow-sm' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed'}`}
+                            >
+                                <TbChevronLeft size={18} />
+                            </button>
+                            <div className="flex items-center gap-1.5 flex-wrap justify-center flex-1">
+                                {selectedInterventions.map((_, idx) => (
                                     <button
-                                        onClick={() => setActiveModalInt(intId)}
-                                        className="w-full h-[40px] bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-md flex items-center justify-center"
-                                    >
-                                        Configure
-                                    </button>
-                                )}
+                                        key={idx}
+                                        onClick={() => setCurrentFormSlide(idx)}
+                                        className={`rounded-full transition-all duration-200 ${idx === currentFormSlide ? 'w-5 h-2 bg-blue-600' : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'}`}
+                                    />
+                                ))}
                             </div>
+                            <button
+                                onClick={() => setCurrentFormSlide(p => Math.min(total - 1, p + 1))}
+                                disabled={!canNext}
+                                className={`p-2.5 rounded-2xl transition-all shrink-0 ${canNext ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 active:scale-90 shadow-sm' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed'}`}
+                            >
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                        <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Intervention {currentFormSlide + 1} of {total}
+                        </p>
+                    </>
+                )}
 
-                            <div className="space-y-2 mt-1 bg-slate-50/50 p-2 sm:p-3 rounded-xl border border-slate-100/50 flex-1 overflow-y-auto max-h-[200px]">
-                                {actsList.length > 0 ? (
-                                    (() => {
-                                        const categories = [
-                                            { key: 'sip_aip', label: 'SIP–AIP Aligned' },
-                                            { key: 'action_research', label: 'Action Research' },
-                                            { key: 'remaining', label: 'Remaining Balance' }
-                                        ];
-                                        return categories.map(cat => {
-                                            const items = Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : [];
-                                            if (items.length === 0) return null;
+                {/* Intervention card (single, animated) */}
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={intId}
+                        initial={{ opacity: 0, x: 30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -30 }}
+                        transition={{ duration: 0.2 }}
+                        className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+                    >
+                        {/* Card header */}
+                        <div className={`flex items-center justify-between gap-3 p-4 sm:p-5 ${isEditing ? 'bg-gradient-to-r from-[#0B1F4D] to-[#10346B]' : ''}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isEditing ? 'bg-white/10 text-white' : 'bg-blue-50 text-blue-600'}`}>
+                                    {INTERVENTION_ICONS[intId]}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className={`font-bold text-sm leading-snug truncate ${isEditing ? 'text-white' : 'text-slate-900'}`}>{info?.label}</p>
+                                    <p className={`text-[11px] ${isEditing ? 'text-blue-200' : 'text-slate-500'}`}>
+                                        {isEditing ? 'Select planned activities'
+                                            : actsList.length > 0 ? `${actsList.length} activit${actsList.length > 1 ? 'ies' : 'y'} selected`
+                                            : 'Not yet configured'}
+                                    </p>
+                                </div>
+                            </div>
+                            {!readOnly && (
+                                isEditing ? (
+                                    <button
+                                        onClick={handleDoneEditing}
+                                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shrink-0 active:scale-95 flex items-center gap-1.5 min-h-[40px]"
+                                    >
+                                        <TbCheck size={14} /> Done
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => setIsEditing(true)}
+                                        className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm min-h-[40px] animate-pulse"
+                                    >
+                                        {actsList.length > 0 ? 'Edit' : 'Configure'}
+                                    </button>
+                                )
+                            )}
+                        </div>
+
+                        {/* ── Inline editing panel with Accordion Heads ── */}
+                        <AnimatePresence>
+                            {isEditing && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.22 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="p-4 space-y-3 border-t border-slate-100 bg-slate-50/40">
+                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 mb-1">
+                                            Activity Categories — Tap to expand options
+                                        </p>
+
+                                        {[
+                                            {
+                                                key: 'sip_aip',
+                                                title: 'SIP–AIP–Aligned Activities',
+                                                icon: <TbBook size={16} />,
+                                                items: SIP_AIP_ACTIVITIES
+                                            },
+                                            {
+                                                key: 'action_research',
+                                                title: 'Action Research (AR)',
+                                                icon: <TbChartBar size={16} />,
+                                                items: [ACTION_RESEARCH_ACTIVITY]
+                                            },
+                                            {
+                                                key: 'remaining',
+                                                title: 'Remaining SIIF Balance',
+                                                icon: <TbWallet size={16} />,
+                                                items: REMAINING_ACTIVITIES
+                                            }
+                                        ].map((cat) => {
+                                            const isExpanded = expandedCategoryKey === cat.key;
+                                            const selectedList = Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : [];
+                                            const count = selectedList.filter(Boolean).length;
+
                                             return (
-                                                <div key={cat.key} className="bg-white p-2.5 rounded-xl border border-slate-100/80 shadow-sm">
-                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1.5">{cat.label}</p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {items.map((a, idx) => {
-                                                            const display = a === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : a;
-                                                            return (
-                                                                <span key={idx} className="text-[8px] font-black bg-slate-50 text-slate-600 px-2 py-1 rounded-lg border border-slate-100 leading-snug whitespace-normal break-words inline-block" title={display}>
-                                                                    {display}
+                                                <div
+                                                    key={cat.key}
+                                                    className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                                                        isExpanded
+                                                            ? 'border-blue-500 ring-2 ring-blue-500/80 shadow-md bg-white'
+                                                            : 'border-slate-200 bg-white hover:border-blue-300 shadow-sm'
+                                                    }`}
+                                                >
+                                                    {/* Accordion Head */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExpandedCategoryKey(prev => prev === cat.key ? null : cat.key)}
+                                                        className={`w-full p-3.5 text-left flex items-center justify-between gap-3 transition-colors ${
+                                                            isExpanded ? 'bg-blue-50/80 text-blue-950 font-bold' : 'hover:bg-slate-50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                                                isExpanded ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-600 font-bold'
+                                                            }`}>
+                                                                {cat.icon}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className={`text-xs leading-snug transition-colors ${
+                                                                    isExpanded ? 'font-extrabold text-blue-950' : 'font-bold text-slate-800'
+                                                                }`}>
+                                                                    {cat.title}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            {count > 0 && (
+                                                                <span className="flex items-center justify-center bg-blue-600 text-white text-[11px] font-extrabold rounded-full w-5 h-5 shadow-sm">
+                                                                    {count}
                                                                 </span>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                            )}
+                                                            <TbChevronRight
+                                                                size={18}
+                                                                className={`transition-transform duration-200 ${
+                                                                    isExpanded ? 'rotate-90 text-blue-600 font-bold' : 'text-slate-400'
+                                                                }`}
+                                                            />
+                                                        </div>
+                                                    </button>
+
+                                                    {/* Accordion Content Panel with Motion */}
+                                                    <AnimatePresence initial={false}>
+                                                        {isExpanded && (
+                                                            <motion.div
+                                                                key={`cat-panel-${cat.key}`}
+                                                                initial={{ height: 0, opacity: 0 }}
+                                                                animate={{ height: 'auto', opacity: 1 }}
+                                                                exit={{ height: 0, opacity: 0 }}
+                                                                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                                                                className="overflow-hidden border-t border-blue-100 bg-slate-50/70 p-3.5 space-y-2.5"
+                                                            >
+                                                                <div className="flex items-center justify-between px-1 mb-1 pb-1 border-b border-slate-200/60">
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 flex items-center gap-1.5">
+                                                                        <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                                                                        Selecting {cat.title}
+                                                                    </span>
+                                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                                        {cat.items.length} option{cat.items.length > 1 ? 's' : ''}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="space-y-2">
+                                                                    {cat.items.map(choice => renderActivityRow(intId, cat.key, choice))}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
                                                 </div>
                                             );
-                                        });
-                                    })()
-                                ) : (
-                                    <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1">
-                                        ⚠️ Click Configure to add activities
-                                    </span>
+                                        })}
+
+                                        <button
+                                            onClick={handleDoneEditing}
+                                            className="w-full py-3.5 mt-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                        >
+                                            <TbCheck size={16} /> Save & Done
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* ── Summary / locked view ── */}
+                        {!isEditing && (
+                            <div className="p-4 pt-0 space-y-2">
+                                {actsList.length > 0 ? (() => {
+                                    const categories = [
+                                        { key: 'sip_aip', label: 'SIP–AIP Aligned' },
+                                        { key: 'action_research', label: 'Action Research' },
+                                        { key: 'remaining', label: 'Remaining Balance' }
+                                    ];
+                                    return categories.map(cat => {
+                                        const items = Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : [];
+                                        if (items.length === 0) return null;
+                                        return (
+                                            <div key={cat.key} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5">
+                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{cat.label}</p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {items.map((a, idx) => {
+                                                        const display = a === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : a;
+                                                        return (
+                                                            <span key={idx} className="text-[10px] font-medium bg-white text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 leading-snug whitespace-normal break-words inline-block">
+                                                                {display}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })() : (
+                                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                        <span className="text-xs font-semibold text-amber-600 flex items-center gap-1.5">
+                                            ⚠️ Click <strong>Configure</strong> above to select planned activities
+                                        </span>
+                                    </div>
                                 )}
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
 
-            <div className="mt-4">
-                <motion.button
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    onClick={goToSummary}
-                    className="w-full py-5 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform flex items-center justify-center gap-3"
-                >
-                    {readOnly ? 'View Summary' : 'Review Summary'} <TbChevronRight size={18} />
-                </motion.button>
+                {/* Nav buttons — hidden while editing */}
+                {!isEditing && (
+                    <div className="flex gap-3 mt-2">
+                        {canPrev && (
+                            <button
+                                onClick={() => setCurrentFormSlide(p => p - 1)}
+                                className="flex-1 py-3.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+                            >
+                                <TbChevronLeft size={16} /> Prev
+                            </button>
+                        )}
+                        {canNext ? (
+                            <button
+                                onClick={() => setCurrentFormSlide(p => p + 1)}
+                                className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+                            >
+                                Next <TbChevronRight size={16} />
+                            </button>
+                        ) : (
+                            <motion.button
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                onClick={goToSummary}
+                                className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-transform flex items-center justify-center gap-2"
+                            >
+                                {readOnly ? 'View Summary' : 'Review Summary'} <TbChevronRight size={16} />
+                            </motion.button>
+                        )}
+                    </div>
+                )}
             </div>
-        </div>
-    );
+        );
+    };
 
     // ── SUMMARY SCREEN ───────────────────────────────────────────────────────────
     const renderSummaryScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
-            <div className="siif-card p-6">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Summary — Planned Activities</p>
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
+            <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/80">
+                        <TbClipboardList size={18} className="text-blue-600 shrink-0" />
+                        <span className="text-xs font-black uppercase tracking-wider">Planned Activities Summary</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono font-black text-xs border border-slate-200/80">
+                        <TbChecklist size={14} className="text-blue-600" />
+                        <span>{selectedInterventions.length} Interventions</span>
+                    </div>
+                </div>
 
                 <div className="space-y-6">
                     {selectedInterventions.map(intId => {
@@ -255,27 +454,18 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                         const current = value[intId] || {};
                         const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
                         const otherActivity = current.otherActivity || '';
-
                         const categories = [
                             { key: 'sip_aip', label: 'SIP–AIP Aligned' },
                             { key: 'action_research', label: 'Action Research' },
                             { key: 'remaining', label: 'Remaining Balance' }
                         ];
-
-                        const hasActivities = categories.some(cat => (Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : []).length > 0) ||
-                            (otherActivity && (
-                                (Array.isArray(selectedActivities.sip_aip) && selectedActivities.sip_aip.includes('Others (specify)')) ||
-                                (Array.isArray(selectedActivities.action_research) && selectedActivities.action_research.includes('Others (specify)')) ||
-                                (Array.isArray(selectedActivities.remaining) && selectedActivities.remaining.includes('Others (specify)'))
-                            ));
-
+                        const hasActivities = categories.some(cat => (Array.isArray(selectedActivities[cat.key]) ? selectedActivities[cat.key] : []).length > 0);
                         if (!hasActivities) return null;
-
                         return (
                             <div key={intId} className="space-y-2">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <div className="w-1.5 h-4 bg-siif-blue rounded-full" />
-                                    <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
+                                    <div className="w-1.5 h-4 bg-blue-600 rounded-full" />
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
                                 </div>
                                 <div className="pl-3.5 space-y-2">
                                     {categories.map(cat => {
@@ -283,16 +473,16 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                         if (items.length === 0) return null;
                                         return (
                                             <div key={cat.key} className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1">{cat.label}</p>
+                                                <p className="text-sm font-black text-slate-400 uppercase tracking-wider mb-1">{cat.label}</p>
                                                 <div className="space-y-1.5">
                                                     {items.map((act, idx) => {
                                                         const display = act === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : act;
                                                         return (
                                                             <div key={idx} className="flex items-start gap-2 bg-white p-2 rounded-lg border border-slate-100">
-                                                                <div className="w-3.5 h-3.5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                                <div className="w-3.5 h-3.5 rounded bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
                                                                     <TbCheck size={8} />
                                                                 </div>
-                                                                <p className="text-[9px] text-slate-600 font-bold leading-normal">{display}</p>
+                                                                <p className="text-sm text-slate-600 font-bold leading-normal">{display}</p>
                                                             </div>
                                                         );
                                                     })}
@@ -307,56 +497,58 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                 </div>
             </div>
 
-            {/* Navigation / Edit */}
             {!readOnly && (
                 <button
                     onClick={() => setScreen('form')}
-                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-200 transition-colors"
+                    className="w-full py-3.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-extrabold text-xs uppercase tracking-widest border border-rose-200 transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-sm"
                 >
-                    ← Edit Planned Activities
+                    <TbArrowLeft size={16} /> Edit Planned Activities
                 </button>
             )}
 
-            <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
+            <div className="p-5 bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/70 rounded-2xl border-2 border-blue-200/90 shadow-md space-y-4">
                 {readOnly ? (
-                    <div className="space-y-4">
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
-                            This section is now read-only as the plan is submitted.
-                        </p>
-                        <button
-                            onClick={onClose}
-                            className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"
-                        >
+                    <div className="space-y-4 text-center">
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed">This section is finalized and read-only as the plan is submitted.</p>
+                        <button onClick={onClose} className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">
                             Close View
                         </button>
                     </div>
                 ) : (
                     <>
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
-                            Please confirm the planned activities above are accurate.
-                        </p>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                            Type <span className="text-siif-blue font-black">CONFIRM</span> to save
-                        </p>
-                        <input
-                            type="text"
-                            placeholder="Type CONFIRM here..."
-                            value={confirmText}
-                            onChange={e => setConfirmText(e.target.value)}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-siif-blue focus:bg-white'
+                        <div className="flex items-start gap-3 p-3.5 bg-white/90 rounded-xl border border-blue-200/80 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                                <TbShieldCheck size={22} />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                                <p className="text-xs font-black text-slate-900 uppercase tracking-wide">Data Authenticity & Accuracy Declaration</p>
+                                <p className="text-[11px] font-semibold text-slate-600 leading-snug">
+                                    By typing <span className="font-extrabold text-blue-700">CONFIRM</span> below, you certify that the planned activity data submitted above is true, accurate, and officially authorized.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <input
+                                type="text"
+                                placeholder="Type CONFIRM to certify..."
+                                value={confirmText}
+                                onChange={e => setConfirmText(e.target.value)}
+                                className={`w-full px-4 py-3.5 rounded-xl border-2 font-mono font-black text-sm tracking-widest text-center transition-all focus:outline-none focus:ring-4 ${
+                                    confirmError
+                                        ? 'border-red-400 bg-red-50 text-red-600 focus:ring-red-500/20'
+                                        : 'border-blue-200 bg-white text-slate-900 focus:border-blue-600 focus:ring-blue-500/20'
                                 }`}
-                        />
-                        {confirmError && (
-                            <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
-                        )}
-                        <div className="mt-3">
+                            />
+                            {confirmError && <p className="text-center text-xs text-red-500 font-extrabold animate-bounce">Please type CONFIRM exactly to certify data</p>}
+                        </div>
+
+                        <div className="pt-0.5">
                             <button
                                 onClick={handleSave}
-                                className="w-full py-5 bg-siif-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-siif-blue/20 active:scale-95 transition-transform"
+                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
-                                Save Activities ✓
+                                <TbShieldCheck size={18} /> Confirm & Certify Activities
                             </button>
                         </div>
                     </>
@@ -368,34 +560,35 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
     return (
         <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
             {/* Header */}
-            <div className="siif-topbar !m-0 !border-x-0 !border-t-0 !rounded-b-[2rem] flex-col items-stretch !items-start !justify-start shrink-0 z-20 print:hidden relative">
-                <div className="flex items-center justify-between w-full mb-4">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={screen === 'summary' ? () => setScreen('form') : onClose}
-                            className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600"
-                        >
-                            {screen === 'summary' ? <TbArrowLeft size={20} /> : <TbChevronLeft size={20} />}
-                        </button>
-                        <div>
-                            <p className="eyebrow">
-                                Step 3 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Select'}
-                            </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">Planned Activities</h1>
-                        </div>
-                    </div>
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-100 bg-white shrink-0 z-20">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <button
-                        onClick={onClose}
-                        className="p-3 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 shrink-0"
-                        title="Close"
+                        onClick={screen === 'summary' ? () => setScreen('form') : onClose}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all text-slate-600 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
-                        <TbX size={20} />
+                        {screen === 'summary' ? <TbArrowLeft size={17} /> : <TbChevronLeft size={17} />}
                     </button>
+                    <div className="min-w-0 flex-1">
+                        <span className="block text-[9px] font-extrabold uppercase tracking-widest text-blue-600 siif-font-header leading-none mb-0.5">
+                            Step 3 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Select'}
+                        </span>
+                        <h2 className="siif-font-header text-sm font-extrabold text-slate-800 tracking-tight leading-tight truncate">
+                            Planned Activities
+                        </h2>
+                    </div>
                 </div>
-                <div className="flex gap-2 w-full mt-2">
-                    <div className="h-1.5 flex-1 rounded-full bg-siif-blue" />
-                    <div className={`h-1.5 flex-1 rounded-full transition-all ${screen === 'summary' ? 'bg-siif-blue' : 'bg-slate-200'}`} />
-                </div>
+                <button
+                    onClick={onClose}
+                    className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    title="Close"
+                >
+                    <TbX size={17} />
+                </button>
+            </div>
+            {/* Step progress bar */}
+            <div className="flex gap-1.5 px-3 py-1 bg-white border-b border-slate-100 shrink-0">
+                <div className="h-0.5 flex-1 rounded-full bg-blue-600" />
+                <div className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${screen === 'summary' ? 'bg-blue-600' : 'bg-slate-200'}`} />
             </div>
 
             <AnimatePresence mode="wait">
@@ -409,104 +602,6 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                 >
                     {screen === 'form' ? renderFormScreen() : renderSummaryScreen()}
                 </motion.div>
-            </AnimatePresence>
-
-            {/* ── Center Popup Config Modal ── */}
-            <AnimatePresence>
-                {activeModalInt && (() => {
-                    const intId = activeModalInt;
-                    const info = INTERVENTIONS.find(i => i.id === intId);
-                    const current = value[intId] || {};
-                    const selectedActivities = current.selectedActivities || { sip_aip: [], action_research: [], remaining: [] };
-                    const otherActivity = current.otherActivity || '';
-
-                    return (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-5"
-                        >
-                            <motion.div
-                                initial={{ scale: 0.95, y: 20 }}
-                                animate={{ scale: 1, y: 0 }}
-                                exit={{ scale: 0.95, y: 20 }}
-                                className="siif-card w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh] border-[2.5px] border-slate-300"
-                                style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
-                            >
-                                {/* Modal Header */}
-                                <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 flex items-center justify-between shrink-0">
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
-                                            {INTERVENTION_ICONS[intId] || <TbBook size={20} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest">Select Planned Activities</p>
-                                            <h3 className="font-black text-sm uppercase tracking-tight truncate">{info?.label}</h3>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => setActiveModalInt(null)}
-                                        className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/10 text-white shrink-0"
-                                        title="Cancel"
-                                    >
-                                        <TbX size={16} />
-                                    </button>
-                                </div>
-
-                                {/* Modal Body */}
-                                <div className="p-6 overflow-y-auto space-y-6 flex-1">
-                                    {/* SIP-AIP */}
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-black text-slate-700 italic flex items-center gap-2 uppercase tracking-wider">
-                                            <TbBook size={14} className="text-siif-blue" /> SIP–AIP–Aligned Activities
-                                        </p>
-                                        <div className="space-y-2">
-                                            {SIP_AIP_ACTIVITIES.map(c => renderActivityRow(intId, 'sip_aip', c))}
-                                        </div>
-                                    </div>
-
-                                    {/* Action Research */}
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-black text-slate-700 italic flex items-center gap-2 uppercase tracking-wider">
-                                            <TbChartBar size={14} className="text-siif-blue" /> Action Research (AR)
-                                        </p>
-                                        <div className="space-y-2">
-                                            {renderActivityRow(intId, 'action_research', ACTION_RESEARCH_ACTIVITY)}
-                                        </div>
-                                    </div>
-
-                                    {/* Remaining operational */}
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-black text-slate-700 italic flex items-center gap-2 uppercase tracking-wider">
-                                            <TbWallet size={14} className="text-siif-blue" /> Remaining SIIF Balance
-                                        </p>
-                                        <div className="space-y-2">
-                                            {REMAINING_ACTIVITIES.map(c => renderActivityRow(intId, 'remaining', c))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Modal Footer */}
-                                <div className="p-5 border-t border-slate-50 shrink-0">
-                                    <button
-                                        onClick={() => {
-                                            const totalActCount = Object.values(selectedActivities).flat().filter(Boolean).length;
-                                            if (totalActCount === 0 && !otherActivity) {
-                                                alert("Please select at least one activity before saving.");
-                                                return;
-                                            }
-                                            setActiveModalInt(null);
-                                        }}
-                                        className="w-full py-4 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
-                                    >
-                                        Apply Activities ✓
-                                    </button>
-                                </div>
-                            </motion.div>
-                        </motion.div>
-                    );
-                })()}
             </AnimatePresence>
         </div>
     );

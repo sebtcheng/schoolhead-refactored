@@ -10,7 +10,7 @@ import {
 } from 'react-icons/tb';
 
 export const INTERVENTIONS = [
-    { id: 'remediation',              label: 'Remediation (ARAL)',              desc: 'To help learners who are significantly behind by addressing specific gaps in foundational literacy and numeracy skills.' },
+    { id: 'remediation',              label: 'Remediation',              desc: 'To help learners who are significantly behind by addressing specific gaps in foundational literacy and numeracy skills.' },
     { id: 'enhancement',              label: 'Enhancement',              desc: 'To strengthen the quality of regular classroom instruction so that learners achieve grade-level competencies more effectively.' },
     { id: 'enrichment',               label: 'Enrichment',               desc: 'To deepen learning and extend higher-order thinking skills beyond minimum standards.' },
     { id: 'prevention',               label: 'Prevention',               desc: 'To identify and address learning difficulties early so that students do not fall behind.' },
@@ -52,6 +52,14 @@ export const GRADE_LABELS = {
     g7: 'Grade 7',  g8: 'Grade 8',  g9: 'Grade 9',  g10: 'Grade 10',
     g11: 'Grade 11', g12: 'Grade 12',
 };
+
+// Subject areas for Remediation intervention (includes 'Others' — no text input rendered for Others)
+export const REMEDIATION_SUBJECTS = [
+    'Reading',
+    'Mathematics',
+    'Science',
+    'Others',
+];
 
 export const SIP_AIP_ACTIVITIES = [
     'Development or enhancement of learning materials',

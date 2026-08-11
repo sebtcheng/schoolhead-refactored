@@ -277,6 +277,8 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
     const [hasRepair, setHasRepair] = useState(null);
     const [repairAssessments, setRepairAssessments] = useState([]);
     const [showRepairModal, setShowRepairModal] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [activeBuildingId, setActiveBuildingId] = useState(null);
     const [hasJustSaved, setHasJustSaved] = useState(false);
     const [showNoSpaceConfirm, setShowNoSpaceConfirm] = useState(false);
@@ -352,10 +354,23 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", curricular_offering: "", latitude: 14.5995, longitude: 120.9842 };
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}`));
+                    const res = await fetch(api(`/api/ph_schools/unit7/${storedId}`));
                     if (res.ok) {
                         const profile = await res.json();
-                        if (profile.exists && profile.data) baseline = { ...baseline, ...profile.data };
+                        const activeData = profile.payload ? profile.payload : (profile.data ? profile.data : profile);
+                        if (profile.validation_status) {
+                            setValidationStatus(profile.validation_status);
+                            if (profile.validation_status === 'submitted' || profile.validation_status === 'validated') {
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (profile.validation_remarks) {
+                            setValidationRemarks(profile.validation_remarks);
+                        }
+                        if (profile.is_completed !== undefined) {
+                            setIsCertified(profile.is_completed);
+                        }
+                        if (activeData) baseline = { ...baseline, ...activeData };
                     }
                 } catch (e) { console.log("📍 [Unit7] Offline: Using local sources for baseline."); }
 
@@ -502,8 +517,23 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
             const res = await fetch(api(`/ph_schools/unit7/${id}/master`));
             if (res.ok) {
                 const json = await res.json();
-                if (json.success && json.data) {
-                    const { inventory, repairs, isCompleted, has_no_building } = json.data;
+                const activeData = json.payload ? json.payload : (json.data ? json.data : json);
+                if (json.validation_status) {
+                    setValidationStatus(json.validation_status);
+                    if (json.validation_status === 'submitted' || json.validation_status === 'validated') {
+                        setIsReadOnly(true);
+                    }
+                }
+                if (json.validation_remarks) {
+                    setValidationRemarks(json.validation_remarks);
+                }
+                if (json.is_completed !== undefined) {
+                    setIsCertified(json.is_completed);
+                }
+                if (activeData) {
+                    const inventory = activeData.buildings || activeData.inventory || [];
+                    const repairs = activeData.repairRooms || activeData.repairs || [];
+                    const has_no_building = activeData.has_no_building;
                     const allRooms = [];
                     const normalizedInventory = (inventory || []).map((b, idx) => ({
                         ...b,
@@ -1849,7 +1879,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                 <SummaryDashboard />
             ) : (
                 <main className="flex-1 w-full max-w-3xl mx-auto p-4 lg:p-6 flex flex-col pt-8">
-                    <UnitRemarkAlert unitId="u7" schoolId={targetSchoolId || localStorage.getItem('schoolId')} />
+                    <UnitRemarkAlert unitId="u7" schoolId={targetSchoolId || localStorage.getItem('schoolId')} sdoRemark={validationRemarks} />
 
                     {currentPage === 1 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>

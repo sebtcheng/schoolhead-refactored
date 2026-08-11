@@ -307,6 +307,8 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
     const [showWelcomeBack, setShowWelcomeBack] = useState(false);
     const [showInfoModal, setShowInfoModal] = useState(false);
     const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [schoolId, setSchoolId] = useState("");
     const [iern, setIern] = useState("");
     const [isReadOnly, setIsReadOnly] = useState(propReadOnly);
@@ -443,12 +445,26 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     setShowWelcomeBack(true);
                     setTimeout(() => setShowWelcomeBack(false), 3000);
                 } else {
-                    const resMaster = await fetch(api(`/ph_schools/unit9/${storedId}`));
+                    const resMaster = await fetch(api(`/api/ph_schools/unit9/${storedId}`));
                     if (resMaster.ok) {
                         const masterData = await resMaster.json();
-                        if (masterData.success && masterData.data) {
-                            restoreFromPayload(masterData.data, u6PowerSource);
-                            const completed = !!masterData.data.unit9_completed;
+                        const activeData = masterData.payload ? masterData.payload : (masterData.data ? masterData.data : masterData);
+                        if (masterData.validation_status) {
+                            setValidationStatus(masterData.validation_status);
+                            if (masterData.validation_status === 'submitted' || masterData.validation_status === 'validated') {
+                                setIsReviewMode(true);
+                                setIsReadOnly(true);
+                            }
+                        }
+                        if (masterData.validation_remarks) {
+                            setValidationRemarks(masterData.validation_remarks);
+                        }
+                        if (masterData.is_completed !== undefined) {
+                            setIsCertified(masterData.is_completed);
+                        }
+                        if (activeData) {
+                            restoreFromPayload(activeData, u6PowerSource);
+                            const completed = masterData.is_completed !== undefined ? masterData.is_completed : !!activeData.unit9_completed;
                             setIsReviewMode(completed || propReadOnly);
                             setIsReadOnly(completed || propReadOnly);
                             setHasData(true);
@@ -888,7 +904,7 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
                     )}
                 </AnimatePresence>
 
-                <UnitRemarkAlert unitId="u9" schoolId={schoolId} />
+                <UnitRemarkAlert unitId="u9" schoolId={schoolId} sdoRemark={validationRemarks} />
 
                 {propReadOnly && !hasData ? (
                     <motion.div 

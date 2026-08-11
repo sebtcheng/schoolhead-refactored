@@ -1,6 +1,6 @@
 import express from 'express';
 import authMiddleware from '@shared/auth';
-import { pool } from '@shared/db';
+import { poolChat as pool, poolUsers } from '@shared/db';
 import multer from 'multer';
 import { BlobServiceClient, BlobSASPermissions } from '@azure/storage-blob';
 import fs from 'fs';
@@ -14,72 +14,117 @@ const upload = multer({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// [CONTACTS] GET /api/chat/contacts
-// Looks up valid target chat contacts based on user role (SDO, HRMO, ADMIN, etc.).
+// [HELPERS] User profile resolution strictly via poolUsers (user_schoolhead & user_rosdo)
 // ─────────────────────────────────────────────────────────────────────────────
-router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
-  const userUid = req.user.uid;
+async function findUserByUid(userUid) {
+  if (!userUid) return null;
+  try {
+    const shRes = await poolUsers.query(
+      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM users WHERE uid = $1',
+      [userUid]
+    );
+    if (shRes.rowCount > 0) return shRes.rows[0];
+  } catch (e) {}
 
   try {
-    const selfRes = await pool.query('SELECT role, region, division FROM users WHERE uid = $1', [userUid]);
-    if (selfRes.rowCount === 0) {
-      return res.status(404).json({ success: false, error: 'User profile not found.' });
-    }
-    const self = selfRes.rows[0];
+    const rosdoRes = await poolUsers.query(
+      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM user_rosdo WHERE uid = $1',
+      [userUid]
+    );
+    if (rosdoRes.rowCount > 0) return rosdoRes.rows[0];
+  } catch (e) {}
 
-    if (self.role === 'School Head' || self.role === 'school_head') {
+  return null;
+}
+
+async function getUsersByUids(uids) {
+  const userMap = {};
+  if (!uids || uids.length === 0) return userMap;
+
+  const uniqueUids = [...new Set(uids.filter(Boolean))];
+  if (uniqueUids.length === 0) return userMap;
+
+  try {
+    const shRes = await poolUsers.query(
+      'SELECT uid, first_name, last_name, email, role, position, school_id FROM users WHERE uid = ANY($1)',
+      [uniqueUids]
+    );
+    shRes.rows.forEach(u => { userMap[u.uid] = u; });
+  } catch (e) {}
+
+  try {
+    const rosdoRes = await poolUsers.query(
+      'SELECT uid, first_name, last_name, email, role, position, school_id FROM user_rosdo WHERE uid = ANY($1)',
+      [uniqueUids]
+    );
+    rosdoRes.rows.forEach(u => { userMap[u.uid] = u; });
+  } catch (e) {}
+
+  return userMap;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [CONTACTS] GET /api/chat/contacts
+// Looks up valid target chat contacts strictly from user_rosdo and users in poolUsers.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
+  const userUid = req.user?.uid || req.user?.id;
+
+  try {
+    const self = (await findUserByUid(userUid)) || {
+      uid: userUid,
+      role: req.user?.role || 'School Head',
+      division: req.user?.division || '',
+      school_id: req.user?.school_id || ''
+    };
+
+    if (self.role === 'School Head' || self.role === 'school_head' || self.school_id) {
       const sdoQuery = `
-        SELECT uid, first_name, last_name, role, position 
-        FROM users 
-        WHERE (role = 'School Division Office' OR role = 'Regional Division Office' OR role = 'RO/SDO' OR role = 'Ro/sdo')
-          AND LOWER(TRIM(division)) = LOWER(TRIM($1)) AND disabled = false 
-        ORDER BY last_name ASC, first_name ASC
-      `;
-      const hrmoQuery = `
-        SELECT uid, first_name, last_name, role, position 
-        FROM users 
-        WHERE (role = 'HRMO' OR role = 'Personnel') AND disabled = false 
-        LIMIT 1
+        SELECT uid, first_name, last_name, role, position, designation 
+        FROM user_rosdo 
+        WHERE (role ILIKE '%School Division Office%' OR role ILIKE '%RO/SDO%' OR role ILIKE '%sdo%' OR role ILIKE '%Division%')
+          AND (disabled = false OR disabled IS NULL)
+        ORDER BY 
+          CASE WHEN LOWER(TRIM(COALESCE(division, ''))) = LOWER(TRIM(COALESCE($1, ''))) THEN 0 ELSE 1 END,
+          last_name ASC, first_name ASC
       `;
       const adminQuery = `
         SELECT uid, first_name, last_name, role, position 
-        FROM users 
-        WHERE (school_id = '999009' OR school_id = '999202' OR role = 'Admin' OR role = 'Super Admin') AND disabled = false 
+        FROM user_rosdo 
+        WHERE (school_id = '999009' OR school_id = '999202' OR role ILIKE '%Admin%') AND (disabled = false OR disabled IS NULL)
         LIMIT 1
       `;
 
-      const [sdoRes, hrmoRes, adminRes] = await Promise.all([
-        pool.query(sdoQuery, [self.division]),
-        pool.query(hrmoQuery),
-        pool.query(adminQuery)
+      const [sdoRes, adminRes] = await Promise.all([
+        poolUsers.query(sdoQuery, [self.division || '']),
+        poolUsers.query(adminQuery).catch(() => ({ rows: [] }))
       ]);
 
       return res.json({
         success: true,
         contacts: {
           SDOs: sdoRes.rows,
-          HRMO: hrmoRes.rows[0] || null,
           ADMIN: adminRes.rows[0] || null
         }
       });
 
-    } else if (self.role === 'School Division Office' || self.role === 'Regional Division Office' || self.role === 'RO/SDO' || self.role === 'Ro/sdo') {
+    } else {
       const schoolHeadsQuery = `
         SELECT uid, first_name, last_name, school_id, role 
         FROM users 
-        WHERE (role = 'School Head' OR role = 'school_head') 
-          AND division = $1 AND disabled = false
+        WHERE (role ILIKE '%School Head%') 
+          AND LOWER(TRIM(division)) = LOWER(TRIM($1)) AND (disabled = false OR disabled IS NULL)
         ORDER BY last_name ASC
       `;
-      const schoolHeadsRes = await pool.query(schoolHeadsQuery, [self.division]);
+      const schoolHeadsRes = await poolUsers.query(schoolHeadsQuery, [self.division]);
 
       const adminQuery = `
         SELECT uid, first_name, last_name, role 
-        FROM users 
-        WHERE (school_id = '999009' OR school_id = '999202' OR role = 'Admin' OR role = 'Super Admin') AND disabled = false 
+        FROM user_rosdo 
+        WHERE (school_id = '999009' OR school_id = '999202' OR role ILIKE '%Admin%') AND (disabled = false OR disabled IS NULL)
         LIMIT 1
       `;
-      const adminRes = await pool.query(adminQuery);
+      const adminRes = await poolUsers.query(adminQuery).catch(() => ({ rows: [] }));
 
       return res.json({
         success: true,
@@ -89,8 +134,6 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
         }
       });
     }
-
-    res.json({ success: true, contacts: {} });
   } catch (err) {
     console.error('[CHAT ROUTE] Contacts lookup failed:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
@@ -100,6 +143,8 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // [ROOMS] POST /api/chat/room
 // Finds or creates a chat room between the logged-in user and a target user.
+// Uses poolUsers (user_schoolhead & user_rosdo) for profiles and pool (poolChat) for room creation.
+// Enforces Division Jurisdiction guard.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/chat/room', authMiddleware, async (req, res) => {
   const userUid = req.user.uid;
@@ -113,69 +158,86 @@ router.post('/api/chat/room', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, error: 'Cannot chat with yourself.' });
   }
 
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
-    const userQuery = 'SELECT uid, role, region, division FROM users WHERE uid = $1';
-    const targetUserRes = await client.query(userQuery, [target_uid]);
-    if (targetUserRes.rowCount === 0) {
-      await client.query('ROLLBACK');
+    const targetUser = await findUserByUid(target_uid);
+    if (!targetUser) {
       return res.status(404).json({ success: false, error: 'Target user not found.' });
     }
-    const targetUser = targetUserRes.rows[0];
 
-    const selfRes = await client.query(userQuery, [userUid]);
-    const selfUser = selfRes.rows[0];
+    const selfUser = await findUserByUid(userUid);
+    if (!selfUser) {
+      return res.status(404).json({ success: false, error: 'Self user profile not found.' });
+    }
+
+    // Enforce Division Jurisdiction guard for non-admin chats
+    const isTargetAdmin = targetUser.role && targetUser.role.toLowerCase().includes('admin');
+    const isSelfAdmin = selfUser.role && selfUser.role.toLowerCase().includes('admin');
+
+    if (!isTargetAdmin && !isSelfAdmin && selfUser.division && targetUser.division) {
+      if (selfUser.division.trim().toLowerCase() !== targetUser.division.trim().toLowerCase()) {
+        return res.status(403).json({
+          success: false,
+          error: 'Jurisdiction Restriction: You can only communicate with users within your own division.'
+        });
+      }
+    }
 
     const region = targetUser.region || selfUser.region || null;
     const division = targetUser.division || selfUser.division || null;
 
-    const checkRoomQuery = `
-      SELECT p1.room_id 
-      FROM chat_room_participants p1
-      JOIN chat_room_participants p2 ON p1.room_id = p2.room_id
-      JOIN chat_rooms r ON p1.room_id = r.id
-      WHERE p1.user_uid = $1 AND p2.user_uid = $2 AND r.room_type = 'direct'
-      LIMIT 1
-    `;
-    const checkRes = await client.query(checkRoomQuery, [userUid, target_uid]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    if (checkRes.rowCount > 0) {
+      const checkRoomQuery = `
+        SELECT p1.room_id 
+        FROM chat_room_participants p1
+        JOIN chat_room_participants p2 ON p1.room_id = p2.room_id
+        JOIN chat_rooms r ON p1.room_id = r.id
+        WHERE p1.user_uid = $1 AND p2.user_uid = $2 AND r.room_type = 'direct'
+        LIMIT 1
+      `;
+      const checkRes = await client.query(checkRoomQuery, [userUid, target_uid]);
+
+      if (checkRes.rowCount > 0) {
+        await client.query('COMMIT');
+        return res.json({ success: true, room_id: checkRes.rows[0].room_id });
+      }
+
+      const createRoomQuery = `
+        INSERT INTO chat_rooms (room_type, region, division) 
+        VALUES ('direct', $1, $2) 
+        RETURNING id
+      `;
+      const roomRes = await client.query(createRoomQuery, [region, division]);
+      const roomId = roomRes.rows[0].id;
+
+      const addParticipantQuery = `
+        INSERT INTO chat_room_participants (room_id, user_uid, user_role) 
+        VALUES ($1, $2, $3)
+      `;
+
+      await client.query(addParticipantQuery, [roomId, userUid, selfUser.role]);
+      await client.query(addParticipantQuery, [roomId, target_uid, targetUser.role]);
+
       await client.query('COMMIT');
-      return res.json({ success: true, room_id: checkRes.rows[0].room_id });
+      res.status(201).json({ success: true, room_id: roomId });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    const createRoomQuery = `
-      INSERT INTO chat_rooms (room_type, region, division) 
-      VALUES ('direct', $1, $2) 
-      RETURNING id
-    `;
-    const roomRes = await client.query(createRoomQuery, [region, division]);
-    const roomId = roomRes.rows[0].id;
-
-    const addParticipantQuery = `
-      INSERT INTO chat_room_participants (room_id, user_uid, user_role) 
-      VALUES ($1, $2, $3)
-    `;
-
-    await client.query(addParticipantQuery, [roomId, userUid, selfUser.role]);
-    await client.query(addParticipantQuery, [roomId, target_uid, targetUser.role]);
-
-    await client.query('COMMIT');
-    res.status(201).json({ success: true, room_id: roomId });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('[CHAT ROUTE] Create room error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
-  } finally {
-    client.release();
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [ROOMS] GET /api/chat/rooms
-// Fetches all active chat rooms for the logged-in user, along with participant metadata and the last message.
+// Fetches all active chat rooms for logged-in user from poolChat,
+// and merges participant metadata from poolUsers (user_schoolhead & user_rosdo).
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
   const userUid = req.user.uid;
@@ -189,10 +251,6 @@ router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
       r.updated_at,
       p.user_uid AS participant_uid,
       p.user_role AS participant_role,
-      u.first_name,
-      u.last_name,
-      u.email,
-      u.school_id,
       m.message_text AS last_message,
       m.sender_uid AS last_message_sender,
       m.created_at AS last_message_time,
@@ -200,7 +258,6 @@ router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
     FROM chat_rooms r
     JOIN chat_room_participants self ON r.id = self.room_id AND self.user_uid = $1
     JOIN chat_room_participants p ON r.id = p.room_id AND p.user_uid != $1
-    JOIN users u ON p.user_uid = u.uid
     LEFT JOIN LATERAL (
       SELECT message_text, sender_uid, created_at 
       FROM chat_messages 
@@ -218,7 +275,23 @@ router.get('/api/chat/rooms', authMiddleware, async (req, res) => {
 
   try {
     const result = await pool.query(query, [userUid]);
-    res.json({ success: true, rooms: result.rows });
+    const rooms = result.rows;
+
+    const participantUids = rooms.map(r => r.participant_uid);
+    const userMap = await getUsersByUids(participantUids);
+
+    const enrichedRooms = rooms.map(room => {
+      const u = userMap[room.participant_uid] || {};
+      return {
+        ...room,
+        first_name: u.first_name || 'User',
+        last_name: u.last_name || '',
+        email: u.email || '',
+        school_id: u.school_id || ''
+      };
+    });
+
+    res.json({ success: true, rooms: enrichedRooms });
   } catch (err) {
     console.error('[CHAT ROUTE] Fetch rooms error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
@@ -249,7 +322,8 @@ router.put('/api/chat/rooms/:roomId/read', authMiddleware, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [MESSAGES] GET /api/chat/rooms/:roomId/messages
-// Loads message history for a specific chat room chronologically.
+// Loads message history for a specific room from poolChat,
+// and attaches sender details from poolUsers (user_schoolhead & user_rosdo).
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/api/chat/rooms/:roomId/messages', authMiddleware, async (req, res) => {
   const userUid = req.user.uid;
@@ -282,19 +356,30 @@ router.get('/api/chat/rooms/:roomId/messages', authMiddleware, async (req, res) 
         m.attachment_url,
         m.attachment_metadata,
         m.is_read,
-        m.created_at,
-        u.first_name,
-        u.last_name,
-        u.role AS sender_role,
-        u.position AS sender_position
+        m.created_at
       FROM chat_messages m
-      JOIN users u ON m.sender_uid = u.uid
       WHERE m.room_id = $1
       ORDER BY m.created_at ASC
     `;
 
     const messagesRes = await pool.query(messagesQuery, [roomId]);
-    res.json({ success: true, messages: messagesRes.rows });
+    const messages = messagesRes.rows;
+
+    const senderUids = messages.map(m => m.sender_uid);
+    const userMap = await getUsersByUids(senderUids);
+
+    const enrichedMessages = messages.map(m => {
+      const u = userMap[m.sender_uid] || {};
+      return {
+        ...m,
+        first_name: u.first_name || 'User',
+        last_name: u.last_name || '',
+        sender_role: u.role || 'User',
+        sender_position: u.position || null
+      };
+    });
+
+    res.json({ success: true, messages: enrichedMessages });
   } catch (err) {
     console.error('[CHAT ROUTE] Fetch messages error:', err);
     res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
@@ -303,7 +388,7 @@ router.get('/api/chat/rooms/:roomId/messages', authMiddleware, async (req, res) 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [MESSAGES] POST /api/chat/messages
-// Sends a new message in a chat room.
+// Sends a new message in a chat room (poolChat).
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/chat/messages', authMiddleware, async (req, res) => {
   const userUid = req.user.uid;
@@ -389,7 +474,6 @@ router.post('/api/chat/upload', authMiddleware, upload.single('image'), async (r
       const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
       const containerClient = blobServiceClient.getContainerClient('chat-attachments');
 
-      // Remove public access settings to support enterprise environments where public container access is disabled
       await containerClient.createIfNotExists();
 
       const blockBlobClient = containerClient.getBlockBlobClient(fileName);
@@ -397,7 +481,6 @@ router.post('/api/chat/upload', authMiddleware, upload.single('image'), async (r
         blobHTTPHeaders: { blobContentType: req.file.mimetype }
       });
 
-      // Generate a Shared Access Signature (SAS) URL allowing long term browser access (e.g. 10 years)
       const expiryTime = new Date();
       expiryTime.setFullYear(expiryTime.getFullYear() + 10);
 
@@ -406,14 +489,13 @@ router.post('/api/chat/upload', authMiddleware, upload.single('image'), async (r
         expiresOn: expiryTime
       });
 
-      console.log('[CHAT UPLOAD] Azure upload success (SAS URL):', fileUrl.split('?')[0]); // Log without query credentials
+      console.log('[CHAT UPLOAD] Azure upload success (SAS URL):', fileUrl.split('?')[0]);
       return res.json({ success: true, url: fileUrl });
     } catch (err) {
       console.warn('[CHAT UPLOAD] Azure upload failed, falling back to local storage:', err.message);
     }
   }
 
-  // Fallback to local storage (served via Express static static middleware under /uploads)
   try {
     console.log('[CHAT UPLOAD] Saving file locally...');
     const localUploadsDir = path.join(process.cwd(), 'uploads', 'chat');

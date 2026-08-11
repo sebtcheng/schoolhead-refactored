@@ -31,7 +31,7 @@ if (typeof window !== 'undefined') {
 const SchoolHeadChatWidget = () => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [activeBubble, setActiveBubble] = useState('SDO'); // 'SDO' | 'HRMO' | 'ADMIN'
+  const [activeBubble, setActiveBubble] = useState('SDO'); // 'SDO' | 'ADMIN'
   const [selectedRoomId, setSelectedRoomId] = useState(null); // Active room ID
   const [showNewChatSelector, setShowNewChatSelector] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
@@ -40,7 +40,7 @@ const SchoolHeadChatWidget = () => {
   const fileInputRef = useRef(null);
 
   // API Backend States
-  const [contacts, setContacts] = useState({ SDOs: [], HRMO: null, ADMIN: null });
+  const [contacts, setContacts] = useState({ SDOs: [], ADMIN: null });
   const [rooms, setRooms] = useState([]); // List of active rooms from backend
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -141,7 +141,6 @@ const SchoolHeadChatWidget = () => {
         if (data.success && data.contacts) {
           setContacts({
             SDOs: data.contacts.SDOs || [],
-            HRMO: data.contacts.HRMO,
             ADMIN: data.contacts.ADMIN
           });
         }
@@ -212,7 +211,7 @@ const SchoolHeadChatWidget = () => {
 
   if (!isSchoolHead) return null;
 
-  // Start new chat with target SDO, HRMO, or Admin
+  // Start new chat with target SDO or Admin
   const handleStartNewChat = (contact) => {
     const token = localStorage.getItem('token');
     fetch(api('/api/chat/room'), {
@@ -250,8 +249,8 @@ const SchoolHeadChatWidget = () => {
     e.preventDefault();
     let roomId = selectedRoomId;
 
-    // For HRMO / ADMIN tabs, if no room is selected yet, we auto-create/find it on send
-    if ((activeBubble === 'HRMO' || activeBubble === 'ADMIN') && !roomId) {
+    // For ADMIN tab, if no room is selected yet, we auto-create/find it on send
+    if (activeBubble === 'ADMIN' && !roomId) {
       const contact = contacts[activeBubble];
       if (!contact) return;
 
@@ -399,8 +398,6 @@ const SchoolHeadChatWidget = () => {
     return rooms.filter(room => {
       if (category === 'SDO') {
         return room.participant_role === 'School Division Office' || room.participant_role === 'Regional Division Office' || room.participant_role === 'RO/SDO' || room.participant_role === 'Ro/sdo';
-      } else if (category === 'HRMO') {
-        return room.participant_role === 'HRMO' || room.participant_role === 'Personnel';
       } else {
         return room.participant_role === 'Admin' || room.participant_role === 'Super Admin';
       }
@@ -413,8 +410,6 @@ const SchoolHeadChatWidget = () => {
   const displayedRooms = rooms.filter(room => {
     if (activeBubble === 'SDO') {
       return room.participant_role === 'School Division Office' || room.participant_role === 'Regional Division Office' || room.participant_role === 'RO/SDO' || room.participant_role === 'Ro/sdo';
-    } else if (activeBubble === 'HRMO') {
-      return room.participant_role === 'HRMO' || room.participant_role === 'Personnel';
     } else {
       return room.participant_role === 'Admin' || room.participant_role === 'Super Admin';
     }
@@ -531,6 +526,10 @@ const SchoolHeadChatWidget = () => {
               from { transform: translateY(20px); opacity: 0; }
               to { transform: translateY(0); opacity: 1; }
             }
+            @keyframes popInSH {
+              from { transform: scale(0.95) translateY(-6px); opacity: 0; }
+              to { transform: scale(1) translateY(0); opacity: 1; }
+            }
           `}} />
 
           {/* Header Part 1: Title & Role */}
@@ -553,7 +552,7 @@ const SchoolHeadChatWidget = () => {
             </div>
           </div>
 
-          {/* Header Part 2: Bubble Tabs (SDO, HRMO, ADMIN) */}
+          {/* Header Part 2: Bubble Tabs (SDO, ADMIN) */}
           <div style={{
             display: 'flex',
             backgroundColor: '#1e40af',
@@ -563,7 +562,6 @@ const SchoolHeadChatWidget = () => {
           }}>
             {[
               { id: 'SDO', label: 'SDO', sub: 'Division Office', color: '#3b82f6' },
-              { id: 'HRMO', label: 'HRMO', sub: 'Human Resources', color: '#10b981' },
               { id: 'ADMIN', label: 'ADMIN', sub: 'Support (999009)', color: '#f59e0b' }
             ].map((bubble) => {
               const isActive = activeBubble === bubble.id;
@@ -668,62 +666,139 @@ const SchoolHeadChatWidget = () => {
                     <button
                       onClick={() => setShowNewChatSelector(!showNewChatSelector)}
                       style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#10b981',
+                        padding: '6px 14px',
+                        backgroundColor: showNewChatSelector ? '#ef4444' : '#10b981',
                         color: 'white',
                         border: 'none',
-                        borderRadius: '16px',
+                        borderRadius: '20px',
                         fontSize: '11px',
-                        fontWeight: 'bold',
+                        fontWeight: '800',
                         cursor: 'pointer',
-                        boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                        boxShadow: showNewChatSelector ? '0 4px 12px rgba(239, 68, 68, 0.4)' : '0 4px 12px rgba(16, 185, 129, 0.35)',
+                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transform: showNewChatSelector ? 'scale(1.02)' : 'scale(1)'
                       }}
                     >
-                      <span>+ New Message</span>
+                      <span>{showNewChatSelector ? '✕ Close Selector' : '✨ + New Message'}</span>
                     </button>
                   )}
                 </div>
 
-                {/* SDO Directory dropdown selector */}
+                {/* SDO Directory dropdown selector with rich aesthetics */}
                 {showNewChatSelector && activeBubble === 'SDO' && (
                   <div style={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    padding: '8px',
-                    marginBottom: '12px',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)',
+                    border: '2px solid #10b981',
+                    borderRadius: '14px',
+                    padding: '12px',
+                    marginBottom: '16px',
+                    boxShadow: '0 12px 24px -6px rgba(16, 185, 129, 0.25), 0 4px 8px -2px rgba(0,0,0,0.05)',
+                    animation: 'popInSH 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
                   }}>
-                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
-                      Select SDO Representative:
-                    </span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
-                      {contacts.SDOs.map(sdo => (
-                        <button
-                          key={sdo.uid}
-                          onClick={() => handleStartNewChat(sdo)}
-                          style={{
-                            textAlign: 'left',
-                            padding: '8px',
-                            backgroundColor: '#f1f5f9',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            transition: 'background 0.2s',
-                          }}
-                          onMouseOver={e => e.currentTarget.style.backgroundColor = '#e2e8f0'}
-                          onMouseOut={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                        >
-                          <span style={{ display: 'block', fontWeight: '700' }}>{sdo.first_name} {sdo.last_name}</span>
-                          <span style={{ fontSize: '9px', color: '#64748b' }}>{sdo.role} {sdo.position ? `(${sdo.position})` : ''}</span>
-                        </button>
-                      ))}
-                      {contacts.SDOs.length === 0 && (
-                        <span style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
-                          No division SDOs found
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: '#10b981',
+                          boxShadow: '0 0 8px #10b981',
+                        }} />
+                        <span style={{ fontSize: '11px', color: '#047857', fontWeight: '800', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                          Select SDO Representative
                         </span>
+                      </div>
+                      <span style={{ fontSize: '9px', fontWeight: '800', backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 8px', borderRadius: '10px' }}>
+                        {contacts.SDOs.length} Available
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '2px' }}>
+                      {contacts.SDOs.map(sdo => {
+                        const initials = `${sdo.first_name?.[0] || ''}${sdo.last_name?.[0] || ''}`.toUpperCase();
+                        return (
+                          <button
+                            key={sdo.uid}
+                            onClick={() => handleStartNewChat(sdo)}
+                            style={{
+                              textAlign: 'left',
+                              padding: '10px 12px',
+                              backgroundColor: '#ffffff',
+                              border: '1.5px solid #a7f3d0',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            }}
+                            onMouseOver={e => {
+                              e.currentTarget.style.backgroundColor = '#f0fdf4';
+                              e.currentTarget.style.borderColor = '#10b981';
+                              e.currentTarget.style.transform = 'translateY(-2px) scale(1.01)';
+                              e.currentTarget.style.boxShadow = '0 6px 12px rgba(16, 185, 129, 0.15)';
+                            }}
+                            onMouseOut={e => {
+                              e.currentTarget.style.backgroundColor = '#ffffff';
+                              e.currentTarget.style.borderColor = '#a7f3d0';
+                              e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.03)';
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: '800',
+                                fontSize: '11px',
+                                boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
+                              }}>
+                                {initials || 'SDO'}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '800', color: '#064e3b' }}>
+                                  {sdo.first_name} {sdo.last_name}
+                                </span>
+                                <span style={{ fontSize: '10px', color: '#047857', fontWeight: '500' }}>
+                                  {sdo.role} {sdo.position ? `(${sdo.position})` : ''}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: '#10b981',
+                              color: 'white',
+                              fontSize: '10px',
+                              fontWeight: 'bold',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
+                            }}>
+                              <span>Chat</span>
+                              <span style={{ fontSize: '12px' }}>&rarr;</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {contacts.SDOs.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '16px 8px', color: '#64748b' }}>
+                          <span style={{ fontSize: '12px', fontWeight: '600', display: 'block' }}>No division SDOs found</span>
+                          <span style={{ fontSize: '10px', opacity: 0.8 }}>No registered SDO accounts match your division jurisdiction.</span>
+                        </div>
                       )}
                     </div>
                   </div>

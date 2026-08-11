@@ -1,16 +1,17 @@
 // SIIFFormsHub.jsx
 // The /forms route — 4-card hub with sequential locking
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TbChevronLeft, TbCircleCheck, TbLock,
     TbTarget, TbUsers, TbBulb, TbCurrencyPeso,
     TbChevronRight, TbClock, TbTrendingUp,
-    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit
+    TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit,
+    TbSettings, TbClipboardList, TbCalculator, TbChartBar
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
-import { logger } from '../../../utils/logger';
+import { logger } from '../utils/logger';
 import PriorityImprovementAreaCard from './cards/PriorityImprovementAreaCard';
 import InterventionsCard from './cards/InterventionsCard';
 import BeneficiariesCard from './cards/BeneficiariesCard';
@@ -34,7 +35,7 @@ const CARDS = [
         step: 1,
         label: 'Priority Improvement Areas',
         sublabel: 'Identify priority improvement areas',
-        icon: TbTarget,
+        icon: TbTrendingUp, // Performance icon
         color: 'bg-siif-blue',
     },
     {
@@ -83,9 +84,13 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // Summary modal states
     const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [showChangesModal, setShowChangesModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
     const [activePiaCategory, setActivePiaCategory] = useState('Access and Quality');
+
+    // ─── Snapshot of originally loaded server payload (for dirty-check) ────────
+    const originalPayload = useRef(null);
 
     // ─── Data + state from hook ───────────────────────────────────────────────
     const {
@@ -101,11 +106,58 @@ const SIIFFormsHub = ({ user, token }) => {
         confirmed, setConfirmed,
     } = useSIIFSubmission(user, token);
 
+    // ─── Capture original server payload on first load ────────────────────────
+    useEffect(() => {
+        if (!loading && originalPayload.current === null) {
+            originalPayload.current = JSON.stringify({
+                priorityAreas,
+                selectedInterventions,
+                aral,
+                beneficiaries,
+                activities,
+                budgets,
+            });
+        }
+    }, [loading]);
+
+    // ─── Dirty-check: compare current state vs original server snapshot ───────
+    const currentSnapshot = JSON.stringify({
+        priorityAreas,
+        selectedInterventions,
+        aral,
+        beneficiaries,
+        activities,
+        budgets,
+    });
+    const isDirty = isSubmitted
+        ? (originalPayload.current !== null && currentSnapshot !== originalPayload.current)
+        : false;
+
+    // ─── Build a human-readable diff summary for the modal ───────────────────
+    const buildChangeSummary = () => {
+        if (!originalPayload.current) return [];
+        const orig = JSON.parse(originalPayload.current);
+        const diffs = [];
+        if (JSON.stringify(orig.priorityAreas) !== JSON.stringify(priorityAreas))
+            diffs.push('Modified Priority Improvement Areas');
+        if (JSON.stringify(orig.selectedInterventions) !== JSON.stringify(selectedInterventions))
+            diffs.push('Modified Selected Interventions');
+        if (JSON.stringify(orig.aral) !== JSON.stringify(aral))
+            diffs.push('Modified Remediation Subject Areas');
+        if (JSON.stringify(orig.beneficiaries) !== JSON.stringify(beneficiaries))
+            diffs.push('Modified Target Beneficiaries');
+        if (JSON.stringify(orig.activities) !== JSON.stringify(activities))
+            diffs.push('Modified Planned Activities');
+        if (JSON.stringify(orig.budgets) !== JSON.stringify(budgets))
+            diffs.push('Updated Budget Allocation');
+        return diffs;
+    };
+
     logger.debug('SIIF', 'SIIFFormsHub Rendered', { confirmed, selectedInterventions });
 
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
-        if (loading || isExpired || isNotYetOpen || isLocked) return;
+        if (loading || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
@@ -118,7 +170,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked]);
+    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked, isSubmitted, isReviewed]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
@@ -306,6 +358,8 @@ const SIIFFormsHub = ({ user, token }) => {
             totalBudget,
             interventionData,
             priorityAreas,
+            form_completion_percentage: progressPct,
+            shform_completion: progressPct,
         };
 
         console.log(`📤 [SIIFFormsHub] Built Payload (${status}):`, JSON.stringify(payload, null, 2));
@@ -314,12 +368,12 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Save Draft ───────────────────────────────────────────────────────────
     const handleSaveDraft = async (silent = false) => {
-        if (isLocked) {
-            console.warn('⚠️ [SIIFFormsHub] Plan is locked, cannot save draft.');
+        if (isLocked || isSubmitted || isReviewed) {
+            console.warn('⚠️ [SIIFFormsHub] Plan is submitted/reviewed or locked, skipping draft auto-save.');
             return;
         }
         if (!silent) setSaving(true);
-        const currentStatus = isLocked ? 'submitted' : 'draft';
+        const currentStatus = (isSubmitted || isReviewed) ? (isReviewed ? 'Reviewed' : 'submitted') : 'draft';
         const payload = buildPayload(currentStatus);
         console.log('📤 [SIIFFormsHub] Saving draft (silent=' + silent + ', status=' + currentStatus + ')');
         try {
@@ -451,291 +505,395 @@ const SIIFFormsHub = ({ user, token }) => {
         );
     }
 
-    return (
-        <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+    // ─── NOT YET OPEN LOCK SCREEN (Matching SIIFUtilization.jsx design) ──────
+    if (isNotYetOpen) {
+        return (
+            <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+                <div className="max-w-2xl mx-auto mt-12 px-4">
+                    <article className="siif-card">
+                        <div className="siif-card-inner text-center p-8 sm:p-10">
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-amber-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-amber-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbClock size={56} className="text-amber-500 animate-pulse" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbLock size={28} className="text-amber-600" />
+                                </div>
+                            </motion.div>
 
-            {/* ── Header ── */}
-            <header className="topbar print:hidden">
-                <div className="page-title">
-                    <p className="eyebrow">
-                        DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
-                    </p>
-                    <h1>School Innovation and Improvement Fund</h1>
-                    
-                    <div className="flex flex-row items-center gap-1.5 mt-3 opacity-90 w-full overflow-hidden">
-                        {deadline && (
-                            <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200 flex items-center gap-1 bg-blue-900/30 px-1.5 sm:px-2 py-1 rounded-md border border-blue-500/20 whitespace-nowrap shrink">
-                                <TbClock size={12} className="shrink-0" />
-                                <span className="hidden sm:inline">Deadline: {new Date(deadline).toLocaleString()}</span>
-                                <span className="sm:hidden truncate">Due: {new Date(deadline).toLocaleDateString()}</span>
-                            </p>
-                        )}
-                        {isLocked && (
-                            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest bg-red-500/20 text-red-200 px-1.5 sm:px-2 py-1 rounded-md border border-red-500/30 flex items-center gap-1 whitespace-nowrap shrink-0">
-                                <TbLock size={12} className="shrink-0" /> 
-                                <span className="hidden sm:inline">Read-Only Mode</span>
-                                <span className="sm:hidden">Read-Only</span>
-                            </span>
-                        )}
-                    </div>
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                Submission Window Scheduled
+                            </h1>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-400" />
+
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    The <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">SIIF Planning Form</strong> is currently not open for submission of plans. Forms will unlock automatically on the scheduled start date.
+                                </p>
+
+                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 md:p-5 border border-amber-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-amber-100">
+                                        <TbClock size={24} className="text-amber-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-amber-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Scheduled Opening Date
+                                        </p>
+                                        <p className="text-sm text-slate-900 font-bold leading-relaxed">
+                                            {openDate ? new Date(openDate).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'To Be Announced'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            <button
+                                onClick={() => navigate('/siif')}
+                                className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
+                                style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
+                            >
+                                Return to Dashboard
+                                <TbChevronRight size={18} />
+                            </button>
+                        </div>
+                    </article>
                 </div>
+            </main>
+        );
+    }
 
-                <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    
-                    {/* Submission Status Pill */}
-                    <div className={`
-                        flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-[14px] font-black text-[10px] sm:text-[11px] uppercase tracking-wider text-white shadow-sm border border-white/10 self-start sm:self-auto
-                        ${isReviewed ? 'bg-emerald-500' : isDisapproved ? 'bg-red-500' : isSubmitted ? 'bg-blue-600' : 'bg-slate-500/80'}
-                    `}>
-                        {isReviewed ? <TbCheck size={16} /> :
-                         isDisapproved ? <TbX size={16} /> :
-                         isSubmitted ? <TbArrowRight size={16} /> :
-                         <TbEdit size={16} />}
-                        <span>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
+    return (
+        <div className="w-full min-h-screen pb-48 sm:pb-48 text-lg">
+
+            {/* ── Topbar Header matching SIIFDashboard.jsx full width ── */}
+            <main className="siif-main-area w-full pt-3 sm:pt-4 lg:pt-8 print:hidden">
+                <header className="topbar print:hidden">
+                    <div className="page-title">
+                        <p className="eyebrow">
+                            DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
+                        </p>
+                        <h1>School Innovation and Improvement Fund</h1>
+
+                        {/* Deadline & Lock badges — Identical Sizing & Alignment */}
+                        <div className="flex flex-row items-center gap-2 mt-2 flex-wrap max-w-full">
+                            {deadline && (
+                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest flex items-start sm:items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm leading-tight max-w-[170px] xs:max-w-[210px] sm:max-w-none break-words sm:whitespace-nowrap" style={{ backgroundColor: '#EF4444', color: '#FFFFFF', border: '1px solid #DC2626' }}>
+                                    <TbClock size={14} className="shrink-0 text-white mt-0.5 sm:mt-0" />
+                                    <span className="leading-snug">Deadline: {new Date(deadline).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                </span>
+                            )}
+                            {(isLocked || isExpired) ? (
+                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap" style={{ backgroundColor: '#F59E0B', color: '#FFFFFF', border: '1px solid #D97706' }}>
+                                    <TbLock size={14} className="shrink-0 text-white" />
+                                    <span>Read-Only</span>
+                                </span>
+                            ) : (
+                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap" style={{ backgroundColor: '#059669', color: '#FFFFFF', border: '1px solid #047857' }}>
+                                    <TbEdit size={14} className="shrink-0 text-white" />
+                                    <span>Editable</span>
+                                </span>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Overall Progress */}
-                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
-                        <div className="flex flex-col items-start sm:items-end">
-                            <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Forms Completion</small>
-                            <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
+                    <div className="siif-topbar-actions shrink-0">
+                        {/* Submission Status Pill — Solid High-Contrast Dark Navy Badge */}
+                        <div
+                            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider shadow-md shrink-0"
+                            style={{
+                                backgroundColor: isReviewed ? '#059669' : isDisapproved ? '#DC2626' : isSubmitted ? '#0284C7' : '#08315F',
+                                color: '#FFFFFF',
+                                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                                boxShadow: '0 4px 12px rgba(8, 49, 95, 0.3)',
+                                opacity: 1,
+                            }}
+                        >
+                            {isReviewed ? <TbCheck size={15} className="text-white" /> :
+                                isDisapproved ? <TbX size={15} className="text-white" /> :
+                                    isSubmitted ? <TbArrowRight size={15} className="text-white" /> :
+                                        <TbEdit size={15} style={{ color: '#FBBF24' }} />}
+                            <span style={{ color: '#FFFFFF', fontWeight: 900 }}>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
+                        </div>
+
+                        {/* Overall Progress Square Pill */}
+                        <section className="siif-school-pill">
+                            <small style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.03em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms<br />Completion</small>
+                            <strong style={{ fontSize: '20px', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: '2px 0', lineHeight: 1, fontWeight: 900, display: 'block', textAlign: 'center' }}>
                                 {progressPct}%
                             </strong>
-                        </div>
-                        <div className="flex-1 sm:w-full" style={{ maxWidth: '120px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
-                        </div>
-                    </section>
-                </div>
-            </header>
-
-            {/* ── Warning Banner Area (Repositioned to Top) ── */}
-            <div className="px-5 relative z-20 mt-4 space-y-3">
-                <AnimatePresence>
-                    {isExpired && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-4 bg-slate-900 text-white rounded-3xl border border-slate-800 flex items-center gap-4 shadow-xl"
-                        >
-                            <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
-                                <TbLock size={20} className="text-slate-300" />
+                            <div style={{ width: '80%', height: '4px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', margin: '2px auto 0' }}>
+                                <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
                             </div>
-                            <div className="flex-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Window Closed</p>
-                                <p className="text-[11px] font-bold leading-tight">The submission deadline for FY 2026 has passed. Read-only mode active.</p>
-                            </div>
-                        </motion.div>
-                    )}
+                        </section>
+                    </div>
+                </header>
 
-                    {isNotYetOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-4 bg-siif-blue text-white rounded-3xl border border-white/10 flex items-center gap-4 shadow-xl"
-                        >
-                            <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
-                                <TbClock size={20} className="text-white animate-pulse" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-blue-200">Opening Soon</p>
-                                <p className="text-[11px] font-bold leading-tight">Scheduled to open on {openDate ? new Date(openDate).toLocaleString() : 'a future date'}.</p>
-                            </div>
-                        </motion.div>
-                    )}
-
-
-                    {isDisapproved && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="p-5 bg-red-500/10 text-slate-900 rounded-[2.5rem] border-2 border-red-500/30 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 bg-red-500/20 text-red-600 rounded-xl flex items-center justify-center shrink-0 border border-red-500/20">
-                                    <TbX size={24} className="animate-pulse" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Plan Disapproved by Division Office</p>
-                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Remarks / Correction Instructions:</p>
-                                    <p className="text-xs text-slate-700 font-extrabold italic mt-1.5 bg-red-500/5 p-3.5 rounded-xl border border-red-500/10 leading-relaxed">
-                                        "{remarks || 'No remarks provided.'}"
-                                    </p>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* ── Cards ── */}
-            <div className="px-5 relative z-20 flex flex-row overflow-x-auto flex-nowrap scrollbar-hide gap-4 mt-4 pb-4">
-                {CARDS.map((card, idx) => {
-                    const status = getCardStatus(card.id);
-                    const locked = status === 'locked';
-                    const isMissing = isMissingData(card.id);
-                    const done = status === 'confirmed' && !isMissing;
-                    const missing = !locked && !done && isMissing;
-                    const summary = getCardSummary(card.id);
-                    const Icon = card.icon;
-
-                    return (
-                        <motion.div
-                            key={card.id}
-                            initial={{ opacity: 0, y: 24 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.07, duration: 0.3 }}
-                            style={{ flex: done ? '1.5' : '1', minWidth: done ? '340px' : '240px', transition: 'all 0.4s ease' }}
-                        >
-                            <button
-                                onClick={() => handleCardClick(card.id)}
-                                disabled={locked}
-                                className={`w-full h-full p-6 rounded-[2.5rem] border border-b-8 flex flex-col items-start gap-4 text-left relative transition-all duration-300 group active:scale-[0.98] ${locked
-                                    ? 'bg-slate-100 border-slate-100 opacity-60 cursor-not-allowed'
-                                    : done
-                                        ? 'bg-[#f0fdf4] border-[#bbf7d0] shadow-md border-b-[#16A34A]'
-                                        : missing
-                                            ? 'bg-red-50/50 border-red-100 shadow-lg shadow-red-500/10 hover:border-red-200 border-b-red-400'
-                                            : 'bg-white border-blue-50 border-b-[#0284C7] shadow-lg shadow-blue-500/10 hover:border-blue-100'
-                                    }`}
-                            >
-                                {/* Status strip */}
-                                {!locked && (
-                                    <div className={`absolute left-0 top-6 bottom-6 w-1.5 rounded-r-full ${done ? 'bg-[#16A34A]' : missing ? 'bg-red-500 animate-pulse' : 'bg-orange-400 animate-pulse'}`} />
-                                )}
-
-                                {/* Icon */}
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0 transition-transform duration-150 ease-in-out group-hover:scale-[1.08] group-hover:-translate-y-1 shadow-md ${locked ? 'bg-slate-300' : done ? 'bg-[#16A34A]' : card.color}`}>
-                                    {locked
-                                        ? <TbLock size={24} />
-                                        : done
-                                            ? <TbCircleCheck size={26} />
-                                            : (typeof Icon === 'string'
-                                                ? <img src={Icon} alt={card.label} className="w-8 h-8 object-contain" />
-                                                : <Icon size={26} />
-                                            )}
-                                </div>
-
-                                {/* Text */}
-                                <div className="flex-1 min-w-0 w-full">
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <p className={`font-black text-sm uppercase tracking-tight ${locked ? 'text-slate-400' : 'text-slate-800'}`}>
-                                            {card.label}
-                                        </p>
-                                        {done && (
-                                            <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">Done</span>
-                                        )}
-                                        {!done && !locked && (
-                                            missing ? (
-                                                <span className="text-[8px] font-black bg-red-100 text-red-600 px-2 py-0.5 rounded-full border border-red-200 uppercase tracking-widest flex items-center gap-1 animate-pulse shadow-sm">
-                                                    Needs Input
-                                                </span>
-                                            ) : (
-                                                <FiAlertCircle className="text-orange-400 text-xs animate-pulse" />
-                                            )
-                                        )}
-                                        {locked && (
-                                            <span className="text-[8px] font-black bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full uppercase tracking-widest">Locked</span>
-                                        )}
+                {/* ── Center Form Step Cards Stack (Narrower max-w-2xl layout) ── */}
+                <div className="w-full max-w-lg sm:max-w-xl md:max-w-2xl mx-auto px-4">
+                    {/* ── Warning Banner Area (Repositioned to Top) ── */}
+                    <div className="relative z-20 mt-4 space-y-3">
+                        <AnimatePresence>
+                            {isExpired && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="p-4 bg-slate-900 text-white rounded-3xl border border-slate-800 flex items-center gap-4 shadow-xl"
+                                >
+                                    <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
+                                        <TbLock size={20} className="text-slate-300" />
                                     </div>
-                                    <p className="text-[10px] text-slate-500 leading-relaxed mt-2" style={{ minHeight: done && summary ? 'auto' : '30px' }}>
-                                        {done && summary ? summary : locked ? (isNotYetOpen ? 'Scheduled to open soon' : `Complete step ${card.step - 1} first`) : card.sublabel}
-                                    </p>
-                                </div>
+                                    <div className="flex-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Window Closed</p>
+                                        <p className="text-[11px] font-bold leading-tight">The submission deadline for FY 2026 has passed. Read-only mode active.</p>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {isNotYetOpen && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="p-4 bg-siif-blue text-white rounded-3xl border border-white/10 flex items-center gap-4 shadow-xl"
+                                >
+                                    <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                                        <TbClock size={20} className="text-white animate-pulse" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-200">Opening Soon</p>
+                                        <p className="text-[11px] font-bold leading-tight">Scheduled to open on {openDate ? new Date(openDate).toLocaleString() : 'a future date'}.</p>
+                                    </div>
+                                </motion.div>
+                            )}
+
+
+                            {isDisapproved && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="p-5 bg-red-500/10 text-slate-900 rounded-[2.5rem] border-2 border-red-500/30 backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg"
+                                >
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 bg-red-500/20 text-red-600 rounded-xl flex items-center justify-center shrink-0 border border-red-500/20">
+                                            <TbX size={24} className="animate-pulse" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Plan Disapproved by Division Office</p>
+                                            <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Remarks / Correction Instructions:</p>
+                                            <p className="text-xs text-slate-700 font-extrabold italic mt-1.5 bg-red-500/5 p-3.5 rounded-xl border border-red-500/10 leading-relaxed">
+                                                "{remarks || 'No remarks provided.'}"
+                                            </p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* ── Cards ── */}
+                    <div className="px-1 relative z-20 flex flex-col gap-3 mt-4 mb-40 pb-16">
+                        {CARDS.map((card, idx) => {
+                            const status = getCardStatus(card.id);
+                            const locked = status === 'locked';
+                            const isMissing = isMissingData(card.id);
+                            const done = status === 'confirmed' && !isMissing;
+                            const missing = !locked && !done && isMissing;
+                            const summary = getCardSummary(card.id);
+                            const Icon = card.icon;
+
+                            return (
+                                <motion.div
+                                    key={card.id}
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.05, duration: 0.25 }}
+                                    className="w-full"
+                                >
+                                    <button
+                                        onClick={() => handleCardClick(card.id)}
+                                        disabled={locked}
+                                        className={`w-full p-4 sm:p-5 rounded-2xl border flex items-center gap-4 text-left relative transition-all duration-200 group active:scale-[0.98] ${locked
+                                            ? 'bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed'
+                                            : done
+                                                ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 shadow-sm'
+                                                : missing
+                                                    ? 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-800/50 shadow-sm'
+                                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm hover:border-blue-300'
+                                            }`}
+                                    >
+                                        {/* Status indicator bar */}
+                                        {!locked && (
+                                            <div className={`absolute left-0 top-3 bottom-3 w-1.5 rounded-r-full ${done ? 'bg-emerald-500' : missing ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`} />
+                                        )}
+
+                                        {/* Icon */}
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm ${locked ? 'bg-slate-300 dark:bg-slate-700' : done ? 'bg-emerald-600' : 'bg-blue-600'}`}>
+                                            {locked
+                                                ? <TbLock size={22} />
+                                                : done
+                                                    ? <TbCircleCheck size={24} />
+                                                    : (typeof Icon === 'string'
+                                                        ? <img src={Icon} alt={card.label} className="w-7 h-7 object-contain" />
+                                                        : <Icon size={24} />
+                                                    )}
+                                        </div>
+
+                                        {/* Text */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2 mb-0.5">
+                                                <p className={`font-bold text-base tracking-tight ${locked ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-white'}`}>
+                                                    {card.label}
+                                                </p>
+                                                {done && (
+                                                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">Done</span>
+                                                )}
+                                                {!done && !locked && missing && (
+                                                    <span className="text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 animate-pulse">
+                                                        Needs Input
+                                                    </span>
+                                                )}
+                                                {locked && (
+                                                    <span className="text-[10px] font-bold bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">Locked</span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                                                {done && summary ? summary : locked ? (isNotYetOpen ? 'Scheduled to open soon' : `Complete step ${card.step - 1} first`) : card.sublabel}
+                                            </p>
+                                        </div>
+                                        <TbChevronRight className="text-slate-400 shrink-0" size={20} />
+                                    </button>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </main>
+
+            {/* ── Persistent Sticky Bottom Navigation Bar ── */}
+            <div className="siif-forms-footer">
+                <div className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto flex items-center justify-between gap-4">
+                    {(() => {
+                        const isSubmitDisabled = !isLocked && !isExpired && (progressPct < 100 || (isSubmitted && !isDirty));
+                        return (
+                            <button
+                                onClick={() => {
+                                    if (isLocked || isExpired) {
+                                        setShowSummaryModal(true);
+                                        return;
+                                    }
+                                    if (isSubmitted && isDirty) {
+                                        setShowChangesModal(true);
+                                    } else {
+                                        setShowSummaryModal(true);
+                                    }
+                                }}
+                                disabled={isSubmitDisabled}
+                                className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 font-semibold rounded-xl text-base shadow-md transition-all focus:ring-4 focus:ring-blue-500 focus:outline-none min-h-[48px] ${
+                                    isSubmitDisabled
+                                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'
+                                }`}
+                            >
+                                {isLocked || isExpired
+                                    ? 'View Submitted Plan Summary'
+                                    : (isSubmitted && !isDirty)
+                                        ? 'Submitted (No Changes)'
+                                        : 'Submit Plan'}
                             </button>
-                        </motion.div>
-                    );
-                })}
+                        );
+                    })()}
+                </div>
             </div>
 
-            {/* ── Submit / View Summary CTA ── */}
+            {/* ── Mobile-First Modal Card Panels Overlay ── */}
             <AnimatePresence>
-                {(priorityAreas.length > 0 || selectedInterventions.length > 0 || isLocked || isExpired) && (
+                {activeCard && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="mt-6 space-y-4 px-5"
+                        key="card-modal-backdrop"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ zIndex: 9990 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9990] flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden"
                     >
-                        <button
-                            onClick={() => setShowSummaryModal(true)}
-                            className="w-full py-6 bg-siif-blue hover:bg-siif-blue/90 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+                        <motion.div
+                            key={`card-modal-${activeCard}`}
+                            initial={{ y: '100%', opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: '100%', opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="bg-slate-50 dark:bg-slate-900 w-full max-w-lg sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] sm:max-h-[85vh] h-auto rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
                         >
-                            {isLocked || isExpired ? 'View Submitted Plan Summary' : 'View Summary'}
-                        </button>
+                            {activeCard === 'pia' && (
+                                <PriorityImprovementAreaCard
+                                    value={priorityAreas}
+                                    onChange={setPriorityAreas}
+                                    onConfirm={() => confirm('pia')}
+                                    onClose={() => closeCard('pia')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'interventions' && (
+                                <InterventionsCard
+                                    value={selectedInterventions}
+                                    aral={aral}
+                                    onChange={setSelectedInterventions}
+                                    onAralChange={setAral}
+                                    onConfirm={() => confirm('interventions')}
+                                    onClose={() => closeCard('interventions')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'beneficiaries' && (
+                                <BeneficiariesCard
+                                    selectedInterventions={selectedInterventions}
+                                    value={beneficiaries}
+                                    aral={aral}
+                                    onChange={setBeneficiaries}
+                                    onConfirm={() => confirm('beneficiaries')}
+                                    onClose={() => closeCard('beneficiaries')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'activities' && (
+                                <ActivitiesCard
+                                    selectedInterventions={selectedInterventions}
+                                    value={activities}
+                                    onChange={setActivities}
+                                    onConfirm={() => confirm('activities')}
+                                    onClose={() => closeCard('activities')}
+                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                />
+                            )}
+                            {activeCard === 'budget' && (
+                                <BudgetCard
+                                    user={user}
+                                    interventions={selectedInterventions}
+                                    budgets={budgets}
+                                    setBudgets={setBudgets}
+                                    beneficiaries={beneficiaries}
+                                    onConfirm={() => confirm('budget')}
+                                    onClose={() => closeCard('budget')}
+                                    isLocked={isExpired || isNotYetOpen || isLocked}
+                                    allocation={allocation}
+                                />
+                            )}
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* ── Full-screen card panels ── */}
-            <AnimatePresence>
-                {activeCard === 'pia' && (
-                    <motion.div key="pia" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <PriorityImprovementAreaCard
-                            value={priorityAreas}
-                            onChange={setPriorityAreas}
-                            onConfirm={() => confirm('pia')}
-                            onClose={() => closeCard('pia')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'interventions' && (
-                    <motion.div key="int" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <InterventionsCard
-                            value={selectedInterventions}
-                            aral={aral}
-                            onChange={setSelectedInterventions}
-                            onAralChange={setAral}
-                            onConfirm={() => confirm('interventions')}
-                            onClose={() => closeCard('interventions')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'beneficiaries' && (
-                    <motion.div key="ben" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <BeneficiariesCard
-                            selectedInterventions={selectedInterventions}
-                            value={beneficiaries}
-                            aral={aral}
-                            onChange={setBeneficiaries}
-                            onConfirm={() => confirm('beneficiaries')}
-                            onClose={() => closeCard('beneficiaries')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'activities' && (
-                    <motion.div key="act" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <ActivitiesCard
-                            selectedInterventions={selectedInterventions}
-                            value={activities}
-                            onChange={setActivities}
-                            onConfirm={() => confirm('activities')}
-                            onClose={() => closeCard('activities')}
-                            readOnly={isExpired || isNotYetOpen || isLocked}
-                        />
-                    </motion.div>
-                )}
-                {activeCard === 'budget' && (
-                    <motion.div key="bud" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'tween', duration: 0.25 }} className="fixed inset-0 z-[1050] flex flex-col overflow-hidden bg-slate-50">
-                        <BudgetCard
-                            user={user}
-                            interventions={selectedInterventions}
-                            budgets={budgets}
-                            setBudgets={setBudgets}
-                            beneficiaries={beneficiaries}
-                            onConfirm={() => confirm('budget')}
-                            onClose={() => closeCard('budget')}
-                            isLocked={isExpired || isNotYetOpen || isLocked}
-                            allocation={allocation}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ── View Summary Overlay Modal ── */}
+            {/* ── View Summary Overlay Bottom Sheet Modal ── */}
             <AnimatePresence>
                 {showSummaryModal && (
                     <motion.div
@@ -743,37 +901,41 @@ const SIIFFormsHub = ({ user, token }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         style={{ zIndex: 9999 }}
-                        className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[9999] flex flex-col justify-center items-center p-4 overflow-hidden"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4"
                     >
                         <motion.div
                             initial={{ y: '100%', opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="siif-card w-full sm:max-w-2xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden border-[2.5px] border-slate-300"
-                            style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
+                            className="bg-white dark:bg-slate-900 w-full max-w-lg sm:max-w-2xl rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] border border-slate-200 dark:border-slate-800"
                         >
                             {/* Modal Header */}
-                            <div className="bg-gradient-to-br from-[#0B1F4D] to-[#10346B] text-white px-6 py-5 rounded-b-[2rem] shadow-lg relative overflow-hidden shrink-0">
+                            <div
+                                className="text-white px-6 py-5 shrink-0 relative overflow-hidden"
+                                style={{ background: 'linear-gradient(135deg, #0B1F4D 0%, #10346B 100%)' }}
+                            >
                                 <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
                                 <div className="relative z-10 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <button
                                             onClick={() => setShowSummaryModal(false)}
-                                            className="p-2 bg-white/10 rounded-xl hover:bg-white/20 transition-all border border-white/10 text-white"
+                                            className="p-2 rounded-xl transition-all border text-white"
+                                            style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)' }}
                                         >
                                             <TbArrowLeft size={16} />
                                         </button>
                                         <div>
-                                            <h2 className="text-base font-black italic uppercase tracking-tight">Implementation Plan Summary</h2>
-                                            <p className="text-[9px] font-bold text-blue-200 uppercase tracking-widest mt-0.5">
-                                                FY {allocation?.fiscal_year || new Date().getFullYear()} · {allocation?.school_name || user?.school_name || 'Your School'}
+                                            <h2 className="text-base font-black italic uppercase tracking-tight" style={{ color: '#FBBF24' }}>Implementation Plan Summary</h2>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: '#93C5FD' }}>
+                                                FY {allocation?.fiscal_year || new Date().getFullYear()} · School ID: {user?.school_id || allocation?.school_id || '999163'}
                                             </p>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => setShowSummaryModal(false)}
-                                        className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all border border-white/10 text-white"
+                                        className="p-2 rounded-xl transition-all border text-white"
+                                        style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)' }}
                                     >
                                         <TbX size={16} />
                                     </button>
@@ -941,17 +1103,17 @@ const SIIFFormsHub = ({ user, token }) => {
                                                         const items = Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : [];
                                                         if (items.length === 0) return null;
                                                         return (
-                                                            <div key={cat.key} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                                <p className="text-[15px] font-black text-slate-500 uppercase tracking-wider mb-2">{cat.label}</p>
-                                                                <div className="space-y-2">
-                                                                    {items.map((act, i) => {
+                                                            <div key={cat.key} className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1">{cat.label}</p>
+                                                                <div className="space-y-1.5">
+                                                                    {items.map((act, actIdx) => {
                                                                         const display = act === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : act;
                                                                         return (
-                                                                            <div key={i} className="flex items-start gap-3 bg-white px-3 py-2 rounded-lg border border-slate-100">
-                                                                                <div className="w-5 h-5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
-                                                                                    <TbCheck size={12} />
+                                                                            <div key={actIdx} className="flex items-start gap-2 bg-white p-2 rounded-lg border border-slate-100">
+                                                                                <div className="w-3.5 h-3.5 rounded bg-siif-blue text-white flex items-center justify-center shrink-0 mt-0.5">
+                                                                                    <TbCheck size={8} />
                                                                                 </div>
-                                                                                <p className="text-[15px] text-slate-600 font-bold leading-snug">{display}</p>
+                                                                                <p className="text-[9px] text-slate-600 font-bold leading-normal">{display}</p>
                                                                             </div>
                                                                         );
                                                                     })}
@@ -959,9 +1121,6 @@ const SIIFFormsHub = ({ user, token }) => {
                                                             </div>
                                                         );
                                                     })}
-                                                    {!categories.some(cat => (Array.isArray(selectedActivities?.[cat.key]) ? selectedActivities[cat.key] : []).length > 0) && (
-                                                        <p className="text-[10px] text-slate-400 italic">No activities planned.</p>
-                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -970,65 +1129,89 @@ const SIIFFormsHub = ({ user, token }) => {
                             </div>
 
                             {/* Modal Footer / Submit Attestation */}
-                            <div className="p-6 bg-white border-t border-slate-200 shrink-0">
-                                {isExpired ? (
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center gap-3">
-                                            <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center shrink-0">
-                                                <TbLock size={16} className="text-slate-300" />
+                            <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-2.5">
+                                {isReviewed ? (
+                                    <div className="space-y-3">
+                                        <div className="p-3.5 bg-emerald-950 text-white rounded-2xl flex items-center gap-3 shadow-md border border-emerald-800/60">
+                                            <div className="w-8 h-8 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0 border border-emerald-400/30">
+                                                <TbCheck size={18} className="text-emerald-400" />
                                             </div>
                                             <div>
-                                                <p className="text-[9px] font-black uppercase text-slate-400">Read-Only Mode</p>
-                                                <p className="text-[10px] font-bold leading-tight">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Official Plan Reviewed</p>
+                                                <p className="text-[11px] font-bold leading-snug text-slate-200">
+                                                    This implementation plan has been reviewed and approved by the SDO.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowSummaryModal(false)}
+                                            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
+                                        >
+                                            Close Summary View
+                                        </button>
+                                    </div>
+                                ) : isExpired ? (
+                                    <div className="space-y-3">
+                                        <div className="p-3.5 bg-slate-900 text-white rounded-2xl flex items-center gap-3 shadow-md border border-slate-800">
+                                            <div className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center shrink-0 border border-white/20">
+                                                <TbLock size={18} className="text-slate-300" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Read-Only Mode</p>
+                                                <p className="text-[11px] font-bold leading-snug text-slate-200">
                                                     The submission deadline has passed. This proposal cannot be modified.
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => setShowSummaryModal(false)}
-                                            className="w-full py-4.5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
+                                            className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98]"
                                         >
                                             Close Summary View
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div className="space-y-2.5">
                                         {/* Plan Status Banner for Division Disapproval */}
                                         {isDisapproved && (
-                                            <div className="p-4.5 bg-red-50 text-red-600 rounded-3xl border border-red-100 flex flex-col gap-2 mb-2 shadow-sm">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-red-100 rounded-2xl flex items-center justify-center shrink-0 border border-red-200">
-                                                        <TbX size={20} className="text-red-600 animate-pulse" />
+                                            <div className="p-3 bg-red-50 text-red-600 rounded-2xl border border-red-100 flex flex-col gap-1.5 shadow-sm">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center shrink-0 border border-red-200">
+                                                        <TbX size={16} className="text-red-600 animate-pulse" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-[9px] font-black uppercase tracking-widest text-red-600">Plan Status: Disapproved by Division</p>
-                                                        <p className="text-[10.5px] font-bold leading-snug text-slate-700">
+                                                        <p className="text-[8px] font-black uppercase tracking-widest text-red-600">Plan Status: Disapproved by Division</p>
+                                                        <p className="text-[10px] font-bold leading-snug text-slate-700">
                                                             Please address the SDO comments below before resubmitting.
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <p className="text-xs font-extrabold italic text-slate-700 bg-white p-3 rounded-xl border border-slate-100 mt-1 leading-relaxed">
+                                                <p className="text-xs font-extrabold italic text-slate-700 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed">
                                                     "{remarks || 'No remarks provided.'}"
                                                 </p>
                                             </div>
                                         )}
 
-                                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
-                                            {!allConfirmed && (
-                                                <p className="text-[10px] text-amber-600 font-bold text-center mb-1 leading-snug animate-pulse">
-                                                    ⚠️ PLAN INCOMPLETE: You must confirm all cards in the Planning Hub before you can finalize and submit.
-                                                </p>
-                                            )}
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">
-                                                Type <span className="text-siif-blue font-black">CONFIRM</span> to Finalize and Submit
-                                            </p>
+                                        {/* Low-profile Compact Confirm Input Box */}
+                                        <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2">
+                                            <div className="flex-1 min-w-0 text-center sm:text-left">
+                                                {!allConfirmed ? (
+                                                    <p className="text-[10px] text-amber-600 font-bold leading-tight animate-pulse">
+                                                        ⚠️ PLAN INCOMPLETE: Confirm all cards before final submission.
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                        Type <span className="text-siif-blue font-black">CONFIRM</span> to finalize and submit:
+                                                    </p>
+                                                )}
+                                            </div>
                                             <input
                                                 type="text"
-                                                placeholder="Type CONFIRM here..."
+                                                placeholder="CONFIRM..."
                                                 disabled={!allConfirmed}
                                                 value={confirmText}
                                                 onChange={e => setConfirmText(e.target.value)}
-                                                className={`w-full px-5 py-3 rounded-xl border-2 font-black text-xs tracking-widest text-center transition-all focus:outline-none ${!allConfirmed
+                                                className={`w-full sm:w-44 px-3.5 py-2 rounded-xl border-2 font-black text-xs tracking-widest text-center transition-all focus:outline-none ${!allConfirmed
                                                     ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
                                                     : confirmError
                                                         ? 'border-red-400 bg-red-50 text-red-600 animate-shake'
@@ -1037,11 +1220,11 @@ const SIIFFormsHub = ({ user, token }) => {
                                             />
                                         </div>
 
-                                        <div className="flex gap-3">
+                                        <div className="flex gap-2.5">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowSummaryModal(false)}
-                                                className="py-4 px-6 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
+                                                className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
                                             >
                                                 Back
                                             </button>
@@ -1060,7 +1243,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                                     await handleSubmit();
                                                 }}
                                                 disabled={submitting || totalBudget > (parseFloat(allocation?.allocation_amount) || 0) || !allConfirmed}
-                                                className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                                             >
                                                 {submitting ? 'Submitting...' : isSubmitted ? 'Update Submitted Plan 🚀' : 'Submit Final Plan 🚀'}
                                             </button>
@@ -1072,7 +1255,127 @@ const SIIFFormsHub = ({ user, token }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </main>
+
+            {/* ── Changes Detected in Submitted Plan Modal ── */}
+            <AnimatePresence>
+                {showChangesModal && (() => {
+                    const changeSummary = buildChangeSummary();
+                    return (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{ zIndex: 10000 }}
+                            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4"
+                        >
+                            <motion.div
+                                initial={{ y: '100%', opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                exit={{ y: '100%', opacity: 0 }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                className="bg-white dark:bg-slate-900 w-full max-w-lg sm:max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] border border-slate-200 dark:border-slate-800"
+                            >
+                                {/* Modal Header */}
+                                <div
+                                    className="px-6 py-5 shrink-0 relative overflow-hidden"
+                                    style={{ background: 'linear-gradient(135deg, #92400E 0%, #B45309 100%)' }}
+                                >
+                                    <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                                    <div className="relative z-10 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center shrink-0 border border-white/20">
+                                                <TbEdit size={20} className="text-amber-200" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-base font-black italic uppercase tracking-tight text-amber-200">Changes Detected in Submitted Plan</h2>
+                                                <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5 text-amber-300/80">
+                                                    Local changes differ from the submitted version
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowChangesModal(false)}
+                                            className="p-2 rounded-xl transition-all border text-white"
+                                            style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)' }}
+                                        >
+                                            <TbX size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/50">
+                                        <p className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest mb-3">
+                                            Detected Modifications ({changeSummary.length})
+                                        </p>
+                                        <div className="space-y-2">
+                                            {changeSummary.length > 0 ? changeSummary.map((change, idx) => (
+                                                <div key={idx} className="flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-3 rounded-xl border border-amber-100 dark:border-amber-900/50 shadow-sm">
+                                                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{change}</p>
+                                                </div>
+                                            )) : (
+                                                <p className="text-sm text-slate-500 italic">No specific changes detected.</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Choose how to proceed with these local changes:
+                                        </p>
+                                        <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                            <li>• <strong className="text-slate-700 dark:text-slate-200">Confirm Change</strong> — Uploads your local changes as the new submitted version.</li>
+                                            <li>• <strong className="text-slate-700 dark:text-slate-200">Revert Change</strong> — Discards all local modifications and restores the original submitted data.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-800 shrink-0 flex gap-3 bg-white dark:bg-slate-900">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            // Revert: restore original server snapshot into all state setters
+                                            if (originalPayload.current) {
+                                                const orig = JSON.parse(originalPayload.current);
+                                                setPriorityAreas(orig.priorityAreas);
+                                                setSelectedInterventions(orig.selectedInterventions);
+                                                setAral(orig.aral);
+                                                setBeneficiaries(orig.beneficiaries);
+                                                setActivities(orig.activities);
+                                                setBudgets(orig.budgets);
+                                            }
+                                            setShowChangesModal(false);
+                                        }}
+                                        style={{ background: '#F1F5F9', color: '#334155', borderColor: '#CBD5E1' }}
+                                        className="flex-1 py-3.5 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] border"
+                                    >
+                                        ↩ Revert Change
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setShowChangesModal(false);
+                                            await handleSubmit();
+                                            // Update snapshot to reflect the new submitted state
+                                            originalPayload.current = currentSnapshot;
+                                        }}
+                                        disabled={submitting}
+                                        style={{ background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', color: '#FFFFFF' }}
+                                        className="flex-1 py-3.5 hover:brightness-110 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-amber-600/40"
+                                    >
+                                        <TbCheck size={18} className="text-white shrink-0" />
+                                        <span>{submitting ? 'Submitting...' : 'Confirm Change'}</span>
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    );
+                })()}
+            </AnimatePresence>
+        </div>
     );
 };
 

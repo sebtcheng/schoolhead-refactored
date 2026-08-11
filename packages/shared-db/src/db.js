@@ -5,27 +5,31 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+
+// Centralized Dotenv Loading: Load root .env file
+const rootDir = path.join(__dirname, '..', '..', '..');
+dotenv.config({ path: path.join(rootDir, '.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const { Pool } = pg;
 
 // --- DATABASE CONNECTION ---
-let dbUrl = process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@127.0.0.1:6432/insightEd';
+let dbUrl = process.env.CLOUD_DATABASE_URL || process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insighted-staging';
 
 // Auto-redirect local development connections from production (insightEd) to staging (insighted-staging)
 const isLocalMachine = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';
 if (isLocalMachine) {
   try {
     const urlObj = new URL(dbUrl);
-    if (urlObj.pathname === '/insightEd') {
+    if (urlObj.pathname.toLowerCase() === '/insighted') {
       console.log('🛡️ [DB] Local environment detected. Redirecting connection from production "insightEd" to "insighted-staging" for safety.');
       urlObj.pathname = '/insighted-staging';
       dbUrl = urlObj.toString();
     }
   } catch (e) {
-    if (dbUrl.includes('/insightEd')) {
+    if (dbUrl.toLowerCase().includes('/insighted')) {
       console.log('🛡️ [DB] Local environment detected. Redirecting connection from production "insightEd" to "insighted-staging" for safety.');
-      dbUrl = dbUrl.replace('/insightEd', '/insighted-staging');
+      dbUrl = dbUrl.replace(/\/insighted/i, '/insighted-staging');
     }
   }
 }
@@ -98,6 +102,110 @@ export async function safeQuery(text, params) {
   }
 }
 
+// --- CENTRAL USERS DATABASE CONNECTION (users_database) ---
+const usersDbUrl = process.env.USERS_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/users_database';
+export const poolUsers = new Pool({
+  connectionString: usersDbUrl,
+  ssl: { rejectUnauthorized: false },
+  max: isLocal ? 15 : 10,
+  min: 1,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
+  application_name: isLocal ? 'InsightEd_Users_Local' : 'InsightEd_Users_Cluster'
+});
+
+poolUsers.on('error', (err) => {
+  console.error('💥 [USERS-DB-POOL] Unexpected error on idle users database client:', err.message);
+});
+
+/**
+ * [USERS-DB-RETRY] Execute a safe query on users_database with one-shot retry.
+ */
+export async function safeUsersQuery(text, params) {
+  try {
+    return await poolUsers.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('terminated unexpectedly')) {
+      console.warn(`♻️ [USERS-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+      return await poolUsers.query(text, params);
+    }
+    throw err;
+  }
+}
+
+// --- CENTRAL SIIF DATABASE CONNECTION (siif_database) ---
+const siifDbUrl = process.env.SIIF_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/siif_database';
+export const poolSiif = new Pool({
+  connectionString: siifDbUrl,
+  ssl: { rejectUnauthorized: false },
+  max: isLocal ? 15 : 10,
+  min: 1,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
+  application_name: isLocal ? 'InsightEd_SIIF_Local' : 'InsightEd_SIIF_Cluster'
+});
+
+poolSiif.on('error', (err) => {
+  console.error('💥 [SIIF-DB-POOL] Unexpected error on idle siif database client:', err.message);
+});
+
+/**
+ * [SIIF-DB-RETRY] Execute a safe query on siif_database with one-shot retry.
+ */
+export async function safeSiifQuery(text, params) {
+  try {
+    return await poolSiif.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('terminated unexpectedly')) {
+      console.warn(`♻️ [SIIF-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+      return await poolSiif.query(text, params);
+    }
+    throw err;
+  }
+}
+
+// --- CENTRAL CHAT DATABASE CONNECTION (chat_database) ---
+const chatDbUrl = process.env.CHAT_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/chat_database';
+export const poolChat = new Pool({
+  connectionString: chatDbUrl,
+  ssl: { rejectUnauthorized: false },
+  max: isLocal ? 15 : 10,
+  min: 1,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  maxUses: 1500,
+  keepAlive: true,
+  allowExitOnIdle: true,
+  application_name: isLocal ? 'InsightEd_Chat_Local' : 'InsightEd_Chat_Cluster'
+});
+
+export const chatDbPool = poolChat;
+
+poolChat.on('error', (err) => {
+  console.error('💥 [CHAT-DB-POOL] Unexpected error on idle chat database client:', err.message);
+});
+
+/**
+ * [CHAT-DB-RETRY] Execute a safe query on chat_database with one-shot retry.
+ */
+export async function safeChatQuery(text, params) {
+  try {
+    return await poolChat.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('terminated unexpectedly')) {
+      console.warn(`♻️ [CHAT-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+      return await poolChat.query(text, params);
+    }
+    throw err;
+  }
+}
+
 // Proactive Pool Telemetry
 setInterval(() => {
   if (pool) {
@@ -146,58 +254,25 @@ export async function cachedQuery(key, fn) {
 export async function updateSchoolTotalCompletion(iern, schoolYr = 'SY 26-27') {
   if (!iern) return;
   try {
-    const res = await safeQuery(
-      `SELECT ps.school_id,
-              COALESCE(u1.unit1_completed, FALSE) AS unit1_completed,
-              CASE WHEN u1.unit1_completed = TRUE THEN 1.00 ELSE COALESCE(u1.unit1, 0)::numeric / 100.00 END AS unit1,
-              COALESCE(u2.unit2_completed = 100.00, FALSE) AS unit2_completed,
-              CASE WHEN COALESCE(u2.unit2_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit2,
-              COALESCE(u3.unit3_completed = 100.00, FALSE) AS unit3_completed,
-              CASE WHEN COALESCE(u3.unit3_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit3,
-              COALESCE(u4.unit4_completed = 100.00, FALSE) AS unit4_completed,
-              CASE WHEN COALESCE(u4.unit4_completed = 100.00, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit4,
-              COALESCE(u5.unit5_completed, FALSE) AS unit5_completed,
-              CASE WHEN COALESCE(u5.unit5_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u5.unit5, 0)::numeric / 100.00 END AS unit5,
-              COALESCE(u6.unit6_completed, FALSE) AS unit6_completed,
-              CASE WHEN COALESCE(u6.unit6_completed, FALSE) = TRUE THEN 1.00 ELSE 0.00 END AS unit6,
-              COALESCE(u7.unit7_completed, FALSE) AS unit7_completed,
-              CASE WHEN COALESCE(u7.unit7_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u7.unit7, 0)::numeric / 100.00 END AS unit7,
-              COALESCE(u8.unit8_completed, FALSE) AS unit8_completed,
-              CASE WHEN COALESCE(u8.unit8_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u8.unit8, 0)::numeric / 100.00 END AS unit8,
-              COALESCE(u9.unit9_completed, FALSE) AS unit9_completed,
-              CASE WHEN COALESCE(u9.unit9_completed, FALSE) = TRUE THEN 1.00 ELSE COALESCE(u9.unit9, 0)::numeric / 100.00 END AS unit9
-       FROM ph_schools ps
-       LEFT JOIN unit1_school_identity u1 ON ps.iern = u1.iern AND u1.school_yr = $2
-       LEFT JOIN unit2_school_learners u2 ON ps.iern = u2.iern AND u2.school_yr = $2
-       LEFT JOIN unit3_organized_classes u3 ON ps.iern = u3.iern AND u3.school_yr = $2
-       LEFT JOIN unit4_learner_profile u4 ON ps.iern = u4.iern AND u4.school_yr = $2
-       LEFT JOIN unit5_shifting_modality u5 ON ps.iern = u5.iern AND u5.school_yr = $2
-       LEFT JOIN unit6_school_resources u6 ON ps.school_id = u6.school_id AND u6.school_yr = $2
-       LEFT JOIN unit7_facilities u7 ON ps.school_id = u7.school_id AND u7.school_yr = $2
-       LEFT JOIN unit8_location u8 ON ps.school_id = u8.school_id AND u8.school_yr = $2
-       LEFT JOIN unit9_safety u9 ON ps.school_id = u9.school_id AND u9.school_yr = $2
-       WHERE ps.iern = $1`,
-      [iern, schoolYr]
-    );
-    if (res.rows.length === 0) return;
+    const schoolRes = await safeQuery('SELECT school_id FROM ph_schools WHERE iern = $1 OR school_id = $1 LIMIT 1', [iern]);
+    const schoolId = schoolRes.rows[0]?.school_id || iern;
 
-    const row = res.rows[0];
-    const schoolId = row.school_id;
-    const dbCols = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const res = await safeQuery(
+      `SELECT unit_number, is_completed
+       FROM ph_school_unit_submissions WHERE iern = $1 OR iern = $2`,
+      [iern, schoolId]
+    );
+
+    const compMap = {};
+    res.rows.forEach(r => {
+      compMap[r.unit_number] = r.is_completed === true;
+    });
+
     let completedCount = 0;
     const boolValues = [];
-    for (const idx of dbCols) {
-      const val = parseFloat(row[`unit${idx}`]) || 0;
-      const isDone = row[`unit${idx}_completed`] === true || val >= 1;
-
-      let unitProgress = 0;
-      if (isDone) {
-        unitProgress = 1;
-      } else if (val > 0) {
-        unitProgress = val;
-      }
-
-      completedCount += unitProgress;
+    for (let u = 1; u <= 9; u++) {
+      const isDone = compMap[u] === true;
+      if (isDone) completedCount++;
       boolValues.push(isDone);
     }
 
@@ -208,17 +283,17 @@ export async function updateSchoolTotalCompletion(iern, schoolYr = 'SY 26-27') {
          (iern, school_id, unit1_completion, unit2_completion, unit3_completion, unit4_completion,
           unit5_completion, unit6_completion, unit7_completion, unit8_completion, unit9_completion, total_completion, updated_at)
        VALUES ($11, $12, $2, $3, $4, $5, $6, $7, $8, $9, $10, $1, CURRENT_TIMESTAMP)
-       ON CONFLICT (school_id) DO UPDATE SET
-         iern = EXCLUDED.iern, unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
+       ON CONFLICT (iern) DO UPDATE SET
+         school_id = EXCLUDED.school_id, unit1_completion=$2, unit2_completion=$3, unit3_completion=$4, unit4_completion=$5,
          unit5_completion=$6, unit6_completion=$7, unit7_completion=$8, unit8_completion=$9,
          unit9_completion=$10, total_completion=$1, updated_at=CURRENT_TIMESTAMP`,
       [percentage, ...boolValues, iern, schoolId]
-    );
+    ).catch(() => {});
 
     await safeQuery(
-      'UPDATE ph_schools SET unit_completion=$1 WHERE iern=$2',
+      'UPDATE ph_schools SET unit_completion=$1 WHERE iern=$2 OR school_id=$2',
       [percentage, iern]
-    );
+    ).catch(() => {});
 
     console.log(`[SYNC] Updated completion for ${iern}: ${percentage}% (${completedCount}/9)`);
   } catch (err) {

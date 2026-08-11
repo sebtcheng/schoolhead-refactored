@@ -2,9 +2,9 @@
 // Form → Summary → CONFIRM-to-save
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TbCheck, TbChevronLeft, TbChevronRight, TbArrowLeft, TbX } from 'react-icons/tb';
+import { TbCheck, TbChevronLeft, TbChevronRight, TbArrowLeft, TbX, TbShieldCheck, TbPuzzle, TbChecklist } from 'react-icons/tb';
 import { FiInfo } from 'react-icons/fi';
-import { INTERVENTIONS, INTERVENTION_ICONS } from './siifConstants.jsx';
+import { INTERVENTIONS, INTERVENTION_ICONS, REMEDIATION_SUBJECTS } from './siifConstants.jsx';
 
 const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onClose, readOnly }) => {
     const [screen, setScreen]           = useState('form'); // 'form' | 'summary'
@@ -30,6 +30,11 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
             alert('Please select at least one intervention before proceeding.');
             return;
         }
+        // Validation: Remediation must have at least one subject area selected
+        if (value.includes('remediation') && aral.subjects.length === 0) {
+            alert('Please select at least one Subject Area for the Remediation intervention before proceeding.');
+            return;
+        }
         console.log('➡️ [InterventionsCard] Moving to summary.');
         setScreen('summary');
     };
@@ -52,12 +57,12 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
 
     // ── FORM SCREEN ─────────────────────────────────────────────────────────────
     const renderFormScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-3 pb-36">
-            <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm mb-2">
-                <h3 className="text-sm font-black text-slate-800 mb-1 leading-snug">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-2.5 pb-6 sm:pb-8">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-2">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 leading-snug">
                     What type of interventions does your school plan to implement?
                 </h3>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-xs text-slate-500 leading-relaxed">
                     {readOnly 
                         ? "Viewing selected interventions for this fiscal year." 
                         : "Select all interventions your school plans to implement this fiscal year. You must select at least one to proceed."}
@@ -68,29 +73,30 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                 const active = value.includes(opt.id);
                 return (
                     <React.Fragment key={opt.id}>
-                        <button
+                        <label
                             onClick={() => toggle(opt.id)}
-                            disabled={readOnly}
-                            className={`siif-card w-full p-4 sm:p-5 rounded-3xl border-2 text-left flex flex-col sm:flex-row gap-3 sm:gap-4 transition-all duration-300 ${!readOnly ? 'active:scale-[0.98]' : ''} ${
-                                active
-                                    ? 'border-siif-blue bg-blue-50/40 shadow-lg shadow-blue-100/50'
-                                    : 'border-transparent bg-white hover:border-slate-200 shadow-sm'
+                            className={`group relative flex items-start gap-4 p-4 border rounded-2xl cursor-pointer select-none transition-all duration-200 min-h-[52px] ${
+                                active 
+                                    ? "border-blue-600 dark:border-blue-500 bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/20 dark:to-slate-900 pod-glow scale-[1.01]" 
+                                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
                             } ${readOnly ? 'cursor-default' : ''}`}
                         >
-                            <div className="flex items-center gap-3 sm:gap-4 w-full">
-                                <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all ${active ? 'bg-siif-blue text-white shadow-inner' : 'bg-slate-50 text-slate-400'}`}>
-                                    {INTERVENTION_ICONS[opt.id]}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className={`font-black text-sm sm:text-[15px] uppercase tracking-tight leading-snug truncate ${active ? 'text-siif-blue' : 'text-slate-700'}`}>{opt.label}</p>
-                                    <p className="text-[11px] sm:text-[12px] text-black font-semibold leading-relaxed mt-0.5 sm:mt-1 hidden sm:block">{opt.desc}</p>
-                                </div>
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${active ? 'border-siif-blue bg-siif-blue shadow-md' : 'border-slate-200 bg-white'}`}>
-                                    {active && <TbCheck size={13} className="text-white" />}
-                                </div>
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400">
+                                {INTERVENTION_ICONS[opt.id]}
                             </div>
-                            <p className="text-[11px] sm:text-[12px] text-black font-semibold leading-relaxed sm:hidden px-1">{opt.desc}</p>
-                        </button>
+                            <div className="flex-1 min-w-0">
+                                <p className={`font-extrabold text-base leading-snug ${active ? 'text-blue-950 dark:text-blue-100' : 'text-slate-900 dark:text-white'}`}>{opt.label}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">{opt.desc}</p>
+                            </div>
+                            {/* Custom Animated Check Circle */}
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all shrink-0 mt-0.5 ${
+                                active 
+                                    ? "bg-blue-600 border-blue-600 text-white scale-110 shadow-sm" 
+                                    : "border-slate-300 dark:border-slate-700 group-hover:border-slate-400 bg-white dark:bg-slate-800"
+                            }`}>
+                                {active && <TbCheck size={14} className="font-bold text-white" />}
+                            </div>
+                        </label>
 
                         {/* ARAL sub-question (Remediation only) */}
                         <AnimatePresence>
@@ -99,15 +105,15 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: 'auto', opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }}
-                                    className="mx-3 overflow-hidden"
+                                    className="mx-2 overflow-hidden"
                                 >
-                                    <div className="p-5 bg-amber-50 rounded-b-3xl border-x-2 border-b-2 border-amber-200/60 space-y-4 -mt-2 pt-6">
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/50 space-y-3 mt-1">
                                         <div className="space-y-2">
-                                            <p className="text-[10px] text-amber-600 font-black uppercase tracking-widest">
-                                                {readOnly ? 'Selected ARAL Subject Areas' : 'Select ARAL Subject Areas'}
+                                            <p className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                                                {readOnly ? 'Selected Subject Areas' : 'Select Subject Areas'}
                                             </p>
                                             <div className="flex flex-wrap gap-2">
-                                                {['Reading', 'Mathematics', 'Science'].map(subj => {
+                                                {REMEDIATION_SUBJECTS.map(subj => {
                                                     const checked = aral.subjects.includes(subj);
                                                     if (readOnly && !checked) return null;
                                                     return (
@@ -116,13 +122,13 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                                                             disabled={readOnly}
                                                             onClick={() => onAralChange({
                                                                 ...aral,
-                                                                planned: true, // implicitly true
+                                                                planned: true,
                                                                 subjects: checked
                                                                     ? aral.subjects.filter(s => s !== subj)
                                                                     : [...aral.subjects, subj]
                                                             })}
-                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
-                                                                checked ? 'bg-deped-blue border-deped-blue text-white' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'
+                                                            className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border min-h-[44px] ${
+                                                                checked ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-slate-800 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100'
                                                             } ${readOnly ? 'cursor-default' : ''}`}
                                                         >{subj}</button>
                                                     );
@@ -143,7 +149,7 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         onClick={goToSummary}
-                        className="w-full py-5 bg-siif-blue hover:bg-[var(--blue)] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-3"
                     >
                         {readOnly ? 'View Summary' : 'Review Summary'} <TbChevronRight size={18} />
                     </motion.button>
@@ -154,29 +160,64 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
 
     // ── SUMMARY SCREEN ───────────────────────────────────────────────────────────
     const renderSummaryScreen = () => (
-        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-36">
-            <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Summary — Selected Interventions</p>
-                <div className="space-y-3">
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4 pb-6 sm:pb-8">
+            <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 shadow-xs">
+                        <TbPuzzle size={18} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                        <span className="text-xs font-black uppercase tracking-wider">
+                            Selected School Interventions
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-black text-xs border border-slate-200/80 dark:border-slate-700">
+                        <TbChecklist size={14} className="text-blue-600 dark:text-blue-400" />
+                        <span>{value.length} Selected</span>
+                    </div>
+                </div>
+
+                <div className="space-y-2.5">
                     {value.map(id => {
                         const info = INTERVENTIONS.find(i => i.id === id);
                         return (
-                            <div key={id} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
-                                <div className="w-8 h-8 rounded-xl bg-blue-50 text-deped-blue flex items-center justify-center shrink-0">
+                            <div key={id} className="flex items-center gap-6 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                                     {INTERVENTION_ICONS[id]}
                                 </div>
-                                <p className="text-xs font-black text-slate-700 uppercase tracking-tight">{info?.label}</p>
-                                <TbCheck className="ml-auto text-emerald-500 shrink-0" size={16} />
+                                <div className="flex-1 min-w-0 pl-2">
+                                    <p className="text-xs font-extrabold text-slate-900 dark:text-slate-100 tracking-tight leading-snug">{info?.label}</p>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{info?.desc}</p>
+                                </div>
+                                <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                    <TbCheck size={14} className="font-black" />
+                                </div>
                             </div>
                         );
                     })}
                 </div>
+
                 {value.includes('remediation') && (
-                    <div className="mt-4 pt-4 border-t border-slate-100 bg-amber-50 rounded-2xl p-4">
-                        <p className="text-[9px] text-amber-600 font-black uppercase tracking-widest mb-1">ARAL Status</p>
-                        <p className="text-[11px] font-bold text-slate-700">
-                            {aral.subjects.length > 0 ? aral.subjects.join(', ') : 'No subjects specified'}
-                        </p>
+                    <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 rounded-xl border border-amber-200/80 dark:border-amber-800/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">Subject Areas</span>
+                            <span className="text-[9px] font-bold text-amber-700 bg-amber-200/60 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
+                                {aral.subjects.length} Selected
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {aral.subjects.length > 0 ? (
+                                aral.subjects.map(subj => (
+                                    <span
+                                        key={subj}
+                                        className="px-3 py-1 text-white font-extrabold text-xs rounded-lg shadow-sm"
+                                        style={{ backgroundColor: '#d97706', color: '#ffffff' }}
+                                    >
+                                        {subj}
+                                    </span>
+                                ))
+                            ) : (
+                                <span className="text-xs text-amber-800 dark:text-amber-300 italic">No specific subjects selected</span>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -185,53 +226,65 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
             {!readOnly && (
                 <button
                     onClick={() => setScreen('form')}
-                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-200 transition-colors"
+                    className="w-full py-3.5 px-4 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 rounded-xl font-extrabold text-xs uppercase tracking-widest border border-rose-200 dark:border-rose-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-sm"
                 >
-                    ← Edit Selection
+                    <TbArrowLeft size={16} /> Edit Selected Interventions
                 </button>
             )}
 
-            <div className="p-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-3">
+            <div className="p-5 bg-gradient-to-br from-blue-50/90 via-slate-50 to-indigo-50/70 dark:from-slate-900 dark:to-blue-950/40 rounded-2xl border-2 border-blue-200/90 dark:border-blue-800/80 shadow-md space-y-4">
                 {readOnly ? (
-                    <div className="space-y-4">
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
-                            This plan has been finalized and submitted.
+                    <div className="space-y-4 text-center">
+                        <p className="text-xs font-bold text-slate-500 leading-relaxed">
+                            This section is finalized and read-only as the plan is submitted.
                         </p>
                         <button
                             onClick={onClose}
-                            className="w-full py-5 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"
+                            className="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all"
                         >
                             Close View
                         </button>
                     </div>
                 ) : (
                     <>
-                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed">
-                            Please confirm that the intervention selection above is accurate and complete for your school's plan.
-                        </p>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                            Type <span className="text-deped-blue font-black">CONFIRM</span> to save
-                        </p>
-                        <input
-                            type="text"
-                            placeholder="Type CONFIRM here..."
-                            value={confirmText}
-                            onChange={e => setConfirmText(e.target.value)}
-                            className={`w-full px-5 py-4 rounded-2xl border-2 font-black text-sm tracking-widest text-center transition-all focus:outline-none ${
-                                confirmError
-                                    ? 'border-red-400 bg-red-50 text-red-600'
-                                    : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-deped-blue focus:bg-white'
-                            }`}
-                        />
-                        {confirmError && (
-                            <p className="text-center text-[10px] text-red-500 font-bold animate-bounce">Please type CONFIRM exactly</p>
-                        )}
-                        <div className="mt-3">
+                        {/* Authenticity & Accuracy Declaration Card */}
+                        <div className="flex items-start gap-3 p-3.5 bg-white/90 dark:bg-slate-800/90 rounded-xl border border-blue-200/80 dark:border-blue-900/50 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                                <TbShieldCheck size={22} />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                                <p className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                                    Data Authenticity & Accuracy Declaration
+                                </p>
+                                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+                                    By typing <span className="font-extrabold text-blue-700 dark:text-blue-300">CONFIRM</span> below, you certify that the intervention data submitted above is true, accurate, and officially authorized.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <input
+                                type="text"
+                                placeholder="Type CONFIRM to certify..."
+                                value={confirmText}
+                                onChange={e => setConfirmText(e.target.value)}
+                                className={`w-full px-4 py-3.5 rounded-xl border-2 font-mono font-black text-sm tracking-widest text-center transition-all focus:outline-none focus:ring-4 ${
+                                    confirmError
+                                        ? 'border-red-400 bg-red-50 text-red-600 focus:ring-red-500/20 dark:bg-red-950/40 dark:text-red-300'
+                                        : 'border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:ring-blue-500/20'
+                                }`}
+                            />
+                            {confirmError && (
+                                <p className="text-center text-xs text-red-500 font-extrabold animate-bounce">Please type CONFIRM exactly to certify data</p>
+                            )}
+                        </div>
+
+                        <div className="pt-0.5">
                             <button
                                 onClick={handleSave}
-                                className="w-full py-5 bg-deped-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-transform"
+                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-xl font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
-                                Save Interventions ✓
+                                <TbShieldCheck size={18} /> Confirm & Certify Interventions
                             </button>
                         </div>
                     </>
@@ -241,38 +294,38 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
     );
 
     return (
-        <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden">
-            {/* Header */}
-            <div className="siif-topbar !m-0 !border-x-0 !border-t-0 !rounded-b-[2rem] flex-col items-stretch !items-start !justify-start shrink-0 z-20 print:hidden relative">
-                <div className="flex items-center justify-between w-full mb-4">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={screen === 'summary' ? () => setScreen('form') : onClose}
-                            className="p-3 bg-white hover:bg-slate-50 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600"
-                        >
-                            {screen === 'summary' ? <TbArrowLeft size={20} /> : <TbChevronLeft size={20} />}
-                        </button>
-                        <div>
-                            <p className="eyebrow">
-                                Step 1 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Select'}
-                            </p>
-                            <h1 className="text-xl font-black italic uppercase tracking-tight text-slate-800">Interventions</h1>
-                        </div>
-                    </div>
+        <div className="w-full h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+            {/* ── v5 Ultra-Compact Low-Profile Header ── */}
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 z-20">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <button
-                        onClick={onClose}
-                        className="p-3 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 shadow-sm border border-slate-200 rounded-2xl transition-all text-slate-600 shrink-0"
-                        title="Close"
+                        onClick={screen === 'summary' ? () => setScreen('form') : onClose}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
-                        <TbX size={20} />
+                        {screen === 'summary' ? <TbArrowLeft size={17} /> : <TbChevronLeft size={17} />}
                     </button>
+                    <div className="min-w-0 flex-1">
+                        <span className="block text-[9px] font-extrabold uppercase tracking-widest text-blue-600 dark:text-blue-400 siif-font-header leading-none mb-0.5">
+                            Step 1 of 4 — {screen === 'summary' ? 'Review & Confirm' : 'Select'}
+                        </span>
+                        <h2 className="siif-font-header text-sm font-extrabold text-slate-800 dark:text-slate-100 tracking-tight leading-tight truncate">
+                            Interventions
+                        </h2>
+                    </div>
                 </div>
-                {/* Step tabs */}
-                <div className="flex gap-2 w-full mt-2">
-                    {['form', 'summary'].map((s) => (
-                        <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${screen === s || s === 'form' ? 'bg-siif-blue' : 'bg-slate-200'} ${screen === 'summary' && s === 'summary' ? 'bg-siif-blue' : screen === 'form' && s === 'summary' ? 'bg-slate-200' : ''}`} />
-                    ))}
-                </div>
+                <button
+                    onClick={onClose}
+                    className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 dark:bg-slate-800 rounded-xl transition-all text-slate-500 shrink-0 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    title="Close"
+                >
+                    <TbX size={17} />
+                </button>
+            </div>
+            {/* Step progress dots */}
+            <div className="flex gap-1.5 px-3 py-1 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                {['form', 'summary'].map((s) => (
+                    <div key={s} className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${screen === s || (s === 'form' && screen !== 'summary') ? 'bg-blue-600' : screen === 'summary' && s === 'summary' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`} />
+                ))}
             </div>
 
             <AnimatePresence mode="wait">
@@ -292,3 +345,4 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
 };
 
 export default InterventionsCard;
+

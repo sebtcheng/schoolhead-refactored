@@ -31,7 +31,6 @@ const NodesDashboard = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [showEdWelcome, setShowEdWelcome] = useState(false);
   const [dynamicLocks, setDynamicLocks] = useState({});
-  const [activeView, setActiveView] = useState('main'); // 'main' or 'services'
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
 
@@ -79,8 +78,10 @@ const NodesDashboard = () => {
   }, [user]);
 
   const handleCardClick = (route, id) => {
-    if (id === 'other-services') {
-      setActiveView('services');
+    if (!user) {
+      console.log(`[NexusDashboard] Unauthenticated click on module "${id}". Redirecting to login with target: ${route}`);
+      sessionStorage.setItem('login_target_redirect', route);
+      navigate('/login', { state: { from: route } });
       return;
     }
 
@@ -139,48 +140,10 @@ const NodesDashboard = () => {
       icon: <TbReportAnalytics className="w-6 h-6 md:w-8 h-8" />,
       progress: questProgress.esf7_progress || 0,
       route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
-      badge: !questProgress.is_esf7_opened ? 'COMING SOON' : null,
+      badge: dynamicLocks['esf7'] ? 'COMING SOON' : null,
       description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
-      isLocked: !questProgress.is_esf7_opened,
+      isLocked: dynamicLocks.hasOwnProperty('esf7') ? dynamicLocks['esf7'] : false,
       cardClass: '' // Default Blue
-    },
-    {
-      id: 'nspp',
-      title: 'NSPP Path',
-      subtitle: 'Assessment Audit',
-      icon: <TbTarget className="w-6 h-6 md:w-8 h-8" />,
-      progress: 0,
-      route: '/draft/nspp',
-      badge: 'COMING SOON',
-      description: 'Registry monitoring for the deployment of administrative staff in schools.',
-      isLocked: dynamicLocks.hasOwnProperty('nspp') ? dynamicLocks['nspp'] : true,
-      cardClass: 'reports' // Red theme
-    },
-    {
-      id: 'other-services',
-      title: 'Other Services',
-      subtitle: 'Extensions',
-      icon: <FiGrid className="w-6 h-6 md:w-8 h-8" />,
-      progress: 0,
-      route: '#',
-      description: 'Access supplemental microservices and specialized school management tools.',
-      isLocked: false,
-      badge: 'EXPANDING',
-      cardClass: 'admin' // Gold theme
-    }
-  ];
-
-  const otherServicesModules = [
-    {
-      id: 'back',
-      title: 'Back to Nexus',
-      subtitle: 'Return',
-      icon: <FiArrowLeft className="w-6 h-6 md:w-8 h-8" />,
-      route: '#',
-      description: 'Return to the main SchoolHead Nexus Dashboard.',
-      isLocked: false,
-      cardClass: '',
-      onClick: () => setActiveView('main')
     },
     {
       id: 'siif',
@@ -190,36 +153,10 @@ const NodesDashboard = () => {
       progress: 0,
       route: '/siif',
       description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-      isLocked: false,
-      cardClass: 'support' // Emerald
-    },
-    {
-      id: 'soss',
-      title: 'SOSS HUB',
-      subtitle: 'Social Services',
-      icon: <TbUsers className="w-6 h-6 md:w-8 h-8" />,
-      progress: 0,
-      route: '#',
-      description: 'Integrated platform for tracking school-based social service programs.',
-      isLocked: true,
-      badge: 'PLACEHOLDER',
-      cardClass: 'admin' // Gold
-    },
-    {
-      id: 'sgc',
-      title: 'SGC HUB',
-      subtitle: 'Governance',
-      icon: <TbBriefcase className="w-6 h-6 md:w-8 h-8" />,
-      progress: 0,
-      route: '#',
-      description: 'School Governance Council management and compliance tracking.',
-      isLocked: true,
-      badge: 'PLACEHOLDER',
-      cardClass: '' // Default Blue
+      isLocked: dynamicLocks.hasOwnProperty('siif') ? dynamicLocks['siif'] : false,
+      cardClass: 'admin' // Gold theme
     }
   ];
-
-  const currentModules = activeView === 'main' ? modules : otherServicesModules;
 
   const navItems = [
     { label: 'Home', icon: <FiHome size={18} />, path: '/nodes-dashboard' },
@@ -956,11 +893,7 @@ const NodesDashboard = () => {
                 <p className="eyebrow">Specialized Portals Gateway</p>
 
                 <h1 id="page-title">
-                  {activeView === 'services' ? (
-                    <>Supplemental<br /><span>Insight<span className="ed-red">ED</span> Services</span></>
-                  ) : (
-                    <>Welcome to the<br /><span>Insight<span className="ed-red">ED</span> Nexus</span></>
-                  )}
+                  Welcome to the<br /><span>Insight<span className="ed-red">ED</span> Nexus</span>
                 </h1>
 
                 <p>
@@ -969,12 +902,11 @@ const NodesDashboard = () => {
               </section>
 
               <section className="portal-grid" aria-label="Available portals">
-                {currentModules.map((mod, idx) => (
+                {modules.map((mod) => (
                   <article
                     key={mod.id}
                     className={`portal-card ${mod.cardClass || ''} ${mod.isLocked ? 'locked' : ''}`}
                     onClick={() => {
-                      if (mod.onClick) return mod.onClick();
                       if (!mod.isLocked) handleCardClick(mod.route, mod.id);
                     }}
                   >
@@ -991,10 +923,6 @@ const NodesDashboard = () => {
                     {mod.isLocked ? (
                       <a className="portal-link" style={{ color: '#9CA3AF' }} aria-label={`Locked: ${mod.title}`}>
                         Access Restricted <FiLock className="ml-1" aria-hidden="true" />
-                      </a>
-                    ) : mod.id === 'back' ? (
-                      <a className="portal-link" aria-label={`Go back to Nexus`}>
-                        Return <span aria-hidden="true">→</span>
                       </a>
                     ) : (
                       <a className="portal-link" aria-label={`Enter ${mod.title} portal`}>
@@ -1057,7 +985,7 @@ const NodesDashboard = () => {
                   </p>
                   <p className="text-[13px] font-medium text-slate-500 leading-relaxed italic">
                     "I’m **Ed**, and I’ll be helping you navigate through our school management tools.
-                    This is your command center—manage our **School Info**, check the **SHA**, or draft your **ESF7** and **NSPP** reports."
+                    This is your command center—manage our **School Info**, check the **SHA**, or draft your **eSF7** and **SIIF** reports."
                   </p>
                   <p className="text-sm font-black text-slate-800">
                     Everything is organized. Tayo na?

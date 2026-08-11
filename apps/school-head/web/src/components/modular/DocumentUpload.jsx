@@ -256,7 +256,7 @@ const DocumentUpload = ({
                                 </div>
                                 <div>
                                     <p className="text-sm font-black text-blue-900 leading-tight">Click to Upload PDF</p>
-                                    <p className="text-[11px] font-bold text-blue-400 uppercase tracking-widest mt-1">Ownership Document</p>
+                                    <p className="text-[11px] font-bold text-blue-400 uppercase tracking-widest mt-1">Ownership Document (Optional)</p>
                                 </div>
                                 <input
                                     type="file"

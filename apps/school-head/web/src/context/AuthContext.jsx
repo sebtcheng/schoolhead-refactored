@@ -217,6 +217,7 @@ export const AuthProvider = ({ children }) => {
         clearProjectsCache().catch(err => console.warn('[AuthContext] Could not clear projects cache:', err));
         setToken(null);
         setUser(null);
+        window.location.hash = '#/nodes-dashboard';
     };
 
     // --- SECURE LOGOUT WITH PASSCODE ---

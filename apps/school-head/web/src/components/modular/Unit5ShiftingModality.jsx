@@ -94,6 +94,8 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
     // ── Saved data (Review Mode) ────────────────────────────────────────────
     const [savedData, setSavedData] = useState(null);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const effectiveReadOnly = propReadOnly || isReviewMode;
 
     // ── Navigation ──────────────────────────────────────────────────────────
@@ -146,10 +148,23 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
+                    const res = await fetch(api(`/api/ph_schools/unit5/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
-                        if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
+                        const activeData = saved.payload ? saved.payload : (saved.data ? saved.data : saved);
+                        if (saved.validation_status) {
+                            setValidationStatus(saved.validation_status);
+                            if (saved.validation_status === 'submitted' || saved.validation_status === 'validated') {
+                                setIsReviewMode(true);
+                            }
+                        }
+                        if (saved.validation_remarks) {
+                            setValidationRemarks(saved.validation_remarks);
+                        }
+                        if (saved.is_completed !== undefined) {
+                            setIsCertified(saved.is_completed);
+                        }
+                        if (activeData) baseline = { ...baseline, ...activeData };
                     }
                 } catch (e) {
                     console.log("📍 [Unit5] Offline: Using local sources for baseline.");
@@ -863,7 +878,7 @@ const Unit5ShiftingModality = ({ targetSchoolId, isReadOnly: propReadOnly }) => 
 
             <main className="flex-1 overflow-visible pb-32">
                 <div className="max-w-md w-full mx-auto mt-6 px-4">
-                    <UnitRemarkAlert unitId="u5" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
+                    <UnitRemarkAlert unitId="u5" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} sdoRemark={validationRemarks} />
                     <AnimatePresence mode="wait">
 
                         {/* ────────────────────────────────────────────────────────

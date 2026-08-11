@@ -4,10 +4,10 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-import { initOtpTable, runMigrations } from '@shared/db/db_init';
+import { initOtpTable, runMigrations, initChatSchema } from '@shared/db/db_init';
 
 // Import Database & Utilities
-import { pool } from '@shared/db';
+import { pool, poolChat } from '@shared/db';
 
 // Import Helpers & Uploads
 import { UPLOAD_BASE_PATH } from '@shared/io';
@@ -32,9 +32,10 @@ import locationRouter from './units/location/index.js';
 import settingsRouter from './units/settings/index.js';
 import chatRouter from './units/chat/index.js'; // Chat Backend Unit
 import siifRouter from '../../siif/api/index.js'; // SIIF Module Unit
+
 // Chat cleanup function logic (purges messages older than 90 days with Nuclear-Lock compliance)
 const autoCleanOldChats = async () => {
-  const client = await pool.connect();
+  const client = await poolChat.connect();
   try {
     await client.query('BEGIN');
     await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
@@ -55,7 +56,8 @@ console.log("📌 >>> RUNNING: [apps/school-head/api/index.js] <<< 📌");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+dotenv.config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 // --- Global Safety Handlers ---
 process.on('unhandledRejection', (reason, promise) => {
@@ -244,6 +246,17 @@ const startServer = async () => {
                 } finally {
                     migClient.release();
                 }
+
+                try {
+                    const chatClient = await poolChat.connect();
+                    try {
+                        await initChatSchema(chatClient, 'Chat-DB');
+                    } finally {
+                        chatClient.release();
+                    }
+                } catch (chatMigErr) {
+                    console.warn(`⚠️ [Primary] Chat schema boot initialization warning: ${chatMigErr.message}`);
+                }
             } catch (migErr) {
                 console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
             }
@@ -254,9 +267,10 @@ const startServer = async () => {
         }
 
         if (!isVercel) {
-            const PORT = process.env.PORT || 3000;
-            app.listen(PORT, () => {
-                console.log(`✨ InsightEd Master Server listening on port ${PORT}`);
+            const PORT = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 3000;
+            const HOST = process.env.HOST || '127.0.0.1';
+            app.listen(PORT, HOST, () => {
+                console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
                 
                 // Run cleanup on startup (delay 10s to let server stabilize)
                 setTimeout(() => {

@@ -77,6 +77,8 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
     const [loading, setLoading] = useState(true);
     const [showWelcomeBack, setShowWelcomeBack] = useState(false);
     const [isCertified, setIsCertified] = useState(false);
+    const [validationStatus, setValidationStatus] = useState("");
+    const [validationRemarks, setValidationRemarks] = useState("");
     const [isReviewMode, setIsReviewMode] = useState(false);
     const [showDraftModal, setShowDraftModal] = useState(false);
     const [iern, setIern] = useState("");
@@ -257,10 +259,23 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 // 2. RECONSTRUCT SCHOOL BASELINE
                 let baseline = { iern: "", total_enrollment: 0, curricular_offering: "" };
                 try {
-                    const res = await fetch(api(`/ph_schools/${storedId}?t=${Date.now()}`));
+                    const res = await fetch(api(`/api/ph_schools/unit6/${storedId}?t=${Date.now()}`));
                     if (res.ok) {
                         const saved = await res.json();
-                        if (saved.exists && saved.data) baseline = { ...baseline, ...saved.data };
+                        const activeData = saved.payload ? saved.payload : (saved.data ? saved.data : saved);
+                        if (saved.validation_status) {
+                            setValidationStatus(saved.validation_status);
+                            if (saved.validation_status === 'submitted' || saved.validation_status === 'validated') {
+                                setIsReviewMode(true);
+                            }
+                        }
+                        if (saved.validation_remarks) {
+                            setValidationRemarks(saved.validation_remarks);
+                        }
+                        if (saved.is_completed !== undefined) {
+                            setIsCertified(saved.is_completed);
+                        }
+                        if (activeData) baseline = { ...baseline, ...activeData };
                     }
                 } catch (e) {
                     console.log("📍 [Unit6] Offline: Using local sources for baseline.");
@@ -1405,7 +1420,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
             <main className="flex-1 overflow-x-hidden pb-32">
                 <div className="max-w-md mx-auto w-full px-4 mt-4">
-                    <UnitRemarkAlert unitId="u6" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} />
+                    <UnitRemarkAlert unitId="u6" schoolId={targetSchoolId || user?.school_id || localStorage.getItem('schoolId')} sdoRemark={validationRemarks} />
                 </div>
                 <div className="max-w-md w-full mx-auto relative px-6 mt-8">
                     <AnimatePresence mode="wait">

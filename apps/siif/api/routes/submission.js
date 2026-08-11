@@ -3,7 +3,7 @@
 // POST /api/siif/submit                — Create/update a draft or submitted plan
 
 import { Router } from 'express';
-import { pool } from '@shared/db';
+import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
 
@@ -121,7 +121,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             division: submission.division,
             fiscalYear: submission.fiscal_year,
             totalBudget: submission.total_budget_estimate,
-            status: submission.submission_status || submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
+            status: submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
             remarks: submission.remarks || submission.rejection_reason || null,
             rejection_reason: submission.remarks || submission.rejection_reason || null,
             rejectionReason: submission.remarks || submission.rejection_reason || null,
@@ -132,9 +132,11 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             aral,
             allocation,
             priorityAreas: submission.priority_improvement_area || [],
+            for_revision: submission.for_revision ?? false,
+            revision_remarks: submission.revision_remarks || null,
         };
 
-        console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB submission_status: ${submission.submission_status} | DB status: ${submission.status}`);
+        console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB status: ${submission.status}`);
 
         res.json({ success: true, ...submissionResponse, submission: submissionResponse });
         console.log(`📦 [SIIF-API] Sent JSON with ${interventions.length} interventions and interventionData keys:`, Object.keys(interventionData));
@@ -196,6 +198,30 @@ router.post('/submit', async (req, res) => {
     const currentFiscalYear = fiscalYear || new Date().getFullYear();
     const submittedAt = status === 'submitted' ? new Date() : null;
 
+    let computedCompletion = 0;
+    if (Array.isArray(priorityAreas) && priorityAreas.filter(a => a && String(a).trim().length > 0).length > 0) {
+        computedCompletion += 20;
+    }
+    if (Array.isArray(interventions) && interventions.length > 0) {
+        computedCompletion += 20;
+    }
+    if (interventionData && typeof interventionData === 'object' && Object.values(interventionData).some(d => (Array.isArray(d.selectedGrades) && d.selectedGrades.length > 0) || (d.beneficiaryCounts && Object.values(d.beneficiaryCounts).some(v => parseInt(v) > 0)))) {
+        computedCompletion += 20;
+    }
+    if (interventionData && typeof interventionData === 'object' && Object.values(interventionData).some(d => (d.selectedActivities && Object.values(d.selectedActivities).some(a => Array.isArray(a) && a.length > 0)) || (d.otherActivity && String(d.otherActivity).trim().length > 0))) {
+        computedCompletion += 20;
+    }
+    if (parseFloat(totalBudget) > 0 || (budgetEstimates && Object.values(budgetEstimates).some(b => parseFloat(b) > 0))) {
+        computedCompletion += 20;
+    }
+
+    const passedPercentage = req.body.form_completion_percentage ?? req.body.shform_completion ?? req.body.formCompletionPercentage;
+    const formCompletionPercentage = status === 'submitted' ? 100 : (
+        passedPercentage !== undefined && passedPercentage !== null 
+            ? parseInt(passedPercentage) 
+            : computedCompletion
+    );
+
     let client;
     try {
         console.log('🧪 [SIIF-API] Attempting to acquire DB client...');
@@ -205,12 +231,12 @@ router.post('/submit', async (req, res) => {
 
         // ─── 🛡️ ABSOLUTE LOCK: Enforce Global Deadline Interval ─────────────
         const settingsRes = await client.query(
-            "SELECT key, value FROM settings WHERE key IN ('siif_deadline', 'siif_form_start', 'siif_form_end')"
+            "SELECT key, value FROM settings WHERE key IN ('siif_form_start', 'siif_form_end')"
         );
         const settings = {};
         settingsRes.rows.forEach(row => (settings[row.key] = row.value));
 
-        const deadlineStr = settings['siif_form_end'] || settings['siif_deadline'];
+        const deadlineStr = settings['siif_form_end'] ?? null;
         const startStr = settings['siif_form_start'];
         const now = new Date();
 
@@ -254,36 +280,46 @@ router.post('/submit', async (req, res) => {
         let existingRemarks = null;
 
         // Clear previous children for this school/year (interventions, beneficiaries, activities)
-        const oldSubRes = await client.query('SELECT siif_sub_id, submission_status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
         
         let submissionId;
 
         if (oldSubRes.rows.length > 0) {
             const oldSub = oldSubRes.rows[0];
             submissionId = oldSub.siif_sub_id;
-            existingSubmissionStatus = oldSub.submission_status;
             existingRemarks = oldSub.remarks;
 
-            const oldIntRes = await client.query('SELECT siif_int_id FROM siif_interventions WHERE siif_sub_id = $1', [submissionId]);
-            const oldIntIds = oldIntRes.rows.map(r => r.siif_int_id);
-            
-            if (oldIntIds.length > 0) {
-                await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = ANY($1::int[])', [oldIntIds]);
-                await client.query('DELETE FROM siif_activities WHERE siif_int_id = ANY($1::int[])', [oldIntIds]);
-                await client.query('DELETE FROM siif_interventions WHERE siif_sub_id = $1', [submissionId]);
+            const existingIntRes = await client.query(
+                'SELECT siif_int_id, intervention_type FROM siif_interventions WHERE siif_sub_id = $1',
+                [submissionId]
+            );
+            const existingIntMap = {};
+            existingIntRes.rows.forEach(r => {
+                existingIntMap[r.intervention_type] = r.siif_int_id;
+            });
+
+            const activeIntTypesSet = new Set(interventions || []);
+            const removedIntIds = [];
+
+            for (const [type, id] of Object.entries(existingIntMap)) {
+                if (!activeIntTypesSet.has(type)) {
+                    removedIntIds.push(id);
+                }
             }
 
-            // If explicit submit, update submission_status to submitted
-            let finalSubmissionStatus = existingSubmissionStatus;
-            if (status === 'submitted') {
-                finalSubmissionStatus = 'submitted';
+            if (removedIntIds.length > 0) {
+                await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = ANY($1::int[])', [removedIntIds]);
+                await client.query('DELETE FROM siif_activities WHERE siif_int_id = ANY($1::int[])', [removedIntIds]);
+                await client.query('DELETE FROM siif_interventions WHERE siif_int_id = ANY($1::int[])', [removedIntIds]);
+                console.log(`🧹 [SIIF-API] Cleaned up ${removedIntIds.length} removed interventions.`);
             }
 
             // Update existing submission header
             await client.query(
                 `UPDATE siif_submissions 
                  SET school_name = $1, region = $2, division = $3, district = $4, total_budget_estimate = $5, 
-                     submitted_at = $6, status = $7, submission_status = $8, priority_improvement_area = $9
+                     submitted_at = $6, status = $7, priority_improvement_area = $8, form_completion_percentage = $9,
+                     updated_at = CURRENT_TIMESTAMP
                  WHERE siif_sub_id = $10`,
                 [
                     req.body.schoolName || 'Unknown School',
@@ -293,19 +329,19 @@ router.post('/submit', async (req, res) => {
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
-                    finalSubmissionStatus,
                     JSON.stringify(priorityAreas),
+                    formCompletionPercentage,
                     submissionId
                 ]
             );
-            console.log(`✅ [SIIF-API] Old children cleared and header updated. ID: ${submissionId}`);
+            console.log(`✅ [SIIF-API] Submission header updated with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
 
         } else {
             // Insert new submission header
             const submissionResult = await client.query(
                 `INSERT INTO siif_submissions
-                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, submission_status, remarks, priority_improvement_area)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, remarks, priority_improvement_area, form_completion_percentage, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                  RETURNING siif_sub_id`,
                 [
                     finalSchoolId,
@@ -318,22 +354,30 @@ router.post('/submit', async (req, res) => {
                     submittedAt,
                     status || 'draft',
                     null,
-                    null,
-                    JSON.stringify(priorityAreas)
+                    JSON.stringify(priorityAreas),
+                    formCompletionPercentage
                 ]
             );
             submissionId = submissionResult.rows[0].siif_sub_id;
-            console.log(`🆔 [SIIF-API] Submission header created. ID: ${submissionId}`);
+            console.log(`🆔 [SIIF-API] Submission header created with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
         }
 
-        // Insert interventions, beneficiaries, and activities
+        // Fetch existing interventions map if not already populated
+        const existingIntRes = await client.query(
+            'SELECT siif_int_id, intervention_type FROM siif_interventions WHERE siif_sub_id = $1',
+            [submissionId]
+        );
+        const existingIntMap = {};
+        existingIntRes.rows.forEach(r => {
+            existingIntMap[r.intervention_type] = r.siif_int_id;
+        });
+
+        // Insert or update interventions, beneficiaries, and activities
         for (const intType of interventions) {
             const data = interventionData?.[intType] || {};
             let budget = budgetEstimates?.[intType] || 0;
             budget = parseFloat(budget);
             if (isNaN(budget)) budget = 0;
-
-            console.log(`   - Inserting intervention: ${intType}`);
 
             let hasAral = false;
             let aralSubjects = [];
@@ -342,14 +386,31 @@ router.post('/submit', async (req, res) => {
                 aralSubjects = aral.subjects || [];
             }
 
-            const intResult = await client.query(
-                `INSERT INTO siif_interventions
-                 (siif_sub_id, intervention_type, budget_estimate, has_aral, aral_subjects, other_activity_details)
-                 VALUES ($1, $2, $3, $4, $5, $6) 
-                 RETURNING siif_int_id`,
-                [submissionId, intType, budget, hasAral, aralSubjects, data.otherActivity || '']
-            );
-            const siifIntId = intResult.rows[0].siif_int_id;
+            let siifIntId = existingIntMap[intType];
+
+            if (siifIntId) {
+                console.log(`   - Updating existing intervention: ${intType} (siif_int_id: ${siifIntId})`);
+                await client.query(
+                    `UPDATE siif_interventions
+                     SET budget_estimate = $1, has_aral = $2, aral_subjects = $3, other_activity_details = $4
+                     WHERE siif_int_id = $5`,
+                    [budget, hasAral, aralSubjects, data.otherActivity || '', siifIntId]
+                );
+            } else {
+                console.log(`   - Inserting new intervention: ${intType}`);
+                const intResult = await client.query(
+                    `INSERT INTO siif_interventions
+                     (siif_sub_id, intervention_type, budget_estimate, has_aral, aral_subjects, other_activity_details)
+                     VALUES ($1, $2, $3, $4, $5, $6) 
+                     RETURNING siif_int_id`,
+                    [submissionId, intType, budget, hasAral, aralSubjects, data.otherActivity || '']
+                );
+                siifIntId = intResult.rows[0].siif_int_id;
+            }
+
+            // Refresh beneficiaries & activities for this specific siifIntId
+            await client.query('DELETE FROM siif_beneficiaries WHERE siif_int_id = $1', [siifIntId]);
+            await client.query('DELETE FROM siif_activities WHERE siif_int_id = $1', [siifIntId]);
 
             // Beneficiaries
             const beneficiaryCounts = data.beneficiaryCounts || {};

@@ -22,6 +22,7 @@ import SiifLoader from '../components/SiifLoader';
 const SIIFUtilization = ({ user, token }) => {
     const navigate = useNavigate();
     const [saving, setSaving] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
     // ─── All data loading & quarter state from hook ───────────────────────────
     const {
@@ -43,21 +44,55 @@ const SIIFUtilization = ({ user, token }) => {
     const IS_UNDER_DEVELOPMENT = false;
     if (IS_UNDER_DEVELOPMENT) {
         return (
-            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
                 <div className="max-w-2xl mx-auto mt-12">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-10">
-                            <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                                <TbTool size={40} className="text-indigo-600" />
-                            </div>
-                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Under Development</h1>
-                            <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-                                This feature is currently under development and will be released during <span className="font-bold text-indigo-600">Phase 2</span> of the pilot test.
-                                <br /><br />
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Stay Tuned
-                                </span>
-                            </p>
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-indigo-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-indigo-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbTool size={56} className="text-indigo-500" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbAlertCircle size={28} className="text-purple-500" />
+                                </div>
+                            </motion.div>
+                            
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                Under Development
+                            </h1>
+                            
+                            <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-indigo-400 to-purple-400" />
+                                
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    This feature is currently under development and will be released during <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">Phase 2</strong> of the pilot test.
+                                </p>
+                                
+                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-4 md:p-5 border border-purple-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-purple-100">
+                                        <TbLayoutDashboard size={24} className="text-purple-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-purple-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Stay Tuned
+                                        </p>
+                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
+                                            We are working hard to bring you this feature soon.
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
                             <button
                                 onClick={() => navigate('/siif')}
                                 className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20"
@@ -75,21 +110,55 @@ const SIIFUtilization = ({ user, token }) => {
     // PHASE 1 LOCK: Planning phase still active
     if (isPlanningPhase) {
         return (
-            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
                 <div className="max-w-2xl mx-auto mt-12">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-10">
-                            <div className="w-20 h-20 bg-blue-50 border border-blue-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-                                <TbClock size={40} style={{ color: 'var(--blue)' }} />
-                            </div>
-                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Planning Phase Active</h1>
-                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
-                                Utilization tracking will become available once the <strong>SIIF Planning Phase</strong> is officially over.
-                                <br /><br />
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Estimated Opening: {deadline ? new Date(deadline).toLocaleString() : 'TBD'}
-                                </span>
-                            </p>
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-blue-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-blue-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbClock size={56} className="text-blue-500" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbLayoutDashboard size={28} className="text-indigo-500" />
+                                </div>
+                            </motion.div>
+                            
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                Planning Phase Active
+                            </h1>
+                            
+                            <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-blue-400 to-indigo-400" />
+                                
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    Utilization tracking will become available once the <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">SIIF Planning Phase</strong> is officially over.
+                                </p>
+                                
+                                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-4 md:p-5 border border-indigo-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-indigo-100">
+                                        <TbClock size={24} className="text-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-indigo-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Estimated Opening
+                                        </p>
+                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
+                                            {deadline ? new Date(deadline).toLocaleString() : 'TBD'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
                             <button
                                 onClick={() => navigate('/siif/forms')}
                                 className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
@@ -108,19 +177,55 @@ const SIIFUtilization = ({ user, token }) => {
     // PHASE 2 LOCK: Deadline over but NO submission found or still draft
     if (!isSubmitted) {
         return (
-            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
                 <div className="max-w-2xl mx-auto mt-12">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-10">
-                            <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-100 shadow-inner">
-                                <TbLock size={40} className="text-amber-500" />
-                            </div>
-                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>No Baseline Found</h1>
-                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
-                                The planning window has closed, but no submitted <strong>SIIF Baseline Plan</strong> was found for your school.
-                                <br /><br />
-                                Utilization tracking is disabled because there is no reviewed budget to track against.
-                            </p>
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-amber-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-amber-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbLock size={56} className="text-amber-500" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbAlertCircle size={28} className="text-rose-500" />
+                                </div>
+                            </motion.div>
+                            
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                No Baseline Found
+                            </h1>
+                            
+                            <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-rose-400" />
+                                
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    The planning window has closed, but no submitted <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">SIIF Baseline Plan</strong> was found for your school.
+                                </p>
+                                
+                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 rounded-2xl p-4 md:p-5 border border-rose-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-rose-100">
+                                        <TbLayoutDashboard size={24} className="text-rose-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-rose-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Feature Disabled
+                                        </p>
+                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
+                                            Utilization tracking cannot be activated because there is no reviewed budget to track against.
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
                             <button
                                 onClick={() => navigate('/siif/forms')}
                                 className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
@@ -139,19 +244,55 @@ const SIIFUtilization = ({ user, token }) => {
     const statusVal = submission.status?.toLowerCase() || '';
     if (statusVal === 'submitted') {
         return (
-            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
                 <div className="max-w-2xl mx-auto mt-12">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-10">
-                            <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-amber-100 shadow-inner">
-                                <TbClock size={40} className="text-amber-500 animate-pulse" />
-                            </div>
-                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Pending SDO Review</h1>
-                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
-                                Your submitted plan is currently waiting for review from the Division Office.
-                                <br /><br />
-                                You can begin tracking your quarterly utilization once your baseline plan has been officially reviewed.
-                            </p>
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-amber-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-amber-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbClock size={56} className="text-amber-500 animate-pulse" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbAlertCircle size={28} className="text-orange-500" />
+                                </div>
+                            </motion.div>
+                            
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                Pending SDO Review
+                            </h1>
+                            
+                            <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-400" />
+                                
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    Your submitted plan is currently waiting for review from the <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">Division Office</strong>.
+                                </p>
+                                
+                                <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-4 md:p-5 border border-orange-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-orange-100">
+                                        <TbClock size={24} className="text-orange-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-orange-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Status: Pending
+                                        </p>
+                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
+                                            You can begin tracking your quarterly utilization once your baseline plan has been officially reviewed.
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
                             <button
                                 onClick={() => navigate('/siif/forms')}
                                 className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
@@ -170,19 +311,55 @@ const SIIFUtilization = ({ user, token }) => {
     // PHASE 4 LOCK: Plan is disapproved
     if (statusVal === 'disapproved') {
         return (
-            <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
                 <div className="max-w-2xl mx-auto mt-12">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-10">
-                            <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-red-100 shadow-inner">
-                                <TbAlertCircle size={40} className="text-red-500" />
-                            </div>
-                            <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>Plan Disapproved</h1>
-                            <p className="siif-card-subtitle mb-8 text-sm max-w-md mx-auto">
-                                Your plan was disapproved by the Division Office and the submission deadline has passed.
-                                <br /><br />
-                                Utilization tracking cannot proceed without a reviewed baseline.
-                            </p>
+                            <motion.div 
+                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                className="relative mx-auto w-32 h-32 mb-8"
+                            >
+                                <div className="absolute inset-0 bg-red-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
+                                <div className="relative w-full h-full bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-red-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
+                                    <TbAlertCircle size={56} className="text-red-500" />
+                                </div>
+                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
+                                    <TbLock size={28} className="text-rose-500" />
+                                </div>
+                            </motion.div>
+                            
+                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
+                                Plan Disapproved
+                            </h1>
+                            
+                            <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1, duration: 0.4 }}
+                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
+                            >
+                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-red-400 to-rose-400" />
+                                
+                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
+                                    Your plan was <strong className="text-red-600 font-black px-2 py-1 bg-red-50 rounded-lg shadow-sm border border-red-200/60 mx-1">Disapproved</strong> by the Division Office and the submission deadline has passed.
+                                </p>
+                                
+                                <div className="bg-gradient-to-r from-rose-50 to-red-50 rounded-2xl p-4 md:p-5 border border-rose-100/50 flex flex-col md:flex-row items-start gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-rose-100">
+                                        <TbAlertCircle size={24} className="text-red-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] md:text-xs text-red-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
+                                            Feature Disabled
+                                        </p>
+                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
+                                            Utilization tracking cannot proceed without a reviewed baseline.
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
                             <button
                                 onClick={() => navigate('/siif/forms')}
                                 className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
@@ -271,6 +448,7 @@ const SIIFUtilization = ({ user, token }) => {
             }
         };
         setUtilizationData(newData);
+        setHasUnsavedChanges(true);
     };
 
     const handleUpdateJustification = (intId, text) => {
@@ -284,6 +462,7 @@ const SIIFUtilization = ({ user, token }) => {
                 }
             }
         }));
+        setHasUnsavedChanges(true);
     };
 
     const handleUpdateStatus = (intId, status) => {
@@ -299,6 +478,7 @@ const SIIFUtilization = ({ user, token }) => {
             }
         };
         setUtilizationData(newData);
+        setHasUnsavedChanges(true);
     };
 
     const handleSave = async () => {
@@ -328,6 +508,7 @@ const SIIFUtilization = ({ user, token }) => {
 
             // Sync local state so it reflects the defaults we just saved
             setUtilizationData(finalUtilizationData);
+            setHasUnsavedChanges(false);
 
             console.log('✅ [SIIIFUtilization] Data saved successfully');
             alert('Quarterly updates saved successfully!');
@@ -340,7 +521,7 @@ const SIIFUtilization = ({ user, token }) => {
     };
 
     return (
-        <main className="w-full max-w-[1500px] mx-auto px-2.5 sm:px-4 lg:px-7 pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg siif-utilization-page">
             
             {/* ── Header ── */}
             <header className="topbar print:hidden mb-8">
@@ -349,23 +530,15 @@ const SIIFUtilization = ({ user, token }) => {
                         DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
                     </p>
                     <h1>School Innovation and Improvement Fund</h1>
-                    
-                    <div className="flex flex-wrap items-center gap-2 mt-3 opacity-90">
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-blue-200 flex items-center gap-1.5 bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-500/20">
-                            <TbTrendingUp size={12} />
-                            <span className="hidden sm:inline">FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Quarterly Tracking</span>
-                            <span className="sm:hidden">Tracking</span>
-                        </p>
-                    </div>
                 </div>
 
                 <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     
                     {/* Overall Progress Pill */}
-                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)] px-4 py-2">
                         <div className="flex flex-col items-start sm:items-end">
                             <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Total Utilized</small>
-                            <strong style={{ fontSize: 'clamp(20px, 5vw, 28px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1 }}>
+                            <strong style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1.1 }}>
                                 {overallProgress.toFixed(1)}%
                             </strong>
                         </div>
@@ -382,7 +555,7 @@ const SIIFUtilization = ({ user, token }) => {
                     <div className="siif-card-inner relative overflow-hidden">
                         <div className="siif-card-header relative z-10">
                             <div>
-                                <h2>Total Utilization Progress</h2>
+                                <h2>FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Total Utilization Progress</h2>
                                 <p className="siif-card-subtitle">
                                     {officialAllocation.allocation_amount > 0
                                         ? "Based on Finance Official Allocation"
@@ -395,14 +568,18 @@ const SIIFUtilization = ({ user, token }) => {
                             </span>
                         </div>
 
-                        <div className="siif-allocation-summary relative z-10" style={{ paddingTop: '24px', paddingBottom: '20px' }}>
-                            <div>
-                                <p className="siif-card-subtitle">Total Utilized</p>
-                                <h3 className="siif-big-number">₱{totalUtilized.toLocaleString()}</h3>
+                        <div className="flex flex-row items-baseline justify-between w-full gap-4 relative z-10" style={{ paddingTop: '20px', paddingBottom: '16px' }}>
+                            <div className="min-w-0">
+                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-500 mb-1">Total Utilized</p>
+                                <h3 className="siif-big-number text-xl sm:text-2xl md:text-3xl font-black text-[#08315F] leading-none whitespace-nowrap" style={{ letterSpacing: 'normal' }}>
+                                    ₱{totalUtilized.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                                </h3>
                             </div>
-                            <div className="text-right flex flex-col items-end">
-                                <p className="siif-card-subtitle">Total Allocated</p>
-                                <h3 className="siif-big-number" style={{ fontSize: '1.25rem', color: 'var(--slate-400)' }}>/ ₱{totalAllocated.toLocaleString()}</h3>
+                            <div className="text-right shrink-0 flex flex-col items-end">
+                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-400 mb-1">Total Allocated</p>
+                                <h3 className="siif-big-number text-sm sm:text-base md:text-xl font-bold text-slate-400 leading-none whitespace-nowrap" style={{ letterSpacing: 'normal' }}>
+                                    / ₱{totalAllocated.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                                </h3>
                             </div>
                         </div>
 
@@ -472,12 +649,13 @@ const SIIFUtilization = ({ user, token }) => {
             <div className="mb-8" />
 
             {/* ─── Intervention List ─── */}
-            <div className="space-y-4 mb-8">
-                <div className="flex justify-between items-center mb-2 px-2">
+            <div className="mb-8">
+                <div className="flex justify-between items-center mb-4 px-2">
                     <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Planned Interventions</h2>
                 </div>
 
-                {selectedInterventions.map(intId => {
+                <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-stretch">
+                    {selectedInterventions.map(intId => {
                     const allocation = budgetEstimates[intId] || 0;
                     const qData = utilizationData[intId] || {};
                     const qValObj = qData[viewingQuarter] || {};
@@ -489,28 +667,28 @@ const SIIFUtilization = ({ user, token }) => {
                     const intProgress = allocation > 0 ? (totalUsedInt / allocation) * 100 : 0;
 
                     return (
-                        <article key={intId} className="siif-card">
-                            <div className="siif-card-inner">
-                                <div className="siif-card-header mb-6 border-b border-slate-100 pb-4">
-                                    <div className="flex gap-3 items-center">
+                        <article key={intId} className="siif-card h-full">
+                            <div className="siif-card-inner flex flex-col" style={{ height: '100%' }}>
+                                <div className="flex flex-wrap items-start justify-between gap-3 mb-4 border-b border-slate-100 pb-4 shrink-0">
+                                    <div className="flex gap-3 items-center min-w-0">
                                         <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 shadow-sm shrink-0">
                                             <TbTarget size={20} />
                                         </div>
-                                        <div>
-                                            <h2 style={{ fontSize: '14px', lineHeight: 1.2 }}>{intId}</h2>
-                                            <p className="siif-card-subtitle mt-1">
-                                                Allocated: <strong style={{ color: 'var(--blue)' }}>₱{allocation.toLocaleString()}</strong>
+                                        <div className="min-w-0">
+                                            <h2 className="truncate" style={{ fontSize: '14px', lineHeight: 1.2 }} title={intId}>{intId}</h2>
+                                            <p className="siif-card-subtitle mt-1 leading-tight">
+                                                Allocated: <strong style={{ color: 'var(--blue)' }}>₱ {allocation.toLocaleString()}</strong>
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <span className={`siif-status ${intProgress > 100 ? 'bad bg-red-50 text-red-600 border border-red-200' : 'ok bg-blue-50 text-[var(--blue)] border border-blue-100'}`}>
+                                    <div className="shrink-0">
+                                        <span className={`inline-block px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg whitespace-nowrap ${intProgress > 100 ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
                                             {intProgress.toFixed(0)}% Utilized
                                         </span>
                                     </div>
                                 </div>
 
-                            <div className="relative">
+                            <div className="relative flex-1 overflow-y-auto siif-intervention-scroll">
                                 {(() => {
                                     // Check if overall school budget is exhausted
                                     let prevOverallTotal = 0;
@@ -528,16 +706,17 @@ const SIIFUtilization = ({ user, token }) => {
                                     const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow;
 
                                     return (
-                                        <div className="relative space-y-3">
+                                        <div className="relative flex flex-col gap-3">
                                             <div className="relative">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-xs">₱</span>
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm select-none pointer-events-none z-10">₱</span>
                                                 <input
                                                     type="number"
                                                     value={typeof currentVal === 'object' ? '' : currentVal}
                                                     onChange={(e) => handleUpdateUtilization(intId, e.target.value)}
                                                     disabled={isInputLocked}
                                                     placeholder={isInputLocked ? (isOffSeason ? "WINDOW CLOSED" : isNotActiveWindow ? "NOT ACTIVE PHASE" : "ALLOCATION EXHAUSTED") : "0.00"}
-                                                    className={`w-full border-none rounded-2xl py-4 pl-8 pr-4 text-sm font-bold transition-all ${isInputLocked
+                                                    style={{ paddingLeft: '48px' }}
+                                                    className={`w-full border-none rounded-2xl py-4 pr-4 text-sm font-bold transition-all ${isInputLocked
                                                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
                                                             : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
                                                         }`}
@@ -568,33 +747,43 @@ const SIIFUtilization = ({ user, token }) => {
                                                 </div>
                                             </div>
 
-                                            <AnimatePresence>
-                                                {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
-                                                    <motion.div
-                                                        initial={{ height: 0, opacity: 0 }}
-                                                        animate={{ height: 'auto', opacity: 1 }}
-                                                        exit={{ height: 0, opacity: 0 }}
-                                                        className="overflow-hidden"
-                                                    >
-                                                        <div className="pt-2">
-                                                            <div className="flex items-center gap-1.5 mb-1.5">
-                                                                <TbAlertCircle size={14} className="text-amber-500" />
-                                                                <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Justification Required</span>
+                                            {/* Justification zone */}
+                                            <div className="overflow-hidden">
+                                                <AnimatePresence>
+                                                    {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 6 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: 6 }}
+                                                            transition={{ duration: 0.18 }}
+                                                        >
+                                                            <div className="pt-2">
+                                                                <div className="rounded-xl overflow-hidden border border-amber-200 shadow-sm shadow-amber-100/60">
+                                                                    {/* Header bar */}
+                                                                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-400">
+                                                                        <div className="w-4 h-4 rounded-md bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                                                                            <TbAlertCircle size={10} className="text-white" />
+                                                                        </div>
+                                                                        <span className="text-[9px] font-black text-white uppercase tracking-widest leading-none">Justification Required</span>
+                                                                    </div>
+                                                                    {/* Textarea */}
+                                                                    <textarea
+                                                                        value={qValObj?.justification || ''}
+                                                                        onChange={(e) => handleUpdateJustification(intId, e.target.value)}
+                                                                        disabled={isInputLocked}
+                                                                        placeholder="Provide a detailed justification for exceeding the allocated budget estimate..."
+                                                                        className={`w-full border-none p-3 text-xs font-medium transition-all resize-none outline-none focus:outline-none h-[85px] ${
+                                                                            !qValObj?.justification?.trim()
+                                                                                ? 'bg-amber-50 placeholder-amber-400/70 text-amber-900'
+                                                                                : 'bg-slate-50 text-slate-700'
+                                                                        }`}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <textarea
-                                                                value={qValObj?.justification || ''}
-                                                                onChange={(e) => handleUpdateJustification(intId, e.target.value)}
-                                                                disabled={isInputLocked}
-                                                                placeholder="Please provide a justification for exceeding the estimated budget..."
-                                                                className={`w-full border-none rounded-2xl p-4 text-xs font-medium transition-all min-h-[80px] resize-none ${!qValObj?.justification?.trim()
-                                                                        ? 'bg-amber-50 border-amber-200 focus:ring-amber-200 placeholder-amber-400/70 text-amber-900 ring-2 ring-amber-100'
-                                                                        : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
-                                                                    }`}
-                                                            />
-                                                        </div>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
                                         </div>
                                     );
                                 })()}
@@ -603,6 +792,7 @@ const SIIFUtilization = ({ user, token }) => {
                     </article>
                 );
                 })}
+                </div>
             </div>
 
             {/* ─── Save Action ─── */}
@@ -644,16 +834,23 @@ const SIIFUtilization = ({ user, token }) => {
 
                             <button
                                 onClick={handleSave}
-                                disabled={isSaveDisabled}
-                                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${(totalAllocated > 0 && totalUtilized > totalAllocated)
-                                        ? 'bg-rose-500 shadow-rose-500/20'
+                                disabled={isSaveDisabled || !hasUnsavedChanges}
+                                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:cursor-not-allowed ${(totalAllocated > 0 && totalUtilized > totalAllocated)
+                                        ? 'bg-rose-500 shadow-rose-500/20 disabled:opacity-50'
                                         : (activeQuarter === '' || viewingQuarter !== activeQuarter)
-                                            ? 'bg-slate-400 shadow-slate-400/20'
-                                            : 'bg-emerald-500 shadow-emerald-500/20'
+                                            ? 'bg-slate-400 shadow-slate-400/20 disabled:opacity-50'
+                                            : !hasUnsavedChanges
+                                                ? 'bg-slate-800 shadow-slate-800/20 opacity-80'
+                                                : 'bg-emerald-500 shadow-emerald-500/20'
                                     }`}
                             >
                                 {saving ? (
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : !hasUnsavedChanges ? (
+                                    <>
+                                        <TbCheck size={20} className="text-emerald-400" />
+                                        All Updates Saved
+                                    </>
                                 ) : (
                                     <>
                                         <TbCheck size={20} />

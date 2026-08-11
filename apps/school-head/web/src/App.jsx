@@ -45,7 +45,7 @@ import Unit9Infrastructure from './components/modular/Unit9Infrastructure';
 import NodesDashboard from './modules/NexusDashboard';
 import SchoolHeadQuickStart from './guides/SchoolHeadQuickStart';
 import LegacyGuideWrapper from './modules/LegacyGuideWrapper';
-import SIIFModule from './modules/siif/SIIFModule';
+import SIIFModule from '../../../siif/web/src/SIIFModule';
 
 // --- WRAPPER COMPONENT TO HANDLE LOCATION ---
 const AnimatedRoutes = () => {
@@ -55,28 +55,12 @@ const AnimatedRoutes = () => {
 
   useEffect(() => {
     // List of public paths that don't require authentication
-    const publicPaths = ['/', '/login', '/register', '/adminlogin'];
+    const publicPaths = ['/', '/login', '/register', '/adminlogin', '/nodes-dashboard'];
 
-
-    // If auth is finished loading and no user is found on a non-public path, redirect to login
+    // If auth is finished loading and no user is found on a non-public path, redirect to Nexus
     if (!loading && !user && !publicPaths.includes(location.pathname)) {
-      console.log("[App] No user session found on protected route. Redirecting to login...");
-      const lastRole = localStorage.getItem('lastRole');
-      console.log("[App] Retrieved lastRole for redirection:", lastRole);
-
-      // Role to PathId Mapping for Portal Redirection
-      const roleToPathId = {
-        'School Head': 'path_school_head',
-        'school_head': 'path_school_head',
-        'Implementing Agency': 'path_agencies',
-        'Central Office': 'path_central_office'
-      };
-
-      const pathId = lastRole ? roleToPathId[lastRole] : null;
-      console.log("[App] Calculated pathId:", pathId);
-      const state = pathId ? { pathId } : null;
-
-      navigate('/login', { replace: true, state });
+      console.log("[App] No user session found on protected route. Redirecting to Nexus...");
+      navigate('/nodes-dashboard', { replace: true });
     }
   }, [user, loading, location.pathname, navigate]);
 
@@ -133,24 +117,14 @@ const AnimatedRoutes = () => {
 
   return (
     <Routes>
-      {/* Authentication */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Authentication & Public Landing */}
+      <Route path="/" element={<Navigate to="/nodes-dashboard" replace />} />
       <Route path="/login" element={<Login mode="login" />} />
       <Route path="/register" element={<Login mode="register" />} />
       <Route path="/guide/school-head" element={<LegacyGuideWrapper />} />
 
-
-
       {/* Dashboards */}
-
-      <Route
-        path="/nodes-dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['School Head']}>
-            <NodesDashboard />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/nodes-dashboard" element={<NodesDashboard />} />
 
       <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/user-management" element={<ProtectedRoute allowedRoles={['School Division Office', 'Regional Office', 'Super User']}><UserManagement /></ProtectedRoute>} />

@@ -4,7 +4,7 @@
 // GET /api/siif/sdo-monitoring
 
 import { Router } from 'express';
-import { pool } from '@shared/db';
+import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { mapRegionName } from '../helpers/mapRegionName.js';
 

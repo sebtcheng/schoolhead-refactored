@@ -3,7 +3,7 @@
 // PUT  /api/siif/settings/deadline  — Admin only
 
 import { Router } from 'express';
-import { pool } from '@shared/db';
+import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 
 const router = Router();
@@ -12,12 +12,12 @@ const router = Router();
 router.get('/settings/deadline', async (req, res) => {
     try {
         const result = await pool.query(
-            "SELECT key, value FROM settings WHERE key IN ('siif_deadline', 'siif_form_start', 'siif_form_end')"
+            "SELECT key, value FROM settings WHERE key IN ('siif_form_start', 'siif_form_end')"
         );
         const settings = {};
         result.rows.forEach(row => (settings[row.key] = row.value));
 
-        const deadline = settings['siif_form_end'] || settings['siif_deadline'];
+        const deadline = settings['siif_form_end'] ?? null;
         const start = settings['siif_form_start'];
 
         console.log(`⏰ [SIIF-API] Deadline request: End=${deadline || 'NOT SET'} | Start=${start || 'NOT SET'}`);
