@@ -31,7 +31,7 @@ if (typeof window !== 'undefined') {
 const SchoolHeadChatWidget = () => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [activeBubble, setActiveBubble] = useState('SDO'); // 'SDO' | 'HRMO' | 'ADMIN'
+  const [activeBubble, setActiveBubble] = useState('SDO'); // 'SDO' | 'ADMIN'
   const [selectedRoomId, setSelectedRoomId] = useState(null); // Active room ID
   const [showNewChatSelector, setShowNewChatSelector] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
@@ -40,7 +40,7 @@ const SchoolHeadChatWidget = () => {
   const fileInputRef = useRef(null);
 
   // API Backend States
-  const [contacts, setContacts] = useState({ SDOs: [], HRMO: null, ADMIN: null });
+  const [contacts, setContacts] = useState({ SDOs: [], ADMIN: null });
   const [rooms, setRooms] = useState([]); // List of active rooms from backend
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -141,7 +141,6 @@ const SchoolHeadChatWidget = () => {
         if (data.success && data.contacts) {
           setContacts({
             SDOs: data.contacts.SDOs || [],
-            HRMO: data.contacts.HRMO,
             ADMIN: data.contacts.ADMIN
           });
         }
@@ -212,7 +211,7 @@ const SchoolHeadChatWidget = () => {
 
   if (!isSchoolHead) return null;
 
-  // Start new chat with target SDO, HRMO, or Admin
+  // Start new chat with target SDO or Admin
   const handleStartNewChat = (contact) => {
     const token = localStorage.getItem('token');
     fetch(api('/api/chat/room'), {
@@ -250,8 +249,8 @@ const SchoolHeadChatWidget = () => {
     e.preventDefault();
     let roomId = selectedRoomId;
 
-    // For HRMO / ADMIN tabs, if no room is selected yet, we auto-create/find it on send
-    if ((activeBubble === 'HRMO' || activeBubble === 'ADMIN') && !roomId) {
+    // For ADMIN tab, if no room is selected yet, we auto-create/find it on send
+    if (activeBubble === 'ADMIN' && !roomId) {
       const contact = contacts[activeBubble];
       if (!contact) return;
 
@@ -399,8 +398,6 @@ const SchoolHeadChatWidget = () => {
     return rooms.filter(room => {
       if (category === 'SDO') {
         return room.participant_role === 'School Division Office' || room.participant_role === 'Regional Division Office' || room.participant_role === 'RO/SDO' || room.participant_role === 'Ro/sdo';
-      } else if (category === 'HRMO') {
-        return room.participant_role === 'HRMO' || room.participant_role === 'Personnel';
       } else {
         return room.participant_role === 'Admin' || room.participant_role === 'Super Admin';
       }
@@ -413,8 +410,6 @@ const SchoolHeadChatWidget = () => {
   const displayedRooms = rooms.filter(room => {
     if (activeBubble === 'SDO') {
       return room.participant_role === 'School Division Office' || room.participant_role === 'Regional Division Office' || room.participant_role === 'RO/SDO' || room.participant_role === 'Ro/sdo';
-    } else if (activeBubble === 'HRMO') {
-      return room.participant_role === 'HRMO' || room.participant_role === 'Personnel';
     } else {
       return room.participant_role === 'Admin' || room.participant_role === 'Super Admin';
     }
@@ -557,7 +552,7 @@ const SchoolHeadChatWidget = () => {
             </div>
           </div>
 
-          {/* Header Part 2: Bubble Tabs (SDO, HRMO, ADMIN) */}
+          {/* Header Part 2: Bubble Tabs (SDO, ADMIN) */}
           <div style={{
             display: 'flex',
             backgroundColor: '#1e40af',
@@ -567,7 +562,6 @@ const SchoolHeadChatWidget = () => {
           }}>
             {[
               { id: 'SDO', label: 'SDO', sub: 'Division Office', color: '#3b82f6' },
-              { id: 'HRMO', label: 'HRMO', sub: 'Human Resources', color: '#10b981' },
               { id: 'ADMIN', label: 'ADMIN', sub: 'Support (999009)', color: '#f59e0b' }
             ].map((bubble) => {
               const isActive = activeBubble === bubble.id;

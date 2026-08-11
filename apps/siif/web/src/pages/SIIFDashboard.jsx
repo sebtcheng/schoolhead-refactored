@@ -15,6 +15,10 @@ const SIIFDashboard = ({ user, token }) => {
     const [loading, setLoading] = useState(true);
     const [selectedModalIntervention, setSelectedModalIntervention] = useState(null);
 
+    // ── Revision Alert Modal State ───────────────────────────────────────────
+    const [showRevisionModal, setShowRevisionModal] = useState(false);
+    const [countdown, setCountdown] = useState(10);
+    const [isAckEnabled, setIsAckEnabled] = useState(false);
 
     const [allocation, setAllocation] = useState({
         allocation_amount: '0.00',
@@ -53,6 +57,56 @@ const SIIFDashboard = ({ user, token }) => {
                 setLoading(false);
             });
     }, [user, token]);
+
+    // ── Revision Detection: purely DB-driven — fires on every mount/refetch ──
+    // No sessionStorage or localStorage — the ONLY authority is for_revision in DB.
+    // Modal fires whenever for_revision === true, regardless of browser state.
+    useEffect(() => {
+        if (!submission) return;
+        const forRevision = submission.for_revision ?? false;
+        if (forRevision) {
+            setShowRevisionModal(true);
+            setCountdown(10);
+            setIsAckEnabled(false);
+        }
+    }, [submission]);
+
+    // ── Countdown Timer: decrements every second while modal is open ─────────
+    useEffect(() => {
+        if (!showRevisionModal) return;
+        if (countdown <= 0) {
+            setIsAckEnabled(true);
+            return;
+        }
+        const timer = setInterval(() => {
+            setCountdown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    setIsAckEnabled(true);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [showRevisionModal, countdown]);
+
+    // ── Escape Key Blocker: prevents keyboard dismissal of the modal ─────────
+    useEffect(() => {
+        if (!showRevisionModal) return;
+        const blockEscape = (e) => {
+            if (e.key === 'Escape') e.preventDefault();
+        };
+        window.addEventListener('keydown', blockEscape, true);
+        return () => window.removeEventListener('keydown', blockEscape, true);
+    }, [showRevisionModal]);
+
+    // ── Acknowledge Handler ──────────────────────────────────────────────────
+    // No persistence — closing is in-memory only. On next page load or navigation
+    // back to dashboard, submission refetches and modal fires again if still flagged.
+    const handleAcknowledge = () => {
+        setShowRevisionModal(false);
+    };
 
     // Calculate Summary Totals
     const innovationsCount = submission?.interventions?.length || 0;
@@ -585,6 +639,163 @@ const SIIFDashboard = ({ user, token }) => {
 
                 </div>
             )}
+
+            {/* ── Intervention Details Modal ─────────────────────────────────────── */}
+            <AnimatePresence>
+                {showRevisionModal && (
+                    <motion.div
+                        key="revision-modal-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="fixed inset-0 flex items-center justify-center z-[9999] px-4"
+                        style={{ background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(8px)' }}
+                    >
+                        <motion.div
+                            key="revision-modal-card"
+                            initial={{ scale: 0.93, y: 28, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.93, y: 28, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+                            className="relative w-full max-w-lg bg-white rounded-3xl overflow-hidden"
+                            style={{ boxShadow: '0 32px 80px -12px rgba(0,0,0,0.35), 0 0 0 1px rgba(220,38,38,0.08)' }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* ── Hero Banner ─────────────────────────────────────── */}
+                            <div className="relative px-10 pt-14 pb-8 text-center overflow-hidden"
+                                style={{ background: 'linear-gradient(160deg, #fff1f2 0%, #ffe4e6 60%, #fecdd3 100%)' }}
+                            >
+                                {/* Decorative rings */}
+                                <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-30" style={{ background: 'radial-gradient(circle, #fca5a5, transparent 70%)' }} />
+                                <div className="absolute -bottom-6 -left-6 w-32 h-32 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #f87171, transparent 70%)' }} />
+
+                                {/* Icon — centered block, full width */}
+                                <div className="relative flex items-center justify-center mb-4">
+                                    <div className="absolute w-20 h-20 rounded-full animate-ping opacity-20" style={{ background: '#ef4444' }} />
+                                    <div className="relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg"
+                                        style={{ background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', boxShadow: '0 8px 24px -4px rgba(220,38,38,0.5)' }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-10 h-10">
+                                            <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                </div>
+
+                                {/* Badge — sits directly below icon */}
+                                <div className="flex justify-center mb-4">
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full"
+                                        style={{ background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.2)' }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-red-600">Action Required</span>
+                                    </div>
+                                </div>
+
+                                <h2 className="text-2xl font-black text-slate-800 leading-tight">Plan Returned for Revision</h2>
+                                <p className="text-sm text-slate-500 mt-2 font-medium">
+                                    Your SIIF submission has been flagged by the Division or Regional Office.
+                                    Please review the remarks below carefully.
+                                </p>
+                            </div>
+
+                            {/* ── Body ────────────────────────────────────────────── */}
+                            <div className="px-10 py-8 space-y-6">
+
+                                {/* Remarks Box */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-5 h-5 rounded-md bg-red-100 flex items-center justify-center shrink-0">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#ef4444" className="w-3 h-3">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">Remarks from SDO / RO</span>
+                                    </div>
+                                    <div className="rounded-2xl p-5 text-sm leading-relaxed whitespace-pre-wrap text-slate-700 font-medium min-h-[80px] max-h-[140px] overflow-y-auto custom-scrollbar"
+                                        style={{ background: '#fafafa', border: '1.5px solid #fee2e2' }}
+                                    >
+                                        {submission?.revision_remarks || 'No specific remarks provided. Please contact your SDO for details.'}
+                                    </div>
+                                </div>
+
+                                {/* Countdown section */}
+                                <div className="rounded-2xl p-5 flex items-center gap-5"
+                                    style={{ background: isAckEnabled ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : 'linear-gradient(135deg, #fff7ed, #fef3c7)', border: `1.5px solid ${isAckEnabled ? '#bbf7d0' : '#fde68a'}` }}
+                                >
+                                    {/* Circular ring countdown */}
+                                    <div className="relative shrink-0 w-16 h-16">
+                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 44 44">
+                                            <circle cx="22" cy="22" r="19" fill="none"
+                                                stroke={isAckEnabled ? '#d1fae5' : '#fde68a'}
+                                                strokeWidth="4"
+                                            />
+                                            <circle cx="22" cy="22" r="19" fill="none"
+                                                stroke={isAckEnabled ? '#10b981' : '#f59e0b'}
+                                                strokeWidth="4"
+                                                strokeLinecap="round"
+                                                strokeDasharray={`${(isAckEnabled ? 1 : countdown / 10) * 119.38} 119.38`}
+                                                style={{ transition: 'stroke-dasharray 0.9s linear, stroke 0.4s ease' }}
+                                            />
+                                        </svg>
+                                        <span className="absolute inset-0 flex items-center justify-center text-lg font-black"
+                                            style={{ color: isAckEnabled ? '#10b981' : '#d97706' }}
+                                        >
+                                            {isAckEnabled ? '✓' : countdown}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black" style={{ color: isAckEnabled ? '#065f46' : '#92400e' }}>
+                                            {isAckEnabled ? 'You may now acknowledge' : `Please wait ${countdown} second${countdown !== 1 ? 's' : ''}`}
+                                        </p>
+                                        <p className="text-xs mt-0.5 font-medium" style={{ color: isAckEnabled ? '#059669' : '#d97706', opacity: 0.85 }}>
+                                            {isAckEnabled
+                                                ? 'Click the button below to proceed to your dashboard.'
+                                                : 'Carefully read the remarks before acknowledging.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Acknowledge Button */}
+                                <button
+                                    id="revision-modal-acknowledge-btn"
+                                    disabled={!isAckEnabled}
+                                    onClick={handleAcknowledge}
+                                    className="w-full py-4 rounded-2xl font-black text-sm tracking-wide transition-all duration-300"
+                                    style={isAckEnabled ? {
+                                        background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                                        color: '#fff',
+                                        boxShadow: '0 8px 28px -6px rgba(220,38,38,0.55)',
+                                        cursor: 'pointer',
+                                    } : {
+                                        background: '#f1f5f9',
+                                        color: '#94a3b8',
+                                        cursor: 'not-allowed',
+                                        border: '1.5px solid #e2e8f0',
+                                    }}
+                                >
+                                    {isAckEnabled ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+                                            </svg>
+                                            I Acknowledge &amp; Will Revise
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                                <path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" />
+                                            </svg>
+                                            Locked — {countdown}s remaining
+                                        </span>
+                                    )}
+                                </button>
+
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* ── Intervention Details Modal ─────────────────────────────────────── */}
             <AnimatePresence>

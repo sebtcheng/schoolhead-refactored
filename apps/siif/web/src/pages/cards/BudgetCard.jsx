@@ -153,7 +153,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                         </div>
                         {/* Percent Tile (1/3 width) */}
                         <div className="p-4 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-2xl flex flex-col items-center justify-center shadow-sm">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-center">Utilized</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-center">Allocated</span>
                             <span className="text-xl font-black mt-1">
                                 {allocAmt > 0 ? Math.min(100, Math.round((totalBudget / allocAmt) * 100)) : 0}%
                             </span>
@@ -350,9 +350,9 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                                 <div key={intId} className="flex justify-between items-center bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100/50">
                                     <div className="flex items-center gap-2">
                                         <div className="w-1.5 h-4 bg-siif-blue rounded-full" />
-                                        <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
+                                        <p className="text-sm font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
                                     </div>
-                                    <p className="text-[11px] font-black text-siif-blue">{formatCurrency(amt)}</p>
+                                    <p className="text-sm font-black text-siif-blue">{formatCurrency(amt)}</p>
                                 </div>
                             );
                         })}
@@ -592,12 +592,12 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                             className="siif-card w-full max-w-sm shadow-2xl overflow-hidden border-[2.5px] border-amber-300"
                             style={{ borderRadius: 'calc(var(--radius) + 6px)' }}
                         >
-                            <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 text-white px-6 py-6 text-center">
-                                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <TbAlertTriangle size={28} className="text-white" />
+                            <div className="px-6 py-6 text-center text-white" style={{ background: 'linear-gradient(135deg, #B45309 0%, #78350F 100%)' }}>
+                                <div className="w-14 h-14 bg-white/15 border border-white/20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
+                                    <TbAlertTriangle size={28} className="text-amber-200" />
                                 </div>
-                                <h3 className="font-black text-lg uppercase tracking-tight">Excess Budget</h3>
-                                <p className="text-yellow-100 text-[11px] font-bold mt-1">You have unallocated funds</p>
+                                <h3 className="font-black text-lg uppercase tracking-tight text-white">Excess Budget</h3>
+                                <p className="text-amber-200/90 text-xs font-bold mt-1">You have unallocated funds</p>
                             </div>
 
                             <div className="p-6 space-y-5">
@@ -606,7 +606,7 @@ const BudgetCard = ({ interventions, budgets, setBudgets, beneficiaries, onConfi
                                     <p className="text-2xl font-black text-emerald-600">+{formatCurrency(excess)}</p>
                                 </div>
 
-                                <p className="text-[11px] font-bold text-slate-600 leading-relaxed text-center">
+                                <p className="text-sm font-bold text-slate-900 leading-relaxed text-center">
                                     Your estimated budget is <strong>lower than your official allocation</strong>. Consider allocating the remaining amount to your interventions.
                                 </p>
 

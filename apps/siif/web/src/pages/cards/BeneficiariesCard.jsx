@@ -253,7 +253,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                 ) : (
                                     <button
                                         onClick={() => setIsEditing(true)}
-                                        className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm min-h-[40px]"
+                                        className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm min-h-[40px] animate-pulse"
                                     >
                                         {gradeCount > 0 ? 'Edit' : 'Configure'}
                                     </button>
@@ -333,7 +333,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                                                 </div>
                                                                 {isAralActive && (
                                                                     <div className="pt-2 border-t border-slate-200 dark:border-slate-700 mt-1">
-                                                                        <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest mb-2">ARAL Subjects</p>
+                                                                        <p className="text-[8.5px] font-black text-amber-600 uppercase tracking-widest mb-2">Subject Areas</p>
                                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                                             {aral.subjects.map(subj => (
                                                                                 <div key={subj} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
@@ -503,7 +503,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                                                     const ksTotal = activeGradesInKs.reduce((sum, g) => sum + (parseInt(beneficiaryCounts?.[g]) || 0), 0);
                                                     return (
                                                         <div key={ks.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col gap-2">
-                                                            <div className="flex justify-between items-center text-[11px] font-black text-slate-500 uppercase">
+                                                            <div className="flex justify-between items-center text-sm font-black text-slate-500 uppercase">
                                                                 <span>{ks.label}</span>
                                                                 <span className="text-siif-blue bg-siif-blue/5 px-2.5 py-1 rounded-md">Total: {ksTotal.toLocaleString()}</span>
                                                             </div>
@@ -516,14 +516,14 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
 
                                                                     return (
                                                                         <div key={g} className="flex flex-col gap-1.5 w-full">
-                                                                            <span className="text-[11px] font-black bg-white text-slate-600 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
+                                                                            <span className="text-sm font-black bg-white text-slate-600 px-3 py-1.5 rounded-lg border border-slate-100 flex items-center justify-between gap-3">
                                                                                 <span>{GRADE_LABELS[g] || g}</span>
                                                                                 <span className="text-siif-blue">{beneficiaryCounts?.[g] || 0} Learners</span>
                                                                             </span>
                                                                             {aralStrings.length > 0 && (
                                                                                 <div className="flex flex-wrap gap-1.5 pl-2">
                                                                                     {aralStrings.map((s, i) => (
-                                                                                        <span key={i} className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-100 whitespace-nowrap">{s}</span>
+                                                                                        <span key={i} className="text-sm font-bold bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-100 whitespace-nowrap">{s}</span>
                                                                                     ))}
                                                                                 </div>
                                                                             )}
@@ -565,7 +565,7 @@ const BeneficiariesCard = ({ selectedInterventions, value, aral, onChange, onApp
                     </div>
 
                     <div className="pt-5 border-t border-slate-100 flex justify-between items-center text-xs">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total Learners Across Plan</p>
+                        <p className="text-sm font-black text-slate-500 uppercase tracking-widest">Total Learners Across Plan</p>
                         <p className="text-sm font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
                             {totalLearners.toLocaleString()}
                         </p>

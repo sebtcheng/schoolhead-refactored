@@ -68,34 +68,25 @@ async function getUsersByUids(uids) {
 // Looks up valid target chat contacts strictly from user_rosdo and users in poolUsers.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
-  const userUid = req.user.uid;
+  const userUid = req.user?.uid || req.user?.id;
 
   try {
-    const self = await findUserByUid(userUid);
-    if (!self) {
-      return res.status(404).json({ success: false, error: 'User profile not found.' });
-    }
+    const self = (await findUserByUid(userUid)) || {
+      uid: userUid,
+      role: req.user?.role || 'School Head',
+      division: req.user?.division || '',
+      school_id: req.user?.school_id || ''
+    };
 
     if (self.role === 'School Head' || self.role === 'school_head' || self.school_id) {
       const sdoQuery = `
         SELECT uid, first_name, last_name, role, position, designation 
         FROM user_rosdo 
-        WHERE (role ILIKE '%School Division Office%' OR role ILIKE '%RO/SDO%' OR role ILIKE '%sdo%')
-          AND LOWER(TRIM(division)) = LOWER(TRIM($1)) 
+        WHERE (role ILIKE '%School Division Office%' OR role ILIKE '%RO/SDO%' OR role ILIKE '%sdo%' OR role ILIKE '%Division%')
           AND (disabled = false OR disabled IS NULL)
-          AND (
-            LOWER(COALESCE(designation, '')) LIKE '%division sbm coordinator%' 
-            OR LOWER(COALESCE(designation, '')) LIKE '%sbm coordinator%'
-          )
         ORDER BY 
-          CASE WHEN LOWER(COALESCE(designation, '')) LIKE '%division sbm coordinator%' THEN 0 ELSE 1 END,
+          CASE WHEN LOWER(TRIM(COALESCE(division, ''))) = LOWER(TRIM(COALESCE($1, ''))) THEN 0 ELSE 1 END,
           last_name ASC, first_name ASC
-      `;
-      const hrmoQuery = `
-        SELECT uid, first_name, last_name, role, position 
-        FROM user_rosdo 
-        WHERE (role ILIKE '%HRMO%' OR role ILIKE '%Personnel%') AND (disabled = false OR disabled IS NULL)
-        LIMIT 1
       `;
       const adminQuery = `
         SELECT uid, first_name, last_name, role, position 
@@ -104,9 +95,8 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
         LIMIT 1
       `;
 
-      const [sdoRes, hrmoRes, adminRes] = await Promise.all([
-        poolUsers.query(sdoQuery, [self.division]),
-        poolUsers.query(hrmoQuery).catch(() => ({ rows: [] })),
+      const [sdoRes, adminRes] = await Promise.all([
+        poolUsers.query(sdoQuery, [self.division || '']),
         poolUsers.query(adminQuery).catch(() => ({ rows: [] }))
       ]);
 
@@ -114,7 +104,6 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
         success: true,
         contacts: {
           SDOs: sdoRes.rows,
-          HRMO: hrmoRes.rows[0] || null,
           ADMIN: adminRes.rows[0] || null
         }
       });

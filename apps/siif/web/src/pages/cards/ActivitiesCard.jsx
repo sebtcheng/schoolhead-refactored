@@ -223,7 +223,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                 ) : (
                                     <button
                                         onClick={() => setIsEditing(true)}
-                                        className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm min-h-[40px]"
+                                        className="px-4 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shrink-0 active:scale-95 shadow-sm min-h-[40px] animate-pulse"
                                     >
                                         {actsList.length > 0 ? 'Edit' : 'Configure'}
                                     </button>
@@ -465,7 +465,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                             <div key={intId} className="space-y-2">
                                 <div className="flex items-center gap-2 mb-1">
                                     <div className="w-1.5 h-4 bg-blue-600 rounded-full" />
-                                    <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
+                                    <p className="text-sm font-black text-slate-800 uppercase tracking-tight">{info?.label}</p>
                                 </div>
                                 <div className="pl-3.5 space-y-2">
                                     {categories.map(cat => {
@@ -473,7 +473,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                         if (items.length === 0) return null;
                                         return (
                                             <div key={cat.key} className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1">{cat.label}</p>
+                                                <p className="text-sm font-black text-slate-400 uppercase tracking-wider mb-1">{cat.label}</p>
                                                 <div className="space-y-1.5">
                                                     {items.map((act, idx) => {
                                                         const display = act === 'Others (specify)' ? (otherActivity ? `Other: ${otherActivity}` : 'Other') : act;
@@ -482,7 +482,7 @@ const ActivitiesCard = ({ selectedInterventions, value, onChange, onConfirm, onC
                                                                 <div className="w-3.5 h-3.5 rounded bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
                                                                     <TbCheck size={8} />
                                                                 </div>
-                                                                <p className="text-[9px] text-slate-600 font-bold leading-normal">{display}</p>
+                                                                <p className="text-sm text-slate-600 font-bold leading-normal">{display}</p>
                                                             </div>
                                                         );
                                                     })}

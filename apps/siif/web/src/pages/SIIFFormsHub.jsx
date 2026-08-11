@@ -1,6 +1,6 @@
 // SIIFFormsHub.jsx
 // The /forms route — 4-card hub with sequential locking
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -84,9 +84,13 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // Summary modal states
     const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [showChangesModal, setShowChangesModal] = useState(false);
     const [confirmText, setConfirmText] = useState('');
     const [confirmError, setConfirmError] = useState(false);
     const [activePiaCategory, setActivePiaCategory] = useState('Access and Quality');
+
+    // ─── Snapshot of originally loaded server payload (for dirty-check) ────────
+    const originalPayload = useRef(null);
 
     // ─── Data + state from hook ───────────────────────────────────────────────
     const {
@@ -101,6 +105,53 @@ const SIIFFormsHub = ({ user, token }) => {
         budgets, setBudgets,
         confirmed, setConfirmed,
     } = useSIIFSubmission(user, token);
+
+    // ─── Capture original server payload on first load ────────────────────────
+    useEffect(() => {
+        if (!loading && originalPayload.current === null) {
+            originalPayload.current = JSON.stringify({
+                priorityAreas,
+                selectedInterventions,
+                aral,
+                beneficiaries,
+                activities,
+                budgets,
+            });
+        }
+    }, [loading]);
+
+    // ─── Dirty-check: compare current state vs original server snapshot ───────
+    const currentSnapshot = JSON.stringify({
+        priorityAreas,
+        selectedInterventions,
+        aral,
+        beneficiaries,
+        activities,
+        budgets,
+    });
+    const isDirty = isSubmitted
+        ? (originalPayload.current !== null && currentSnapshot !== originalPayload.current)
+        : false;
+
+    // ─── Build a human-readable diff summary for the modal ───────────────────
+    const buildChangeSummary = () => {
+        if (!originalPayload.current) return [];
+        const orig = JSON.parse(originalPayload.current);
+        const diffs = [];
+        if (JSON.stringify(orig.priorityAreas) !== JSON.stringify(priorityAreas))
+            diffs.push('Modified Priority Improvement Areas');
+        if (JSON.stringify(orig.selectedInterventions) !== JSON.stringify(selectedInterventions))
+            diffs.push('Modified Selected Interventions');
+        if (JSON.stringify(orig.aral) !== JSON.stringify(aral))
+            diffs.push('Modified Remediation Subject Areas');
+        if (JSON.stringify(orig.beneficiaries) !== JSON.stringify(beneficiaries))
+            diffs.push('Modified Target Beneficiaries');
+        if (JSON.stringify(orig.activities) !== JSON.stringify(activities))
+            diffs.push('Modified Planned Activities');
+        if (JSON.stringify(orig.budgets) !== JSON.stringify(budgets))
+            diffs.push('Updated Budget Allocation');
+        return diffs;
+    };
 
     logger.debug('SIIF', 'SIIFFormsHub Rendered', { confirmed, selectedInterventions });
 
@@ -307,6 +358,8 @@ const SIIFFormsHub = ({ user, token }) => {
             totalBudget,
             interventionData,
             priorityAreas,
+            form_completion_percentage: progressPct,
+            shform_completion: progressPct,
         };
 
         console.log(`📤 [SIIFFormsHub] Built Payload (${status}):`, JSON.stringify(payload, null, 2));
@@ -729,12 +782,36 @@ const SIIFFormsHub = ({ user, token }) => {
             {/* ── Persistent Sticky Bottom Navigation Bar ── */}
             <div className="siif-forms-footer">
                 <div className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto flex items-center justify-between gap-4">
-                    <button
-                        onClick={() => setShowSummaryModal(true)}
-                        className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-base shadow-md active:scale-95 transition-all focus:ring-4 focus:ring-blue-500 focus:outline-none min-h-[48px]"
-                    >
-                        {isLocked || isExpired ? 'View Submitted Plan Summary' : 'Save & Next →'}
-                    </button>
+                    {(() => {
+                        const isSubmitDisabled = !isLocked && !isExpired && (progressPct < 100 || (isSubmitted && !isDirty));
+                        return (
+                            <button
+                                onClick={() => {
+                                    if (isLocked || isExpired) {
+                                        setShowSummaryModal(true);
+                                        return;
+                                    }
+                                    if (isSubmitted && isDirty) {
+                                        setShowChangesModal(true);
+                                    } else {
+                                        setShowSummaryModal(true);
+                                    }
+                                }}
+                                disabled={isSubmitDisabled}
+                                className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 font-semibold rounded-xl text-base shadow-md transition-all focus:ring-4 focus:ring-blue-500 focus:outline-none min-h-[48px] ${
+                                    isSubmitDisabled
+                                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'
+                                }`}
+                            >
+                                {isLocked || isExpired
+                                    ? 'View Submitted Plan Summary'
+                                    : (isSubmitted && !isDirty)
+                                        ? 'Submitted (No Changes)'
+                                        : 'Submit Plan'}
+                            </button>
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -1177,6 +1254,126 @@ const SIIFFormsHub = ({ user, token }) => {
                         </motion.div>
                     </motion.div>
                 )}
+            </AnimatePresence>
+
+            {/* ── Changes Detected in Submitted Plan Modal ── */}
+            <AnimatePresence>
+                {showChangesModal && (() => {
+                    const changeSummary = buildChangeSummary();
+                    return (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{ zIndex: 10000 }}
+                            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4"
+                        >
+                            <motion.div
+                                initial={{ y: '100%', opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                exit={{ y: '100%', opacity: 0 }}
+                                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                className="bg-white dark:bg-slate-900 w-full max-w-lg sm:max-w-xl rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] border border-slate-200 dark:border-slate-800"
+                            >
+                                {/* Modal Header */}
+                                <div
+                                    className="px-6 py-5 shrink-0 relative overflow-hidden"
+                                    style={{ background: 'linear-gradient(135deg, #92400E 0%, #B45309 100%)' }}
+                                >
+                                    <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                                    <div className="relative z-10 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center shrink-0 border border-white/20">
+                                                <TbEdit size={20} className="text-amber-200" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-base font-black italic uppercase tracking-tight text-amber-200">Changes Detected in Submitted Plan</h2>
+                                                <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5 text-amber-300/80">
+                                                    Local changes differ from the submitted version
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowChangesModal(false)}
+                                            className="p-2 rounded-xl transition-all border text-white"
+                                            style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)' }}
+                                        >
+                                            <TbX size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Modal Body */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800/50">
+                                        <p className="text-[10px] font-black text-amber-800 dark:text-amber-300 uppercase tracking-widest mb-3">
+                                            Detected Modifications ({changeSummary.length})
+                                        </p>
+                                        <div className="space-y-2">
+                                            {changeSummary.length > 0 ? changeSummary.map((change, idx) => (
+                                                <div key={idx} className="flex items-center gap-3 bg-white dark:bg-slate-800 px-4 py-3 rounded-xl border border-amber-100 dark:border-amber-900/50 shadow-sm">
+                                                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{change}</p>
+                                                </div>
+                                            )) : (
+                                                <p className="text-sm text-slate-500 italic">No specific changes detected.</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Choose how to proceed with these local changes:
+                                        </p>
+                                        <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                            <li>• <strong className="text-slate-700 dark:text-slate-200">Confirm Change</strong> — Uploads your local changes as the new submitted version.</li>
+                                            <li>• <strong className="text-slate-700 dark:text-slate-200">Revert Change</strong> — Discards all local modifications and restores the original submitted data.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-800 shrink-0 flex gap-3 bg-white dark:bg-slate-900">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            // Revert: restore original server snapshot into all state setters
+                                            if (originalPayload.current) {
+                                                const orig = JSON.parse(originalPayload.current);
+                                                setPriorityAreas(orig.priorityAreas);
+                                                setSelectedInterventions(orig.selectedInterventions);
+                                                setAral(orig.aral);
+                                                setBeneficiaries(orig.beneficiaries);
+                                                setActivities(orig.activities);
+                                                setBudgets(orig.budgets);
+                                            }
+                                            setShowChangesModal(false);
+                                        }}
+                                        style={{ background: '#F1F5F9', color: '#334155', borderColor: '#CBD5E1' }}
+                                        className="flex-1 py-3.5 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.98] border"
+                                    >
+                                        ↩ Revert Change
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            setShowChangesModal(false);
+                                            await handleSubmit();
+                                            // Update snapshot to reflect the new submitted state
+                                            originalPayload.current = currentSnapshot;
+                                        }}
+                                        disabled={submitting}
+                                        style={{ background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', color: '#FFFFFF' }}
+                                        className="flex-1 py-3.5 hover:brightness-110 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-amber-600/40"
+                                    >
+                                        <TbCheck size={18} className="text-white shrink-0" />
+                                        <span>{submitting ? 'Submitting...' : 'Confirm Change'}</span>
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    );
+                })()}
             </AnimatePresence>
         </div>
     );

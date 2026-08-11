@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TbCheck, TbChevronLeft, TbChevronRight, TbArrowLeft, TbX, TbShieldCheck, TbPuzzle, TbChecklist } from 'react-icons/tb';
 import { FiInfo } from 'react-icons/fi';
-import { INTERVENTIONS, INTERVENTION_ICONS } from './siifConstants.jsx';
+import { INTERVENTIONS, INTERVENTION_ICONS, REMEDIATION_SUBJECTS } from './siifConstants.jsx';
 
 const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onClose, readOnly }) => {
     const [screen, setScreen]           = useState('form'); // 'form' | 'summary'
@@ -28,6 +28,11 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
     const goToSummary = () => {
         if (value.length === 0) {
             alert('Please select at least one intervention before proceeding.');
+            return;
+        }
+        // Validation: Remediation must have at least one subject area selected
+        if (value.includes('remediation') && aral.subjects.length === 0) {
+            alert('Please select at least one Subject Area for the Remediation intervention before proceeding.');
             return;
         }
         console.log('➡️ [InterventionsCard] Moving to summary.');
@@ -105,10 +110,10 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                                     <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/50 space-y-3 mt-1">
                                         <div className="space-y-2">
                                             <p className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
-                                                {readOnly ? 'Selected ARAL Subject Areas' : 'Select ARAL Subject Areas'}
+                                                {readOnly ? 'Selected Subject Areas' : 'Select Subject Areas'}
                                             </p>
                                             <div className="flex flex-wrap gap-2">
-                                                {['Reading', 'Mathematics', 'Science'].map(subj => {
+                                                {REMEDIATION_SUBJECTS.map(subj => {
                                                     const checked = aral.subjects.includes(subj);
                                                     if (readOnly && !checked) return null;
                                                     return (
@@ -117,7 +122,7 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                                                             disabled={readOnly}
                                                             onClick={() => onAralChange({
                                                                 ...aral,
-                                                                planned: true, // implicitly true
+                                                                planned: true,
                                                                 subjects: checked
                                                                     ? aral.subjects.filter(s => s !== subj)
                                                                     : [...aral.subjects, subj]
@@ -180,7 +185,7 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                                 </div>
                                 <div className="flex-1 min-w-0 pl-2">
                                     <p className="text-xs font-extrabold text-slate-900 dark:text-slate-100 tracking-tight leading-snug">{info?.label}</p>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{info?.desc}</p>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{info?.desc}</p>
                                 </div>
                                 <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                                     <TbCheck size={14} className="font-black" />
@@ -193,7 +198,7 @@ const InterventionsCard = ({ value, aral, onChange, onAralChange, onConfirm, onC
                 {value.includes('remediation') && (
                     <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 rounded-xl border border-amber-200/80 dark:border-amber-800/50 space-y-2">
                         <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">ARAL Program Subject Areas</span>
+                            <span className="text-xs font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">Subject Areas</span>
                             <span className="text-[9px] font-bold text-amber-700 bg-amber-200/60 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
                                 {aral.subjects.length} Selected
                             </span>

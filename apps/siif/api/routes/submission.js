@@ -132,6 +132,8 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             aral,
             allocation,
             priorityAreas: submission.priority_improvement_area || [],
+            for_revision: submission.for_revision ?? false,
+            revision_remarks: submission.revision_remarks || null,
         };
 
         console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB status: ${submission.status}`);
@@ -195,6 +197,30 @@ router.post('/submit', async (req, res) => {
 
     const currentFiscalYear = fiscalYear || new Date().getFullYear();
     const submittedAt = status === 'submitted' ? new Date() : null;
+
+    let computedCompletion = 0;
+    if (Array.isArray(priorityAreas) && priorityAreas.filter(a => a && String(a).trim().length > 0).length > 0) {
+        computedCompletion += 20;
+    }
+    if (Array.isArray(interventions) && interventions.length > 0) {
+        computedCompletion += 20;
+    }
+    if (interventionData && typeof interventionData === 'object' && Object.values(interventionData).some(d => (Array.isArray(d.selectedGrades) && d.selectedGrades.length > 0) || (d.beneficiaryCounts && Object.values(d.beneficiaryCounts).some(v => parseInt(v) > 0)))) {
+        computedCompletion += 20;
+    }
+    if (interventionData && typeof interventionData === 'object' && Object.values(interventionData).some(d => (d.selectedActivities && Object.values(d.selectedActivities).some(a => Array.isArray(a) && a.length > 0)) || (d.otherActivity && String(d.otherActivity).trim().length > 0))) {
+        computedCompletion += 20;
+    }
+    if (parseFloat(totalBudget) > 0 || (budgetEstimates && Object.values(budgetEstimates).some(b => parseFloat(b) > 0))) {
+        computedCompletion += 20;
+    }
+
+    const passedPercentage = req.body.form_completion_percentage ?? req.body.shform_completion ?? req.body.formCompletionPercentage;
+    const formCompletionPercentage = status === 'submitted' ? 100 : (
+        passedPercentage !== undefined && passedPercentage !== null 
+            ? parseInt(passedPercentage) 
+            : computedCompletion
+    );
 
     let client;
     try {
@@ -292,9 +318,9 @@ router.post('/submit', async (req, res) => {
             await client.query(
                 `UPDATE siif_submissions 
                  SET school_name = $1, region = $2, division = $3, district = $4, total_budget_estimate = $5, 
-                     submitted_at = $6, status = $7, priority_improvement_area = $8,
+                     submitted_at = $6, status = $7, priority_improvement_area = $8, form_completion_percentage = $9,
                      updated_at = CURRENT_TIMESTAMP
-                 WHERE siif_sub_id = $9`,
+                 WHERE siif_sub_id = $10`,
                 [
                     req.body.schoolName || 'Unknown School',
                     req.body.region || 'Unknown Region',
@@ -304,17 +330,18 @@ router.post('/submit', async (req, res) => {
                     submittedAt,
                     status || 'draft',
                     JSON.stringify(priorityAreas),
+                    formCompletionPercentage,
                     submissionId
                 ]
             );
-            console.log(`✅ [SIIF-API] Submission header updated. ID: ${submissionId}`);
+            console.log(`✅ [SIIF-API] Submission header updated with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
 
         } else {
             // Insert new submission header
             const submissionResult = await client.query(
                 `INSERT INTO siif_submissions
-                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, remarks, priority_improvement_area, created_at, updated_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 (school_id, school_name, region, division, district, fiscal_year, total_budget_estimate, submitted_at, status, remarks, priority_improvement_area, form_completion_percentage, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                  RETURNING siif_sub_id`,
                 [
                     finalSchoolId,
@@ -327,11 +354,12 @@ router.post('/submit', async (req, res) => {
                     submittedAt,
                     status || 'draft',
                     null,
-                    JSON.stringify(priorityAreas)
+                    JSON.stringify(priorityAreas),
+                    formCompletionPercentage
                 ]
             );
             submissionId = submissionResult.rows[0].siif_sub_id;
-            console.log(`🆔 [SIIF-API] Submission header created. ID: ${submissionId}`);
+            console.log(`🆔 [SIIF-API] Submission header created with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
         }
 
         // Fetch existing interventions map if not already populated

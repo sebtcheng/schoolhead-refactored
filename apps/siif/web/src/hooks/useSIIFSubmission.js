@@ -26,7 +26,9 @@ export function useSIIFSubmission(user, token) {
     const [isReviewed, setIsReviewed]               = useState(false);
     const [isSubmitted, setIsSubmitted]             = useState(false);
     const [isDisapproved, setIsDisapproved]         = useState(false);
-    const [remarks, setRemarks]     = useState(null);
+    const [remarks, setRemarks]                     = useState(null);
+    const [forRevision, setForRevision]             = useState(false);
+    const [revisionRemarks, setRevisionRemarks]     = useState('');
     const [priorityAreas, setPriorityAreas]         = useState([]);
     const [selectedInterventions, setSelectedInterventions] = useState([]);
     const [aral, setAral]                           = useState({ planned: null, subjects: [] });
@@ -88,6 +90,8 @@ export function useSIIFSubmission(user, token) {
                     setIsDisapproved(statusVal === 'disapproved');
                     
                     setRemarks(subData.remarks || subData.rejection_reason || subData.rejectionReason || null);
+                    setForRevision(subData.for_revision ?? false);
+                    setRevisionRemarks(subData.revision_remarks || '');
                     setPriorityAreas(subData.priorityAreas || []);
                     setSelectedInterventions(ints);
                     setAral(subData.aral || { planned: null, subjects: [] });
@@ -132,6 +136,7 @@ export function useSIIFSubmission(user, token) {
         deadline, openDate, isExpired, isNotYetOpen,
         // Submission meta
         loading, error, submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
+        forRevision, revisionRemarks,
         // Form state
         priorityAreas, setPriorityAreas,
         selectedInterventions, setSelectedInterventions,
