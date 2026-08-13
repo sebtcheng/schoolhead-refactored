@@ -235,37 +235,6 @@ const startServer = async () => {
         const isVercel = process.env.VERCEL === '1';
         const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
         
-        if (isPrimaryWorker && !isVercel) {
-            console.log("🏗️ [Primary] Running boot-time migrations...");
-            try {
-                const migClient = await pool.connect();
-                try {
-                    await initOtpTable(migClient);
-                    await runMigrations(migClient, 'Primary');
-                    console.log("✅ [Primary] Pre-flight migrations complete.");
-                } finally {
-                    migClient.release();
-                }
-
-                try {
-                    const chatClient = await poolChat.connect();
-                    try {
-                        await initChatSchema(chatClient, 'Chat-DB');
-                    } finally {
-                        chatClient.release();
-                    }
-                } catch (chatMigErr) {
-                    console.warn(`⚠️ [Primary] Chat schema boot initialization warning: ${chatMigErr.message}`);
-                }
-            } catch (migErr) {
-                console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
-            }
-        } else if (isVercel) {
-            console.log("⚡ Running as Vercel Serverless Function (migrations skipped).");
-        } else {
-            console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
-        }
-
         if (!isVercel) {
             const PORT = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 3000;
             const HOST = process.env.HOST || '127.0.0.1';
@@ -286,6 +255,39 @@ const startServer = async () => {
                     process.send('ready');
                 }
             });
+        }
+
+        if (isPrimaryWorker && !isVercel) {
+            console.log("🏗️ [Primary] Running boot-time migrations in background...");
+            (async () => {
+                try {
+                    const migClient = await pool.connect();
+                    try {
+                        await initOtpTable(migClient);
+                        await runMigrations(migClient, 'Primary');
+                        console.log("✅ [Primary] Pre-flight migrations complete.");
+                    } finally {
+                        migClient.release();
+                    }
+
+                    try {
+                        const chatClient = await poolChat.connect();
+                        try {
+                            await initChatSchema(chatClient, 'Chat-DB');
+                        } finally {
+                            chatClient.release();
+                        }
+                    } catch (chatMigErr) {
+                        console.warn(`⚠️ [Primary] Chat schema boot initialization warning: ${chatMigErr.message}`);
+                    }
+                } catch (migErr) {
+                    console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
+                }
+            })();
+        } else if (isVercel) {
+            console.log("⚡ Running as Vercel Serverless Function (migrations skipped).");
+        } else {
+            console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
         }
 
     } catch (error) {

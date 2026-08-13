@@ -4,7 +4,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "node --watch index.js",
+    "dev": "node -e \"console.log('[SIIF API] Mounted inside SchoolHead API server')\"",
     "start": "node index.js"
   },
   "dependencies": {

@@ -23,7 +23,7 @@ const BottomNav = () => {
     return (
         <>
             {/* Desktop Collapsible Sidebar (>= 768px / md) */}
-            <aside className="hidden md:flex siif-sidebar z-[1000] print:hidden">
+            <aside className="hidden md:flex siif-sidebar z-[9500] print:hidden">
                 <div className="siif-brand">
                     <img
                         src={InsightEdLogoCollapsed}

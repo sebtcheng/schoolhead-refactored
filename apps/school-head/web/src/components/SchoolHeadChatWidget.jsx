@@ -132,8 +132,8 @@ const SchoolHeadChatWidget = () => {
         .catch(err => console.error('[SH CHAT] Load rooms error:', err));
     };
 
-    // Load contacts list once
-    fetch(api('/api/chat/contacts'), {
+    // Load contacts list (filtered to Division SBM Coordinator)
+    fetch(api('/api/chat/contacts?designation=Division SBM Coordinator'), {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -233,6 +233,7 @@ const SchoolHeadChatWidget = () => {
             headers: { 'Authorization': `Bearer ${token}` }
           });
         } else {
+          alert(roomData.error || 'Failed to initialize chat room.');
           throw new Error(roomData.error || 'Failed to initialize room');
         }
       })
@@ -708,7 +709,7 @@ const SchoolHeadChatWidget = () => {
                           boxShadow: '0 0 8px #10b981',
                         }} />
                         <span style={{ fontSize: '11px', color: '#047857', fontWeight: '800', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                          Select SDO Representative
+                          Select Division SBM Coordinator
                         </span>
                       </div>
                       <span style={{ fontSize: '9px', fontWeight: '800', backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 8px', borderRadius: '10px' }}>
@@ -719,6 +720,7 @@ const SchoolHeadChatWidget = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '2px' }}>
                       {contacts.SDOs.map(sdo => {
                         const initials = `${sdo.first_name?.[0] || ''}${sdo.last_name?.[0] || ''}`.toUpperCase();
+                        const displayDesignation = sdo.designation || sdo.position || 'Division SBM Coordinator';
                         return (
                           <button
                             key={sdo.uid}
@@ -764,14 +766,14 @@ const SchoolHeadChatWidget = () => {
                                 fontSize: '11px',
                                 boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
                               }}>
-                                {initials || 'SDO'}
+                                {initials || 'SBM'}
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontSize: '12px', fontWeight: '800', color: '#064e3b' }}>
                                   {sdo.first_name} {sdo.last_name}
                                 </span>
-                                <span style={{ fontSize: '10px', color: '#047857', fontWeight: '500' }}>
-                                  {sdo.role} {sdo.position ? `(${sdo.position})` : ''}
+                                <span style={{ fontSize: '10px', color: '#047857', fontWeight: '600' }}>
+                                  {displayDesignation} {sdo.division ? `(${sdo.division})` : ''}
                                 </span>
                               </div>
                             </div>
@@ -796,8 +798,8 @@ const SchoolHeadChatWidget = () => {
                       })}
                       {contacts.SDOs.length === 0 && (
                         <div style={{ textAlign: 'center', padding: '16px 8px', color: '#64748b' }}>
-                          <span style={{ fontSize: '12px', fontWeight: '600', display: 'block' }}>No division SDOs found</span>
-                          <span style={{ fontSize: '10px', opacity: 0.8 }}>No registered SDO accounts match your division jurisdiction.</span>
+                          <span style={{ fontSize: '12px', fontWeight: '600', display: 'block' }}>No Division SBM Coordinator found</span>
+                          <span style={{ fontSize: '10px', opacity: 0.8 }}>No registered SBM Coordinator matches your division jurisdiction.</span>
                         </div>
                       )}
                     </div>

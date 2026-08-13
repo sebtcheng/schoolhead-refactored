@@ -272,6 +272,12 @@ html.dark .siif-forms-footer {
   overflow: hidden;
 }
 
+@media (min-width: 768px) {
+  .siif-sidebar {
+    z-index: 9500 !important;
+  }
+}
+
 @media (min-width: 1001px) {
   .siif-sidebar {
     position: fixed;
@@ -281,11 +287,12 @@ html.dark .siif-forms-footer {
     width: 80px;
     box-sizing: border-box;
     transition: width 0.2s ease;
-    z-index: 100;
+    z-index: 9500 !important;
   }
 
   .siif-sidebar:hover {
     width: 260px;
+    z-index: 9500 !important;
   }
 
   .siif-sidebar:not(:hover) {

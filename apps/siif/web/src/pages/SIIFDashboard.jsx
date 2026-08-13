@@ -491,33 +491,6 @@ const SIIFDashboard = ({ user, token }) => {
                                         <strong className="text-siif-blue">›</strong>
                                     </button>
 
-                                    <button className={`siif-action-btn ${flaggedCount > 0 ? 'border-red-100 hover:border-red-200 bg-red-50/30' : ''}`} onClick={() => navigate('/siif/forms')}>
-                                        <div className="siif-action-icon" style={flaggedCount > 0 ? { backgroundColor: '#fee2e2', color: '#dc2626' } : {}}>
-                                            {flaggedCount > 0 ? '⚠️' : '✓'}
-                                        </div>
-                                        <div className="text-left flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <b className={flaggedCount > 0 ? "text-red-700" : ""}>Review Flagged Items</b>
-                                                {flaggedCount > 0 && (
-                                                    <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm shrink-0 flex items-center gap-1 animate-pulse">
-                                                        {flaggedCount} Action{flaggedCount !== 1 ? 's' : ''} Needed
-                                                    </span>
-                                                )}
-                                                {flaggedCount === 0 && submission?.interventions?.length > 0 && (
-                                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded-full font-black border border-emerald-200">
-                                                        0 Flags
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className={flaggedCount > 0 ? "text-red-600/80 font-semibold" : ""}>
-                                                {flaggedCount > 0
-                                                    ? 'Incomplete beneficiaries, budget, or activities'
-                                                    : 'Fix missing details and validation issues'}
-                                            </span>
-                                        </div>
-                                        <strong className="text-siif-blue">›</strong>
-                                    </button>
-
                                     <button className="siif-action-btn" onClick={() => window.print()}>
                                         <div className="siif-action-icon">⇩</div>
                                         <div className="text-left">

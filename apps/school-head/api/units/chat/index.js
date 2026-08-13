@@ -20,7 +20,7 @@ async function findUserByUid(userUid) {
   if (!userUid) return null;
   try {
     const shRes = await poolUsers.query(
-      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM users WHERE uid = $1',
+      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM user_schoolhead WHERE uid = $1 OR seq_id::text = $1',
       [userUid]
     );
     if (shRes.rowCount > 0) return shRes.rows[0];
@@ -28,7 +28,7 @@ async function findUserByUid(userUid) {
 
   try {
     const rosdoRes = await poolUsers.query(
-      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM user_rosdo WHERE uid = $1',
+      'SELECT uid, first_name, last_name, email, role, position, region, division, school_id FROM user_rosdo WHERE uid = $1 OR seq_id::text = $1',
       [userUid]
     );
     if (rosdoRes.rowCount > 0) return rosdoRes.rows[0];
@@ -46,7 +46,7 @@ async function getUsersByUids(uids) {
 
   try {
     const shRes = await poolUsers.query(
-      'SELECT uid, first_name, last_name, email, role, position, school_id FROM users WHERE uid = ANY($1)',
+      'SELECT uid, first_name, last_name, email, role, position, school_id FROM user_schoolhead WHERE uid = ANY($1)',
       [uniqueUids]
     );
     shRes.rows.forEach(u => { userMap[u.uid] = u; });
@@ -65,10 +65,10 @@ async function getUsersByUids(uids) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // [CONTACTS] GET /api/chat/contacts
-// Looks up valid target chat contacts strictly from user_rosdo and users in poolUsers.
+// Looks up valid target chat contacts strictly from user_rosdo and user_schoolhead in poolUsers.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
-  const userUid = req.user?.uid || req.user?.id;
+  const userUid = req.user?.uid || req.user?.id || req.user?.user_id;
 
   try {
     const self = (await findUserByUid(userUid)) || {
@@ -79,11 +79,15 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
     };
 
     if (self.role === 'School Head' || self.role === 'school_head' || self.school_id) {
+      const designationFilter = req.query.designation || 'Division SBM Coordinator';
+
       const sdoQuery = `
-        SELECT uid, first_name, last_name, role, position, designation 
+        SELECT uid, first_name, last_name, role, position, designation, division 
         FROM user_rosdo 
         WHERE (role ILIKE '%School Division Office%' OR role ILIKE '%RO/SDO%' OR role ILIKE '%sdo%' OR role ILIKE '%Division%')
           AND (disabled = false OR disabled IS NULL)
+          AND ($1::text IS NULL OR $1::text = '' OR LOWER(TRIM(division)) = LOWER(TRIM($1)))
+          AND ($2::text IS NULL OR $2::text = '' OR designation ILIKE '%' || $2 || '%' OR position ILIKE '%' || $2 || '%')
         ORDER BY 
           CASE WHEN LOWER(TRIM(COALESCE(division, ''))) = LOWER(TRIM(COALESCE($1, ''))) THEN 0 ELSE 1 END,
           last_name ASC, first_name ASC
@@ -95,10 +99,23 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
         LIMIT 1
       `;
 
-      const [sdoRes, adminRes] = await Promise.all([
-        poolUsers.query(sdoQuery, [self.division || '']),
+      let [sdoRes, adminRes] = await Promise.all([
+        poolUsers.query(sdoQuery, [self.division || '', designationFilter]),
         poolUsers.query(adminQuery).catch(() => ({ rows: [] }))
       ]);
+
+      // Fallback: If no coordinator with exact designation exists for the division, fetch general division SDO contacts
+      if (sdoRes.rows.length === 0 && self.division) {
+        const fallbackSdoQuery = `
+          SELECT uid, first_name, last_name, role, position, designation, division 
+          FROM user_rosdo 
+          WHERE (role ILIKE '%School Division Office%' OR role ILIKE '%RO/SDO%' OR role ILIKE '%sdo%' OR role ILIKE '%Division%')
+            AND (disabled = false OR disabled IS NULL)
+            AND LOWER(TRIM(division)) = LOWER(TRIM($1))
+          ORDER BY last_name ASC, first_name ASC
+        `;
+        sdoRes = await poolUsers.query(fallbackSdoQuery, [self.division]);
+      }
 
       return res.json({
         success: true,
@@ -111,7 +128,7 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
     } else {
       const schoolHeadsQuery = `
         SELECT uid, first_name, last_name, school_id, role 
-        FROM users 
+        FROM user_schoolhead 
         WHERE (role ILIKE '%School Head%') 
           AND LOWER(TRIM(division)) = LOWER(TRIM($1)) AND (disabled = false OR disabled IS NULL)
         ORDER BY last_name ASC
@@ -147,7 +164,7 @@ router.get('/api/chat/contacts', authMiddleware, async (req, res) => {
 // Enforces Division Jurisdiction guard.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/chat/room', authMiddleware, async (req, res) => {
-  const userUid = req.user.uid;
+  const userUid = req.user?.uid || req.user?.id || req.user?.user_id;
   const { target_uid } = req.body;
 
   if (!target_uid) {
@@ -164,20 +181,26 @@ router.post('/api/chat/room', authMiddleware, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Target user not found.' });
     }
 
-    const selfUser = await findUserByUid(userUid);
-    if (!selfUser) {
-      return res.status(404).json({ success: false, error: 'Self user profile not found.' });
-    }
+    const selfUser = (await findUserByUid(userUid)) || {
+      uid: userUid,
+      first_name: req.user?.first_name || 'School Head',
+      last_name: req.user?.last_name || '',
+      role: req.user?.role || 'School Head',
+      division: req.user?.division || '',
+      region: req.user?.region || '',
+      school_id: req.user?.school_id || ''
+    };
 
     // Enforce Division Jurisdiction guard for non-admin chats
     const isTargetAdmin = targetUser.role && targetUser.role.toLowerCase().includes('admin');
     const isSelfAdmin = selfUser.role && selfUser.role.toLowerCase().includes('admin');
 
-    if (!isTargetAdmin && !isSelfAdmin && selfUser.division && targetUser.division) {
-      if (selfUser.division.trim().toLowerCase() !== targetUser.division.trim().toLowerCase()) {
+    if (!isTargetAdmin && !isSelfAdmin && selfUser.division) {
+      const normDiv = (str) => (str || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      if (normDiv(selfUser.division) !== normDiv(targetUser.division)) {
         return res.status(403).json({
           success: false,
-          error: 'Jurisdiction Restriction: You can only communicate with users within your own division.'
+          error: `Jurisdiction Restriction: You can only communicate with users within your division (${selfUser.division}).`
         });
       }
     }
