@@ -428,7 +428,7 @@ export default function Unit7PhysicalFacilities({ targetSchoolId, isReadOnly: pr
                     else if (['11', '12'].includes(nid)) isOffered = hasSHS;
 
                     const u2Entry = u2Parsed.find(x => x.grade_level === pg.id);
-                    const isActive = u2Entry ? u2Entry.is_active !== false : isOffered;
+                    const isActive = u2Entry ? u2Entry.is_active !== false : (isOffered || (!hasKinder && !hasElem && !hasJHS && !hasSHS));
                     if (isActive) {
                         detectedGrades.push({ id: pg.id, label: pg.label, isMultigrade: false });
                     }

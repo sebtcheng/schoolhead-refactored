@@ -959,8 +959,20 @@ export default function Unit9Infrastructure({ targetSchoolId, isReadOnly: propRe
 
                                     <div className="space-y-4">
                                         <section>
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Main Power Source (Autofilled)</label>
-                                            <input type="text" readOnly value={generalData.main_power_source || "Checking Unit 6..."} className={`${chunkyInput} bg-indigo-50/50 border-indigo-100 text-indigo-900 border-dashed cursor-not-allowed`} />
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Main Power Source</label>
+                                            <select 
+                                                disabled={isReadOnly} 
+                                                value={generalData.main_power_source} 
+                                                onChange={(e) => updateGeneral('main_power_source', e.target.value)} 
+                                                className={chunkySelect + " h-[60px]"}
+                                            >
+                                                <option value="">Select Power Source</option>
+                                                <option value="Grid Connection (Local Electric Cooperative)">Grid Connection (Local Electric Cooperative)</option>
+                                                <option value="Off-grid supply (Solar / Generator)">Off-grid supply (Solar / Generator)</option>
+                                                <option value="No electricity">No electricity</option>
+                                                <option value="Solar Power Only">Solar Power Only</option>
+                                                <option value="Generator Only">Generator Only</option>
+                                            </select>
                                         </section>
 
                                         <div className="grid grid-cols-2 gap-4">
