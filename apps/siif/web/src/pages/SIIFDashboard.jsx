@@ -315,22 +315,22 @@ const SIIFDashboard = ({ user, token }) => {
                                 {/* Visually Appealing Status Banner */}
                                 {submission?.status?.toLowerCase() === 'disapproved' && (
                                     <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center shrink-0">
                                                 <TbX size={20} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-sm font-bold text-red-700 flex items-center gap-1.5 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-bold text-red-700">
                                                     Action Required: Disapproved
                                                 </h4>
-                                                <p className="text-xs text-red-600/80 mt-0.5 break-words whitespace-normal">
+                                                <p className="text-xs text-red-600/80 mt-0.5">
                                                     <strong>Remarks:</strong> {submission.remarks || 'Please revise your proposal.'}
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => navigate('/siif/forms')}
-                                            className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all text-center"
+                                            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Revise Proposal
                                         </button>
@@ -338,22 +338,22 @@ const SIIFDashboard = ({ user, token }) => {
                                 )}
                                 {submission?.status?.toLowerCase() === 'reviewed' && (
                                     <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
                                                 <TbCircleCheck size={20} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-bold text-emerald-700">
                                                     Reviewed by SDO
                                                 </h4>
-                                                <p className="text-xs text-emerald-600/80 mt-0.5 break-words whitespace-normal">
+                                                <p className="text-xs text-emerald-600/80 mt-0.5">
                                                     <strong>Remarks:</strong> {submission.remarks || 'Ready for implementation.'}
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => navigate('/siif/utilization')}
-                                            className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all text-center"
+                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Proceed to Utilization
                                         </button>
@@ -361,22 +361,22 @@ const SIIFDashboard = ({ user, token }) => {
                                 )}
                                 {submission?.status?.toLowerCase() === 'submitted' && (
                                     <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
                                                 <TbClock size={20} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-sm font-bold text-amber-700 flex items-center gap-1.5 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-bold text-amber-700">
                                                     Pending Review
                                                 </h4>
-                                                <p className="text-xs text-amber-600/80 mt-0.5 break-words whitespace-normal">
+                                                <p className="text-xs text-amber-600/80 mt-0.5">
                                                     Your submission is currently being reviewed by the Division Office.
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => navigate('/siif/forms')}
-                                            className="w-full sm:w-auto px-4 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 text-center"
+                                            className="px-4 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 whitespace-nowrap shrink-0"
                                         >
                                             View Submission
                                         </button>

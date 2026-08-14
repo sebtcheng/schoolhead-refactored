@@ -40,12 +40,51 @@ router.put('/users/update', authenticate, async (req, res) => {
 
 // POST /api/siif/auth/change-password
 router.post('/auth/change-password', authenticate, async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, passcode } = req.body;
     const email = req.user.email;
 
     console.log(`🔐 [SIIF-API] Password change request for: ${email}`);
 
     try {
+        if (passcode && newPassword) {
+            let userResult = await poolUsers.query(
+                'SELECT passcode FROM user_schoolhead WHERE LOWER(email) = LOWER($1)',
+                [email]
+            );
+            if (userResult.rowCount === 0) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            const storedPasscode = userResult.rows[0].passcode;
+            if (!storedPasscode) {
+                return res.status(400).json({ error: 'No PIN/passcode setup for this account.' });
+            }
+
+            const passStr = String(storedPasscode);
+            const isBcryptHash = passStr.startsWith('$2b$');
+            const isMatch = isBcryptHash
+                ? await bcrypt.compare(String(passcode).trim(), passStr)
+                : (String(passcode).trim() === passStr.trim());
+
+            if (!isMatch) {
+                console.warn(`⚠️ [SIIF-API] Incorrect security passcode for: ${email}`);
+                return res.status(401).json({ error: 'Incorrect 6-digit security passcode.' });
+            }
+
+            const hashed = await bcrypt.hash(newPassword, 10);
+            await poolUsers.query(
+                'UPDATE user_schoolhead SET password_hash = $1, hash_version = \'bcrypt\' WHERE LOWER(email) = LOWER($2)',
+                [hashed, email]
+            );
+
+            console.log(`✅ [SIIF-API] Password updated via passcode for: ${email}`);
+            return res.json({ success: true, message: 'Password updated successfully' });
+        }
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Current and new passwords are required' });
+        }
+
         let userResult = await poolUsers.query(
             'SELECT password_hash FROM user_schoolhead WHERE LOWER(email) = LOWER($1)',
             [email]
@@ -62,7 +101,7 @@ router.post('/auth/change-password', authenticate, async (req, res) => {
 
         const hashed = await bcrypt.hash(newPassword, 10);
         await poolUsers.query(
-            'UPDATE user_schoolhead SET password_hash = $1 WHERE LOWER(email) = LOWER($2)',
+            'UPDATE user_schoolhead SET password_hash = $1, hash_version = \'bcrypt\' WHERE LOWER(email) = LOWER($2)',
             [hashed, email]
         );
 
@@ -70,7 +109,7 @@ router.post('/auth/change-password', authenticate, async (req, res) => {
         res.json({ success: true, message: 'Password updated successfully' });
     } catch (err) {
         console.error('🔥 [SIIF-API] Password change error:', err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: err.message || 'Internal Server Error' });
     }
 });
 

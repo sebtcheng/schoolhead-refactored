@@ -1,5 +1,6 @@
 // src/modules/UserProfile.jsx
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageTransition from '../components/PageTransition';
@@ -8,7 +9,7 @@ import { useTheme } from '../context/ThemeContext'; // Import Hook
 import { useServiceWorker } from '../context/ServiceWorkerContext'; // Import SW Hook
 
 // Icons
-import { FiUser, FiInfo, FiMoon, FiLogOut, FiChevronRight, FiChevronLeft, FiSave, FiEdit3, FiHelpCircle, FiChevronDown, FiChevronUp, FiStar, FiMessageSquare, FiCheckCircle, FiRefreshCw, FiDownloadCloud, FiTool, FiShield, FiLock, FiHome, FiSettings, FiBookOpen } from "react-icons/fi"; // Added FiShield and FiLock
+import { FiUser, FiInfo, FiMoon, FiLogOut, FiChevronRight, FiChevronLeft, FiSave, FiEdit3, FiHelpCircle, FiChevronDown, FiChevronUp, FiStar, FiMessageSquare, FiCheckCircle, FiRefreshCw, FiDownloadCloud, FiTool, FiShield, FiLock, FiHome, FiSettings, FiBookOpen, FiX } from "react-icons/fi"; // Added FiShield and FiLock
 import { TbAlertTriangle, TbSchool } from "react-icons/tb";
 import { LuCompass } from "react-icons/lu";
 import { api } from "../lib/api";
@@ -149,6 +150,17 @@ const UserProfile = ({ hideSidebar = false }) => {
     });
     const [passcodeResetError, setPasscodeResetError] = useState('');
 
+    // Passcode-Protected Change Password State
+    const [showPasscodeChangeModal, setShowPasscodeChangeModal] = useState(false);
+    const [passcodePasswordData, setPasscodePasswordData] = useState({
+        passcode: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [passcodePasswordError, setPasscodePasswordError] = useState('');
+    const [passcodePasswordSuccess, setPasscodePasswordSuccess] = useState('');
+    const [isVerifyingPasscodePassword, setIsVerifyingPasscodePassword] = useState(false);
+
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [successConfig, setSuccessConfig] = useState({ title: '', message: '' });
@@ -159,7 +171,7 @@ const UserProfile = ({ hideSidebar = false }) => {
             const currentUid = user?.uid || user?.school_id || localStorage.getItem('uid') || localStorage.getItem('userId') || localStorage.getItem('schoolId');
             const currentRole = user?.account_category || user?.role || localStorage.getItem('userRole') || 'User';
             const cachedEmail = user?.email || localStorage.getItem('userEmail');
-            
+
             let fallbackFirstName = "User";
             let fallbackLastName = "";
             let fallbackEmail = cachedEmail || "";
@@ -186,7 +198,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                     email: user.email || user.email_address || fallbackEmail,
                     role: user.role || user.account_category || currentRole || 'User'
                 };
-                
+
                 setUserData(mappedUser);
                 setFormData({
                     firstName: mappedUser.firstName,
@@ -250,7 +262,7 @@ const UserProfile = ({ hideSidebar = false }) => {
             }
         };
         syncUserData();
-    }, [user, user?.uid, authLoading]); 
+    }, [user, user?.uid, authLoading]);
 
     useEffect(() => {
         if (schoolId && !schoolName) {
@@ -272,7 +284,7 @@ const UserProfile = ({ hideSidebar = false }) => {
         } else {
             document.body.style.overflow = 'auto';
         }
-        
+
         return () => {
             document.body.style.overflow = 'auto';
         };
@@ -313,7 +325,7 @@ const UserProfile = ({ hideSidebar = false }) => {
 
             const response = await fetch(api(`/api/users/update`), {
                 method: 'PUT',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
@@ -332,7 +344,7 @@ const UserProfile = ({ hideSidebar = false }) => {
             setShowSecurityModal(false);
             setSecurityData({ passcode: '', confirmText: '' });
             alert("Profile updated successfully!");
-            
+
             if (result.emailChanged) {
                 // If email changed, we might want to update stored email
                 localStorage.setItem('userEmail', formData.email);
@@ -373,7 +385,7 @@ const UserProfile = ({ hideSidebar = false }) => {
         try {
             const response = await fetch(api(`/api/auth/change-password`), {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
@@ -391,7 +403,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                 message: 'Your account password has been changed successfully. Please use your new password next time you sign in.'
             });
             setShowSuccessModal(true);
-            
+
             setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
             setIsEditing(false);
         } catch (error) {
@@ -436,7 +448,7 @@ const UserProfile = ({ hideSidebar = false }) => {
             // If user has a passcode, we should ideally verify it first or pass it to the setup endpoint
             const response = await fetch(api(`/api/auth/setup-passcode`), {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
@@ -457,7 +469,7 @@ const UserProfile = ({ hideSidebar = false }) => {
 
             setResetPasscodeData({ currentPasscode: '', newPasscode: '', confirmPasscode: '' });
             setShowPasscodeResetModal(false);
-            
+
             // Sync local user state
             const updatedUser = { ...(userData || {}), passcode: newPasscode };
             setUserData(updatedUser);
@@ -472,6 +484,76 @@ const UserProfile = ({ hideSidebar = false }) => {
         }
     };
 
+    const handlePasscodeVerifiedPasswordChange = async (e) => {
+        if (e) e.preventDefault();
+        setPasscodePasswordError('');
+        setPasscodePasswordSuccess('');
+
+        const { passcode, newPassword, confirmPassword } = passcodePasswordData;
+
+        if (!passcode || passcode.trim().length !== 6) {
+            setPasscodePasswordError('Please enter a valid 6-digit security passcode.');
+            return;
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            setPasscodePasswordError('New password must be at least 6 characters.');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            setPasscodePasswordError('New passwords do not match.');
+            return;
+        }
+
+        setIsVerifyingPasscodePassword(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(api('/api/auth/change-password'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    passcode: passcode.trim(),
+                    newPassword: newPassword
+                })
+            });
+
+            const contentType = res.headers.get('content-type') || '';
+            let data = {};
+            if (contentType.includes('application/json')) {
+                data = await res.json();
+            } else {
+                const textErr = await res.text();
+                console.warn("Non-JSON API Response:", res.status, textErr);
+                data = { success: false, error: `Server error (${res.status}). Please check backend connection.` };
+            }
+
+            if (!res.ok || (data.success === false)) {
+                setPasscodePasswordError(data.error || data.message || 'Passcode verification failed. Please try again.');
+                setIsVerifyingPasscodePassword(false);
+                return;
+            }
+
+            setPasscodePasswordSuccess('Password updated successfully!');
+            setSuccessConfig({
+                title: 'Password Updated',
+                message: 'Your account password has been changed successfully after passcode verification.'
+            });
+            setShowSuccessModal(true);
+
+            setPasscodePasswordData({ passcode: '', newPassword: '', confirmPassword: '' });
+            setTimeout(() => setShowPasscodeChangeModal(false), 1500);
+        } catch (err) {
+            console.error('Passcode-authenticated password change error:', err);
+            setPasscodePasswordError(err.message || 'Passcode verification failed. Please try again.');
+        } finally {
+            setIsVerifyingPasscodePassword(false);
+        }
+    };
+
     const handleSubmitFeedback = async () => {
         if (feedbackRatings.easeOfUse === 0 || feedbackRatings.aesthetics === 0 || feedbackRatings.functionality === 0) {
             alert("Please rate all categories before submitting.");
@@ -482,7 +564,7 @@ const UserProfile = ({ hideSidebar = false }) => {
         try {
             const response = await fetch(api(`/api/feedback`), {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
@@ -515,7 +597,7 @@ const UserProfile = ({ hideSidebar = false }) => {
         setTimeout(async () => {
             const updateFound = await checkForUpdates();
             setCheckingForUpdate(false);
-            
+
             // If no update was found, show a toast or alert. 
             // If it WAS found, the global ForceUpdateModal in App.jsx will trigger automatically via isUpdateAvailable context
             if (!updateFound) {
@@ -766,7 +848,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                 <div className="w-[80px] h-[80px] bg-[#004A99] dark:bg-blue-600 rounded-[2rem] mx-auto mb-6 flex items-center justify-center text-white font-black text-3xl shadow-xl shadow-blue-500/30">
                     IE
                 </div>
-                
+
                 <h2 className="text-[#004A99] dark:text-blue-400 mb-1 text-2xl font-black tracking-tight">InsightED</h2>
                 <p className="text-gray-400 dark:text-gray-500 text-sm font-medium mb-8">Version {import.meta.env.VITE_APP_VERSION || '1.0.0'} (Beta)</p>
 
@@ -774,14 +856,14 @@ const UserProfile = ({ hideSidebar = false }) => {
                     <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed font-medium">
                         <strong className="text-slate-800 dark:text-white font-black">InsightED</strong> is a mobile-first data collection application for real-time field data collection, designed to transform raw school-level data into actionable organizational strategies. By serving as the digital conduit to the STRIDE Dashboard, the application enables the Department to perform proactive management towards strategic use of critical education resources.
                     </p>
-                    
+
                     <p className="text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed font-medium">
                         With high-fidelity data captured directly from the source, the Department can execute informed, evidence-based actions with unprecedented speed. This modernization of education management ensures that the Department can identify and address the unique needs of every school, guaranteeing that resources and support are deployed precisely where they will most improve the quality of education for our learners.
                     </p>
                 </div>
 
                 <div className="h-px bg-slate-100 dark:bg-slate-700/50 my-8"></div>
-                
+
                 <p className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] leading-relaxed">
                     © 2024 INSIGHTED DEVELOPMENT TEAM.<br />ALL RIGHTS RESERVED.
                 </p>
@@ -919,7 +1001,7 @@ const UserProfile = ({ hideSidebar = false }) => {
             <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                 <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 pb-10 sm:pb-6 animate-in slide-in-from-bottom-10 duration-500">
                     <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-6 sm:hidden"></div>
-                    
+
                     <div className="flex items-center gap-4 mb-6">
                         <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/40 rounded-2xl flex items-center justify-center text-orange-600 dark:text-orange-400">
                             <FiShield size={24} />
@@ -974,7 +1056,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                             {loading ? <FiRefreshCw className="animate-spin" /> : <FiCheckCircle />}
                             Confirm & Update
                         </button>
-                        
+
                         <button
                             onClick={() => {
                                 setShowSecurityModal(false);
@@ -987,6 +1069,119 @@ const UserProfile = ({ hideSidebar = false }) => {
                     </div>
                 </div>
             </div>
+        );
+    };
+
+    // 7. PASSCODE-PROTECTED CHANGE PASSWORD MODAL
+    const renderPasscodeChangeModal = () => {
+        if (!showPasscodeChangeModal) return null;
+
+        return createPortal(
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl p-6 sm:p-8 animate-in zoom-in-95 duration-300 border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-700 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/40 rounded-xl flex items-center justify-center text-[#004A99] dark:text-blue-400">
+                                <FiShield size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800 dark:text-white m-0">Change Password</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 m-0">Verify with your 6-digit security passcode</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setShowPasscodeChangeModal(false);
+                                setPasscodePasswordError('');
+                                setPasscodePasswordSuccess('');
+                                setPasscodePasswordData({ passcode: '', newPassword: '', confirmPassword: '' });
+                            }}
+                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white bg-transparent border-0 cursor-pointer rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            <FiX size={20} />
+                        </button>
+                    </div>
+
+                    {passcodePasswordError && (
+                        <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-300 text-xs rounded-xl flex items-center gap-2 border border-rose-200 dark:border-rose-800 font-medium">
+                            <TbAlertTriangle className="shrink-0" size={16} /> {passcodePasswordError}
+                        </div>
+                    )}
+
+                    {passcodePasswordSuccess && (
+                        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-300 text-xs rounded-xl flex items-center gap-2 border border-emerald-200 dark:border-emerald-800 font-medium">
+                            <FiCheckCircle className="shrink-0" size={16} /> {passcodePasswordSuccess}
+                        </div>
+                    )}
+
+                    <form onSubmit={handlePasscodeVerifiedPasswordChange} className="space-y-4">
+                        <div>
+                            <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 mb-1.5 ml-1">6-Digit Security Passcode</label>
+                            <input
+                                type="password"
+                                maxLength={6}
+                                placeholder="••••••"
+                                value={passcodePasswordData.passcode}
+                                onChange={(e) => setPasscodePasswordData({ ...passcodePasswordData, passcode: e.target.value })}
+                                className="w-full p-3.5 rounded-xl text-center text-sm font-bold tracking-[0.5em] bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#004A99] transition-all"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 mb-1.5 ml-1">New Password</label>
+                            <input
+                                type="password"
+                                placeholder="Minimum 6 characters"
+                                value={passcodePasswordData.newPassword}
+                                onChange={(e) => setPasscodePasswordData({ ...passcodePasswordData, newPassword: e.target.value })}
+                                className="w-full p-3.5 rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#004A99] transition-all"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] uppercase tracking-wider font-bold text-slate-400 dark:text-slate-500 mb-1.5 ml-1">Confirm New Password</label>
+                            <input
+                                type="password"
+                                placeholder="Repeat new password"
+                                value={passcodePasswordData.confirmPassword}
+                                onChange={(e) => setPasscodePasswordData({ ...passcodePasswordData, confirmPassword: e.target.value })}
+                                className="w-full p-3.5 rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#004A99] transition-all"
+                            />
+                        </div>
+
+                        <div className="pt-2 flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowPasscodeChangeModal(false);
+                                    setPasscodePasswordError('');
+                                    setPasscodePasswordSuccess('');
+                                    setPasscodePasswordData({ passcode: '', newPassword: '', confirmPassword: '' });
+                                }}
+                                className="w-1/3 py-3.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider border-0 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isVerifyingPasscodePassword}
+                                className="w-2/3 py-3.5 bg-[#004A99] hover:bg-blue-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider border-0 cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                            >
+                                {isVerifyingPasscodePassword ? (
+                                    <>
+                                        <FiRefreshCw className="animate-spin" size={14} /> Updating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FiLock size={14} /> Update Password
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>,
+            document.body
         );
     };
 
@@ -1026,9 +1221,9 @@ const UserProfile = ({ hideSidebar = false }) => {
                     </div>
                     <FiChevronRight size={20} className="text-gray-300 dark:text-gray-500" />
                 </button>
-                
+
                 {/* Passcode Protection */}
-                <button 
+                <button
                     onClick={() => setShowPasscodeResetModal(true)}
                     className="w-full flex justify-between items-center px-5 py-4 border-b border-gray-50 dark:border-slate-700 bg-transparent cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                 >
@@ -1040,6 +1235,29 @@ const UserProfile = ({ hideSidebar = false }) => {
                             <span className="text-[15px] font-medium text-gray-700 dark:text-gray-200 block">Passcode Protection</span>
                             <span className={`text-[10px] font-semibold uppercase tracking-wide ${userData?.passcode ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
                                 {userData?.passcode ? 'Active' : 'Secure Now'}
+                            </span>
+                        </div>
+                    </div>
+                    <FiChevronRight size={20} className="text-gray-300 dark:text-gray-500" />
+                </button>
+
+                {/* Change Password (Passcode Verified) */}
+                <button 
+                    onClick={() => {
+                        setPasscodePasswordError('');
+                        setPasscodePasswordSuccess('');
+                        setShowPasscodeChangeModal(true);
+                    }}
+                    className="w-full flex justify-between items-center px-5 py-4 border-b border-gray-50 dark:border-slate-700 bg-transparent cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-9 h-9 rounded-lg flex justify-center items-center bg-blue-50 dark:bg-blue-900/30 text-[#004A99] dark:text-blue-300">
+                            <FiShield size={20} />
+                        </div>
+                        <div className="text-left">
+                            <span className="text-[15px] font-medium text-gray-700 dark:text-gray-200 block">Change Password</span>
+                            <span className="text-[10px] font-semibold text-[#004A99] dark:text-blue-400 uppercase tracking-wide">
+                                Passcode Verified
                             </span>
                         </div>
                     </div>
@@ -1155,13 +1373,13 @@ const UserProfile = ({ hideSidebar = false }) => {
             </div>
         );
     }
-    
+
     return (
         <PageTransition>
             <>
                 <div className={`nodes-app-layout ${hideSidebar ? 'lg:pl-0' : 'lg:pl-[80px]'}`}>
-                <style dangerouslySetInnerHTML={{
-                    __html: `
+                    <style dangerouslySetInnerHTML={{
+                        __html: `
                     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
                     
                     :root {
@@ -1536,57 +1754,57 @@ const UserProfile = ({ hideSidebar = false }) => {
                       }
                     }
                     `
-                }} />
+                    }} />
 
-                {!hideSidebar && <SharedNexusSidebar activeTab="Settings" />}
+                    {!hideSidebar && <SharedNexusSidebar activeTab="Settings" />}
 
-                {/* Main Content Area */}
-                <div className={`flex-grow flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10 ${hideSidebar ? 'pl-0' : ''}`}>
-                    
-                    {/* Header / Topbar */}
-                    <div className="nodes-topbar animate-fade-in">
-                        <div className="flex flex-col flex-grow select-none pr-8">
-                            {activeTab !== 'settings' && (
-                                <button 
-                                    className="bg-white/10 hover:bg-white/20 border border-white/25 text-white cursor-pointer px-3 py-1.5 rounded-xl flex items-center gap-1 w-fit transition-all duration-200 active:scale-95 mb-2 relative z-20" 
-                                    onClick={() => {
-                                        setActiveTab('settings');
-                                        setIsEditing(false); // Reset edit mode on back
-                                    }}
-                                >
-                                    <FiChevronLeft size={16} />
-                                    <span className="text-xs font-black uppercase tracking-wider">Back to Settings</span>
-                                </button>
-                            )}
-                            <span className="eyebrow">
-                                DEPARTMENT OF EDUCATION | BUREAU OF HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT
-                            </span>
-                            <h1>
-                                {activeTab === 'settings' ? (schoolName ? `Settings • ${schoolName}` : 'Settings') :
-                                 activeTab === 'profile' ? 'Edit Profile' :
-                                 activeTab === 'faq' ? 'FAQ / Knowledge Base' :
-                                 activeTab === 'feedback' ? 'User Feedback' : 'About InsightED'}
-                            </h1>
-                            <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-2 relative z-10 leading-relaxed font-sans max-w-[90%]">
-                                Interactive dashboard for mapping school units, district needs, staffing, enrollment, classrooms, MOOE, and related indicators.
-                            </p>
-                            <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-1 relative z-10 leading-relaxed font-sans max-w-[90%]">
-                                School ID: {schoolId || '------'} | School Head: {user?.first_name || user?.firstName || 'User'} {user?.last_name || user?.lastName || ''}
-                            </p>
+                    {/* Main Content Area */}
+                    <div className={`flex-grow flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10 ${hideSidebar ? 'pl-0' : ''}`}>
+
+                        {/* Header / Topbar */}
+                        <div className="nodes-topbar animate-fade-in">
+                            <div className="flex flex-col flex-grow select-none pr-8">
+                                {activeTab !== 'settings' && (
+                                    <button
+                                        className="bg-white/10 hover:bg-white/20 border border-white/25 text-white cursor-pointer px-3 py-1.5 rounded-xl flex items-center gap-1 w-fit transition-all duration-200 active:scale-95 mb-2 relative z-20"
+                                        onClick={() => {
+                                            setActiveTab('settings');
+                                            setIsEditing(false); // Reset edit mode on back
+                                        }}
+                                    >
+                                        <FiChevronLeft size={16} />
+                                        <span className="text-xs font-black uppercase tracking-wider">Back to Settings</span>
+                                    </button>
+                                )}
+                                <span className="eyebrow">
+                                    DEPARTMENT OF EDUCATION | BUREAU OF HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT
+                                </span>
+                                <h1>
+                                    {activeTab === 'settings' ? (schoolName ? `Settings • ${schoolName}` : 'Settings') :
+                                        activeTab === 'profile' ? 'Edit Profile' :
+                                            activeTab === 'faq' ? 'FAQ / Knowledge Base' :
+                                                activeTab === 'feedback' ? 'User Feedback' : 'About InsightED'}
+                                </h1>
+                                <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-2 relative z-10 leading-relaxed font-sans max-w-[90%]">
+                                    Interactive dashboard for mapping school units, district needs, staffing, enrollment, classrooms, MOOE, and related indicators.
+                                </p>
+                                <p className="text-[11px] font-medium text-[#E0F2FE] opacity-90 mt-1 relative z-10 leading-relaxed font-sans max-w-[90%]">
+                                    School ID: {schoolId || '------'} | School Head: {user?.first_name || user?.firstName || 'User'} {user?.last_name || user?.lastName || ''}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* CONTENT AREA */}
+                        <div className="p-4 sm:p-6">
+                            {activeTab === 'settings' && renderSettingsMenu()}
+                            {activeTab === 'profile' && renderProfileEdit()}
+                            {activeTab === 'faq' && renderFAQ()}
+                            {activeTab === 'feedback' && renderFeedback()}
+                            {activeTab === 'about' && renderAbout()}
                         </div>
                     </div>
-
-                    {/* CONTENT AREA */}
-                    <div className="p-4 sm:p-6">
-                        {activeTab === 'settings' && renderSettingsMenu()}
-                        {activeTab === 'profile' && renderProfileEdit()}
-                        {activeTab === 'faq' && renderFAQ()}
-                        {activeTab === 'feedback' && renderFeedback()}
-                        {activeTab === 'about' && renderAbout()}
-                    </div>
                 </div>
-            </div>
-                
+
                 {/* Security Verification Modal (Generic for Email/Profile Updates) */}
                 {renderSecurityModal()}
 
@@ -1596,7 +1814,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                         <div className="bg-white dark:bg-slate-800 w-full max-w-xs rounded-[2.5rem] shadow-2xl p-8 text-center animate-in zoom-in-95 duration-500 relative overflow-hidden">
                             {/* Confetti-like decorative elements */}
                             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-400"></div>
-                            
+
                             <div className="mb-6 relative">
                                 <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-100 dark:border-green-800/30">
                                     <FiCheckCircle size={40} className="text-green-500 animate-bounce" />
@@ -1627,17 +1845,17 @@ const UserProfile = ({ hideSidebar = false }) => {
                         <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 duration-500 relative overflow-hidden">
                             {/* Decorative Blobs */}
                             <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-blue-50 dark:bg-blue-900/10 rounded-full blur-2xl"></div>
-                            
+
                             <div className="relative z-10 text-center">
                                 <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-5 text-white shadow-xl shadow-blue-200 dark:shadow-none">
                                     <FiLock size={30} />
                                 </div>
-                                
+
                                 <h3 className="text-xl font-black text-slate-800 dark:text-white mb-1">
                                     {userData?.passcode ? 'Reset Passcode' : 'Setup Passcode'}
                                 </h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                                    {userData?.passcode 
+                                    {userData?.passcode
                                         ? 'Enter your current passcode to authorize a change.'
                                         : 'Set a 6-digit passcode for faster, secure logins.'}
                                 </p>
@@ -1740,7 +1958,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                                         setCheckingForUpdate(true);
                                         // Show success modal briefly before reload
                                         setShowOptimizeSuccess(true);
-                                        
+
                                         try {
                                             // 1. Remote Repair Protocol: Align Unit 8 JSONB
                                             await fetch(api(`/api/system/align-unit8`), {
@@ -1753,7 +1971,7 @@ const UserProfile = ({ hideSidebar = false }) => {
                                         } catch (err) {
                                             console.warn("Failed to reach align-unit8 endpoint:", err);
                                         }
-                                        
+
                                         setTimeout(async () => {
                                             await hardReset();
                                         }, 2000);
@@ -1791,6 +2009,9 @@ const UserProfile = ({ hideSidebar = false }) => {
                         </div>
                     </div>
                 )}
+
+                {/* Passcode-Protected Change Password Modal */}
+                {renderPasscodeChangeModal()}
             </>
         </PageTransition>
     );
