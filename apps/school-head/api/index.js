@@ -70,8 +70,8 @@ process.on('uncaughtException', (err) => {
 const app = express();
 
 // --- CRITICAL DEBUG PING (TOP PRIORITY) ---
-app.get('/api/ping', (req, res) => res.json({ 
-  status: 'pong', 
+app.get('/api/ping', (req, res) => res.json({
+  status: 'pong',
   version: 'v1.2.5-STAGING-OMEGA-TOP',
   mode: 'API (/api/ping)',
   path: req.path
@@ -144,10 +144,10 @@ app.use((req, res, next) => {
   const DELAY_THRESHOLD = 400;
 
   if (eventLoopDelay > DELAY_THRESHOLD || heapUsage > HEAP_THRESHOLD) {
-    console.warn(`⚠️ [Admission-Control] REJECTING ${req.method} ${req.path} - Delay: ${eventLoopDelay}ms | Heap: ${Math.round(heapUsage/1024/1024)}MB`);
+    console.warn(`⚠️ [Admission-Control] REJECTING ${req.method} ${req.path} - Delay: ${eventLoopDelay}ms | Heap: ${Math.round(heapUsage / 1024 / 1024)}MB`);
     res.set('Retry-After', '5');
-    return res.status(503).json({ 
-      error: 'Service Temporarily Overloaded', 
+    return res.status(503).json({
+      error: 'Service Temporarily Overloaded',
       retry_after: 5,
       reason: eventLoopDelay > DELAY_THRESHOLD ? 'high_latency' : 'memory_pressure',
       path: req.path
@@ -163,47 +163,47 @@ app.use('/uploads', express.static(UPLOAD_BASE_PATH));
 import https from 'https';
 import http from 'http';
 if (process.env.NODE_ENV !== 'production' || !process.env.NODE_ENV) {
-    app.use('/uploads', (req, res) => {
-        const stagingRoot = 'https://20.24.58.49/uploads'; 
-        const altPaths = [
-            `${stagingRoot}${req.url}`,
-            `${stagingRoot}/${path.basename(req.url)}`,
-            `https://20.24.58.49${req.url}`,
-            `https://20.24.58.49/${path.basename(req.url)}`
-        ];
-        
-        const options = { rejectUnauthorized: false };
+  app.use('/uploads', (req, res) => {
+    const stagingRoot = 'https://20.24.58.49/uploads';
+    const altPaths = [
+      `${stagingRoot}${req.url}`,
+      `${stagingRoot}/${path.basename(req.url)}`,
+      `https://20.24.58.49${req.url}`,
+      `https://20.24.58.49/${path.basename(req.url)}`
+    ];
 
-        const tryPath = (index) => {
-            if (index >= altPaths.length) {
-                console.warn(`[Asset-Proxy] Exhausted all fallback paths for: ${req.url}`);
-                return res.status(404).json({ error: 'Asset not found on any staging path' });
+    const options = { rejectUnauthorized: false };
+
+    const tryPath = (index) => {
+      if (index >= altPaths.length) {
+        console.warn(`[Asset-Proxy] Exhausted all fallback paths for: ${req.url}`);
+        return res.status(404).json({ error: 'Asset not found on any staging path' });
+      }
+
+      const targetUrl = altPaths[index];
+      https.get(targetUrl, options, (proxyRes) => {
+        if (proxyRes.statusCode === 200) {
+          res.setHeader('Content-Type', proxyRes.headers['content-type']);
+          proxyRes.pipe(res);
+        } else if (proxyRes.statusCode === 301 || proxyRes.statusCode === 302) {
+          https.get(proxyRes.headers.location, options, (redirRes) => {
+            if (redirRes.statusCode === 200) {
+              res.setHeader('Content-Type', redirRes.headers['content-type']);
+              redirRes.pipe(res);
+            } else {
+              tryPath(index + 1);
             }
+          });
+        } else {
+          tryPath(index + 1);
+        }
+      }).on('error', (err) => {
+        tryPath(index + 1);
+      });
+    };
 
-            const targetUrl = altPaths[index];
-            https.get(targetUrl, options, (proxyRes) => {
-                if (proxyRes.statusCode === 200) {
-                    res.setHeader('Content-Type', proxyRes.headers['content-type']);
-                    proxyRes.pipe(res);
-                } else if (proxyRes.statusCode === 301 || proxyRes.statusCode === 302) {
-                    https.get(proxyRes.headers.location, options, (redirRes) => {
-                        if (redirRes.statusCode === 200) {
-                            res.setHeader('Content-Type', redirRes.headers['content-type']);
-                            redirRes.pipe(res);
-                        } else {
-                            tryPath(index + 1);
-                        }
-                    });
-                } else {
-                    tryPath(index + 1);
-                }
-            }).on('error', (err) => {
-                tryPath(index + 1);
-            });
-        };
-
-        tryPath(0);
-    });
+    tryPath(0);
+  });
 }
 
 // REGISTER UNIT MODULAR ROUTERS
@@ -229,74 +229,74 @@ app.use('/api/siif', siifRouter);
 
 // --- COMPREHENSIVE SERVER STARTUP ---
 const startServer = async () => {
-    try {
-        console.log("🚀 Initializing InsightEd Master Services...");
+  try {
+    console.log("🚀 Initializing InsightEd Master Services...");
 
-        const isVercel = process.env.VERCEL === '1';
-        const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
-        
-        if (!isVercel) {
-            const PORT = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 3000;
-            const HOST = process.env.HOST || '127.0.0.1';
-            app.listen(PORT, HOST, () => {
-                console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
-                
-                // Run cleanup on startup (delay 10s to let server stabilize)
-                setTimeout(() => {
-                    autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
-                }, 10000);
-                
-                // Run cleanup every 24 hours
-                setInterval(() => {
-                    autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
-                }, 24 * 60 * 60 * 1000);
+    const isVercel = process.env.VERCEL === '1';
+    const isPrimaryWorker = !process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === '0';
 
-                if (process.send) {
-                    process.send('ready');
-                }
-            });
+    if (!isVercel) {
+      const PORT = process.env.PORT || process.env.SCHOOL_HEAD_PORT || 5010;
+      const HOST = process.env.HOST || '127.0.0.1';
+      app.listen(PORT, HOST, () => {
+        console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
+
+        // Run cleanup on startup (delay 10s to let server stabilize)
+        setTimeout(() => {
+          autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
+        }, 10000);
+
+        // Run cleanup every 24 hours
+        setInterval(() => {
+          autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
+        }, 24 * 60 * 60 * 1000);
+
+        if (process.send) {
+          process.send('ready');
         }
-
-        if (isPrimaryWorker && !isVercel) {
-            console.log("🏗️ [Primary] Running boot-time migrations in background...");
-            (async () => {
-                try {
-                    const migClient = await pool.connect();
-                    try {
-                        await initOtpTable(migClient);
-                        await runMigrations(migClient, 'Primary');
-                        console.log("✅ [Primary] Pre-flight migrations complete.");
-                    } finally {
-                        migClient.release();
-                    }
-
-                    try {
-                        const chatClient = await poolChat.connect();
-                        try {
-                            await initChatSchema(chatClient, 'Chat-DB');
-                        } finally {
-                            chatClient.release();
-                        }
-                    } catch (chatMigErr) {
-                        console.warn(`⚠️ [Primary] Chat schema boot initialization warning: ${chatMigErr.message}`);
-                    }
-                } catch (migErr) {
-                    console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
-                }
-            })();
-        } else if (isVercel) {
-            console.log("⚡ Running as Vercel Serverless Function (migrations skipped).");
-        } else {
-            console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
-        }
-
-    } catch (error) {
-        console.error("❌ CRITICAL: Master startup sequence failed!");
-        console.error(error);
-        if (process.env.VERCEL !== '1') {
-            process.exit(1);
-        }
+      });
     }
+
+    if (isPrimaryWorker && !isVercel) {
+      console.log("🏗️ [Primary] Running boot-time migrations in background...");
+      (async () => {
+        try {
+          const migClient = await pool.connect();
+          try {
+            await initOtpTable(migClient);
+            await runMigrations(migClient, 'Primary');
+            console.log("✅ [Primary] Pre-flight migrations complete.");
+          } finally {
+            migClient.release();
+          }
+
+          try {
+            const chatClient = await poolChat.connect();
+            try {
+              await initChatSchema(chatClient, 'Chat-DB');
+            } finally {
+              chatClient.release();
+            }
+          } catch (chatMigErr) {
+            console.warn(`⚠️ [Primary] Chat schema boot initialization warning: ${chatMigErr.message}`);
+          }
+        } catch (migErr) {
+          console.warn(`⚠️ [Primary] Boot-time migration skipped (pool pressure): ${migErr.message}. Will retry on next restart.`);
+        }
+      })();
+    } else if (isVercel) {
+      console.log("⚡ Running as Vercel Serverless Function (migrations skipped).");
+    } else {
+      console.log(`📡 [Worker ${process.env.NODE_APP_INSTANCE || 'DEV'}] Migrations skipped (handled by Primary).`);
+    }
+
+  } catch (error) {
+    console.error("❌ CRITICAL: Master startup sequence failed!");
+    console.error(error);
+    if (process.env.VERCEL !== '1') {
+      process.exit(1);
+    }
+  }
 };
 
 startServer();
