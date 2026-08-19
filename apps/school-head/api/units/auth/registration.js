@@ -24,10 +24,7 @@ const RegisterBetaSchema = z.object({
     .length(11, "Mobile number must be exactly 11 digits.")
     .regex(/^09\d{9}$/, "Mobile number must start with 09 and contain only digits."),
   password: z.string().min(6, "Password must be at least 6 characters."),
-  passcode: z.string()
-    .length(6, "Passcode must be a 6-digit numeric string.")
-    .regex(/^\d{6}$/, "Passcode must contain only digits.")
-    .transform(p => p.trim()),
+  passcode: z.string().optional().nullable().transform(p => p ? p.trim() : null),
   schoolData: z.object({
     school_id: z.union([z.string(), z.number()]).transform(val => String(val).trim())
   })
@@ -80,7 +77,7 @@ router.post('/api/register-beta', async (req, res) => {
   try {
     const validatedData = RegisterBetaSchema.safeParse(req.body);
     if (!validatedData.success) {
-      const firstError = validatedData.error.errors[0]?.message || "Validation failed";
+      const firstError = validatedData.error?.issues?.[0]?.message || validatedData.error?.errors?.[0]?.message || "Validation failed";
       return res.status(400).json({ error: firstError, details: validatedData.error.format() });
     }
 
@@ -90,23 +87,24 @@ router.post('/api/register-beta', async (req, res) => {
     // Retrieve the active school master record from users_database
     const masterRes = await safeUsersQuery(
       `SELECT 
-        iern AS "IERN", school_id AS "SchoolID", 
+        iern AS "IERN", school_id AS "SchoolID", school_name AS "School_Name",
         region AS "Region", division AS "Division", province AS "Province", 
-        municipality AS "Municipality", barangay AS "Barangay", 
+        municipality AS "Municipality", barangay AS "Barangay", district AS "District",
+        legislative_district AS "Legislative_District",
         latitude AS "Latitude", longitude AS "Longitude", status 
        FROM schools_iern 
-       WHERE school_id = $1 AND (status ILIKE 'Active' OR status IS NULL) LIMIT 1`,
-      [school_id]
+       WHERE CAST(school_id AS TEXT) = $1 AND (status ILIKE 'Active' OR status IS NULL) LIMIT 1`,
+      [String(school_id)]
     );
-    if (masterRes.rowCount === 0) {
+    if (!masterRes || !masterRes.rows || masterRes.rows.length === 0) {
       return res.status(404).json({ error: "Active School ID not found in Master Record. Please contact support." });
     }
     const master = masterRes.rows[0];
-    const iern = master.IERN || master.iern || school_id;
+    const iern = master.IERN || master.iern || String(school_id);
 
     // Check for duplicate user emails or school IDs in user_schoolhead
-    const dupRes = await safeUsersQuery('SELECT uid FROM user_schoolhead WHERE LOWER(email) = $1 OR school_id = $2', [email.toLowerCase(), school_id]);
-    if (dupRes.rowCount > 0) {
+    const dupRes = await safeUsersQuery('SELECT uid FROM user_schoolhead WHERE LOWER(email) = $1 OR CAST(school_id AS TEXT) = $2', [email.toLowerCase(), String(school_id)]);
+    if (dupRes && dupRes.rowCount > 0) {
       return res.status(400).json({ error: "Email or School ID is already registered." });
     }
 
@@ -157,7 +155,7 @@ router.post('/api/register-beta', async (req, res) => {
           school_id, iern, school_name, region, division, province, municipality, barangay, district, leg_district, curricular_offering, latitude, longitude, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
-        ON CONFLICT (iern, school_yr) DO UPDATE SET 
+        ON CONFLICT (iern) DO UPDATE SET 
           school_id = EXCLUDED.school_id,
           school_name = EXCLUDED.school_name,
           region = EXCLUDED.region,

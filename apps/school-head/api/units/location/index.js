@@ -51,7 +51,7 @@ router.get('/api/lists/municipalities', async (req, res) => {
 
 router.get('/api/locations/regions', async (req, res) => {
   try {
-    const result = await safeUsersQuery("SELECT DISTINCT region FROM schools_iern WHERE region IS NOT NULL AND TRIM(region) != '' ORDER BY region");
+    const result = await safeUsersQuery("SELECT DISTINCT region FROM schools_iern WHERE region IS NOT NULL AND TRIM(region) != '' AND (is_testaccount IS FALSE OR is_testaccount IS NULL) ORDER BY region");
     res.json(result.rows.map(r => r.region));
   } catch (err) {
     console.error("❌ [/api/locations/regions] Error:", err.message);
@@ -62,7 +62,7 @@ router.get('/api/locations/regions', async (req, res) => {
 router.get('/api/locations/provinces', async (req, res) => {
   try {
     const { region } = req.query;
-    let query = "SELECT DISTINCT province FROM schools_iern WHERE province IS NOT NULL AND TRIM(province) != ''";
+    let query = "SELECT DISTINCT province FROM schools_iern WHERE province IS NOT NULL AND TRIM(province) != '' AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [];
     if (region && region !== 'undefined') {
       query += ' AND region = $1';
@@ -74,13 +74,13 @@ router.get('/api/locations/provinces', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/api/locations/municipalities-by-province', async (req, regions) => {
+router.get('/api/locations/municipalities-by-province', async (req, res) => {
   try {
     const { province, region } = req.query;
     if (!province || province === 'undefined') {
       return res.json([]);
     }
-    let query = "SELECT DISTINCT municipality FROM schools_iern WHERE municipality IS NOT NULL AND TRIM(municipality) != '' AND province = $1";
+    let query = "SELECT DISTINCT municipality FROM schools_iern WHERE municipality IS NOT NULL AND TRIM(municipality) != '' AND province = $1 AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [province];
     if (region && region !== 'undefined') {
       query += ' AND region = $2';
@@ -98,7 +98,7 @@ router.get('/api/locations/barangays', async (req, res) => {
     if (!municipality || municipality === 'undefined') {
       return res.json([]);
     }
-    let query = "SELECT DISTINCT barangay FROM schools_iern WHERE barangay IS NOT NULL AND TRIM(barangay) != '' AND municipality = $1";
+    let query = "SELECT DISTINCT barangay FROM schools_iern WHERE barangay IS NOT NULL AND TRIM(barangay) != '' AND municipality = $1 AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [municipality];
     let pIdx = 2;
     if (province && province !== 'undefined') {
@@ -121,7 +121,7 @@ router.get('/api/locations/divisions', async (req, res) => {
     if (!region || region === 'undefined') {
       return res.json([]);
     }
-    let query = "SELECT DISTINCT division FROM schools_iern WHERE division IS NOT NULL AND TRIM(division) != '' AND region = $1 ORDER BY division";
+    let query = "SELECT DISTINCT division FROM schools_iern WHERE division IS NOT NULL AND TRIM(division) != '' AND region = $1 AND (is_testaccount IS FALSE OR is_testaccount IS NULL) ORDER BY division";
     const result = await safeUsersQuery(query, [region]);
     res.json(result.rows.map(r => r.division));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -133,7 +133,7 @@ router.get('/api/locations/legislative-districts', async (req, res) => {
     if (!province || province === 'undefined') {
       return res.json([]);
     }
-    let query = "SELECT DISTINCT legislative_district as leg_district FROM schools_iern WHERE legislative_district IS NOT NULL AND TRIM(legislative_district) != '' AND province = $1";
+    let query = "SELECT DISTINCT legislative_district as leg_district FROM schools_iern WHERE legislative_district IS NOT NULL AND TRIM(legislative_district) != '' AND province = $1 AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [province];
     if (region && region !== 'undefined') {
       query += ' AND region = $2';
@@ -148,7 +148,7 @@ router.get('/api/locations/legislative-districts', async (req, res) => {
 router.get('/api/locations/districts', async (req, res) => {
   try {
     const { region, division, municipality } = req.query;
-    let query = "SELECT DISTINCT district FROM schools_iern WHERE district IS NOT NULL AND TRIM(district) != ''";
+    let query = "SELECT DISTINCT district FROM schools_iern WHERE district IS NOT NULL AND TRIM(district) != '' AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [];
     let pIdx = 1;
 
@@ -165,7 +165,7 @@ router.get('/api/locations/districts', async (req, res) => {
 router.get('/api/locations/municipalities', async (req, res) => {
   try {
     const { region, division, district } = req.query;
-    let query = "SELECT DISTINCT municipality FROM schools_iern WHERE municipality IS NOT NULL AND TRIM(municipality) != ''";
+    let query = "SELECT DISTINCT municipality FROM schools_iern WHERE municipality IS NOT NULL AND TRIM(municipality) != '' AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [];
     let pIdx = 1;
 
@@ -182,7 +182,7 @@ router.get('/api/locations/municipalities', async (req, res) => {
 router.get('/api/locations/schools', async (req, res) => {
   try {
     const { region, division, district, municipality } = req.query;
-    let query = 'SELECT school_id, school_name, region, division, district, municipality, province, barangay, latitude, longitude FROM schools_iern WHERE school_id IS NOT NULL AND (status ILIKE \'Active\' OR status IS NULL)';
+    let query = "SELECT school_id, school_name, region, division, district, municipality, province, barangay, latitude, longitude FROM schools_iern WHERE school_id IS NOT NULL AND (status ILIKE 'Active' OR status IS NULL) AND (is_testaccount IS FALSE OR is_testaccount IS NULL)";
     let params = [];
     let pIdx = 1;
 

@@ -66,7 +66,10 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
     useEffect(() => {
         fetch(api(`/locations/regions`))
             .then(res => res.json())
-            .then(data => setRegions(Array.isArray(data) ? data : []))
+            .then(data => {
+                const list = (Array.isArray(data) ? data : []).filter(r => (r || '').toUpperCase().trim() !== 'CENTRAL OFFICE');
+                setRegions(list);
+            })
             .catch(err => console.error("Failed to load regions:", err));
     }, []);
 
@@ -209,10 +212,6 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                 setValidationError("Passwords do not match.");
                 return false;
             }
-            if (!formData.passcode || formData.passcode.length !== 6 || !/^\d{6}$/.test(formData.passcode)) {
-                setValidationError("Please enter a valid 6-digit numeric passcode.");
-                return false;
-            }
             return true;
         }
         return true;
@@ -244,11 +243,6 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
 
         if (formData.password !== formData.confirmPassword) {
             setValidationError("Passwords do not match!");
-            return;
-        }
-
-        if (!formData.passcode || formData.passcode.length !== 6 || !/^\d{6}$/.test(formData.passcode)) {
-            setValidationError("Please enter a valid 6-digit numeric passcode.");
             return;
         }
 
@@ -310,7 +304,7 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                 body: JSON.stringify({
                     email: contactEmail,
                     password: formData.password,
-                    passcode: (formData.passcode || '').trim(),
+                    passcode: null,
                     contactNumber: contactDigits,
                     firstName: formData.firstName,
                     lastName: formData.lastName,
@@ -600,25 +594,6 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-500 uppercase ml-1">Confirm Password</label>
                                             <input name="confirmPassword" type="password" value={formData.confirmPassword} placeholder="Repeat password" onChange={handleChange} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" required />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-500 uppercase ml-1">6-Digit Passcode / PIN</label>
-                                            <input
-                                                name="passcode"
-                                                type="text"
-                                                inputMode="numeric"
-                                                maxLength={6}
-                                                pattern="[0-9]*"
-                                                value={formData.passcode}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                                                    setFormData(prev => ({ ...prev, passcode: val }));
-                                                }}
-                                                placeholder="Enter 6-digit numeric passcode"
-                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono tracking-widest"
-                                                required
-                                            />
-                                            <p className="text-[10px] text-slate-400 ml-1">Must be exactly 6 digits. Used for quick PIN sign-in.</p>
                                         </div>
                                     </div>
                                 </motion.div>

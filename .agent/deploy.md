@@ -1,545 +1,524 @@
-## Purpose
+# 📜 Master Deployment Rulebook: Repo-Agnostic Smooth Deployment Protocol
 
-This agent helps execute, inspect, and debug deployment scripts that follow the current InsightEd deployment structure.
+> **Core mandate:** Deployment automation must be safe, repeatable, and repository-agnostic. Agents and developers must inspect the target repository, infer its deployment topology, follow the existing reverse-proxy and process-manager configuration as the source of truth, and deploy through a hardened pipeline that minimizes downtime, socket stalls, cache issues, and cross-application impact.
+> 
 
-It must prioritize safe, repeatable, zero-downtime deployment behavior. It should adapt application configuration to the running reverse-proxy topology instead of changing Nginx or other shared infrastructure.
-
-## Agent role
-
-You are a deployment execution and debugging assistant for InsightEd application releases.
-
-Your job is to:
-
-- Understand the app-specific deployment script structure before making recommendations.
-- Preserve the safety boundaries in the generic deployment rulebook.
-- Execute or guide deployments through a strict phase-based checklist.
-- Diagnose failures using logs, process state, port state, deployed files, build output, and frontend asset freshness checks.
-- Produce minimal, targeted fixes that stay inside the application’s deployment directory.
-- Never make infrastructure-wide changes unless explicitly instructed by the user.
-
-## Core safety rules
-
-Follow these rules as non-negotiable constraints:
-
-1. **Nginx is read-only**
-    - You may inspect `/etc/nginx/sites-enabled/` and `/etc/nginx/conf.d/`.
-    - Do not create, overwrite, move, delete, or edit Nginx configuration files.
-    - Do not run `nginx -s reload`, `systemctl reload nginx`, `systemctl restart nginx`, `service nginx reload`, or `service nginx restart` unless the user explicitly asks for it.
-2. **Use Nginx as source of truth**
-    - Discover the active upstream port from existing `location`, `proxy_pass`, or `upstream` configuration.
-    - Treat the discovered port as authoritative.
-    - Update app runtime config to match the discovered port, not the other way around.
-3. **Stay inside the app workspace**
-    - Clean, extract, install, and rebuild only inside the assigned app directory.
-    - Do not perform broad filesystem cleanup.
-    - Do not delete unrelated app directories.
-4. **Protect database state**
-    - Do not run migrations, schema syncs, seeders, resets, drops, truncates, or table alterations.
-    - Treat `.env` database values as runtime-only credentials.
-5. **Use targeted PM2 operations**
-    - Audit the target port before deleting processes.
-    - Delete only PM2 processes occupying the discovered app port or matching the known app process name.
-    - Do not use global PM2 flushes, kills, or resets across unrelated apps.
-6. **Validate before destructive cleanup**
-    - Build and validate the local archive before wiping remote release folders.
-    - Remote cleanup must be scoped and recoverable.
-
-## Current deployment code structure
-
-The current deployment script follows this structure:
+## 🛑 Section 1: Absolute Safety Boundaries
 
 ```
-Phase 0: Passwordless SSH Preflight
-Phase 1: Dynamic Nginx Upstream Discovery
-Phase 2: Configuration & Bundle Synchronization
-Frontend Build
-Phase 3: Targeted Isolation & Orphan Purging
-Archive Creation
-Phase 4: Hardened Upload / Transport
-Phase 5: Remote Install, PM2 Reload, Loopback Verification
-Phase 6: Frontend Freshness & Cache Verification
-Local Cleanup
+⛔ DEPLOYMENT SAFETY CONSTRAINTS
+
+1. READ-ONLY WEB SERVER POLICY
+   - Inspect Nginx/Apache/Caddy configuration only as needed to understand routing.
+   - Treat existing reverse-proxy configuration as the source of truth.
+   - Do not edit, overwrite, delete, or reload web server configuration unless explicitly instructed.
+
+2. REPOSITORY-LOCAL EXECUTION
+   - Build, package, clean, and deploy only within the target repository and its assigned deployment path.
+   - Do not alter unrelated apps, ports, PM2 processes, databases, or server directories.
+
+3. ZERO DATABASE DESTRUCTION
+   - Do not run migrations, seeders, schema drops, table alterations, destructive scripts, or data rewrites unless explicitly requested.
+   - Runtime database variables may be validated, but database state must not be changed by default.
+
+4. FAILURE-CONTAINMENT ORDERING
+   - Validate prerequisites, build output, deployment bundle, and SSH connectivity before touching the live deployment directory.
+   - A failed upload, SSH timeout, or build error must not leave the live site dark.
+   - Cleanup must be scoped and recoverable.
+
+5. MINIMAL NETWORK SURFACE
+   - Prefer one compressed deployment bundle and one remote execution phase over many small file transfers and repeated SSH sessions.
+   - Use hard timeouts, retries, and SSH keepalive flags to avoid terminal freezes and partial deployments.
 ```
 
-Key script constants and concepts:
+## 🧭 Section 2: Repo-Agnostic Discovery Rules
+
+Before deploying, the agent must inspect the repository and existing server topology to discover:
+
+1. **Application identity**
+    - App name
+    - Frontend package, if any
+    - Backend package, if any
+    - Process-manager name
+    - Expected health endpoint or fallback route
+2. **Deployment topology**
+    - Public domain and public base path
+    - Static asset serving path
+    - API route prefix
+    - Local backend port
+    - Reverse-proxy target
+    - Server deployment directory
+3. **Build system**
+    - Package manager: `npm`, `pnpm`, `yarn`, `bun`, or other
+    - Build command
+    - Output directory, such as `dist`, `build`, `.next`, or server bundle
+    - Monorepo workspace structure, if applicable
+4. **Runtime system**
+    - PM2, systemd, Docker, or other process manager
+    - Start/reload command
+    - Environment file location
+    - Runtime dependencies
+    - Node/Python/runtime version expectations
+5. **Configuration contract**
+    - Required `.env` variables
+    - Public frontend base path
+    - API base URL
+    - CORS/client origin values
+    - Port variable used by the backend
+    - Any repo-specific deployment script already provided
+
+The agent must not hardcode a project name, port, domain, PM2 process, or directory unless those values are discovered from the repository, deployment config, or user-provided instructions.
+
+## 🔄 Section 3: Standard Deployment Pipeline
 
 ```
-SERVER_IP        Remote host IP
-SERVER_DIR       App-specific remote deployment directory
-USER             Remote SSH user
-TAR_FILE         Temporary release archive name
-PM2_NAME         App-specific PM2 process name
-APP_BASE_PATH    Frontend subpath base, e.g. /insighted-ticketing/
-NGINX_ROUTE_HINTS Route hints used to find the correct proxy_pass block
-INCLUDE          Files/directories packed into the deployment archive
++-----------------------------------------------------------------------------------+
+|                            PHASE 0: INTENT & SCOPE LOCK                           |
+|  Confirm target repo/app -> Identify environment -> Lock safety boundaries         |
++-----------------------------------------------------------------------------------+
+                                          │
+                                          ▼
++-----------------------------------------------------------------------------------+
+|                            PHASE 1: DISCOVERY & PREFLIGHT                         |
+|  Inspect repo, .env, scripts, reverse proxy, PM2/systemd, SSH readiness            |
++-----------------------------------------------------------------------------------+
+                                          │
+                                          ▼
++-----------------------------------------------------------------------------------+
+|                            PHASE 2: CONFIG SYNCHRONIZATION                        |
+|  Align base paths, API URLs, CORS origins, ports, process names, output paths      |
++-----------------------------------------------------------------------------------+
+                                          │
+                                          ▼
++-----------------------------------------------------------------------------------+
+|                            PHASE 3: BUILD & LOCAL VALIDATION                      |
+|  Install deps if needed -> Build -> Verify output -> Verify manifest completeness  |
++-----------------------------------------------------------------------------------+
+                                          │
+                                          ▼
++-----------------------------------------------------------------------------------+
+|                            PHASE 4: SINGLE-BUNDLE TRANSPORT                       |
+|  Package deploy_bundle.tar.gz -> Upload once -> Avoid repeated SCP/SSH churn       |
++-----------------------------------------------------------------------------------+
+                                          │
+                                          ▼
++-----------------------------------------------------------------------------------+
+|                            PHASE 5: ATOMIC REMOTE EXECUTION                       |
+|  Extract bundle -> Install production deps -> Reload target process only           |
++-----------------------------------------------------------------------------------+
+                                          │
+                                          ▼
++-----------------------------------------------------------------------------------+
+|                            PHASE 6: HEALTH, ASSETS & LOG VERIFICATION             |
+|  Loopback check -> Public HTTP check -> Asset check -> Logs -> Rollback if needed  |
++-----------------------------------------------------------------------------------+
 ```
 
-Expected archive contents include:
+## ✅ Section 4: Detailed Pipeline Requirements
 
-```
-server
-client/dist
-package.json
-package-lock.json
-.env
-ecosystem.<app>.config.cjs
-```
+### Phase 0: Intent & Scope Lock
 
-Do not include Nginx templates or server-level config files in the archive.
+- Identify the exact app/repository being deployed.
+- Identify the target environment: production, staging, demo, or development.
+- Confirm whether the request is a deployment, readiness check, rollback, or troubleshooting task.
+- Keep all actions scoped to the target app.
 
-## Required execution flow
+### Phase 1: Discovery & Preflight
 
-### Phase 0 — Passwordless SSH preflight
+Perform read-only checks first:
 
-Before any deployment action:
+- Confirm required files exist:
+    - `.env` or documented environment source
+    - package manifest / build manifest
+    - deployment script, if present
+    - process-manager config, if present
+- Validate SSH requirements:
+    - host
+    - user
+    - private key path
+    - key file exists locally
+    - passwordless SSH works
+- Inspect existing reverse proxy:
+    - public base path
+    - static asset path
+    - API proxy path
+    - local upstream port
+- Inspect current process manager:
+    - PM2 process name or systemd service name
+    - process status
+    - current port ownership
+    - restart count and memory usage
 
-- Confirm the SSH key exists locally.
-- Use batch/non-interactive SSH.
-- Disable password prompts.
-- Disable connection reuse with `ControlMaster=no`.
-- Verify a simple remote command returns successfully.
+Recommended SSH flags:
 
-Required SSH behaviors:
-
-```
-BatchMode=yes
-PasswordAuthentication=no
-KbdInteractiveAuthentication=no
-PreferredAuthentications=publickey
-IdentitiesOnly=yes
-StrictHostKeyChecking=no
-ControlMaster=no
-ConnectTimeout=60
-ServerAliveInterval=10
-ServerAliveCountMax=4
-```
-
-If this phase fails, stop. Do not attempt upload, cleanup, PM2 operations, or remote install.
-
-### Phase 1 — Discover the active Nginx port
-
-Inspect only:
-
-```
-/etc/nginx/sites-enabled/
-/etc/nginx/conf.d/
+```bash
+-o ControlMaster=no -o ConnectTimeout=60 -o ServerAliveInterval=10 -o ServerAliveCountMax=6
 ```
 
-Search for:
+### Phase 2: Configuration Synchronization
+
+Synchronize deployment config to discovered topology:
+
+- Frontend public base path must match the reverse-proxy subpath.
+- API base URL must match the public API prefix.
+- Backend port must match the reverse-proxy upstream.
+- CORS/client origins must include the production origin.
+- Process-manager name must match the target app only.
+- Environment files must be included only where needed for runtime.
+
+For subpath deployments:
 
 ```
-location
-proxy_pass
-upstream
-the app route
-the app base path
+Frontend base path = public app subpath
+API base URL       = public API subpath
+Router basename   = frontend base path
+Static asset URLs  = emitted under the app subpath
 ```
 
-Extract the port from patterns like:
+Hardcoded root paths such as `/assets/...` are prohibited when the app is served below a subpath.
 
-```
-proxy_pass http://127.0.0.1:<PORT>
-```
+### Phase 3: Build & Local Validation
 
-If multiple candidate ports appear:
+- Use the repo’s declared package manager and build command.
+- Prefer existing deployment scripts when they are safe and scoped.
+- Validate that the build output exists before packaging.
+- Confirm generated `index.html` references assets that exist.
+- Confirm server files, runtime package files, lockfiles, and required `.env` files are included.
+- Do not wipe the remote deployment directory until the local build and bundle are valid.
 
-- Prefer the one inside the matching route block.
-- Warn the user if ambiguity remains.
-- Do not guess silently.
+### Phase 4: Single-Bundle Transport
 
-If no port is found, stop and report that the reverse-proxy topology could not be established.
+Prefer one compressed bundle:
 
-### Phase 2 — Synchronize runtime configuration
-
-Update only app-local files.
-
-For `.env`:
-
-```
-PORT=<DISCOVERED_PORT>
+```bash
+deploy_bundle.tar.gz
 ```
 
-For the ecosystem config:
+The bundle should include only required deployment artifacts, such as:
 
-```
-name: <PM2_NAME>
-PORT: '<DISCOVERED_PORT>'
-```
+- frontend build output
+- backend runtime files
+- package manifest and lockfile
+- process-manager config
+- required runtime `.env` files
+- public assets required by the build
 
-If the ecosystem file uses a different shape, preserve the file’s structure and make the smallest safe edit.
+Avoid repeated SCP transfers of many small files. This reduces timeout risk, TCP socket churn, and partial upload states.
 
-Do not modify database connection strings unless the user explicitly asks.
+### Phase 5: Atomic Remote Execution
 
-### Frontend build
+Use a single hardened remote execution phase when possible:
 
-Before building, ensure the frontend base path matches the reverse-proxy subpath.
+- Create a temporary release directory.
+- Extract the uploaded bundle.
+- Verify expected folders and files exist.
+- Install production dependencies only if required.
+- Preserve or restore file permissions as needed.
+- Reload/restart only the target process.
+- Clean up the temporary bundle.
+- Keep rollback artifacts or previous release available when practical.
 
-For Vite-style apps:
+For PM2:
 
-```
-VITE_BASE_PATH=<APP_BASE_PATH> npm run build
-```
-
-Critical Subpath & Environment Rules:
-- **Windows CMD Quoting**: When passing environment variables in Windows deployment scripts, wrap `set` commands in double quotes (e.g. `set "VITE_BASE_PATH=/subpath/" && npm run build`) to prevent trailing spaces before `&&` from being captured into the environment variable.
-- **Dynamic Vite Base**: `vite.config.js` must NEVER hardcode `base: '/'`. Use `base: (process.env.VITE_BASE_PATH || '/<app-subpath>/').trim()`.
-- **Router Basename Normalization**: React Router `<BrowserRouter basename="...">` must trim whitespace and strip trailing slashes: `const basename = (import.meta.env.VITE_BASE_PATH || '/<app-subpath>').trim().replace(/\/+$/, '')`.
-- **Modal / Container Opacity**: Avoid `initial={{ opacity: 0 }}` on top-level page wrappers or modal containers without fallback opacity `1`, to prevent production animation frame delays from leaving UI elements transparent.
-
-Validate:
-
-- `client/dist` exists.
-- `client/dist/index.html` exists.
-- `client/dist/assets` exists when the app emits bundled assets.
-- Asset filenames are content-hashed where possible.
-
-### Phase 3 — Prepare remote app directory
-
-Remote preparation may create the app directory and remove only scoped release subdirectories, for example:
-
-```
-mkdir -p <SERVER_DIR>
-rm -rf <SERVER_DIR>/client/dist <SERVER_DIR>/server
+```bash
+pm2 reload <target-app-name> --update-env
 ```
 
-Before deletion, confirm paths resolve inside `<SERVER_DIR>`.
+If reload is not possible:
 
-Never run broad commands such as:
-
-```
-rm -rf /var/www/html
-rm -rf /var/www
-rm -rf /*
+```bash
+pm2 restart <target-app-name> --update-env
 ```
 
-### Phase 3b — Purge only target-port PM2 processes
+Do not run global PM2 resets, broad process kills, or unrelated process deletions.
 
-Audit the discovered port:
+### Phase 6: Health, Assets & Logs Verification
 
-```
-lsof -ti :<PORT>
-netstat -tlpn | grep :<PORT>
-pm2 jlist
-```
+Validate from inside the VM first:
 
-Delete only matching app names:
-
-```
-pm2 delete <matching-app-name> || true
+```bash
+curl -s -f http://127.0.0.1:<PORT>/<health-endpoint>
 ```
 
-Keep purge failures visible in logs. Do not hide them if they may affect deployment correctness.
+If no health endpoint exists:
 
-### Archive creation
-
-Create the archive only after local config synchronization and frontend build.
-
-Archive rules:
-
-- Include only paths in `INCLUDE`.
-- Exclude `node_modules`.
-- Exclude `.git`.
-- Preserve Linux-compatible forward-slash paths.
-- Warn about missing optional paths.
-- Fail if required runtime paths are missing.
-
-### Phase 4 — Upload
-
-Use hardened `scp` settings matching the SSH preflight.
-
-Upload only the release archive to the scoped app directory.
-
-If upload fails, stop. Do not run remote extraction or cleanup retries that could leave the app incomplete.
-
-### Phase 5 — Remote install and PM2 reload
-
-Inside `<SERVER_DIR>`:
-
-1. Extract the archive.
-2. Install production dependencies.
-3. Install server dependencies if the structure requires nested `server/package.json`.
-4. Install platform-specific native dependencies when required, e.g. `sharp`.
-5. Start or reload the app with PM2.
-6. Run loopback health checks.
-
-Preferred PM2 command:
-
-```
-pm2 startOrReload ecosystem.<app>.config.cjs --update-env
-```
-
-Loopback health check pattern:
-
-```
-curl -s -f http://127.0.0.1:<PORT>/api/health
-curl -s -f http://127.0.0.1:<PORT>/health
+```bash
 curl -s -I http://127.0.0.1:<PORT>/
 ```
 
-If all health checks fail:
+Then validate the public URL:
 
-- Show PM2 status.
-- Show recent app logs.
-- Stop and report the failing phase.
-
-### Phase 6 — Frontend freshness and cache verification
-
-Validate deployed frontend files:
-
-- `client/dist/index.html` exists.
-- Every JS/CSS asset referenced by `index.html` exists.
-- Assets appear content-hashed.
-- Served HTML references the current deployed asset.
-- No-cache headers are used during verification.
-- Service worker files are detected and reported.
-
-Check for subpath issues:
-
-- Asset URLs must resolve under `APP_BASE_PATH`.
-- Router basename must match the build base URL.
-- Hardcoded `base: '/'` is unsafe for subpath deployments.
-
-## Debugging playbook
-
-### SSH failure
-
-Symptoms:
-
-```
-Permission denied
-Connection timed out
-Host key prompt
-Password prompt
-Command hangs
+```bash
+curl -s -I <public-app-url>
 ```
 
-Actions:
+For frontend apps:
 
-1. Verify key path.
-2. Run a manual batch SSH test.
-3. Confirm public key is installed in the remote user’s `authorized_keys`.
-4. Check firewall or VM access.
-5. Keep `ControlMaster=no`.
-6. Do not continue deployment until fixed.
+- Fetch public HTML with no-cache headers.
+- Confirm referenced JS/CSS assets exist and return 200.
+- Confirm asset URLs use the correct subpath.
+- Confirm route refreshes do not 404.
+- Detect service worker files and warn if cache invalidation may persist.
 
-### Nginx discovery failure
+For backend/API apps:
 
-Symptoms:
+- Confirm PM2/systemd status is healthy.
+- Check recent logs.
+- Confirm no immediate crash loop.
+- Confirm no `ECONNREFUSED`, CORS, missing module, missing env, or port conflict errors.
 
-```
-No proxy_pass found
-Multiple candidate ports found
-Wrong port detected
-```
+## 🧰 Section 5: Preferred Deployment Utilities
 
-Actions:
+Agents should prefer existing repository deployment utilities if they satisfy the safety rules above.
 
-1. Re-read active Nginx config in read-only mode.
-2. Search by route hints and app base path.
-3. Inspect nearby `location` and `upstream` blocks.
-4. Ask the user for the intended app route if ambiguity remains.
-5. Do not edit Nginx.
+| Utility | When to use | Required behavior |
+| --- | --- | --- |
+| `python deploy.py` | Cross-platform deployments, especially Windows PowerShell | Must validate `.env`, SSH, build output, bundle contents, upload, remote execution, process reload, and HTTP health |
+| `bash deploy.sh` | Linux, macOS, WSL, Git Bash | Must use strict error handling, cleanup traps, scoped paths, and health checks |
+| Existing CI/CD pipeline | When repository already has a trusted production workflow | Must not bypass required checks, secrets handling, or rollback procedures |
+| Manual SSH commands | Emergency or diagnostic use only | Must be scoped, logged, and reversible |
 
-### Build failure
+Deployment tools should implement:
 
-Symptoms:
+- retry with backoff
+- SSH keepalive
+- hard command timeouts
+- single-bundle upload
+- single remote execution where practical
+- clear failure messages
+- post-deploy verification
 
-```
-npm run build failed
-missing client/dist
-module not found
-vite base path issue
-```
+## 🩺 Section 6: Troubleshooting Playbook
 
-Actions:
+### Issue A: SSH connection timeout
 
-1. Inspect package scripts.
-2. Confirm dependencies are installed locally.
-3. Confirm `VITE_BASE_PATH` or equivalent base-path env is passed during build.
-4. Check imports for missing shared packages.
-5. Update `INCLUDE` if a required local module is omitted.
-6. Rebuild before archiving.
+**Symptoms**
 
-### Upload or extraction failure
+- `Connection timed out`
+- terminal freezes during SSH/SCP
+- deployment stops mid-transfer
 
-Symptoms:
+**Checks**
 
-```
-scp failed
-tar extraction failed
-missing files after extraction
+```bash
+ssh -o ControlMaster=no -o ConnectTimeout=60 -o ServerAliveInterval=10 -o ServerAliveCountMax=6 -i <key> <user>@<host> "echo OK"
 ```
 
-Actions:
+On the VM:
 
-1. Verify remote directory exists and is writable.
-2. Check disk space.
-3. Validate archive contents locally.
-4. Confirm archive was uploaded to `<SERVER_DIR>`.
-5. Retry hardened upload.
-6. Do not wipe unrelated directories.
-
-### PM2 startup failure
-
-Symptoms:
-
-```
-PM2 app errored
-port already in use
-MODULE_NOT_FOUND
-environment variable missing
-native dependency error
+```bash
+uptime
+free -h
+df -h
+swapon --show
+sudo journalctl -k --since "24 hours ago" --no-pager | egrep -i "oom|out of memory|killed process"
 ```
 
-Actions:
+**Likely causes**
 
-1. Run `pm2 status <PM2_NAME>`.
-2. Run `pm2 logs <PM2_NAME> --lines 80 --nostream`.
-3. Check whether another PM2 app owns the discovered port.
-4. Confirm `.env` and ecosystem `PORT` match the discovered port.
-5. Confirm all required server files are in the archive.
-6. Install missing runtime dependencies inside the app scope.
-7. For native packages, install with target platform and architecture if needed.
+- VM memory pressure or OOM
+- CPU or disk I/O saturation
+- no swap
+- unstable local network or VPN
+- SSH socket reuse issue
+- firewall / NSG / route problem
 
-### Loopback health check failure
+**Required mitigations**
 
-Symptoms:
+- Use keepalive and timeout SSH flags.
+- Disable SSH connection reuse with `ControlMaster=no`.
+- Use one compressed upload instead of many small transfers.
+- Add swap if the VM has no swap.
+- Add process memory limits for PM2 apps.
+- Investigate OOM logs before assuming it is only a network issue.
 
-```
-curl 127.0.0.1:<PORT> fails
-HTTP 500
-connection refused
-timeout
-```
+### Issue B: Permission denied / public key failure
 
-Actions:
+**Symptoms**
 
-1. Confirm PM2 process is online.
-2. Confirm app listens on `127.0.0.1:<PORT>` or `0.0.0.0:<PORT>`.
-3. Inspect server logs.
-4. Confirm required `.env` values exist.
-5. Confirm no migration or DB initialization is being attempted.
-6. Test `/api/health`, `/health`, and `/`.
-7. Report the exact failing endpoint.
+- `Permission denied (publickey)`
+- private key not found
+- deployment script cannot read key
 
-### Blank screen or stale frontend
+**Checks**
 
-Symptoms:
-
-```
-White screen
-Old UI still visible
-404 for JS/CSS assets
-index.html references old assets
-assets load from /
-<Router basename="..."> is not able to match the URL
+```bash
+ls -la <key-path>
+ssh -i <key-path> <user>@<host> "echo OK"
 ```
 
-Actions:
+**Fixes**
 
-1. Read deployed `client/dist/index.html`.
-2. Extract referenced JS/CSS paths.
-3. Confirm each referenced file exists.
-4. Fetch served HTML with no-cache headers.
-5. Confirm served HTML references the current asset hash.
-6. Check app base path configuration (`vite.config.js` `base`).
-7. Check router `basename` for trailing spaces or trailing slashes (must use `.trim().replace(/\/+$/, '')`).
-8. Check top-level layout containers for Framer Motion `initial={{ opacity: 0 }}` stuck states.
-9. Detect service worker artifacts and warn about stale client caches.
+- Correct the local key path.
+- Ensure private key file permissions are valid.
+- Confirm the public key exists in the VM user’s `authorized_keys`.
+- Confirm the deployment script reads the intended `.env`.
 
-### HTTP 500 after deployment
+### Issue C: 502 Bad Gateway / API unavailable
 
-Actions:
+**Symptoms**
 
-1. Confirm expected directories exist:
-    - `<SERVER_DIR>/server`
-    - `<SERVER_DIR>/client/dist`
-    - `<SERVER_DIR>/client/dist/index.html`
-2. Confirm backend process is online.
-3. Run loopback health checks.
-4. Inspect PM2 logs.
-5. Confirm the app did not start against the wrong port.
-6. Confirm no missing module errors.
-7. Confirm no database migration or destructive startup routine was triggered.
+- frontend loads but API fails
+- `502 Bad Gateway`
+- `ECONNREFUSED`
+- reverse proxy cannot reach backend
 
-## Forbidden command patterns
+**Checks**
 
-Block or question any deployment step that contains:
-
-```
-/etc/nginx writes
-nginx -s reload
-systemctl reload nginx
-systemctl restart nginx
-service nginx reload
-service nginx restart
-npm run migrate
-npm run migration
-npm run seed
-npm run db:
-npx prisma migrate
-prisma migrate
-prisma db push
-sequelize db:migrate
-sequelize db:seed
-knex migrate
-knex seed
-typeorm migration
-DROP DATABASE
-DROP SCHEMA
-DROP TABLE
-TRUNCATE TABLE
-pm2 kill
-pm2 delete all
-rm -rf /
-rm -rf /var/www
+```bash
+pm2 status
+pm2 logs <target-app-name> --lines 100
+lsof -i :<PORT>
+curl -s -I http://127.0.0.1:<PORT>/
 ```
 
-## Response style
+**Fixes**
 
-When helping the user:
+- Ensure backend listens on the discovered port.
+- Ensure reverse proxy points to that port.
+- Ensure `.env` contains required runtime variables.
+- Ensure dependencies are installed.
+- Ensure PM2 process name and working directory are correct.
+- Restart/reload only the target process.
 
-1. State the current phase.
-2. State what evidence was checked.
-3. State the likely cause.
-4. Give the smallest safe next action.
-5. Include exact commands only when they stay within the rulebook.
-6. Highlight any command that needs explicit user approval.
+### Issue D: Static assets 404 / blank screen
 
-Use concise diagnostic summaries:
+**Symptoms**
 
+- frontend HTML loads but JS/CSS returns 404
+- blank white page
+- route refresh returns 404
+- assets load from `/assets/...` instead of app subpath
+
+**Checks**
+
+```bash
+curl -s <public-app-url> | grep -Eo 'src="[^"]+|href="[^"]+'
 ```
-Phase:
-Evidence:
-Likely cause:
-Safe fix:
-Validation:
+
+**Fixes**
+
+- Set frontend base path to the public subpath.
+- Set router basename to the same base path.
+- Confirm generated asset files exist in the deployed output.
+- Confirm reverse proxy serves the static directory for the subpath.
+- Rebuild after correcting base path variables.
+
+### Issue E: API 500 caused by CORS or environment mismatch
+
+**Symptoms**
+
+- API endpoint returns 500
+- login or auth endpoint fails
+- logs mention CORS origin not allowed
+- production origin missing from allowed client URLs
+
+**Checks**
+
+```bash
+pm2 logs <target-app-name> --lines 100
+grep -E "CLIENT_URL|CLIENT_URLS|CORS|ORIGIN|PORT|DATABASE_URL" <env-file>
 ```
 
-## Deployment completion criteria
+**Fixes**
 
-A deployment is complete only when all are true:
+- Include the production origin in allowed client URLs.
+- Confirm API base URL and frontend origin match the reverse-proxy topology.
+- Reload PM2 with updated environment:
 
-- Passwordless SSH passed.
-- Nginx port was discovered from active config.
-- `.env` and ecosystem config match the discovered port.
-- Frontend was built with the correct base path.
-- Archive was created after successful build.
-- Remote cleanup stayed inside the app directory.
-- PM2 was reloaded or started using the app-specific config.
-- Loopback health check passed.
-- Deployed frontend assets exist.
-- Served HTML references the current deployed asset hash.
-- No forbidden database or Nginx operation was executed.
+```bash
+pm2 reload <target-app-name> --update-env
+```
 
-## Escalation rules
+### Issue F: PM2 crash loop or memory pressure
 
-Ask the user before proceeding if:
+**Symptoms**
 
-- The app route cannot be uniquely identified.
-- More than one candidate Nginx port is plausible.
-- A required runtime secret is missing.
-- A fix requires changing server-level configuration.
-- A fix requires database migration or schema change.
-- A fix would affect another PM2 process or app directory.
-- A rollback requires restoring from a backup not created by the current run.
+- PM2 restarts repeatedly
+- VM becomes unresponsive
+- OOM killer logs mention `node`, `python3`, or app workers
+
+**Checks**
+
+```bash
+pm2 status
+pm2 jlist
+ps -eo pid,ppid,user,comm,%mem,%cpu,rss,vsz,args --sort=-rss | head -30
+sudo journalctl -k --since "24 hours ago" --no-pager | egrep -i "oom|out of memory|killed process"
+```
+
+**Fixes**
+
+- Add PM2 memory restart limits.
+- Limit heavy worker concurrency.
+- Add swap if missing.
+- Stream large files instead of loading entire datasets into memory.
+- Move heavy jobs to background workers where appropriate.
+- Avoid running build workloads on an undersized production VM during peak usage.
+
+## 🚨 Section 7: Emergency Rollback Procedure
+
+If deployment causes critical downtime:
+
+1. Stop further writes or destructive cleanup.
+2. Identify the last known good release, commit, or bundle.
+3. Restore the previous release directory or check out the stable commit.
+4. Re-run the safe deployment utility.
+5. Reload only the target process.
+6. Verify loopback health.
+7. Verify public HTTP status.
+8. Check logs for crash loops.
+9. Document the root cause before the next deployment.
+
+Generic rollback commands:
+
+```bash
+git checkout <last-stable-commit-hash>
+python deploy.py
+```
+
+or, when using a release-directory strategy:
+
+```bash
+ln -sfn <previous-release-dir> current
+pm2 reload <target-app-name> --update-env
+```
+
+## 📋 Section 8: Pre-Flight Checklist
+
+- [ ]  Target repository/app confirmed.
+- [ ]  Target environment confirmed.
+- [ ]  Deployment scope limited to the target app.
+- [ ]  Existing reverse-proxy config inspected read-only.
+- [ ]  Public app URL and base path identified.
+- [ ]  Public API path identified.
+- [ ]  Local upstream port identified.
+- [ ]  Static asset path identified.
+- [ ]  Process-manager name identified.
+- [ ]  `.env` or runtime config source verified.
+- [ ]  SSH host, user, and key path verified.
+- [ ]  Passwordless SSH tested with keepalive flags.
+- [ ]  Build command and output directory identified.
+- [ ]  Frontend base path and API base path synchronized.
+- [ ]  CORS/client origins synchronized.
+- [ ]  Bundle manifest verified.
+- [ ]  Build output verified before upload.
+- [ ]  No database migration/seed/destructive command scheduled.
+- [ ]  Rollback path known.
+
+## 📋 Section 9: Post-Flight Checklist
+
+- [ ]  Bundle uploaded successfully.
+- [ ]  Remote extraction succeeded.
+- [ ]  Required files exist on server.
+- [ ]  Production dependencies installed where required.
+- [ ]  Target PM2/systemd process reloaded only.
+- [ ]  Loopback health check passed.
+- [ ]  Public app URL returns expected status.
+- [ ]  Public API route returns expected status.
+- [ ]  Frontend assets return 200.
+- [ ]  Subpath routing works.
+- [ ]  Logs show no crash loop.
+- [ ]  No OOM or resource spike occurred during deployment.
+- [ ]  Temporary bundle cleaned up.
+- [ ]  Rollback artifact retained where practical.
