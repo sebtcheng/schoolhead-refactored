@@ -24,10 +24,12 @@ const RegisterBetaSchema = z.object({
     .length(11, "Mobile number must be exactly 11 digits.")
     .regex(/^09\d{9}$/, "Mobile number must start with 09 and contain only digits."),
   password: z.string().min(6, "Password must be at least 6 characters."),
+  passcode: z.string()
+    .length(6, "Passcode must be a 6-digit numeric string.")
+    .regex(/^\d{6}$/, "Passcode must contain only digits.")
+    .transform(p => p.trim()),
   schoolData: z.object({
-    school_id: z.string().min(1, "School ID is required."),
-    latitude: z.union([z.number(), z.string()]).optional().nullable(),
-    longitude: z.union([z.number(), z.string()]).optional().nullable()
+    school_id: z.union([z.string(), z.number()]).transform(val => String(val).trim())
   })
 });
 
@@ -37,7 +39,7 @@ const RegisterBetaSchema = z.object({
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/check-existing-school', async (req, res) => {
   const { schoolId } = req.body;
-  const tidiedId = (schoolId || '').trim();
+  const tidiedId = String(schoolId ?? '').trim();
 
   if (!tidiedId) {
     return res.status(400).json({ error: "School ID is required." });
@@ -46,7 +48,7 @@ router.post('/api/check-existing-school', async (req, res) => {
   let client;
   try {
     client = await poolUsers.connect();
-    const query = "SELECT uid FROM user_schoolhead WHERE school_id = $1";
+    const query = "SELECT uid FROM user_schoolhead WHERE CAST(school_id AS TEXT) = $1";
     let result;
 
     try {
@@ -82,7 +84,7 @@ router.post('/api/register-beta', async (req, res) => {
       return res.status(400).json({ error: firstError, details: validatedData.error.format() });
     }
 
-    const { email, password, contactNumber, firstName, lastName, schoolData } = validatedData.data;
+    const { email, password, passcode, contactNumber, firstName, lastName, schoolData } = validatedData.data;
     const { school_id } = schoolData;
 
     // Retrieve the active school master record from users_database
@@ -111,27 +113,23 @@ router.post('/api/register-beta', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const uid = uuidv4();
 
-    // Determine custom coordinates (dragged map coordinates) or fallback to master records
-    const finalLat = schoolData.latitude !== undefined && schoolData.latitude !== null && schoolData.latitude !== ""
-      ? String(schoolData.latitude)
-      : String(master.Latitude);
-    const finalLng = schoolData.longitude !== undefined && schoolData.longitude !== null && schoolData.longitude !== ""
-      ? String(schoolData.longitude)
-      : String(master.Longitude);
+    const finalLat = master.Latitude ? String(master.Latitude) : "";
+    const finalLng = master.Longitude ? String(master.Longitude) : "";
 
-    // 1. Insert user into user_schoolhead table
+    // 1. Insert user into user_schoolhead table (passcode stored unhashed per School Head specification)
     const userQuery = `
       INSERT INTO user_schoolhead (
         uid, email, password_hash, hash_version, role, first_name, last_name,
         school_id, iern, contact_number, region, division, province, city, barangay,
-        disabled, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+        passcode, disabled, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
     `;
     const userValues = [
       uid, email, passwordHash, 'bcrypt', 'School Head', firstName, lastName,
       school_id, iern, contactNumber,
       master.Region, master.Division, master.Province,
       master.Municipality, master.Barangay,
+      passcode,
       false
     ];
     await safeUsersQuery(userQuery, userValues);
