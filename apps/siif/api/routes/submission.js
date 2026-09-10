@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
+import { resolveSchoolDetails } from '../helpers/resolveSchoolDetails.js';
 
 const router = Router();
 
@@ -112,13 +113,29 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
         );
         const allocation = allocResult.rows[0] || { allocation_amount: 0, spent_amount: 0 };
 
+        let schoolNameVal = submission.school_name;
+        let regionVal = submission.region;
+        let divisionVal = submission.division;
+        let districtVal = submission.district;
+
+        if (!schoolNameVal || schoolNameVal === 'Unknown School') {
+            const masterDetails = await resolveSchoolDetails(finalSchoolId);
+            if (masterDetails) {
+                schoolNameVal = masterDetails.school_name || schoolNameVal;
+                regionVal = masterDetails.region || regionVal;
+                divisionVal = masterDetails.division || divisionVal;
+                districtVal = masterDetails.district || districtVal;
+            }
+        }
+
         const submissionResponse = {
             siif_sub_id: submission.siif_sub_id,
             submissionId: submission.siif_sub_id,
             schoolId: submission.school_id,
-            schoolName: submission.school_name,
-            region: submission.region,
-            division: submission.division,
+            schoolName: schoolNameVal,
+            region: regionVal,
+            division: divisionVal,
+            district: districtVal,
             fiscalYear: submission.fiscal_year,
             totalBudget: submission.total_budget_estimate,
             status: submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
@@ -168,7 +185,13 @@ router.post('/submit', async (req, res) => {
     });
 
     const finalSchoolId = await resolveSchoolId(schoolId, req.user);
-    console.log('🏁 [SIIF-API] Final Submission ID Resolution:', { finalSchoolId });
+    const masterSchoolDetails = await resolveSchoolDetails(finalSchoolId);
+    const resolvedSchoolName = masterSchoolDetails?.school_name || (req.body.schoolName && req.body.schoolName !== 'Unknown School' ? req.body.schoolName : null) || req.user?.school_name || req.user?.schoolName || 'Unknown School';
+    const resolvedRegion = masterSchoolDetails?.region || (req.body.region && req.body.region !== 'Unknown Region' ? req.body.region : null) || req.user?.region || 'Unknown Region';
+    const resolvedDivision = masterSchoolDetails?.division || (req.body.division && req.body.division !== 'Unknown Division' ? req.body.division : null) || req.user?.division || 'Unknown Division';
+    const resolvedDistrict = masterSchoolDetails?.district || req.body.district || req.user?.district || '';
+
+    console.log('🏁 [SIIF-API] Final Submission ID Resolution:', { finalSchoolId, resolvedSchoolName, resolvedRegion, resolvedDivision });
 
     if (!finalSchoolId || !interventions || !Array.isArray(interventions)) {
         console.error('❌ [SIIF Submit] Validation Failed:', {
@@ -217,8 +240,8 @@ router.post('/submit', async (req, res) => {
 
     const passedPercentage = req.body.form_completion_percentage ?? req.body.shform_completion ?? req.body.formCompletionPercentage;
     const formCompletionPercentage = status === 'submitted' ? 100 : (
-        passedPercentage !== undefined && passedPercentage !== null 
-            ? parseInt(passedPercentage) 
+        passedPercentage !== undefined && passedPercentage !== null
+            ? parseInt(passedPercentage)
             : computedCompletion
     );
 
@@ -273,6 +296,17 @@ router.post('/submit', async (req, res) => {
             console.log('⚠️ [SIIF-LOCK] No global deadline set in settings table. Proceeding without temporal lock.');
         }
 
+        // Helper: Validate Empty Payload
+        function isEmptyPayload(body) {
+            const { interventions, priorityAreas, totalBudget, budgetEstimates } = body;
+            const hasInterventions = Array.isArray(interventions) && interventions.length > 0;
+            const hasPriorityAreas = Array.isArray(priorityAreas) && priorityAreas.filter(a => a && String(a).trim().length > 0).length > 0;
+            const budgetVal = parseFloat(totalBudget);
+            const hasBudget = (!isNaN(budgetVal) && budgetVal > 0) || (budgetEstimates && Object.values(budgetEstimates).some(b => parseFloat(b) > 0));
+
+            return !hasInterventions && !hasPriorityAreas && !hasBudget;
+        }
+
         // Authorized deletion for re-submission
         await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
@@ -280,8 +314,26 @@ router.post('/submit', async (req, res) => {
         let existingRemarks = null;
 
         // Clear previous children for this school/year (interventions, beneficiaries, activities)
-        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
-        
+        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks, form_completion_percentage FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+
+        if (oldSubRes.rows.length > 0) {
+            const oldSub = oldSubRes.rows[0];
+            const isPopulatedOrSubmitted = (
+                oldSub.status?.toLowerCase() === 'submitted' ||
+                oldSub.status?.toLowerCase() === 'reviewed' ||
+                parseInt(oldSub.form_completion_percentage) > 0
+            );
+
+            if (isPopulatedOrSubmitted && isEmptyPayload(req.body)) {
+                console.warn(`⛔ [SIIF-OVERWRITE-GUARD] Blocked empty payload overwrite attempt on existing submission (ID: ${oldSub.siif_sub_id}, Status: ${oldSub.status}) for school: ${finalSchoolId}`);
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    error: 'Cannot overwrite existing submission with empty payload',
+                    details: 'Rejected empty payload overwrite on populated submission',
+                });
+            }
+        }
+
         let submissionId;
 
         if (oldSubRes.rows.length > 0) {
@@ -322,10 +374,10 @@ router.post('/submit', async (req, res) => {
                      updated_at = CURRENT_TIMESTAMP
                  WHERE siif_sub_id = $10`,
                 [
-                    req.body.schoolName || 'Unknown School',
-                    req.body.region || 'Unknown Region',
-                    req.body.division || 'Unknown Division',
-                    req.body.district || '',
+                    resolvedSchoolName,
+                    resolvedRegion,
+                    resolvedDivision,
+                    resolvedDistrict,
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
@@ -334,7 +386,7 @@ router.post('/submit', async (req, res) => {
                     submissionId
                 ]
             );
-            console.log(`✅ [SIIF-API] Submission header updated with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
+            console.log(`✅ [SIIF-API] Submission header updated with school_name (${resolvedSchoolName}). ID: ${submissionId}`);
 
         } else {
             // Insert new submission header
@@ -345,10 +397,10 @@ router.post('/submit', async (req, res) => {
                  RETURNING siif_sub_id`,
                 [
                     finalSchoolId,
-                    req.body.schoolName || 'Unknown School',
-                    req.body.region || 'Unknown Region',
-                    req.body.division || 'Unknown Division',
-                    req.body.district || '',
+                    resolvedSchoolName,
+                    resolvedRegion,
+                    resolvedDivision,
+                    resolvedDistrict,
                     currentFiscalYear,
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
@@ -359,7 +411,7 @@ router.post('/submit', async (req, res) => {
                 ]
             );
             submissionId = submissionResult.rows[0].siif_sub_id;
-            console.log(`🆔 [SIIF-API] Submission header created with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
+            console.log(`🆔 [SIIF-API] Submission header created with school_name (${resolvedSchoolName}). ID: ${submissionId}`);
         }
 
         // Fetch existing interventions map if not already populated

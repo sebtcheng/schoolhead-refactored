@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
  */
 export function useSIIFSubmission(user, token) {
     const [loading, setLoading]                     = useState(true);
+    const [isHydrated, setIsHydrated]               = useState(false);
     const [error, setError]                         = useState(null);
     const [deadline, setDeadline]                   = useState(null);
     const [openDate, setOpenDate]                   = useState(null);
@@ -44,11 +45,13 @@ export function useSIIFSubmission(user, token) {
         if (!schoolId) {
             logger.error('SIIF', 'No schoolId found in user session.');
             setLoading(false);
+            setIsHydrated(false);
             return;
         }
 
         const load = async () => {
             setLoading(true);
+            setIsHydrated(false);
             setError(null);
             try {
                 const headers = { Authorization: `Bearer ${token}` };
@@ -120,9 +123,13 @@ export function useSIIFSubmission(user, token) {
                     setConfirmed(nextConfirmed);
                     if (subData.allocation) setAllocation(subData.allocation);
                 }
+                
+                // Successfully finished hydration fetch!
+                setIsHydrated(true);
             } catch (err) {
                 console.error('🔥 [useSIIFSubmission] Failed to load data:', err);
                 setError(err.message);
+                setIsHydrated(false);
             } finally {
                 setLoading(false);
             }
@@ -135,7 +142,7 @@ export function useSIIFSubmission(user, token) {
         // Deadline
         deadline, openDate, isExpired, isNotYetOpen,
         // Submission meta
-        loading, error, submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
+        loading, isHydrated, error, submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
         forRevision, revisionRemarks,
         // Form state
         priorityAreas, setPriorityAreas,

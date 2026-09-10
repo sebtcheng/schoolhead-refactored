@@ -94,7 +94,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Data + state from hook ───────────────────────────────────────────────
     const {
-        loading, error,
+        loading, isHydrated, error,
         deadline, openDate, isExpired, isNotYetOpen,
         submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
         priorityAreas, setPriorityAreas,
@@ -106,9 +106,18 @@ const SIIFFormsHub = ({ user, token }) => {
         confirmed, setConfirmed,
     } = useSIIFSubmission(user, token);
 
+    // ─── Helper: Validate Empty Payload ───────────────────────────────────────
+    const isEmptyPayload = (p) => {
+        if (!p) return true;
+        const hasPriority = Array.isArray(p.priorityAreas) && p.priorityAreas.filter(a => a && String(a).trim().length > 0).length > 0;
+        const hasInterventions = Array.isArray(p.interventions) && p.interventions.length > 0;
+        const hasBudget = parseFloat(p.totalBudget) > 0;
+        return !hasPriority && !hasInterventions && !hasBudget;
+    };
+
     // ─── Capture original server payload on first load ────────────────────────
     useEffect(() => {
-        if (!loading && originalPayload.current === null) {
+        if (!loading && isHydrated && originalPayload.current === null) {
             originalPayload.current = JSON.stringify({
                 priorityAreas,
                 selectedInterventions,
@@ -118,7 +127,7 @@ const SIIFFormsHub = ({ user, token }) => {
                 budgets,
             });
         }
-    }, [loading]);
+    }, [loading, isHydrated]);
 
     // ─── Dirty-check: compare current state vs original server snapshot ───────
     const currentSnapshot = JSON.stringify({
@@ -157,10 +166,18 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
-        if (loading || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
+        // Block auto-save if form state is not hydrated, loading, has errors, or is locked/submitted/reviewed
+        if (!isHydrated || loading || error || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
+
+        // Prevent auto-saving an empty payload
+        const testPayload = buildPayload('draft');
+        if (isEmptyPayload(testPayload)) {
+            logger.warn('SIIF', 'Auto-save skipped: empty payload detected');
+            return;
+        }
 
         setSyncStatus('saving');
         const timer = setTimeout(() => {
@@ -170,7 +187,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked, isSubmitted, isReviewed]);
+    }, [loading, isHydrated, error, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked, isSubmitted, isReviewed]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
@@ -368,13 +385,25 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Save Draft ───────────────────────────────────────────────────────────
     const handleSaveDraft = async (silent = false) => {
+        if (!isHydrated || loading || error) {
+            console.warn('⚠️ [SIIFFormsHub] Save blocked: Form state not hydrated or error state present.');
+            if (!silent) alert('Cannot save draft: Form data failed to load or is still loading.');
+            return;
+        }
         if (isLocked || isSubmitted || isReviewed) {
             console.warn('⚠️ [SIIFFormsHub] Plan is submitted/reviewed or locked, skipping draft auto-save.');
             return;
         }
-        if (!silent) setSaving(true);
         const currentStatus = (isSubmitted || isReviewed) ? (isReviewed ? 'Reviewed' : 'submitted') : 'draft';
         const payload = buildPayload(currentStatus);
+
+        if (isEmptyPayload(payload)) {
+            console.warn('⚠️ [SIIFFormsHub] Save blocked: Attempted to save empty payload.');
+            if (!silent) alert('Cannot save empty draft. Please fill in at least one section before saving.');
+            return;
+        }
+
+        if (!silent) setSaving(true);
         console.log('📤 [SIIFFormsHub] Saving draft (silent=' + silent + ', status=' + currentStatus + ')');
         try {
             const data = await submitPlan(payload, token);
@@ -483,7 +512,7 @@ const SIIFFormsHub = ({ user, token }) => {
         return <SiifLoader text="Initializing Planner..." />;
     }
 
-    if (error) {
+    if (error || (!isHydrated && !loading)) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
                 <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-red-100 max-w-sm w-full text-center">
@@ -491,12 +520,15 @@ const SIIFFormsHub = ({ user, token }) => {
                         <FiAlertCircle size={32} />
                     </div>
                     <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Connection Error</h2>
-                    <p className="text-xs text-slate-500 font-bold leading-relaxed mb-6">
-                        We couldn't load your submission data. Please check your internet connection and try again.
+                    <p className="text-xs text-slate-500 font-bold leading-relaxed mb-4">
+                        {error || "We couldn't load your submission data from the server."}
+                    </p>
+                    <p className="text-[11px] font-extrabold text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 leading-relaxed mb-6">
+                        ⚠️ Saving is disabled to protect your existing submission from being overwritten.
                     </p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="w-full py-4 bg-deped-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest"
+                        className="w-full py-4 bg-deped-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-900 transition-all active:scale-95"
                     >
                         Retry Loading
                     </button>
