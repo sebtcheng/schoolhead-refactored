@@ -2,7 +2,7 @@
 // Resolves authoritative school_name, region, division, and district from the
 // master `schools_iern` table in users_database.
 
-import { poolUsers } from '@shared/db';
+import { safeUsersQuery } from '@shared/db';
 
 /**
  * Resolves school details from master schools_iern table.
@@ -13,13 +13,14 @@ export async function resolveSchoolDetails(schoolId) {
     if (!schoolId) return null;
 
     try {
+        const sId = String(schoolId);
         const query = `
             SELECT school_name, region, division, district
             FROM schools_iern
-            WHERE CAST(school_id AS TEXT) = $1 OR CAST(iern AS TEXT) = $1
+            WHERE school_id = $1 OR iern = $1
             LIMIT 1
         `;
-        const res = await poolUsers.query(query, [String(schoolId)]);
+        const res = await safeUsersQuery(query, [sId]);
         if (res.rows.length > 0) {
             const row = res.rows[0];
             return {

@@ -77,6 +77,19 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    // BACKGROUND PRE-FETCH FOR SIIF SUBMISSION AND ALLOCATION PAYLOADS
+    const prefetchSiifData = (schoolId, userToken) => {
+        if (!schoolId || !userToken) return;
+        setTimeout(() => {
+            fetch(api(`/api/siif/submission/${schoolId}`), {
+                headers: { 'Authorization': `Bearer ${userToken}` }
+            }).catch(err => console.warn('[AuthContext] SIIF prefetch quiet notice:', err.message));
+            fetch(api(`/api/siif/allocation/${schoolId}`), {
+                headers: { 'Authorization': `Bearer ${userToken}` }
+            }).catch(err => console.warn('[AuthContext] SIIF allocation prefetch quiet notice:', err.message));
+        }, 300);
+    };
+
     useEffect(() => {
         const initAuth = async () => {
             const token = localStorage.getItem('token');
@@ -114,8 +127,9 @@ export const AuthProvider = ({ children }) => {
                         if (userData.role) localStorage.setItem('userRole', userData.role);
                         if (userData.school_id) {
                             localStorage.setItem('schoolId', userData.school_id);
-                            // Background seed task
+                            // Background seed & prefetch tasks
                             seedUnit1FromMaster(userData.school_id);
+                            prefetchSiifData(userData.school_id, token);
                         }
                     } else if (res.status === 401 || res.status === 403) {
                         // Token invalid or expired
@@ -185,8 +199,9 @@ export const AuthProvider = ({ children }) => {
         if (userData.role) localStorage.setItem('userRole', userData.role);
         if (userData.school_id) {
             localStorage.setItem('schoolId', userData.school_id);
-            // Background seed task
+            // Background seed & prefetch tasks
             seedUnit1FromMaster(userData.school_id);
+            prefetchSiifData(userData.school_id, token);
         }
         
         setUser(userData);
