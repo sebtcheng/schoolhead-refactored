@@ -166,13 +166,16 @@ const SIIFDashboard = ({ user, token }) => {
         ? Math.min(100, Math.max(0, Math.round((parseFloat(totalBudgetEstimate) / parseFloat(allocation.allocation_amount)) * 100)))
         : 0;
 
-    const completedPhases = useMemo(() => {
-        let count = 0;
-        if (submission?.priorityAreas?.length > 0) count++; // PIA
-        if (submission?.interventions?.length > 0) count++; // Interventions
-        if (totalBeneficiaries > 0) count++; // Beneficiaries
-        if (totalBudgetEstimate > 0) count++; // Budget
+    const formsCompletionPct = useMemo(() => {
+        const dbPct = submission?.form_completion_percentage ?? submission?.formCompletionPercentage;
+        if (dbPct !== undefined && dbPct !== null && !isNaN(parseInt(dbPct))) {
+            return parseInt(dbPct);
+        }
 
+        let count = 0;
+        if (submission?.priorityAreas?.length > 0) count++;
+        if (submission?.interventions?.length > 0) count++;
+        if (totalBeneficiaries > 0) count++;
         let hasAct = false;
         if (submission?.interventionData) {
             hasAct = Object.values(submission.interventionData).some(int => {
@@ -180,9 +183,12 @@ const SIIFDashboard = ({ user, token }) => {
                 return acts.length > 0 || (int.otherActivity && int.otherActivity.trim().length > 0);
             });
         }
-        if (hasAct) count++; // Activities
-        return Math.min(count, 5);
-    }, [submission, totalBeneficiaries, totalBudgetEstimate]);
+        if (hasAct) count++;
+        if (submission?.status?.toLowerCase() === 'submitted' || submission?.status?.toLowerCase() === 'reviewed') {
+            return 100;
+        }
+        return Math.round((Math.min(count, 5) / 5) * 100);
+    }, [submission, totalBeneficiaries]);
 
     // Flagged Items Computation
     const flaggedCount = useMemo(() => {
@@ -230,10 +236,10 @@ const SIIFDashboard = ({ user, token }) => {
                         <section className="siif-school-pill">
                             <small style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.05em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms Completion</small>
                             <strong style={{ fontSize: '22px', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: '3px 0', lineHeight: 1, fontWeight: 900, display: 'block' }}>
-                                {Math.round((completedPhases / 5) * 100)}%
+                                {formsCompletionPct}%
                             </strong>
                             <div style={{ width: '80%', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', margin: '2px auto 0' }}>
-                                <div style={{ width: `${(completedPhases / 5) * 100}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
+                                <div style={{ width: `${formsCompletionPct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
                             </div>
                         </section>
                     </div>

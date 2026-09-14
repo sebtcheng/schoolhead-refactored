@@ -68,7 +68,16 @@
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 1000px) {
+  .siif-forms-footer {
+    bottom: 85px !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+  }
+}
+
+@media (min-width: 1001px) {
   .siif-forms-footer {
     bottom: 0 !important;
     left: 80px !important;

@@ -159,6 +159,8 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             aral,
             allocation,
             priorityAreas: submission.priority_improvement_area || [],
+            form_completion_percentage: submission.form_completion_percentage !== undefined && submission.form_completion_percentage !== null ? parseInt(submission.form_completion_percentage) : null,
+            formCompletionPercentage: submission.form_completion_percentage !== undefined && submission.form_completion_percentage !== null ? parseInt(submission.form_completion_percentage) : null,
             for_revision: submission.for_revision ?? false,
             revision_remarks: submission.revision_remarks || null,
         };
@@ -179,7 +181,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
 });
 
 // ─── POST /api/siif/submit ────────────────────────────────────────────────────
-router.post('/submit', async (req, res) => {
+router.post('/submit', authenticate, async (req, res) => {
     const {
         schoolId, schoolName, region, division, fiscalYear,
         interventions, interventionData, budgetEstimates, aral,
@@ -329,7 +331,7 @@ router.post('/submit', async (req, res) => {
         let existingRemarks = null;
 
         // Clear previous children for this school/year (interventions, beneficiaries, activities)
-        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks, form_completion_percentage FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks, form_completion_percentage, school_name, region, division, district FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
 
         if (oldSubRes.rows.length > 0) {
             const oldSub = oldSubRes.rows[0];
@@ -355,6 +357,17 @@ router.post('/submit', async (req, res) => {
             const oldSub = oldSubRes.rows[0];
             submissionId = oldSub.siif_sub_id;
             existingRemarks = oldSub.remarks;
+
+            const finalSchoolName = (resolvedSchoolName && resolvedSchoolName !== 'Unknown School')
+                ? resolvedSchoolName
+                : (oldSub.school_name && oldSub.school_name !== 'Unknown School' ? oldSub.school_name : 'Unknown School');
+            const finalRegion = (resolvedRegion && resolvedRegion !== 'Unknown Region')
+                ? resolvedRegion
+                : (oldSub.region || 'Unknown Region');
+            const finalDivision = (resolvedDivision && resolvedDivision !== 'Unknown Division')
+                ? resolvedDivision
+                : (oldSub.division || 'Unknown Division');
+            const finalDistrict = resolvedDistrict || oldSub.district || '';
 
             const existingIntRes = await client.query(
                 'SELECT siif_int_id, intervention_type FROM siif_interventions WHERE siif_sub_id = $1',
@@ -389,10 +402,10 @@ router.post('/submit', async (req, res) => {
                      updated_at = CURRENT_TIMESTAMP
                  WHERE siif_sub_id = $10`,
                 [
-                    resolvedSchoolName,
-                    resolvedRegion,
-                    resolvedDivision,
-                    resolvedDistrict,
+                    finalSchoolName,
+                    finalRegion,
+                    finalDivision,
+                    finalDistrict,
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
@@ -401,7 +414,7 @@ router.post('/submit', async (req, res) => {
                     submissionId
                 ]
             );
-            console.log(`✅ [SIIF-API] Submission header updated with school_name (${resolvedSchoolName}). ID: ${submissionId}`);
+            console.log(`✅ [SIIF-API] Submission header updated with school_name (${finalSchoolName}). ID: ${submissionId}`);
 
         } else {
             // Insert new submission header
