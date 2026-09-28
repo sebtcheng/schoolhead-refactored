@@ -9,6 +9,7 @@ import settingsRouter from './routes/settings.js';
 import submissionRouter from './routes/submission.js';
 import systemRouter from './routes/system.js';
 import utilizationRouter from './routes/utilization.js';
+import modifiedUtilizationRouter from './routes/modifiedUtilization.js';
 
 const siifRouter = Router();
 
@@ -21,5 +22,6 @@ siifRouter.use(settingsRouter);
 siifRouter.use(submissionRouter);
 siifRouter.use(systemRouter);
 siifRouter.use(utilizationRouter);
+siifRouter.use(modifiedUtilizationRouter);
 
 export default siifRouter;

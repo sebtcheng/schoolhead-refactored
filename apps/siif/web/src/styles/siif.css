@@ -449,6 +449,18 @@ html.dark .siif-forms-footer {
     padding-left: 108px !important;
     padding-right: 28px !important;
   }
+
+  .siif-main-area.siif-no-sidebar {
+    padding-left: clamp(28px, 3vw, 56px) !important;
+    padding-right: clamp(28px, 3vw, 56px) !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+}
+
+.siif-fullwidth-layout {
+  display: block !important;
+  width: 100% !important;
 }
 
 .siif-topbar-flush {
@@ -1898,5 +1910,17 @@ html.dark .siif-module-root textarea::placeholder {
   .siif-utilization-page .siif-sidebar,
   body:has(.siif-utilization-page) .siif-sidebar {
     display: none !important;
+  }
+
+  /* Restore breathing room between the header and the progress card
+     (the tablet/mobile .topbar rules reset margin-bottom to 0) */
+  .siif-utilization-page .topbar {
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .siif-utilization-page .topbar {
+    margin-bottom: 16px;
   }
 }
