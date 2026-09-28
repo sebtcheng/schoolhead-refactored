@@ -338,8 +338,33 @@ router.get('/api/auth/me', authMiddleware, async (req, res) => {
 // [AUTH] POST /api/auth/change-password
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/auth/change-password', authMiddleware, async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
+  const { currentPassword, newPassword, passcode } = req.body;
   const { uid } = req.user;
+
+  if (passcode && newPassword) {
+    try {
+      let userRes = await poolUsers.query('SELECT passcode FROM user_schoolhead WHERE uid = $1', [uid]);
+      if (userRes.rowCount === 0) return res.status(404).json({ error: "User not found" });
+
+      const storedPasscode = userRes.rows[0].passcode;
+      if (!storedPasscode) return res.status(400).json({ error: "No PIN/passcode setup for this account." });
+
+      const passStr = String(storedPasscode);
+      const isBcryptHash = passStr.startsWith('$2b$');
+      const isMatch = isBcryptHash
+        ? await bcrypt.compare(String(passcode).trim(), passStr)
+        : (String(passcode).trim() === passStr.trim());
+
+      if (!isMatch) return res.status(401).json({ error: "Incorrect 6-digit security passcode." });
+
+      const newHash = await bcrypt.hash(newPassword, 10);
+      await poolUsers.query('UPDATE user_schoolhead SET password_hash = $1, hash_version = \'bcrypt\' WHERE uid = $2', [newHash, uid]);
+
+      return res.json({ success: true, message: "Password updated successfully via passcode verification" });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: "Current and new passwords are required." });

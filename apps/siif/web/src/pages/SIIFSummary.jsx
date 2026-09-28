@@ -32,7 +32,11 @@ const SIIFSummary = ({ user, token }) => {
         allocation: null,
         deadline: null,
         status: null,
-        remarks: null
+        remarks: null,
+        schoolName: '',
+        region: '',
+        division: '',
+        district: ''
     });
 
     useEffect(() => {
@@ -53,7 +57,11 @@ const SIIFSummary = ({ user, token }) => {
                 allocation: location.state.allocation || null,
                 deadline: location.state.deadline || null,
                 status: location.state.status || null,
-                remarks: location.state.remarks || null
+                remarks: location.state.remarks || null,
+                schoolName: location.state.schoolName || '',
+                region: location.state.region || '',
+                division: location.state.division || '',
+                district: location.state.district || ''
             });
             setLoading(false);
         } else {
@@ -78,7 +86,11 @@ const SIIFSummary = ({ user, token }) => {
                             allocation: allocationData,
                             deadline: deadlineVal,
                             status: subData.status || null,
-                            remarks: subData.remarks || subData.rejectionReason || subData.rejection_reason || null
+                            remarks: subData.remarks || subData.rejectionReason || subData.rejection_reason || null,
+                            schoolName: subData.schoolName || '',
+                            region: subData.region || '',
+                            division: subData.division || '',
+                            district: subData.district || ''
                         });
                     } else {
                         // No draft found, redirect to form
@@ -142,10 +154,10 @@ const SIIFSummary = ({ user, token }) => {
 
         const payload = {
             schoolId,
-            schoolName: allocation?.school_name || user?.school_name || user?.schoolName || '',
-            region: allocation?.region || user?.region || '',
-            division: allocation?.division || user?.division || '',
-            district: allocation?.district || '',
+            schoolName: draftData.schoolName || allocation?.school_name || user?.school_name || user?.schoolName || '',
+            region: draftData.region || allocation?.region || user?.region || '',
+            division: draftData.division || allocation?.division || user?.division || '',
+            district: draftData.district || allocation?.district || '',
             fiscalYear: new Date().getFullYear(),
             status: 'submitted',
             interventions: selectedInterventions,

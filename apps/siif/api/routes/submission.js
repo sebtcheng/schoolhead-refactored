@@ -1,11 +1,8 @@
-// ─── Submission Routes ────────────────────────────────────────────────────────
-// GET  /api/siif/submission/:schoolId  — Fetch full submission with all relations
-// POST /api/siif/submit                — Create/update a draft or submitted plan
-
 import { Router } from 'express';
-import { poolSiif as pool } from '@shared/db';
+import { poolSiif as pool, cacheGet, cacheSet, cacheDel } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
+import { resolveSchoolDetails } from '../helpers/resolveSchoolDetails.js';
 
 const router = Router();
 
@@ -16,8 +13,22 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
     const finalSchoolId = await resolveSchoolId(schoolId, req.user);
 
     console.log(`\n🔎 [SIIF-API] FETCHING SUBMISSION for Resolved School: ${finalSchoolId} | Year: ${fiscalYear}`);
+    
+    // Check in-memory cache
+    const cacheKey = `siif_sub_${finalSchoolId}_${fiscalYear}`;
+    const cachedData = cacheGet(cacheKey);
+    if (cachedData) {
+        console.log(`⚡ [SIIF-API] CACHE HIT for School: ${finalSchoolId}`);
+        return res.json(cachedData);
+    }
+
+    let client;
     try {
-        const subResult = await pool.query(
+        client = await pool.connect();
+        // Prevent gateway timeouts by capping execution time at 8 seconds
+        await client.query("SET LOCAL statement_timeout = '8000'");
+
+        const subResult = await client.query(
             `SELECT * FROM siif_submissions
              WHERE school_id = $1 AND fiscal_year = $2
              ORDER BY created_at DESC LIMIT 1`,
@@ -33,7 +44,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
         console.log(`✅ [SIIF-API] Found submission: ${submission.siif_sub_id} | Status: ${submission.submitted_at ? 'submitted' : 'draft'}`);
 
         // Fetch interventions
-        const intResult = await pool.query(
+        const intResult = await client.query(
             `SELECT * FROM siif_interventions WHERE siif_sub_id = $1`,
             [submission.siif_sub_id]
         );
@@ -63,7 +74,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             };
 
             // Fetch beneficiaries
-            const benResult = await pool.query(
+            const benResult = await client.query(
                 `SELECT grade_level, beneficiary_count, aral_sub_counts FROM siif_beneficiaries WHERE siif_int_id = $1`,
                 [dbIntId]
             );
@@ -77,7 +88,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             }
 
             // Fetch activities
-            const actResult = await pool.query(
+            const actResult = await client.query(
                 `SELECT activity_category, activity_specific FROM siif_activities WHERE siif_int_id = $1`,
                 [dbIntId]
             );
@@ -89,7 +100,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             }
 
             // Fetch utilization
-            const utilResult = await pool.query(
+            const utilResult = await client.query(
                 `SELECT quarter, utilized_amount, implementation_status, justification FROM siif_utilization WHERE siif_int_id = $1`,
                 [dbIntId]
             );
@@ -104,7 +115,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
         }
 
         // Fetch allocation data
-        const allocResult = await pool.query(
+        const allocResult = await client.query(
             `SELECT allocation_amount, spent_amount, remarks 
              FROM siif_allocations 
              WHERE school_id = $1 AND fiscal_year = $2`,
@@ -112,13 +123,29 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
         );
         const allocation = allocResult.rows[0] || { allocation_amount: 0, spent_amount: 0 };
 
+        let schoolNameVal = submission.school_name;
+        let regionVal = submission.region;
+        let divisionVal = submission.division;
+        let districtVal = submission.district;
+
+        if (!schoolNameVal || schoolNameVal === 'Unknown School') {
+            const masterDetails = await resolveSchoolDetails(finalSchoolId);
+            if (masterDetails) {
+                schoolNameVal = masterDetails.school_name || schoolNameVal;
+                regionVal = masterDetails.region || regionVal;
+                divisionVal = masterDetails.division || divisionVal;
+                districtVal = masterDetails.district || districtVal;
+            }
+        }
+
         const submissionResponse = {
             siif_sub_id: submission.siif_sub_id,
             submissionId: submission.siif_sub_id,
             schoolId: submission.school_id,
-            schoolName: submission.school_name,
-            region: submission.region,
-            division: submission.division,
+            schoolName: schoolNameVal,
+            region: regionVal,
+            division: divisionVal,
+            district: districtVal,
             fiscalYear: submission.fiscal_year,
             totalBudget: submission.total_budget_estimate,
             status: submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
@@ -132,22 +159,29 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             aral,
             allocation,
             priorityAreas: submission.priority_improvement_area || [],
+            form_completion_percentage: submission.form_completion_percentage !== undefined && submission.form_completion_percentage !== null ? parseInt(submission.form_completion_percentage) : null,
+            formCompletionPercentage: submission.form_completion_percentage !== undefined && submission.form_completion_percentage !== null ? parseInt(submission.form_completion_percentage) : null,
             for_revision: submission.for_revision ?? false,
             revision_remarks: submission.revision_remarks || null,
         };
 
-        console.log(`[DEBUG] mapped status: ${submissionResponse.status} | DB status: ${submission.status}`);
+        const responseData = { success: true, ...submissionResponse, submission: submissionResponse };
+        
+        // Cache result for 60 seconds
+        cacheSet(cacheKey, responseData, 60000);
 
-        res.json({ success: true, ...submissionResponse, submission: submissionResponse });
+        res.json(responseData);
         console.log(`📦 [SIIF-API] Sent JSON with ${interventions.length} interventions and interventionData keys:`, Object.keys(interventionData));
     } catch (err) {
         console.error('[SIIF-API] Error fetching submission:', err);
         res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        if (client) client.release();
     }
 });
 
 // ─── POST /api/siif/submit ────────────────────────────────────────────────────
-router.post('/submit', async (req, res) => {
+router.post('/submit', authenticate, async (req, res) => {
     const {
         schoolId, schoolName, region, division, fiscalYear,
         interventions, interventionData, budgetEstimates, aral,
@@ -168,7 +202,13 @@ router.post('/submit', async (req, res) => {
     });
 
     const finalSchoolId = await resolveSchoolId(schoolId, req.user);
-    console.log('🏁 [SIIF-API] Final Submission ID Resolution:', { finalSchoolId });
+    const masterSchoolDetails = await resolveSchoolDetails(finalSchoolId);
+    const resolvedSchoolName = masterSchoolDetails?.school_name || (req.body.schoolName && req.body.schoolName !== 'Unknown School' ? req.body.schoolName : null) || req.user?.school_name || req.user?.schoolName || 'Unknown School';
+    const resolvedRegion = masterSchoolDetails?.region || (req.body.region && req.body.region !== 'Unknown Region' ? req.body.region : null) || req.user?.region || 'Unknown Region';
+    const resolvedDivision = masterSchoolDetails?.division || (req.body.division && req.body.division !== 'Unknown Division' ? req.body.division : null) || req.user?.division || 'Unknown Division';
+    const resolvedDistrict = masterSchoolDetails?.district || req.body.district || req.user?.district || '';
+
+    console.log('🏁 [SIIF-API] Final Submission ID Resolution:', { finalSchoolId, resolvedSchoolName, resolvedRegion, resolvedDivision });
 
     if (!finalSchoolId || !interventions || !Array.isArray(interventions)) {
         console.error('❌ [SIIF Submit] Validation Failed:', {
@@ -217,8 +257,8 @@ router.post('/submit', async (req, res) => {
 
     const passedPercentage = req.body.form_completion_percentage ?? req.body.shform_completion ?? req.body.formCompletionPercentage;
     const formCompletionPercentage = status === 'submitted' ? 100 : (
-        passedPercentage !== undefined && passedPercentage !== null 
-            ? parseInt(passedPercentage) 
+        passedPercentage !== undefined && passedPercentage !== null
+            ? parseInt(passedPercentage)
             : computedCompletion
     );
 
@@ -273,6 +313,17 @@ router.post('/submit', async (req, res) => {
             console.log('⚠️ [SIIF-LOCK] No global deadline set in settings table. Proceeding without temporal lock.');
         }
 
+        // Helper: Validate Empty Payload
+        function isEmptyPayload(body) {
+            const { interventions, priorityAreas, totalBudget, budgetEstimates } = body;
+            const hasInterventions = Array.isArray(interventions) && interventions.length > 0;
+            const hasPriorityAreas = Array.isArray(priorityAreas) && priorityAreas.filter(a => a && String(a).trim().length > 0).length > 0;
+            const budgetVal = parseFloat(totalBudget);
+            const hasBudget = (!isNaN(budgetVal) && budgetVal > 0) || (budgetEstimates && Object.values(budgetEstimates).some(b => parseFloat(b) > 0));
+
+            return !hasInterventions && !hasPriorityAreas && !hasBudget;
+        }
+
         // Authorized deletion for re-submission
         await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
@@ -280,14 +331,43 @@ router.post('/submit', async (req, res) => {
         let existingRemarks = null;
 
         // Clear previous children for this school/year (interventions, beneficiaries, activities)
-        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
-        
+        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks, form_completion_percentage, school_name, region, division, district FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+
+        if (oldSubRes.rows.length > 0) {
+            const oldSub = oldSubRes.rows[0];
+            const isPopulatedOrSubmitted = (
+                oldSub.status?.toLowerCase() === 'submitted' ||
+                oldSub.status?.toLowerCase() === 'reviewed' ||
+                parseInt(oldSub.form_completion_percentage) > 0
+            );
+
+            if (isPopulatedOrSubmitted && isEmptyPayload(req.body)) {
+                console.warn(`⛔ [SIIF-OVERWRITE-GUARD] Blocked empty payload overwrite attempt on existing submission (ID: ${oldSub.siif_sub_id}, Status: ${oldSub.status}) for school: ${finalSchoolId}`);
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    error: 'Cannot overwrite existing submission with empty payload',
+                    details: 'Rejected empty payload overwrite on populated submission',
+                });
+            }
+        }
+
         let submissionId;
 
         if (oldSubRes.rows.length > 0) {
             const oldSub = oldSubRes.rows[0];
             submissionId = oldSub.siif_sub_id;
             existingRemarks = oldSub.remarks;
+
+            const finalSchoolName = (resolvedSchoolName && resolvedSchoolName !== 'Unknown School')
+                ? resolvedSchoolName
+                : (oldSub.school_name && oldSub.school_name !== 'Unknown School' ? oldSub.school_name : 'Unknown School');
+            const finalRegion = (resolvedRegion && resolvedRegion !== 'Unknown Region')
+                ? resolvedRegion
+                : (oldSub.region || 'Unknown Region');
+            const finalDivision = (resolvedDivision && resolvedDivision !== 'Unknown Division')
+                ? resolvedDivision
+                : (oldSub.division || 'Unknown Division');
+            const finalDistrict = resolvedDistrict || oldSub.district || '';
 
             const existingIntRes = await client.query(
                 'SELECT siif_int_id, intervention_type FROM siif_interventions WHERE siif_sub_id = $1',
@@ -322,10 +402,10 @@ router.post('/submit', async (req, res) => {
                      updated_at = CURRENT_TIMESTAMP
                  WHERE siif_sub_id = $10`,
                 [
-                    req.body.schoolName || 'Unknown School',
-                    req.body.region || 'Unknown Region',
-                    req.body.division || 'Unknown Division',
-                    req.body.district || '',
+                    finalSchoolName,
+                    finalRegion,
+                    finalDivision,
+                    finalDistrict,
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
@@ -334,7 +414,7 @@ router.post('/submit', async (req, res) => {
                     submissionId
                 ]
             );
-            console.log(`✅ [SIIF-API] Submission header updated with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
+            console.log(`✅ [SIIF-API] Submission header updated with school_name (${finalSchoolName}). ID: ${submissionId}`);
 
         } else {
             // Insert new submission header
@@ -345,10 +425,10 @@ router.post('/submit', async (req, res) => {
                  RETURNING siif_sub_id`,
                 [
                     finalSchoolId,
-                    req.body.schoolName || 'Unknown School',
-                    req.body.region || 'Unknown Region',
-                    req.body.division || 'Unknown Division',
-                    req.body.district || '',
+                    resolvedSchoolName,
+                    resolvedRegion,
+                    resolvedDivision,
+                    resolvedDistrict,
                     currentFiscalYear,
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
@@ -359,7 +439,7 @@ router.post('/submit', async (req, res) => {
                 ]
             );
             submissionId = submissionResult.rows[0].siif_sub_id;
-            console.log(`🆔 [SIIF-API] Submission header created with form_completion_percentage (${formCompletionPercentage}%). ID: ${submissionId}`);
+            console.log(`🆔 [SIIF-API] Submission header created with school_name (${resolvedSchoolName}). ID: ${submissionId}`);
         }
 
         // Fetch existing interventions map if not already populated
@@ -442,6 +522,10 @@ router.post('/submit', async (req, res) => {
         }
 
         await client.query('COMMIT');
+        
+        // Invalidate in-memory cache for this school and year
+        cacheDel(`siif_sub_${finalSchoolId}_${currentFiscalYear}`);
+        
         console.log(`🎉 [SIIF-API] Full submission successful for ${finalSchoolId}\n`);
         res.json({ success: true, submissionId });
     } catch (error) {

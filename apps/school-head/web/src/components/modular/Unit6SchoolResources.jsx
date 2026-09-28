@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiX, FiCheckCircle, FiChevronRight, FiCheck, FiArrowLeft, FiTrash2, FiPlus, FiUnlock, FiMonitor, FiDroplet, FiSave, FiAlertTriangle, FiAlertCircle, FiWifiOff, FiCopy } from "react-icons/fi";
+import { FiX, FiCheckCircle, FiChevronRight, FiCheck, FiArrowLeft, FiTrash2, FiPlus, FiUnlock, FiMonitor, FiDroplet, FiSave, FiAlertTriangle, FiAlertCircle, FiWifiOff, FiCopy, FiShield } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import SuccessModal from "../SuccessModal";
 import { saveUnitDraft, getUnitDraft, clearUnitDraft, addModularToOutbox, getModularOutbox } from "../../db";
@@ -179,6 +179,31 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     // Validation Confirmation State
     const [gradeValidationConfirm, setGradeValidationConfirm] = useState("");
+    const [enrolmentDeclaration, setEnrolmentDeclaration] = useState({});
+    const [capacityConfirmText, setCapacityConfirmText] = useState("");
+
+    const handleEnrolmentDeclarationChange = (gradeId, field, value) => {
+        setEnrolmentDeclaration(prev => {
+            const current = prev[gradeId] || { enrolment: 0, isHosted: true };
+            let updated = { ...current };
+            if (field === 'isHosted') {
+                updated.isHosted = value;
+                if (!value) {
+                    updated.enrolment = 0;
+                }
+            } else if (field === 'enrolment') {
+                const num = parseInt(value, 10);
+                updated.enrolment = isNaN(num) ? 0 : Math.max(0, num);
+            }
+            
+            // Sync enrolment back into gradesData
+            setGradesData(gPrev => gPrev.map(g => g.id === gradeId ? { ...g, enrolled: updated.enrolment } : g));
+
+            return { ...prev, [gradeId]: updated };
+        });
+    };
+
+    const isConfirmValid = useMemo(() => capacityConfirmText.trim().toUpperCase() === "CONFIRM", [capacityConfirmText]);
 
     const {
         showHistoryModal,
@@ -366,8 +391,8 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     const enrollment = getEnrollmentForGrade(pg.id);
                     const sections = getCountForGrade(pg.id);
                     
-                    // A grade level is active and shown if and only if it has enrollment or sections > 0 in Unit 2 read mode
-                    const isActive = enrollment > 0 || sections > 0;
+                    // A grade level is active and shown if offered, or has enrollment/sections, or if no offering specified
+                    const isActive = isOffered || enrollment > 0 || sections > 0 || (!hasKinder && !hasElem && !hasJHS && !hasSHS);
 
                     if (isActive) {
                         expectedGrades.push({ id: pg.id, grade_level: pg.label, enrolled: enrollment, sections: sections, isVerified: false });
@@ -417,6 +442,30 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     return getSortOrder(a.id) - getSortOrder(b.id);
                 });
 
+                // Enrolment & Hosting Declaration Restoration / Initialization
+                let loadedDecl = d.enrolmentDeclaration;
+                if (!loadedDecl && d.unit7_furniture) {
+                    try {
+                        const parsedF = typeof d.unit7_furniture === 'string' ? JSON.parse(d.unit7_furniture) : d.unit7_furniture;
+                        if (parsedF.enrolmentDeclaration) loadedDecl = parsedF.enrolmentDeclaration;
+                    } catch (e) {}
+                }
+                const initialDeclaration = loadedDecl || {};
+                const defaultDeclaration = {};
+                mergedExpectedGrades.forEach(item => {
+                    const gradeKey = item.id;
+                    if (initialDeclaration[gradeKey]) {
+                        defaultDeclaration[gradeKey] = {
+                            enrolment: initialDeclaration[gradeKey].enrolment !== undefined ? parseInt(initialDeclaration[gradeKey].enrolment || 0) : (item.enrolled || 0),
+                            isHosted: initialDeclaration[gradeKey].isHosted !== undefined ? initialDeclaration[gradeKey].isHosted : true
+                        };
+                    } else {
+                        defaultDeclaration[gradeKey] = { enrolment: item.enrolled || 0, isHosted: true };
+                    }
+                });
+                setEnrolmentDeclaration(defaultDeclaration);
+                if (d.capacityConfirmText) setCapacityConfirmText(d.capacityConfirmText);
+
                 // Phase 1 Restoration
                 if (d.unit7_furniture) {
                     try {
@@ -461,6 +510,8 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                     if (draft.eCarts) setECarts(draft.eCarts);
                     if (draft.washData) setWashData(prev => ({ ...prev, ...draft.washData }));
                     if (draft.utilitiesData) setUtilitiesData(prev => ({ ...prev, ...draft.utilitiesData }));
+                    if (draft.enrolmentDeclaration) setEnrolmentDeclaration(draft.enrolmentDeclaration);
+                    if (draft.capacityConfirmText) setCapacityConfirmText(draft.capacityConfirmText);
                     
                     setIsReviewMode(false);
                     setShowWelcomeBack(true);
@@ -608,18 +659,92 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         return { capacity: totalCapacity, enrolled: totalEnrolled, diff: totalCapacity - totalEnrolled, isOk: totalCapacity >= totalEnrolled };
     }, [currentGradeForm, gradesData, selectedGradeId]);
 
-    // Validation to proceed
+    const hostedGrades = useMemo(() => {
+        return gradesData.filter(g => {
+            const decl = enrolmentDeclaration[g.id];
+            return !decl || decl.isHosted !== false;
+        });
+    }, [gradesData, enrolmentDeclaration]);
+
+    const combinedAuditStats = useMemo(() => {
+        let totalFunctionalSeats = 0;
+        let totalEnrolment = 0;
+
+        gradesData.forEach(g => {
+            const decl = enrolmentDeclaration[g.id];
+            const isHosted = !decl || decl.isHosted !== false;
+            if (!isHosted) return;
+
+            const enrolled = decl?.enrolment !== undefined ? parseInt(decl.enrolment || 0) : (parseInt(g.enrolled || 0));
+            totalEnrolment += enrolled;
+
+            if (!g.is_shared_child) {
+                const aw  = parseInt(g.armchair_wood_func) || 0;
+                const ap  = parseInt(g.armchair_plastic_func) || 0;
+                const aps = parseInt(g.armchair_plastic_steel_func) || 0;
+                const itc = parseInt(g.individual_table_chair_func) || 0;
+                const tsw = parseInt(g.two_seater_wood_func) || 0;
+                const tsws = parseInt(g.two_seater_wood_steel_func) || 0;
+                const wco = parseInt(g.wooden_chair_only_func) || 0;
+                const pco = parseInt(g.plastic_chair_only_func) || 0;
+
+                let capacity = aw + ap + aps + itc + (tsw * 2) + (tsws * 2) + wco + pco;
+                if (g.id === 'kinder' && g.is_kinder_double_shift) {
+                    capacity = capacity * 2;
+                }
+                totalFunctionalSeats += capacity;
+            }
+        });
+
+        if (generalRoomsData.has_general_rooms === true) {
+            const aw  = parseInt(generalRoomsData.armchair_wood_func) || 0;
+            const ap  = parseInt(generalRoomsData.armchair_plastic_func) || 0;
+            const aps = parseInt(generalRoomsData.armchair_plastic_steel_func) || 0;
+            const itc = parseInt(generalRoomsData.individual_table_chair_func) || 0;
+            const tsw = parseInt(generalRoomsData.two_seater_wood_func) || 0;
+            const tsws = parseInt(generalRoomsData.two_seater_wood_steel_func) || 0;
+            const wco = parseInt(generalRoomsData.wooden_chair_only_func) || 0;
+            const pco = parseInt(generalRoomsData.plastic_chair_only_func) || 0;
+            totalFunctionalSeats += (aw + ap + aps + itc + (tsw * 2) + (tsws * 2) + wco + pco);
+        }
+
+        const diff = totalFunctionalSeats - totalEnrolment;
+        const isSufficient = diff >= 0;
+
+        return {
+            totalFunctionalSeats,
+            totalEnrolment,
+            diff,
+            isSufficient,
+            shortage: Math.abs(diff)
+        };
+    }, [gradesData, enrolmentDeclaration, generalRoomsData]);
+
+    // ── Phase 1 Handlers (Enrollment & Hosting Declaration) ────────────────────
     const isPhase1Valid = useMemo(() => {
-        if (gradesData.length === 0) return true; // If no sections mapped at all, auto pass
-        if (!gradesData.every(g => g.isVerified)) return false;
-        
+        return hostedGrades.length > 0;
+    }, [hostedGrades]);
+
+    const handlePhase1Proceed = () => {
+        setCurrentPhase(2);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    // ── Phase 2 Handlers (Grade Level Inventory & Seating Audit) ────────────────
+    const isPhase2Valid = useMemo(() => {
+        if (!isConfirmValid) return false;
+        if (hostedGrades.length === 0) return true;
+        if (!hostedGrades.every(g => g.isVerified)) return false;
         if (generalRoomsData.has_general_rooms === true) {
             if (!generalRoomsData.general_rooms_count || generalRoomsData.has_teacher_desk === null) return false;
         }
         return true;
-    }, [gradesData, generalRoomsData]);
+    }, [hostedGrades, generalRoomsData, isConfirmValid]);
 
-    const handleMainProceed = () => { setCurrentPhase(2); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    const handlePhase2Proceed = () => {
+        setCurrentPhase(3);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
 
     // ── Phase 2 Handlers ────────────────────────────────────────────────────────
     const handleIctChange = (e) => {
@@ -658,33 +783,23 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             const studentStr = isAdvanced ? ictData[`${cat.key}_students`] : "";
 
             if (fStr !== "" && func > total) { isValid = false; errors[cat.key] = true; } 
-            else if (isAdvanced && (teachStr !== "" || studentStr !== "") && (teaching + students) > total) { isValid = false; errors[cat.key] = true; }
-            else { errors[cat.key] = false; }
-            
-            broken[cat.key] = total - func;
-            
-            // STRICT VALIDATION: Do not allow blank (empty string) fields
-            // 1. Total must be provided for every category (can be 0)
             if (tStr === "") isValid = false;
-            
-            // 2. Functional/Working count must be provided if Total > 0
-            if (total > 0 && fStr === "") isValid = false;
-            
-            // 3. Teaching count must be provided if Total > 0 (Advanced only)
+            if (fStr !== "" && func > total) { isValid = false; errors[cat.key] = true; } 
+            else { errors[cat.key] = false; }
+            if (isAdvanced && total > 0 && fStr === "") isValid = false;
+            if (isAdvanced && total > 0 && (teaching + students) > func) { isValid = false; broken[cat.key] = true; } 
+            else { broken[cat.key] = false; }
             if (isAdvanced && total > 0 && teachStr === "") isValid = false;
-
-            // 4. Student count must be provided if Total > 0 (Advanced only)
             if (isAdvanced && total > 0 && studentStr === "") isValid = false;
-
-            // 5. Backward check: if sub-field is provided but total is blank
             if (tStr === "" && fStr !== "") isValid = false;
         });
         return { isValid, errors, broken };
     }, [ictData]);
 
-    const handlePhase2Proceed = () => { setCurrentPhase(3); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    const isPhase3Valid = useMemo(() => ictStats.isValid, [ictStats]);
+    const handlePhase3Proceed = () => { setCurrentPhase(4); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
-    // ── Phase 3 Handlers (eCart) ────────────────────────────────────────────────
+    // ── Phase 4 Handlers (eCart) ────────────────────────────────────────────────
     const handleEcartFormChange = (e) => {
         const { name, value, type } = e.target;
         const cleanValue = (type === 'number') ? value.replace(/^0+(?!$)/, '') : value;
@@ -705,10 +820,10 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         setECarts(prev => prev.filter(cart => cart.id !== id));
     };
 
-    const isPhase3Valid = useMemo(() => (hasEcart === false) || (hasEcart === true && eCarts.length > 0), [hasEcart, eCarts]);
-    const handlePhase3Proceed = () => { setCurrentPhase(4); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    const isPhase4Valid = useMemo(() => (hasEcart === false) || (hasEcart === true && eCarts.length > 0), [hasEcart, eCarts]);
+    const handlePhase4Proceed = () => { setCurrentPhase(5); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
-    // ── Phase 4 Handlers (WASH) ─────────────────────────────────────────────────
+    // ── Phase 5 Handlers (WASH) ─────────────────────────────────────────────────
     const handleWashChange = (e) => {
         const { name, value, type, checked } = e.target;
         const cleanValue = (type === 'number') ? value.replace(/^0+(?!$)/, '') : value;
@@ -719,11 +834,10 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                 [name]: type === 'checkbox' ? checked : cleanValue 
             };
 
-            // SAFEGUARD: If Total is changed to 0 or cleared, reset functional counterpart
             if (name.endsWith("_total") && (cleanValue === "0" || cleanValue === "")) {
                 const funcName = name.replace("_total", "_func");
                 if (prev.hasOwnProperty(funcName)) {
-                    newState[funcName] = cleanValue; // Sync (0 or empty)
+                    newState[funcName] = cleanValue;
                 }
             }
 
@@ -739,28 +853,18 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             const tStr = washData[`${cat.key}_total`];
             const fStr = washData[`${cat.key}_func`];
 
-            // 1. All total fields must be filled (no blanks)
             if (tStr === "") isValid = false;
-
-            // 2. Functional check
             if (fStr !== "" && func > total) { isValid = false; errors[cat.key] = true; } 
             else { errors[cat.key] = false; }
-
-            // 3. Breakdown check (if total > 0, working count is required)
             const needsBreakdown = ["male_seats", "female_seats", "common_seats", "pwd_seats", "faucets", "male_urinals"].includes(cat.key);
             if (needsBreakdown && total > 0 && fStr === "") isValid = false;
-
-            // 4. Backward check
             if (tStr === "" && fStr !== "") isValid = false;
         });
 
-        // 5. Attached CR fields must be filled
         if (washData.attached_cr_classrooms === "") isValid = false;
         if (washData.attached_cr_seats === "") isValid = false;
-
         if (!washData.water_source) isValid = false;
         
-        // Critical Status Validation for Water
         if (washData.water_source === "Natural resources (Deep well, Spring, Rainwater)" || washData.water_source === "No water source") {
             if ((washData.confirm_no_piped_text || "").trim().toLowerCase() !== "confirm") isValid = false;
         }
@@ -768,20 +872,20 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
         return { isValid, errors };
     }, [washData]);
 
-    const handlePhase4Proceed = () => { setCurrentPhase(5); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    const isPhase5Valid = useMemo(() => washStats.isValid, [washStats]);
+    const handlePhase5Proceed = () => { setCurrentPhase(6); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
-    // ── Phase 5 Handlers (Utilities & Hardship) ─────────────────────────────────
+    // ── Phase 6 Handlers (Utilities & Hardship) ─────────────────────────────────
     const handleUtilitiesChange = (e) => {
         const { name, value, type, checked } = e.target;
         setUtilitiesData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
 
-    const isPhase5Valid = useMemo(() => {
+    const isPhase6Valid = useMemo(() => {
         if (!utilitiesData.utility_electricity) return false;
         if (utilitiesData.utility_internet_yesno === null) return false;
         if (utilitiesData.utility_internet_yesno === true && !utilitiesData.utility_internet_funder) return false;
         
-        // Critical Status Validation for Electricity
         if (utilitiesData.utility_electricity === "No electricity" || utilitiesData.utility_electricity === "Off-grid supply") {
             if ((utilitiesData.confirm_no_grid_text || "").trim().toLowerCase() !== "confirm") return false;
         }
@@ -802,16 +906,37 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
             return;
         }
 
+        const cleanedGrades = gradesData.map(g => {
+            const decl = enrolmentDeclaration[g.id];
+            if (decl && decl.isHosted === false) {
+                return {
+                    ...g,
+                    enrolled: 0,
+                    armchair_wood_func: "0", armchair_wood_broken: "0",
+                    armchair_plastic_func: "0", armchair_plastic_broken: "0",
+                    armchair_plastic_steel_func: "0", armchair_plastic_steel_broken: "0",
+                    individual_table_chair_func: "0", individual_table_chair_broken: "0",
+                    two_seater_wood_func: "0", two_seater_wood_broken: "0",
+                    two_seater_wood_steel_func: "0", two_seater_wood_steel_broken: "0",
+                    wooden_chair_only_func: "0", wooden_chair_only_broken: "0",
+                    plastic_chair_only_func: "0", plastic_chair_only_broken: "0"
+                };
+            }
+            return g;
+        });
+
         try {
             const draftData = {
                 currentPhase,
-                gradesData,
+                gradesData: cleanedGrades,
                 generalRoomsData,
                 ictData,
                 hasEcart,
                 eCarts,
                 washData,
-                utilitiesData
+                utilitiesData,
+                enrolmentDeclaration,
+                capacityConfirmText
             };
             console.log("📝 [Unit 6] Saving Draft Payload:", draftData);
             await saveUnitDraft(6, storedId, draftData);
@@ -825,16 +950,41 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
     const handleFinalSubmit = async () => {
         // STRICT VALIDATION: Check if any grade levels have been audited
-        const auditedCount = gradesData.filter(g => g.isVerified).length;
-        if (auditedCount === 0 && gradesData.length > 0) {
+        const auditedCount = hostedGrades.filter(g => g.isVerified).length;
+        if (auditedCount === 0 && hostedGrades.length > 0) {
             alert("Warning: You must audit at least one Grade Level in Phase 1 before marking this unit as accomplished.");
+            setCurrentPhase(1);
+            return;
+        }
+
+        if (!isConfirmValid) {
+            alert("Warning: You must type CONFIRM to certify seating capacity and enrollment before submitting.");
             setCurrentPhase(1);
             return;
         }
 
         setLoading(true);
         const storedId = localStorage.getItem("schoolId");
-        
+
+        const cleanedGrades = gradesData.map(g => {
+            const decl = enrolmentDeclaration[g.id];
+            if (decl && decl.isHosted === false) {
+                return {
+                    ...g,
+                    enrolled: 0,
+                    armchair_wood_func: "0", armchair_wood_broken: "0",
+                    armchair_plastic_func: "0", armchair_plastic_broken: "0",
+                    armchair_plastic_steel_func: "0", armchair_plastic_steel_broken: "0",
+                    individual_table_chair_func: "0", individual_table_chair_broken: "0",
+                    two_seater_wood_func: "0", two_seater_wood_broken: "0",
+                    two_seater_wood_steel_func: "0", two_seater_wood_steel_broken: "0",
+                    wooden_chair_only_func: "0", wooden_chair_only_broken: "0",
+                    plastic_chair_only_func: "0", plastic_chair_only_broken: "0"
+                };
+            }
+            return g;
+        });
+
         try {
             const payload = {
                 school_yr: "SY 26-27",
@@ -1391,7 +1541,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         <div className="mx-4 h-4 bg-gray-200 rounded-full overflow-hidden flex-1">
                             <motion.div
                                 className="h-full bg-indigo-500 rounded-full"
-                                animate={{ width: progressWidth }}
+                                animate={{ width: `${(currentPhase / 6) * 100}%` }}
                                 transition={{ duration: 0.4 }}
                             />
                         </div>
@@ -1428,30 +1578,92 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         {/* ══════════════════════════════════════════════════════
                             PHASE 1: GRADE LEVEL DASHBOARD & GENERAL ROOMS
                             ══════════════════════════════════════════════════════ */}
+                        {/* ══════════════════════════════════════════════════════
+                            PHASE 1: ENROLLMENT & HOSTING DECLARATION
+                            ══════════════════════════════════════════════════════ */}
                         {currentPhase === 1 && (
-                            <motion.div key="p1-dashboard" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
+                            <motion.div key="p1-enrolment" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center text-xl">📋</div>
+                                    <div>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-indigo-400">Phase 1</p>
+                                        <h2 className="text-2xl font-black text-gray-800 leading-tight">Enrollment &amp; Hosting Declaration</h2>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-gray-400 mb-6">Declare current enrollment counts and toggle hosted status for each grade level in SY 2025-2026.</p>
+
+                                <div className="bg-white border-2 border-indigo-100 rounded-3xl p-5 shadow-sm mb-6">
+                                    <div className="space-y-3">
+                                        {gradesData.map(item => {
+                                            const decl = enrolmentDeclaration[item.id] || { enrolment: item.enrolled || 0, isHosted: true };
+                                            const isHosted = decl.isHosted !== false;
+
+                                            return (
+                                                <div 
+                                                    key={item.id} 
+                                                    className={`p-3.5 rounded-2xl border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${isHosted ? 'bg-slate-50 border-slate-100' : 'bg-slate-100/60 border-slate-200 opacity-70'}`}
+                                                >
+                                                    <div className="flex items-center justify-between sm:justify-start gap-3">
+                                                        <span className="font-black text-slate-800 text-sm min-w-[95px]">{item.grade_level}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleEnrolmentDeclarationChange(item.id, 'isHosted', !isHosted)}
+                                                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all flex items-center gap-1 ${isHosted ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-rose-100 border-rose-300 text-rose-700'}`}
+                                                        >
+                                                            {isHosted ? "Hosted: Yes" : "Not Hosted"}
+                                                        </button>
+                                                    </div>
+
+                                                    {isHosted ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Enrollment:</span>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={decl.enrolment}
+                                                                onChange={(e) => handleEnrolmentDeclarationChange(item.id, 'enrolment', e.target.value)}
+                                                                className="w-28 p-2 bg-white border-2 border-indigo-100 rounded-xl text-center font-black text-slate-800 focus:outline-none focus:border-indigo-500 text-sm"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[11px] font-bold text-slate-400 italic">Excluded from seating inventory</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* ══════════════════════════════════════════════════════
+                            PHASE 2: GRADE LEVEL INVENTORY & SEATING AUDIT
+                            ══════════════════════════════════════════════════════ */}
+                        {currentPhase === 2 && (
+                            <motion.div key="p2-inventory" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
                                 <div className="flex items-center gap-3 mb-2">
                                     <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center text-xl">🪑</div>
                                     <div>
-                                        <p className="text-xs font-bold uppercase tracking-widest text-indigo-400">Phase 1</p>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-indigo-400">Phase 2</p>
                                         <h2 className="text-2xl font-black text-gray-800 leading-tight">Grade Level Inventory</h2>
                                     </div>
                                 </div>
-                                <p className="text-sm text-gray-400 mb-8">Catalog your physical facilities grouped by Grade Level, plus any general shared rooms.</p>
+                                <p className="text-sm text-gray-400 mb-6">Catalog physical seating facilities for hosted grade levels, plus any general shared rooms.</p>
 
                                 <div className="flex items-center justify-between mb-4 mt-2">
                                     <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Mapped Grade Levels</h3>
-                                    <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg">{gradesData.filter(g => g.isVerified).length} / {gradesData.length} Audited</span>
+                                    <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg">{hostedGrades.filter(g => g.isVerified).length} / {hostedGrades.length} Audited</span>
                                 </div>
 
-                                {gradesData.length === 0 ? (
+                                {hostedGrades.length === 0 ? (
                                     <div className="bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-3xl p-6 text-center mb-4">
-                                        <p className="text-indigo-400 font-bold mb-1">No learners tracked yet.</p>
-                                        <p className="text-xs text-indigo-300">Once you add sections in Units 2/3, they will appear here automatically.</p>
+                                        <p className="text-indigo-400 font-bold mb-1">No hosted grade levels enabled.</p>
+                                        <p className="text-xs text-indigo-300">Return to Phase 1 to toggle "Hosted: Yes" for your grade levels.</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-3 mb-4">
-                                        {gradesData.map((item) => {
+                                        {hostedGrades.map((item) => {
                                             const isChild = item.is_shared_child;
                                             const parent = isChild ? gradesData.find(p => p.id === item.sharing_parent_id) : null;
 
@@ -1482,6 +1694,76 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                         })}
                                     </div>
                                 )}
+
+                                {/* ── Combined Capacity Audit Card ── */}
+                                <div className="bg-white border-2 border-slate-100 rounded-3xl p-5 shadow-sm mb-6 space-y-4">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg font-black">
+                                                📊
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-black text-slate-800 leading-tight">Seating Capacity &amp; Enrollment Audit</h3>
+                                                <p className="text-[11px] text-slate-400 font-medium">Functional seats vs total enrolled learners.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Enrolled</p>
+                                            <p className="text-xl font-black text-slate-800">{combinedAuditStats.totalEnrolment}</p>
+                                        </div>
+                                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Functional Seats</p>
+                                            <p className="text-xl font-black text-indigo-600">{combinedAuditStats.totalFunctionalSeats}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${combinedAuditStats.isSufficient ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-lg">{combinedAuditStats.isSufficient ? '✅' : '⚠️'}</span>
+                                            <div>
+                                                <p className="text-xs font-black uppercase tracking-wider">
+                                                    {combinedAuditStats.isSufficient ? "Sufficient Seating Available" : "Seating Deficit Detected"}
+                                                </p>
+                                                <p className="text-[11px] font-medium mt-0.5">
+                                                    {combinedAuditStats.isSufficient 
+                                                        ? `Surplus of ${combinedAuditStats.diff} seats across hosted grade levels.`
+                                                        : `Shortage of ${combinedAuditStats.shortage} functional seats.`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase ${combinedAuditStats.isSufficient ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                            {combinedAuditStats.isSufficient ? "Pass" : `-${combinedAuditStats.shortage}`}
+                                        </span>
+                                    </div>
+
+                                    {/* Data Authenticity & Accuracy Declaration Block */}
+                                    <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <FiShield className="text-indigo-500 w-4 h-4" />
+                                            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">Data Authenticity &amp; Accuracy Declaration</h4>
+                                        </div>
+                                        <p className="text-[11px] font-bold text-slate-600 leading-relaxed bg-indigo-50/60 p-3 rounded-xl border border-indigo-100">
+                                            By typing <span className="font-black text-indigo-700 underline">CONFIRM</span>, I certify that the functional seats vs enrolment counts are true and accurate.
+                                        </p>
+                                        <div>
+                                            <input
+                                                type="text"
+                                                value={capacityConfirmText}
+                                                onChange={(e) => setCapacityConfirmText(e.target.value)}
+                                                placeholder="Type CONFIRM here..."
+                                                className={`w-full p-3 border-2 rounded-2xl text-center text-xs font-black outline-none transition-all ${isConfirmValid ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-white border-slate-200 text-slate-800 focus:border-indigo-400'}`}
+                                            />
+                                            {!isConfirmValid && (
+                                                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider text-center mt-1.5">
+                                                    ⚠️ Please type CONFIRM exactly to certify seating data
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
 
                                 {/* GENERAL ROOM GATEKEEPER */}
                                 <div className="bg-white border-2 border-gray-100 rounded-3xl p-5 shadow-sm mt-8 mb-6">
@@ -1575,14 +1857,14 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
 
 
                         {/* ══════════════════════════════════════════════════════
-                            PHASE 2: ICT EQUIPMENT
+                            PHASE 3: ICT EQUIPMENT
                             ══════════════════════════════════════════════════════ */}
-                        {currentPhase === 2 && (
-                            <motion.div key="p2" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
+                        {currentPhase === 3 && (
+                            <motion.div key="p3" variants={slideVariants} initial="enter" animate="center" exit="exit" transition={{ duration: 0.3 }}>
                                 <div className="flex items-center gap-3 mb-2">
                                     <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center text-xl">🔌</div>
                                     <div>
-                                        <p className="text-xs font-bold uppercase tracking-widest text-indigo-400">Phase 2</p>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-indigo-400">Phase 3</p>
                                         <h2 className="text-2xl font-black text-gray-800 leading-tight">School-Wide ICT</h2>
                                         <p className="text-[11px] font-medium text-indigo-700 leading-relaxed">
                                             <b>Note:</b> This school was previously identified as having <b>Multigrade Classes</b>. This may affect SHA eligibility.
@@ -2134,19 +2416,21 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                                 </button>
                             </>
                         )}
-                        {currentPhase < 5 ? (
+                        {currentPhase < 6 ? (
                             <button
                                 onClick={
-                                    currentPhase === 1 ? handleMainProceed :
+                                    currentPhase === 1 ? handlePhase1Proceed :
                                     currentPhase === 2 ? handlePhase2Proceed :
                                     currentPhase === 3 ? handlePhase3Proceed :
-                                    handlePhase4Proceed
+                                    currentPhase === 4 ? handlePhase4Proceed :
+                                    handlePhase5Proceed
                                 }
                                 disabled={
                                     (currentPhase === 1 && !isPhase1Valid) ||
-                                    (currentPhase === 2 && !ictStats.isValid) ||
+                                    (currentPhase === 2 && !isPhase2Valid) ||
                                     (currentPhase === 3 && !isPhase3Valid) ||
-                                    (currentPhase === 4 && !washStats.isValid)
+                                    (currentPhase === 4 && !isPhase4Valid) ||
+                                    (currentPhase === 5 && !isPhase5Valid)
                                 }
                                 className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-indigo-600 border-b-[6px] border-indigo-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-indigo-100 flex justify-center items-center gap-2"
                             >
@@ -2155,7 +2439,7 @@ const Unit6SchoolResources = ({ targetSchoolId, isReadOnly: propReadOnly }) => {
                         ) : (
                             <button
                                 onClick={handleFinalSubmit}
-                                disabled={!isPhase5Valid || !isCertified || loading}
+                                disabled={!isPhase6Valid || !isCertified || loading}
                                 className="flex-1 h-16 rounded-3xl text-white font-black text-lg bg-emerald-600 border-b-[6px] border-emerald-800 active:border-b-0 active:translate-y-[6px] transition-all disabled:opacity-40 shadow-lg shadow-emerald-100 flex justify-center items-center gap-2"
                             >
                                 {loading ? "Saving..." : (

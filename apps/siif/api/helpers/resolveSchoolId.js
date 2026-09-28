@@ -2,7 +2,7 @@
 // Resolves a 6-digit school ID from the request context, falling back to a DB
 // lookup by email when the ID is missing or is a UUID.
 
-import { poolUsers } from '@shared/db';
+import { safeUsersQuery } from '@shared/db';
 
 export async function resolveSchoolId(schoolId, user) {
     let finalId = schoolId;
@@ -17,7 +17,7 @@ export async function resolveSchoolId(schoolId, user) {
         // 2. If still a UUID or missing, try database lookup by email in users_database
         if ((!finalId || finalId.length > 10) && user?.email) {
             try {
-                const userLookup = await poolUsers.query(
+                const userLookup = await safeUsersQuery(
                     'SELECT school_id FROM user_schoolhead WHERE LOWER(email) = LOWER($1) LIMIT 1',
                     [user.email]
                 );

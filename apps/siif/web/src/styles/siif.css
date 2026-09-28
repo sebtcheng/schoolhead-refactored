@@ -68,7 +68,16 @@
   }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 1000px) {
+  .siif-forms-footer {
+    bottom: 85px !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+  }
+}
+
+@media (min-width: 1001px) {
   .siif-forms-footer {
     bottom: 0 !important;
     left: 80px !important;
@@ -272,6 +281,12 @@ html.dark .siif-forms-footer {
   overflow: hidden;
 }
 
+@media (min-width: 768px) {
+  .siif-sidebar {
+    z-index: 9500 !important;
+  }
+}
+
 @media (min-width: 1001px) {
   .siif-sidebar {
     position: fixed;
@@ -281,11 +296,12 @@ html.dark .siif-forms-footer {
     width: 80px;
     box-sizing: border-box;
     transition: width 0.2s ease;
-    z-index: 100;
+    z-index: 9500 !important;
   }
 
   .siif-sidebar:hover {
     width: 260px;
+    z-index: 9500 !important;
   }
 
   .siif-sidebar:not(:hover) {
@@ -433,6 +449,18 @@ html.dark .siif-forms-footer {
     padding-left: 108px !important;
     padding-right: 28px !important;
   }
+
+  .siif-main-area.siif-no-sidebar {
+    padding-left: clamp(28px, 3vw, 56px) !important;
+    padding-right: clamp(28px, 3vw, 56px) !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+}
+
+.siif-fullwidth-layout {
+  display: block !important;
+  width: 100% !important;
 }
 
 .siif-topbar-flush {
@@ -1882,5 +1910,17 @@ html.dark .siif-module-root textarea::placeholder {
   .siif-utilization-page .siif-sidebar,
   body:has(.siif-utilization-page) .siif-sidebar {
     display: none !important;
+  }
+
+  /* Restore breathing room between the header and the progress card
+     (the tablet/mobile .topbar rules reset margin-bottom to 0) */
+  .siif-utilization-page .topbar {
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .siif-utilization-page .topbar {
+    margin-bottom: 16px;
   }
 }

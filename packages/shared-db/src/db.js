@@ -223,15 +223,20 @@ const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 90_000;
 
-function cacheGet(key) {
+export function cacheGet(key) {
   const entry = _cache.get(key);
   if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL_MS) { _cache.delete(key); return null; }
+  const ttl = entry.ttlMs || CACHE_TTL_MS;
+  if (Date.now() - entry.ts > ttl) { _cache.delete(key); return null; }
   return entry.data;
 }
 
-function cacheSet(key, data) {
-  _cache.set(key, { data, ts: Date.now() });
+export function cacheSet(key, data, ttlMs = CACHE_TTL_MS) {
+  _cache.set(key, { data, ts: Date.now(), ttlMs });
+}
+
+export function cacheDel(key) {
+  _cache.delete(key);
 }
 
 export async function cachedQuery(key, fn) {

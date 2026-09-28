@@ -238,6 +238,7 @@ const AnimatedRoutes = () => {
 
       {/* SIIF Module */}
       <Route path="/siif/*" element={<ProtectedRoute allowedRoles={['School Head']}><SIIFModule /></ProtectedRoute>} />
+      <Route path="/utilization" element={<Navigate to="/siif/utilization" replace />} />
 
       {/* School Head Forms (Redirected to Modular Units) */}
       <Route path="/school-profile" element={<Navigate to="/modular/unit-1" replace />} />

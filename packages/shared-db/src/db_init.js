@@ -1,5 +1,34 @@
 
+import { safeUsersQuery, safeSiifQuery } from './db.js';
+
 // --- DATABASE INITIALIZATION & MIGRATIONS ---1111111111
+
+const initSiifIndexes = async (dbLabel = 'SIIF-DB') => {
+    try {
+        await safeUsersQuery(`
+            CREATE INDEX IF NOT EXISTS idx_schools_iern_lookup ON schools_iern (school_id, iern);
+            CREATE INDEX IF NOT EXISTS idx_schools_iern_iern_only ON schools_iern (iern);
+        `);
+        console.log(`✅ [${dbLabel}] schools_iern indexes initialized in users_database.`);
+    } catch (err) {
+        console.warn(`⚠️ [${dbLabel}] schools_iern index migration warning:`, err.message);
+    }
+
+    try {
+        await safeSiifQuery(`
+            CREATE INDEX IF NOT EXISTS idx_siif_submissions_school ON siif_submissions (school_id);
+            CREATE INDEX IF NOT EXISTS idx_siif_allocations_school_year ON siif_allocations (school_id, fiscal_year);
+            CREATE INDEX IF NOT EXISTS idx_siif_interventions_sub_id ON siif_interventions (siif_sub_id);
+            CREATE INDEX IF NOT EXISTS idx_siif_beneficiaries_int_id ON siif_beneficiaries (siif_int_id);
+            CREATE INDEX IF NOT EXISTS idx_siif_activities_int_id ON siif_activities (siif_int_id);
+            CREATE INDEX IF NOT EXISTS idx_siif_utilization_int_id ON siif_utilization (siif_int_id);
+        `);
+        console.log(`✅ [${dbLabel}] SIIF operational table indexes initialized in siif_database.`);
+    } catch (err) {
+        console.warn(`⚠️ [${dbLabel}] SIIF table index migration warning:`, err.message);
+    }
+};
+
 
 const initOtpTable = async (pool) => {
     try {
@@ -258,6 +287,7 @@ const runMigrations = async (client, dbLabel) => {
         console.log(`🏗️ [${dbLabel}] Starting comprehensive schema migrations...`);
         // --- 0. HYBRID JSONB & UNIT SCHEMAS ---
         await initHybridSubmissionsSchema(client, dbLabel);
+        await initSiifIndexes(dbLabel);
         await initUnit7Schema(client, dbLabel);
         await initUnit8Schema(client, dbLabel);
         await initUnitTimestampTrigger(client, dbLabel);
@@ -945,5 +975,5 @@ const runMigrations = async (client, dbLabel) => {
     }
 };
 
-export { initOtpTable, runMigrations, initChatSchema };
+export { initOtpTable, runMigrations, initChatSchema, initSiifIndexes };
 

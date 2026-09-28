@@ -8,7 +8,8 @@ import {
     TbTarget, TbUsers, TbBulb, TbCurrencyPeso,
     TbChevronRight, TbClock, TbTrendingUp,
     TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit,
-    TbSettings, TbClipboardList, TbCalculator, TbChartBar
+    TbSettings, TbClipboardList, TbCalculator, TbChartBar,
+    TbShieldCheck, TbAlertTriangle
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../utils/logger';
@@ -94,9 +95,10 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Data + state from hook ───────────────────────────────────────────────
     const {
-        loading, error,
+        loading, isHydrated, error,
         deadline, openDate, isExpired, isNotYetOpen,
         submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
+        schoolName: loadedSchoolName, region: loadedRegion, division: loadedDivision, district: loadedDistrict,
         priorityAreas, setPriorityAreas,
         selectedInterventions, setSelectedInterventions,
         aral, setAral,
@@ -106,9 +108,18 @@ const SIIFFormsHub = ({ user, token }) => {
         confirmed, setConfirmed,
     } = useSIIFSubmission(user, token);
 
+    // ─── Helper: Validate Empty Payload ───────────────────────────────────────
+    const isEmptyPayload = (p) => {
+        if (!p) return true;
+        const hasPriority = Array.isArray(p.priorityAreas) && p.priorityAreas.filter(a => a && String(a).trim().length > 0).length > 0;
+        const hasInterventions = Array.isArray(p.interventions) && p.interventions.length > 0;
+        const hasBudget = parseFloat(p.totalBudget) > 0;
+        return !hasPriority && !hasInterventions && !hasBudget;
+    };
+
     // ─── Capture original server payload on first load ────────────────────────
     useEffect(() => {
-        if (!loading && originalPayload.current === null) {
+        if (!loading && isHydrated && originalPayload.current === null) {
             originalPayload.current = JSON.stringify({
                 priorityAreas,
                 selectedInterventions,
@@ -118,7 +129,7 @@ const SIIFFormsHub = ({ user, token }) => {
                 budgets,
             });
         }
-    }, [loading]);
+    }, [loading, isHydrated]);
 
     // ─── Dirty-check: compare current state vs original server snapshot ───────
     const currentSnapshot = JSON.stringify({
@@ -157,10 +168,18 @@ const SIIFFormsHub = ({ user, token }) => {
 
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
-        if (loading || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
+        // Block auto-save if form state is not hydrated, loading, has errors, or is locked/submitted/reviewed
+        if (!isHydrated || loading || error || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
+
+        // Prevent auto-saving an empty payload
+        const testPayload = buildPayload('draft');
+        if (isEmptyPayload(testPayload)) {
+            logger.warn('SIIF', 'Auto-save skipped: empty payload detected');
+            return;
+        }
 
         setSyncStatus('saving');
         const timer = setTimeout(() => {
@@ -170,7 +189,7 @@ const SIIFFormsHub = ({ user, token }) => {
         }, 3000); // 3-second debounce for "Master Architect" resilience
 
         return () => clearTimeout(timer);
-    }, [loading, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked, isSubmitted, isReviewed]);
+    }, [loading, isHydrated, error, priorityAreas, selectedInterventions, beneficiaries, activities, budgets, aral, isExpired, isNotYetOpen, isLocked, isSubmitted, isReviewed]);
 
     // ─── Missing Data Check ───────────────────────────────────────────────────
     const isMissingData = (cardId) => {
@@ -292,39 +311,41 @@ const SIIFFormsHub = ({ user, token }) => {
             setActiveCard(null);
             return;
         }
-        console.log(`✅ [SIIFFormsHub] ${cardId} confirmed. State updated.`);
 
-        setConfirmed(p => {
-            const next = { ...p, [cardId]: true };
-            // Enforce sequential confirmation: modifying an upstream card resets downstream cards
-            if (cardId === 'pia') {
-                next.interventions = false;
-                next.beneficiaries = false;
-                next.activities = false;
-                next.budget = false;
-            } else if (cardId === 'interventions') {
-                next.beneficiaries = false;
-                next.activities = false;
-                next.budget = false;
-            } else if (cardId === 'beneficiaries') {
-                next.activities = false;
-                next.budget = false;
-            } else if (cardId === 'activities') {
-                next.budget = false;
-            }
-            return next;
-        });
+        const nextConfirmed = { ...confirmed, [cardId]: true };
+        if (cardId === 'pia') {
+            nextConfirmed.interventions = false;
+            nextConfirmed.beneficiaries = false;
+            nextConfirmed.activities = false;
+            nextConfirmed.budget = false;
+        } else if (cardId === 'interventions') {
+            nextConfirmed.beneficiaries = false;
+            nextConfirmed.activities = false;
+            nextConfirmed.budget = false;
+        } else if (cardId === 'beneficiaries') {
+            nextConfirmed.activities = false;
+            nextConfirmed.budget = false;
+        } else if (cardId === 'activities') {
+            nextConfirmed.budget = false;
+        }
 
+        console.log(`✅ [SIIFFormsHub] ${cardId} confirmed. Next confirmed state:`, nextConfirmed);
+
+        setConfirmed(nextConfirmed);
         setActiveCard(null);
-        handleSaveDraft(true);
+        handleSaveDraft(true, nextConfirmed);
     };
 
     // ─── Build API payload ────────────────────────────────────────────────────
-    const buildPayload = (status) => {
+    const buildPayload = (status, overrideConfirmed = null) => {
         // Robustly resolve schoolId from user object
         const schoolId = user?.school_id || user?.schoolId || user?.id || user?.sub;
 
-        console.log('🏗️ [SIIFFormsHub] buildPayload derived schoolId:', schoolId);
+        const confirmedState = overrideConfirmed || confirmed;
+        const confirmedCountToUse = CARDS.filter(card => confirmedState[card.id] && !isMissingData(card.id)).length;
+        const computedProgressPct = Math.round((confirmedCountToUse / TOTAL_STEPS) * 100);
+
+        console.log('🏗️ [SIIFFormsHub] buildPayload derived schoolId:', schoolId, 'progressPct:', computedProgressPct);
         console.log('👤 [SIIFFormsHub] user state:', {
             hasUser: !!user,
             idKeys: {
@@ -346,10 +367,10 @@ const SIIFFormsHub = ({ user, token }) => {
 
         const payload = {
             schoolId,
-            schoolName: allocation?.school_name || user?.school_name || user?.schoolName || '',
-            region: allocation?.region || user?.region || '',
-            division: allocation?.division || user?.division || '',
-            district: allocation?.district || '',
+            schoolName: loadedSchoolName || allocation?.school_name || user?.school_name || user?.schoolName || user?.School_Name || user?.school || user?.name || '',
+            region: loadedRegion || allocation?.region || user?.region || user?.Region || '',
+            division: loadedDivision || allocation?.division || user?.division || user?.Division || '',
+            district: loadedDistrict || allocation?.district || user?.district || user?.District || '',
             fiscalYear: new Date().getFullYear(),
             status,
             interventions: selectedInterventions,
@@ -358,8 +379,8 @@ const SIIFFormsHub = ({ user, token }) => {
             totalBudget,
             interventionData,
             priorityAreas,
-            form_completion_percentage: progressPct,
-            shform_completion: progressPct,
+            form_completion_percentage: computedProgressPct,
+            shform_completion: computedProgressPct,
         };
 
         console.log(`📤 [SIIFFormsHub] Built Payload (${status}):`, JSON.stringify(payload, null, 2));
@@ -367,14 +388,26 @@ const SIIFFormsHub = ({ user, token }) => {
     };
 
     // ─── Save Draft ───────────────────────────────────────────────────────────
-    const handleSaveDraft = async (silent = false) => {
+    const handleSaveDraft = async (silent = false, overrideConfirmed = null) => {
+        if (!isHydrated || loading || error) {
+            console.warn('⚠️ [SIIFFormsHub] Save blocked: Form state not hydrated or error state present.');
+            if (!silent) alert('Cannot save draft: Form data failed to load or is still loading.');
+            return;
+        }
         if (isLocked || isSubmitted || isReviewed) {
             console.warn('⚠️ [SIIFFormsHub] Plan is submitted/reviewed or locked, skipping draft auto-save.');
             return;
         }
-        if (!silent) setSaving(true);
         const currentStatus = (isSubmitted || isReviewed) ? (isReviewed ? 'Reviewed' : 'submitted') : 'draft';
-        const payload = buildPayload(currentStatus);
+        const payload = buildPayload(currentStatus, overrideConfirmed);
+
+        if (isEmptyPayload(payload)) {
+            console.warn('⚠️ [SIIFFormsHub] Save blocked: Attempted to save empty payload.');
+            if (!silent) alert('Cannot save empty draft. Please fill in at least one section before saving.');
+            return;
+        }
+
+        if (!silent) setSaving(true);
         console.log('📤 [SIIFFormsHub] Saving draft (silent=' + silent + ', status=' + currentStatus + ')');
         try {
             const data = await submitPlan(payload, token);
@@ -405,7 +438,11 @@ const SIIFFormsHub = ({ user, token }) => {
                 allocation,
                 deadline,
                 status: isReviewed ? 'Reviewed' : (isDisapproved ? 'Disapproved' : (isSubmitted ? 'submitted' : 'draft')),
-                remarks: remarks
+                remarks: remarks,
+                schoolName: loadedSchoolName,
+                region: loadedRegion,
+                division: loadedDivision,
+                district: loadedDistrict
             }
         });
     };
@@ -483,7 +520,7 @@ const SIIFFormsHub = ({ user, token }) => {
         return <SiifLoader text="Initializing Planner..." />;
     }
 
-    if (error) {
+    if (error || (!isHydrated && !loading)) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
                 <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-red-100 max-w-sm w-full text-center">
@@ -491,12 +528,15 @@ const SIIFFormsHub = ({ user, token }) => {
                         <FiAlertCircle size={32} />
                     </div>
                     <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-2">Connection Error</h2>
-                    <p className="text-xs text-slate-500 font-bold leading-relaxed mb-6">
-                        We couldn't load your submission data. Please check your internet connection and try again.
+                    <p className="text-xs text-slate-500 font-bold leading-relaxed mb-4">
+                        {error || "We couldn't load your submission data from the server."}
+                    </p>
+                    <p className="text-[11px] font-extrabold text-red-600 bg-red-50 p-3 rounded-xl border border-red-100 leading-relaxed mb-6">
+                        ⚠️ Saving is disabled to protect your existing submission from being overwritten.
                     </p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="w-full py-4 bg-deped-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest"
+                        className="w-full py-4 bg-deped-blue text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-900 transition-all active:scale-95"
                     >
                         Retry Loading
                     </button>
@@ -1192,32 +1232,40 @@ const SIIFFormsHub = ({ user, token }) => {
                                             </div>
                                         )}
 
-                                        {/* Low-profile Compact Confirm Input Box */}
-                                        <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2">
-                                            <div className="flex-1 min-w-0 text-center sm:text-left">
-                                                {!allConfirmed ? (
-                                                    <p className="text-[10px] text-amber-600 font-bold leading-tight animate-pulse">
-                                                        ⚠️ PLAN INCOMPLETE: Confirm all cards before final submission.
-                                                    </p>
-                                                ) : (
-                                                    <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                                        Type <span className="text-siif-blue font-black">CONFIRM</span> to finalize and submit:
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <input
-                                                type="text"
-                                                placeholder="CONFIRM..."
-                                                disabled={!allConfirmed}
-                                                value={confirmText}
-                                                onChange={e => setConfirmText(e.target.value)}
-                                                className={`w-full sm:w-44 px-3.5 py-2 rounded-xl border-2 font-black text-xs tracking-widest text-center transition-all focus:outline-none ${!allConfirmed
-                                                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                    : confirmError
-                                                        ? 'border-red-400 bg-red-50 text-red-600 animate-shake'
-                                                        : 'border-slate-200 bg-white text-slate-800 focus:border-siif-blue'
-                                                    }`}
-                                            />
+                                        {/* Redesigned Clean Vertical Confirmation Action Box */}
+                                        <div className="bg-gradient-to-r from-slate-50 to-blue-50/50 dark:from-slate-800/80 dark:to-slate-900/80 p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col gap-3">
+                                            {!allConfirmed ? (
+                                                <div className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+                                                    <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center shrink-0 border border-amber-200/80">
+                                                        <TbAlertTriangle size={18} className="text-amber-600 animate-pulse" />
+                                                    </div>
+                                                    <span className="leading-snug">PLAN INCOMPLETE: Confirm all cards above before final submission.</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-xl bg-blue-100/80 dark:bg-blue-950/80 text-siif-blue dark:text-blue-300 flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-800/60 shadow-sm">
+                                                            <TbShieldCheck size={18} />
+                                                        </div>
+                                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-normal">
+                                                            To authorize submission, type <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950 text-siif-blue dark:text-blue-300 font-black text-xs rounded-md border border-blue-200 dark:border-blue-800 tracking-wider">CONFIRM</span> below:
+                                                        </p>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="CONFIRM..."
+                                                        disabled={!allConfirmed}
+                                                        value={confirmText}
+                                                        onChange={e => setConfirmText(e.target.value)}
+                                                        className={`w-full px-4 py-2.5 rounded-xl border-2 font-black text-xs tracking-widest text-center transition-all shadow-inner focus:outline-none focus:ring-4 focus:ring-blue-500/20 ${!allConfirmed
+                                                            ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                            : confirmError
+                                                                ? 'border-red-500 bg-red-50 text-red-600 animate-shake focus:border-red-500'
+                                                                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:border-siif-blue'
+                                                            }`}
+                                                    />
+                                                </>
+                                            )}
                                         </div>
 
                                         <div className="flex gap-2.5">

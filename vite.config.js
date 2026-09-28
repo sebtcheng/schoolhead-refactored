@@ -6,6 +6,9 @@ import { readFileSync } from 'fs'
 // Read version from package.json — single source of truth
 const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
+const backendPort = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 3000;
+const backendTarget = `http://127.0.0.1:${backendPort}`;
+
 const handleProxyError = (proxy, _options) => {
   proxy.on('error', (err, req, res) => {
     if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
@@ -77,14 +80,14 @@ export default defineConfig({
     proxy: {
       // Proxies for dev when BASE_URL = /insighted-schoolhead/ (matches what api() generates)
       '/insighted-schoolhead/api': {
-        target: 'http://127.0.0.1:3000',
+        target: backendTarget,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/insighted-schoolhead/, ''),
         configure: handleProxyError,
       },
       '/insighted-schoolhead/uploads': {
-        target: 'http://127.0.0.1:3000',
+        target: backendTarget,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/insighted-schoolhead/, ''),
@@ -92,13 +95,13 @@ export default defineConfig({
       },
       // Bare /api fallback (for any direct calls without base prefix)
       '/api': {
-        target: 'http://127.0.0.1:3000',
+        target: backendTarget,
         changeOrigin: true,
         secure: false,
         configure: handleProxyError,
       },
       '/uploads': {
-        target: 'http://127.0.0.1:3000',
+        target: backendTarget,
         changeOrigin: true,
         secure: false,
         configure: handleProxyError,

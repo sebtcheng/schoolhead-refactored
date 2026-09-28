@@ -166,30 +166,64 @@ const ModularDashboard = () => {
         navigate(-1);
     };
 
+    const [lockBanner, setLockBanner] = useState(null);
+
+    const isUnitLocked = React.useCallback((unitId, completedUnits = [], validationFlags = {}) => {
+        const safeCompleted = Array.isArray(completedUnits) ? completedUnits : [];
+        if (unitId === 1) return true; // Unit 1 (School Profile) is always locked
+        if (validationFlags?.[`unit${unitId}`] === true) return true;
+        if ([6, 7, 9].includes(unitId)) return false;
+        if (unitId === 2) return !safeCompleted.includes(1);
+        if (unitId === 3) return !safeCompleted.includes(2);
+        if (unitId === 4) return !safeCompleted.includes(3);
+        if (unitId === 5) return !safeCompleted.includes(4);
+        if (unitId === 8) return !safeCompleted.includes(5);
+        return false;
+    }, []);
+
+    const getLockMessage = React.useCallback((unitId) => {
+        switch (unitId) {
+            case 1: return "Unit 1 School Profile is locked";
+            case 2: return "Complete Unit 1 to unlock Unit 2";
+            case 3: return "Complete Unit 2 to unlock Unit 3";
+            case 4: return "Complete Unit 3 to unlock Unit 4";
+            case 5: return "Complete Unit 4 to unlock Unit 5";
+            case 8: return "Complete Unit 5 to unlock Unit 8";
+            default: return "Complete previous units to unlock";
+        }
+    }, []);
+
     const modules = React.useMemo(() => {
         let units = DASHBOARD_METADATA.units;
 
         return units.map(u => {
             let title = u.title;
             const Icon = u.icon;
-            const isExcluded = u.id === 1 || u.id === 2;
+            const isValidated = questProgress.validationFlags?.[`unit${u.id}`] === true;
+            const locked = isUnitLocked(u.id, questProgress?.completedUnits, questProgress?.validationFlags);
+            const lockMsg = isValidated ? "This module is validated and locked" : (locked ? getLockMessage(u.id) : '');
 
             return {
                 id: u.id,
                 title: title,
                 icon: <Icon className="w-6 h-6" />,
                 path: u.path,
-                locked: false,
+                locked: locked,
+                lockMessage: lockMsg,
                 hasDraft: !!unitDrafts[u.id],
                 lastUpdated: unitTimestamps[`unit${u.id}`],
-                isValidated: isExcluded ? false : (questProgress.validationFlags?.[`unit${u.id}`] === true),
-                showsValidation: !isExcluded
+                isValidated: isValidated,
+                showsValidation: true
             };
         });
-    }, [questProgress, unitDrafts, unitTimestamps]);
+    }, [questProgress, unitDrafts, unitTimestamps, isUnitLocked, getLockMessage]);
 
     const handleModuleClick = (mod) => {
-        if (mod.locked) return;
+        if (mod.locked) {
+            setLockBanner(mod.lockMessage || "Complete previous unit to unlock");
+            setTimeout(() => setLockBanner(null), 4000);
+            return;
+        }
         const targetPath = impersonatedUid ? `${mod.path}?uid=${impersonatedUid}` : mod.path;
         navigate(targetPath);
     };
@@ -550,6 +584,24 @@ const ModularDashboard = () => {
                 <div className="flex-grow flex flex-col min-h-screen overflow-y-auto pb-32 lg:pb-10">
                     
 
+                    {/* Lock Toast Banner Notification */}
+                    <AnimatePresence>
+                        {lockBanner && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                                className="fixed top-6 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-amber-300 px-6 py-3.5 rounded-2xl shadow-2xl border border-amber-500/40 flex items-center gap-3 font-bold text-xs"
+                            >
+                                <FiLock className="w-4 h-4 text-amber-400 shrink-0" />
+                                <span>{lockBanner}</span>
+                                <button onClick={() => setLockBanner(null)} className="ml-3 text-slate-400 hover:text-white transition-colors">
+                                    <FiX className="w-4 h-4" />
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     {/* Developer Info Modal */}
                     <AnimatePresence>
                         {showDevInfo && (
@@ -667,9 +719,9 @@ const ModularDashboard = () => {
 
                                         {/* Card Component Container */}
                                         <button
-                                            onClick={() => !isLocked && handleModuleClick(mod)}
+                                            onClick={() => handleModuleClick(mod)}
                                             className={`nodes-card w-full pt-8 pb-4 px-5 text-center transition-all duration-300 flex flex-col h-[180px] justify-between relative
-                                                ${isLocked ? 'grayscale opacity-60 pointer-events-none' : ''}
+                                                ${isLocked ? 'grayscale opacity-60 cursor-pointer hover:opacity-80' : ''}
                                                 ${isNextActiveRound ? 'bg-[#f0f6ff]/80 shadow-md ring-1 ring-sky-300/30' : 'bg-white'}
                                             `}
                                         >
@@ -686,8 +738,12 @@ const ModularDashboard = () => {
                                                     {mod.title}
                                                 </h3>
 
-                                                {/* Badges / Status Indicator - Draft badge */}
-                                                {mod.hasDraft ? (
+                                                {/* Badges / Status Indicator - Lock or Draft badge */}
+                                                {isLocked ? (
+                                                    <span className="px-2 py-0.5 rounded-lg bg-slate-800 text-amber-300 text-[8px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1">
+                                                        <FiLock className="w-2.5 h-2.5" /> Locked
+                                                    </span>
+                                                ) : mod.hasDraft ? (
                                                     <span className="px-2 py-0.5 rounded-lg bg-amber-500 text-white text-[8px] font-black uppercase tracking-wider shadow-sm">
                                                         Draft
                                                     </span>

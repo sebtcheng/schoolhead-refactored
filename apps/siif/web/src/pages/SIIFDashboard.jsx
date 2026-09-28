@@ -166,13 +166,16 @@ const SIIFDashboard = ({ user, token }) => {
         ? Math.min(100, Math.max(0, Math.round((parseFloat(totalBudgetEstimate) / parseFloat(allocation.allocation_amount)) * 100)))
         : 0;
 
-    const completedPhases = useMemo(() => {
-        let count = 0;
-        if (submission?.priorityAreas?.length > 0) count++; // PIA
-        if (submission?.interventions?.length > 0) count++; // Interventions
-        if (totalBeneficiaries > 0) count++; // Beneficiaries
-        if (totalBudgetEstimate > 0) count++; // Budget
+    const formsCompletionPct = useMemo(() => {
+        const dbPct = submission?.form_completion_percentage ?? submission?.formCompletionPercentage;
+        if (dbPct !== undefined && dbPct !== null && !isNaN(parseInt(dbPct))) {
+            return parseInt(dbPct);
+        }
 
+        let count = 0;
+        if (submission?.priorityAreas?.length > 0) count++;
+        if (submission?.interventions?.length > 0) count++;
+        if (totalBeneficiaries > 0) count++;
         let hasAct = false;
         if (submission?.interventionData) {
             hasAct = Object.values(submission.interventionData).some(int => {
@@ -180,9 +183,12 @@ const SIIFDashboard = ({ user, token }) => {
                 return acts.length > 0 || (int.otherActivity && int.otherActivity.trim().length > 0);
             });
         }
-        if (hasAct) count++; // Activities
-        return Math.min(count, 5);
-    }, [submission, totalBeneficiaries, totalBudgetEstimate]);
+        if (hasAct) count++;
+        if (submission?.status?.toLowerCase() === 'submitted' || submission?.status?.toLowerCase() === 'reviewed') {
+            return 100;
+        }
+        return Math.round((Math.min(count, 5) / 5) * 100);
+    }, [submission, totalBeneficiaries]);
 
     // Flagged Items Computation
     const flaggedCount = useMemo(() => {
@@ -230,10 +236,10 @@ const SIIFDashboard = ({ user, token }) => {
                         <section className="siif-school-pill">
                             <small style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.05em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms Completion</small>
                             <strong style={{ fontSize: '22px', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: '3px 0', lineHeight: 1, fontWeight: 900, display: 'block' }}>
-                                {Math.round((completedPhases / 5) * 100)}%
+                                {formsCompletionPct}%
                             </strong>
                             <div style={{ width: '80%', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', margin: '2px auto 0' }}>
-                                <div style={{ width: `${(completedPhases / 5) * 100}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
+                                <div style={{ width: `${formsCompletionPct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
                             </div>
                         </section>
                     </div>
@@ -315,22 +321,22 @@ const SIIFDashboard = ({ user, token }) => {
                                 {/* Visually Appealing Status Banner */}
                                 {submission?.status?.toLowerCase() === 'disapproved' && (
                                     <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-xl border border-red-200 bg-gradient-to-r from-red-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center shrink-0">
                                                 <TbX size={20} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-sm font-bold text-red-700 flex items-center gap-1.5 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-bold text-red-700">
                                                     Action Required: Disapproved
                                                 </h4>
-                                                <p className="text-xs text-red-600/80 mt-0.5 break-words whitespace-normal">
+                                                <p className="text-xs text-red-600/80 mt-0.5">
                                                     <strong>Remarks:</strong> {submission.remarks || 'Please revise your proposal.'}
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => navigate('/siif/forms')}
-                                            className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all text-center"
+                                            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Revise Proposal
                                         </button>
@@ -338,22 +344,22 @@ const SIIFDashboard = ({ user, token }) => {
                                 )}
                                 {submission?.status?.toLowerCase() === 'reviewed' && (
                                     <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
                                                 <TbCircleCheck size={20} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-sm font-bold text-emerald-700 flex items-center gap-1.5 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-bold text-emerald-700">
                                                     Reviewed by SDO
                                                 </h4>
-                                                <p className="text-xs text-emerald-600/80 mt-0.5 break-words whitespace-normal">
+                                                <p className="text-xs text-emerald-600/80 mt-0.5">
                                                     <strong>Remarks:</strong> {submission.remarks || 'Ready for implementation.'}
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => navigate('/siif/utilization')}
-                                            className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all text-center"
+                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Proceed to Utilization
                                         </button>
@@ -361,22 +367,22 @@ const SIIFDashboard = ({ user, token }) => {
                                 )}
                                 {submission?.status?.toLowerCase() === 'submitted' && (
                                     <div className="mx-4 sm:mx-6 mb-4 p-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
                                                 <TbClock size={20} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-sm font-bold text-amber-700 flex items-center gap-1.5 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-bold text-amber-700">
                                                     Pending Review
                                                 </h4>
-                                                <p className="text-xs text-amber-600/80 mt-0.5 break-words whitespace-normal">
+                                                <p className="text-xs text-amber-600/80 mt-0.5">
                                                     Your submission is currently being reviewed by the Division Office.
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => navigate('/siif/forms')}
-                                            className="w-full sm:w-auto px-4 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 text-center"
+                                            className="px-4 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 whitespace-nowrap shrink-0"
                                         >
                                             View Submission
                                         </button>
@@ -487,33 +493,6 @@ const SIIFDashboard = ({ user, token }) => {
                                         <div className="text-left">
                                             <b>Plan Intervention</b>
                                             <span>Start or edit your school proposal</span>
-                                        </div>
-                                        <strong className="text-siif-blue">›</strong>
-                                    </button>
-
-                                    <button className={`siif-action-btn ${flaggedCount > 0 ? 'border-red-100 hover:border-red-200 bg-red-50/30' : ''}`} onClick={() => navigate('/siif/forms')}>
-                                        <div className="siif-action-icon" style={flaggedCount > 0 ? { backgroundColor: '#fee2e2', color: '#dc2626' } : {}}>
-                                            {flaggedCount > 0 ? '⚠️' : '✓'}
-                                        </div>
-                                        <div className="text-left flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <b className={flaggedCount > 0 ? "text-red-700" : ""}>Review Flagged Items</b>
-                                                {flaggedCount > 0 && (
-                                                    <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black shadow-sm shrink-0 flex items-center gap-1 animate-pulse">
-                                                        {flaggedCount} Action{flaggedCount !== 1 ? 's' : ''} Needed
-                                                    </span>
-                                                )}
-                                                {flaggedCount === 0 && submission?.interventions?.length > 0 && (
-                                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded-full font-black border border-emerald-200">
-                                                        0 Flags
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className={flaggedCount > 0 ? "text-red-600/80 font-semibold" : ""}>
-                                                {flaggedCount > 0
-                                                    ? 'Incomplete beneficiaries, budget, or activities'
-                                                    : 'Fix missing details and validation issues'}
-                                            </span>
                                         </div>
                                         <strong className="text-siif-blue">›</strong>
                                     </button>

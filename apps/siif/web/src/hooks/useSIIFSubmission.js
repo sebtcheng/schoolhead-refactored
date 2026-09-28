@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
  */
 export function useSIIFSubmission(user, token) {
     const [loading, setLoading]                     = useState(true);
+    const [isHydrated, setIsHydrated]               = useState(false);
     const [error, setError]                         = useState(null);
     const [deadline, setDeadline]                   = useState(null);
     const [openDate, setOpenDate]                   = useState(null);
@@ -22,6 +23,11 @@ export function useSIIFSubmission(user, token) {
     const [isNotYetOpen, setIsNotYetOpen]           = useState(false);
     const [allocation, setAllocation]               = useState(null);
     const [submissionId, setSubmissionId]           = useState(null);
+    const [schoolName, setSchoolName]               = useState('');
+    const [region, setRegion]                       = useState('');
+    const [division, setDivision]                   = useState('');
+    const [district, setDistrict]                   = useState('');
+    const [formCompletionPercentage, setFormCompletionPercentage] = useState(null);
     const [isLocked, setIsLocked]                   = useState(false);
     const [isReviewed, setIsReviewed]               = useState(false);
     const [isSubmitted, setIsSubmitted]             = useState(false);
@@ -44,11 +50,13 @@ export function useSIIFSubmission(user, token) {
         if (!schoolId) {
             logger.error('SIIF', 'No schoolId found in user session.');
             setLoading(false);
+            setIsHydrated(false);
             return;
         }
 
         const load = async () => {
             setLoading(true);
+            setIsHydrated(false);
             setError(null);
             try {
                 const headers = { Authorization: `Bearer ${token}` };
@@ -82,7 +90,13 @@ export function useSIIFSubmission(user, token) {
                 if (subData?.success) {
                     const ints = subData.interventions || [];
                     setSubmissionId(subData.submissionId || subData.siif_sub_id || null);
+                    setFormCompletionPercentage(subData.form_completion_percentage ?? subData.formCompletionPercentage ?? null);
                     
+                    if (subData.schoolName) setSchoolName(subData.schoolName);
+                    if (subData.region) setRegion(subData.region);
+                    if (subData.division) setDivision(subData.division);
+                    if (subData.district) setDistrict(subData.district);
+
                     const statusVal = subData.status?.toLowerCase() || '';
                     setIsLocked(statusVal === 'reviewed');
                     setIsReviewed(statusVal === 'reviewed');
@@ -120,9 +134,13 @@ export function useSIIFSubmission(user, token) {
                     setConfirmed(nextConfirmed);
                     if (subData.allocation) setAllocation(subData.allocation);
                 }
+                
+                // Successfully finished hydration fetch!
+                setIsHydrated(true);
             } catch (err) {
                 console.error('🔥 [useSIIFSubmission] Failed to load data:', err);
                 setError(err.message);
+                setIsHydrated(false);
             } finally {
                 setLoading(false);
             }
@@ -135,8 +153,12 @@ export function useSIIFSubmission(user, token) {
         // Deadline
         deadline, openDate, isExpired, isNotYetOpen,
         // Submission meta
-        loading, error, submissionId, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
+        loading, isHydrated, error, submissionId, formCompletionPercentage, isLocked, isReviewed, isSubmitted, isDisapproved, remarks, allocation,
         forRevision, revisionRemarks,
+        schoolName, setSchoolName,
+        region, setRegion,
+        division, setDivision,
+        district, setDistrict,
         // Form state
         priorityAreas, setPriorityAreas,
         selectedInterventions, setSelectedInterventions,

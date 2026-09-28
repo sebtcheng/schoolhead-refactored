@@ -1,453 +1,151 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    TbTrendingUp,
     TbTarget,
-    TbCurrencyPeso,
     TbChevronRight,
     TbAlertCircle,
     TbLock,
     TbCheck,
-    TbLayoutDashboard,
-    TbClock,
-    TbTool,
-    TbChevronLeft,
-    TbArrowLeft
+    TbPlus,
+    TbMinus,
+    TbDeviceFloppy,
+    TbLayersLinked
 } from 'react-icons/tb';
-import { useNavigate } from 'react-router-dom';
-import { useSIIFUtilization } from '../hooks/useSIIFUtilization';
-import { updateUtilization } from '../services/siifService';
+import { FiGrid, FiLogOut } from 'react-icons/fi';
+import { useAuth } from '../../../../school-head/web/src/context/AuthContext';
+import { useModifiedSIIFUtilization } from '../hooks/useModifiedSIIFUtilization';
+import { saveModifiedUtilization } from '../services/siifService';
+import { INTERVENTIONS, INTERVENTION_ICONS } from '../constants/siifConstants';
 import SiifLoader from '../components/SiifLoader';
 
 const SIIFUtilization = ({ user, token }) => {
     const navigate = useNavigate();
+    const { confirmLogout } = useAuth();
     const [saving, setSaving] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [selectorExpanded, setSelectorExpanded] = useState(true);
 
-    // ─── All data loading & quarter state from hook ───────────────────────────
+    // ─── Modified Utilization Hook ────────────────────────────────────────────
     const {
-        loading, deadline, isExpired,
-        activeQuarter, viewingQuarter, setViewingQuarter,
-        submission, utilizationData, setUtilizationData,
-        officialAllocation, periods,
-    } = useSIIFUtilization(user, token);
-
-    // ─── Derived flags ────────────────────────────────────────────────────────
-    const isPlanningPhase = !isExpired;
-    const isSubmitted = submission && submission.status && submission.status.toLowerCase() !== 'draft';
+        loading,
+        activeQuarter,
+        viewingQuarter,
+        setViewingQuarter,
+        selectedInterventions,
+        setSelectedInterventions,
+        utilizationData,
+        setUtilizationData,
+        officialAllocation,
+        periods,
+        refetch,
+    } = useModifiedSIIFUtilization(user, token);
 
     if (loading) {
-        return <SiifLoader text="Loading Utilization..." />;
-    }
-
-    // PHASE 2 PILOT TEST LOCK
-    const IS_UNDER_DEVELOPMENT = false;
-    if (IS_UNDER_DEVELOPMENT) {
-        return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12">
-                    <article className="siif-card">
-                        <div className="siif-card-inner text-center p-10">
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                className="relative mx-auto w-32 h-32 mb-8"
-                            >
-                                <div className="absolute inset-0 bg-indigo-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
-                                <div className="relative w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-indigo-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
-                                    <TbTool size={56} className="text-indigo-500" />
-                                </div>
-                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
-                                    <TbAlertCircle size={28} className="text-purple-500" />
-                                </div>
-                            </motion.div>
-                            
-                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
-                                Under Development
-                            </h1>
-                            
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1, duration: 0.4 }}
-                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
-                            >
-                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-indigo-400 to-purple-400" />
-                                
-                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
-                                    This feature is currently under development and will be released during <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">Phase 2</strong> of the pilot test.
-                                </p>
-                                
-                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-4 md:p-5 border border-purple-100/50 flex flex-col md:flex-row items-start gap-4">
-                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-purple-100">
-                                        <TbLayoutDashboard size={24} className="text-purple-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] md:text-xs text-purple-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
-                                            Stay Tuned
-                                        </p>
-                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
-                                            We are working hard to bring you this feature soon.
-                                        </p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                            <button
-                                onClick={() => navigate('/siif')}
-                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20"
-                            >
-                                Return to Dashboard
-                                <TbChevronRight size={18} />
-                            </button>
-                        </div>
-                    </article>
-                </div>
-            </main>
-        );
-    }
-
-    // PHASE 1 LOCK: Planning phase still active
-    if (isPlanningPhase) {
-        return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12">
-                    <article className="siif-card">
-                        <div className="siif-card-inner text-center p-10">
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                className="relative mx-auto w-32 h-32 mb-8"
-                            >
-                                <div className="absolute inset-0 bg-blue-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
-                                <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-blue-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
-                                    <TbClock size={56} className="text-blue-500" />
-                                </div>
-                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
-                                    <TbLayoutDashboard size={28} className="text-indigo-500" />
-                                </div>
-                            </motion.div>
-                            
-                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
-                                Planning Phase Active
-                            </h1>
-                            
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1, duration: 0.4 }}
-                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
-                            >
-                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-blue-400 to-indigo-400" />
-                                
-                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
-                                    Utilization tracking will become available once the <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">SIIF Planning Phase</strong> is officially over.
-                                </p>
-                                
-                                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-4 md:p-5 border border-indigo-100/50 flex flex-col md:flex-row items-start gap-4">
-                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-indigo-100">
-                                        <TbClock size={24} className="text-indigo-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] md:text-xs text-indigo-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
-                                            Estimated Opening
-                                        </p>
-                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
-                                            {deadline ? new Date(deadline).toLocaleString() : 'TBD'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                            <button
-                                onClick={() => navigate('/siif/forms')}
-                                className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
-                                style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
-                            >
-                                Review Baseline Plan
-                                <TbChevronRight size={18} />
-                            </button>
-                        </div>
-                    </article>
-                </div>
-            </main>
-        );
-    }
-
-    // PHASE 2 LOCK: Deadline over but NO submission found or still draft
-    if (!isSubmitted) {
-        return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12">
-                    <article className="siif-card">
-                        <div className="siif-card-inner text-center p-10">
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                className="relative mx-auto w-32 h-32 mb-8"
-                            >
-                                <div className="absolute inset-0 bg-amber-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
-                                <div className="relative w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-amber-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
-                                    <TbLock size={56} className="text-amber-500" />
-                                </div>
-                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
-                                    <TbAlertCircle size={28} className="text-rose-500" />
-                                </div>
-                            </motion.div>
-                            
-                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
-                                No Baseline Found
-                            </h1>
-                            
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1, duration: 0.4 }}
-                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
-                            >
-                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-rose-400" />
-                                
-                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
-                                    The planning window has closed, but no submitted <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">SIIF Baseline Plan</strong> was found for your school.
-                                </p>
-                                
-                                <div className="bg-gradient-to-r from-rose-50 to-amber-50 rounded-2xl p-4 md:p-5 border border-rose-100/50 flex flex-col md:flex-row items-start gap-4">
-                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-rose-100">
-                                        <TbLayoutDashboard size={24} className="text-rose-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] md:text-xs text-rose-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
-                                            Feature Disabled
-                                        </p>
-                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
-                                            Utilization tracking cannot be activated because there is no reviewed budget to track against.
-                                        </p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                            <button
-                                onClick={() => navigate('/siif/forms')}
-                                className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
-                            >
-                                View Archived Forms
-                                <TbChevronRight size={18} />
-                            </button>
-                        </div>
-                    </article>
-                </div>
-            </main>
-        );
-    }
-
-    // PHASE 3 LOCK: Plan is submitted but Pending Review
-    const statusVal = submission.status?.toLowerCase() || '';
-    if (statusVal === 'submitted') {
-        return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12">
-                    <article className="siif-card">
-                        <div className="siif-card-inner text-center p-10">
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                className="relative mx-auto w-32 h-32 mb-8"
-                            >
-                                <div className="absolute inset-0 bg-amber-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
-                                <div className="relative w-full h-full bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-amber-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
-                                    <TbClock size={56} className="text-amber-500 animate-pulse" />
-                                </div>
-                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
-                                    <TbAlertCircle size={28} className="text-orange-500" />
-                                </div>
-                            </motion.div>
-                            
-                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
-                                Pending SDO Review
-                            </h1>
-                            
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1, duration: 0.4 }}
-                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
-                            >
-                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-amber-400 to-orange-400" />
-                                
-                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
-                                    Your submitted plan is currently waiting for review from the <strong className="text-slate-900 font-black px-2 py-1 bg-slate-100 rounded-lg shadow-sm border border-slate-200/60 mx-1">Division Office</strong>.
-                                </p>
-                                
-                                <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-4 md:p-5 border border-orange-100/50 flex flex-col md:flex-row items-start gap-4">
-                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-orange-100">
-                                        <TbClock size={24} className="text-orange-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] md:text-xs text-orange-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
-                                            Status: Pending
-                                        </p>
-                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
-                                            You can begin tracking your quarterly utilization once your baseline plan has been officially reviewed.
-                                        </p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                            <button
-                                onClick={() => navigate('/siif/forms')}
-                                className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
-                                style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
-                            >
-                                View Read-Only Plan
-                                <TbChevronRight size={18} />
-                            </button>
-                        </div>
-                    </article>
-                </div>
-            </main>
-        );
-    }
-
-    // PHASE 4 LOCK: Plan is disapproved
-    if (statusVal === 'disapproved') {
-        return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12">
-                    <article className="siif-card">
-                        <div className="siif-card-inner text-center p-10">
-                            <motion.div 
-                                initial={{ scale: 0.9, opacity: 0, y: 10 }} 
-                                animate={{ scale: 1, opacity: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                className="relative mx-auto w-32 h-32 mb-8"
-                            >
-                                <div className="absolute inset-0 bg-red-400 blur-[32px] opacity-20 rounded-full animate-pulse" />
-                                <div className="relative w-full h-full bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-100/60 rounded-[2.5rem] flex items-center justify-center shadow-xl shadow-red-900/5 rotate-3 hover:rotate-0 transition-all duration-300">
-                                    <TbAlertCircle size={56} className="text-red-500" />
-                                </div>
-                                <div className="absolute -bottom-3 -right-3 bg-white rounded-2xl p-2.5 shadow-lg border border-slate-100 -rotate-6">
-                                    <TbLock size={28} className="text-rose-500" />
-                                </div>
-                            </motion.div>
-                            
-                            <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-slate-900 to-slate-500 mb-6 tracking-tight uppercase italic" style={{ fontFamily: 'var(--font-heading)' }}>
-                                Plan Disapproved
-                            </h1>
-                            
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1, duration: 0.4 }}
-                                className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-8 mb-8 max-w-lg mx-auto shadow-2xl shadow-slate-200/40 text-left"
-                            >
-                                <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-red-400 to-rose-400" />
-                                
-                                <p className="text-base text-slate-600 mb-6 leading-relaxed font-medium">
-                                    Your plan was <strong className="text-red-600 font-black px-2 py-1 bg-red-50 rounded-lg shadow-sm border border-red-200/60 mx-1">Disapproved</strong> by the Division Office and the submission deadline has passed.
-                                </p>
-                                
-                                <div className="bg-gradient-to-r from-rose-50 to-red-50 rounded-2xl p-4 md:p-5 border border-rose-100/50 flex flex-col md:flex-row items-start gap-4">
-                                    <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 border border-rose-100">
-                                        <TbAlertCircle size={24} className="text-red-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] md:text-xs text-red-800 font-black leading-relaxed uppercase tracking-widest mb-1.5">
-                                            Feature Disabled
-                                        </p>
-                                        <p className="text-sm text-slate-700 font-bold leading-relaxed">
-                                            Utilization tracking cannot proceed without a reviewed baseline.
-                                        </p>
-                                    </div>
-                                </div>
-                            </motion.div>
-                            <button
-                                onClick={() => navigate('/siif/forms')}
-                                className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg"
-                            >
-                                View Rejection Details
-                                <TbChevronRight size={18} />
-                            </button>
-                        </div>
-                    </article>
-                </div>
-            </main>
-        );
+        return <SiifLoader text="Loading Utilization Tracker..." />;
     }
 
     // ─── Calculations ──────────────────────────────────────────────────────────
-    const selectedInterventions = submission.interventions || [];
-    const budgetEstimates = submission.budgetEstimates || {};
+    const totalAllocated = parseFloat(officialAllocation?.allocation_amount) || 0;
 
-    const calculateTotals = () => {
-        let totalEstimated = 0;
-        let totalUtilized = 0;
-
+    const calculateTotalUtilized = () => {
+        let total = 0;
         selectedInterventions.forEach(intId => {
-            totalEstimated += (budgetEstimates[intId] || 0);
-
-            // Total utilized for this intervention across all quarters
             const intUtil = utilizationData[intId] || {};
-            Object.values(intUtil).forEach(qVal => {
-                totalUtilized += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
+            periods.forEach(p => {
+                const qVal = intUtil[p.id];
+                const amt = parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0;
+                total += amt;
+            });
+        });
+        return total;
+    };
+
+    const totalUtilized = calculateTotalUtilized();
+    const overallProgress = totalAllocated > 0 ? (totalUtilized / totalAllocated) * 100 : 0;
+    const remainingBalance = Math.max(0, totalAllocated - totalUtilized);
+
+    // ─── Toggle Intervention Activation ───────────────────────────────────────
+    const handleToggleIntervention = (intId) => {
+        const isCurrentlyActive = selectedInterventions.includes(intId);
+
+        if (isCurrentlyActive) {
+            // Check if there are entered amounts before removing
+            const intUtil = utilizationData[intId] || {};
+            const hasData = Object.values(intUtil).some(q => (parseFloat(q?.amount !== undefined ? q.amount : q) || 0) > 0);
+
+            if (hasData) {
+                const confirmDeactivate = window.confirm(
+                    `"${intId}" currently has recorded utilization amounts. Deactivating it will hide it from the active tracker. Are you sure you want to proceed?`
+                );
+                if (!confirmDeactivate) return;
+            }
+
+            setSelectedInterventions(prev => prev.filter(id => id !== intId));
+        } else {
+            setSelectedInterventions(prev => [...prev, intId]);
+            // Initialize empty quarter entries if not yet present
+            if (!utilizationData[intId]) {
+                const initialQuarterData = {};
+                periods.forEach(p => {
+                    initialQuarterData[p.id] = { amount: '', status: 'Not Yet Started', justification: '' };
+                });
+                setUtilizationData(prev => ({ ...prev, [intId]: initialQuarterData }));
+            }
+        }
+        setHasUnsavedChanges(true);
+    };
+
+    // ─── Utilization Inputs Handlers ──────────────────────────────────────────
+    const handleUpdateUtilization = (intId, value) => {
+        const amount = parseFloat(value) || 0;
+
+        // Calculate what the new grand total would be
+        let otherTotal = 0;
+        selectedInterventions.forEach(id => {
+            const intUtil = utilizationData[id] || {};
+            periods.forEach(p => {
+                if (id === intId && p.id === viewingQuarter) return; // skip this specific field
+                const qVal = intUtil[p.id];
+                otherTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
             });
         });
 
-        // Use official allocation if available, otherwise fallback to sum of estimates
-        const totalAllocated = officialAllocation.allocation_amount > 0
-            ? parseFloat(officialAllocation.allocation_amount)
-            : totalEstimated;
+        const newTotal = otherTotal + amount;
 
-        return { totalAllocated, totalUtilized, totalEstimated };
-    };
-
-    const { totalAllocated, totalUtilized, totalEstimated } = calculateTotals();
-    const overallProgress = totalAllocated > 0 ? (totalUtilized / totalAllocated) * 100 : 0;
-
-    // ─── Handlers ──────────────────────────────────────────────────────────────
-    const handleUpdateUtilization = async (intId, value) => {
-        const amount = parseFloat(value) || 0;
-
-        // Calculate the current overall total utilization WITHOUT the active quarter for this specific intervention
-        let currentTotalUtilized = 0;
-        selectedInterventions.forEach(id => {
-            const intUtil = utilizationData[id] || {};
-            if (id === intId) {
-                // For the current intervention, add only other phases
-                periods.forEach(p => {
-                    if (p.id !== activeQuarter) {
-                        const qVal = intUtil[p.id];
-                        currentTotalUtilized += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
-                    }
-                });
-            } else {
-                // For other interventions, add all phases
-                Object.values(intUtil).forEach(qVal => {
-                    currentTotalUtilized += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
-                });
-            }
-        });
-
-        const newTotal = currentTotalUtilized + amount;
-
-        // 🛡️ [TOTAL ALLOCATION RESTRICTION]
+        // Total allocation restraint warning
         if (totalAllocated > 0 && newTotal > totalAllocated) {
-            const maxAllowed = Math.max(0, totalAllocated - currentTotalUtilized);
-            alert(`⚠️ Overall Budget Restriction\n\nYou cannot exceed the school's total allocation (₱${totalAllocated.toLocaleString()}).\n\nMaximum allowable amount to input here is ₱${maxAllowed.toLocaleString()}.`);
+            const maxAllowed = Math.max(0, totalAllocated - otherTotal);
+            alert(`⚠️ Budget Limit Exceeded\n\nTotal utilization cannot exceed your school's official allocation (₱${totalAllocated.toLocaleString()}).\n\nMaximum allowable amount here is ₱${maxAllowed.toLocaleString()}.`);
             return;
         }
 
-        const newData = {
-            ...utilizationData,
+        setUtilizationData(prev => ({
+            ...prev,
             [intId]: {
-                ...(utilizationData[intId] || {}),
-                [activeQuarter]: {
-                    ...((utilizationData[intId] || {})[activeQuarter] || {}),
+                ...(prev[intId] || {}),
+                [viewingQuarter]: {
+                    ...((prev[intId] || {})[viewingQuarter] || {}),
                     amount: value,
-                    status: (utilizationData[intId] || {})[activeQuarter]?.status || 'Not Yet Started'
+                    status: (prev[intId] || {})[viewingQuarter]?.status || 'Not Yet Started'
                 }
             }
-        };
-        setUtilizationData(newData);
+        }));
+        setHasUnsavedChanges(true);
+    };
+
+    const handleUpdateStatus = (intId, status) => {
+        setUtilizationData(prev => ({
+            ...prev,
+            [intId]: {
+                ...(prev[intId] || {}),
+                [viewingQuarter]: {
+                    ...((prev[intId] || {})[viewingQuarter] || {}),
+                    amount: (prev[intId] || {})[viewingQuarter]?.amount !== undefined ? (prev[intId] || {})[viewingQuarter].amount : '',
+                    status: status
+                }
+            }
+        }));
         setHasUnsavedChanges(true);
     };
 
@@ -456,8 +154,8 @@ const SIIFUtilization = ({ user, token }) => {
             ...prev,
             [intId]: {
                 ...(prev[intId] || {}),
-                [activeQuarter]: {
-                    ...((prev[intId] || {})[activeQuarter] || {}),
+                [viewingQuarter]: {
+                    ...((prev[intId] || {})[viewingQuarter] || {}),
                     justification: text
                 }
             }
@@ -465,79 +163,126 @@ const SIIFUtilization = ({ user, token }) => {
         setHasUnsavedChanges(true);
     };
 
-    const handleUpdateStatus = (intId, status) => {
-        const newData = {
-            ...utilizationData,
-            [intId]: {
-                ...(utilizationData[intId] || {}),
-                [activeQuarter]: {
-                    ...((utilizationData[intId] || {})[activeQuarter] || {}),
-                    amount: (utilizationData[intId] || {})[activeQuarter]?.amount !== undefined ? (utilizationData[intId] || {})[activeQuarter].amount : ((utilizationData[intId] || {})[activeQuarter] || ''),
-                    status: status
-                }
-            }
-        };
-        setUtilizationData(newData);
-        setHasUnsavedChanges(true);
-    };
-
+    // ─── Save Handler ──────────────────────────────────────────────────────────
     const handleSave = async () => {
-        // ─── Budget Validation ──────────────────────────────────────────────
         if (totalAllocated > 0 && totalUtilized > totalAllocated) {
-            alert(`⚠️ Over Budget Limit\n\nTotal utilization (₱${totalUtilized.toLocaleString()}) exceeds your budget (₱${totalAllocated.toLocaleString()}).\n\nPlease reduce the amounts before saving.`);
+            alert(`⚠️ Over Allocation Limit\n\nTotal utilization (₱${totalUtilized.toLocaleString()}) exceeds the school allocation (₱${totalAllocated.toLocaleString()}).\nPlease adjust your figures before saving.`);
+            return;
+        }
+
+        const schoolId = user?.school_id || user?.schoolId || user?.id || user?.uid || user?.sub;
+        if (!schoolId) {
+            alert('Error: School ID could not be identified from your account session.');
             return;
         }
 
         setSaving(true);
         try {
-            // Auto-fill untouched inputs for the active quarter with 0 and Not Yet Started
-            const finalUtilizationData = { ...utilizationData };
-            if (activeQuarter) {
-                selectedInterventions.forEach(intId => {
-                    if (!finalUtilizationData[intId]) {
-                        finalUtilizationData[intId] = {};
-                    }
-                    if (!finalUtilizationData[intId][activeQuarter]) {
-                        finalUtilizationData[intId][activeQuarter] = { amount: '0', status: 'Not Yet Started', justification: '' };
+            // Auto-clean: ensure valid values for active quarter in active interventions
+            const payloadData = { ...utilizationData };
+            selectedInterventions.forEach(intId => {
+                if (!payloadData[intId]) payloadData[intId] = {};
+                periods.forEach(p => {
+                    if (!payloadData[intId][p.id]) {
+                        payloadData[intId][p.id] = { amount: '0', status: 'Not Yet Started', justification: '' };
                     }
                 });
-            }
+            });
 
-            console.log('💾 [SIIFUtilization] Saving utilization updates:', finalUtilizationData);
-            await updateUtilization(submission.submissionId, finalUtilizationData, token);
+            // Construct unified selected_interventions containing quarters and subtotal
+            const unifiedSelected = selectedInterventions.map(intId => {
+                const intMeta = INTERVENTIONS.find(i => i.id === intId) || { label: intId };
+                const quarters = payloadData[intId] || {};
+                let totalSpent = 0;
+                Object.values(quarters).forEach(q => {
+                    totalSpent += (parseFloat(q?.amount !== undefined ? q.amount : q) || 0);
+                });
+                return {
+                    id: intId,
+                    title: intMeta.label || intId,
+                    quarters,
+                    total_spent: totalSpent
+                };
+            });
 
-            // Sync local state so it reflects the defaults we just saved
-            setUtilizationData(finalUtilizationData);
+            const payload = {
+                schoolId,
+                selectedInterventions: unifiedSelected,
+                utilizationData: payloadData,
+                fiscalYear: officialAllocation?.fiscal_year || new Date().getFullYear(),
+            };
+
+            console.log('💾 [SIIFUtilization] Saving modified utilization:', payload);
+            await saveModifiedUtilization(payload, token);
+
+            setUtilizationData(payloadData);
             setHasUnsavedChanges(false);
-
-            console.log('✅ [SIIIFUtilization] Data saved successfully');
-            alert('Quarterly updates saved successfully!');
+            alert('✅ Utilization updates saved successfully!');
+            refetch();
         } catch (err) {
             console.error('🔥 [SIIFUtilization] Save failed:', err);
-            alert('Error saving: ' + err.message);
+            alert('Error saving updates: ' + err.message);
         } finally {
             setSaving(false);
         }
     };
 
     return (
-        <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg siif-utilization-page">
+        <main className="w-full pt-3 sm:pt-4 lg:pt-6 pb-32 text-lg siif-utilization-page">
             
-            {/* ── Header ── */}
-            <header className="topbar print:hidden mb-8">
+            {/* ── Standalone Navigation & Account Header Bar ── */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-200/90 print:hidden">
+                <button
+                    type="button"
+                    onClick={() => navigate('/nodes-dashboard')}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 shadow-sm hover:shadow transition-all cursor-pointer group"
+                >
+                    <div className="w-6 h-6 rounded-lg bg-[#10346B] text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                        <FiGrid size={13} />
+                    </div>
+                    <span>Back to Nexus Portal</span>
+                </button>
+
+                <div className="flex items-center gap-3 ml-auto">
+                    <div className="text-right hidden sm:block">
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-[#0038A8] block">
+                            SCHOOL HEAD
+                        </span>
+                        <span className="text-xs font-bold text-slate-700 block truncate max-w-[240px]">
+                            {user?.school_name || "SIIF Utilization Hub"}
+                        </span>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={confirmLogout}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 shadow-sm hover:shadow transition-all cursor-pointer"
+                    >
+                        <FiLogOut size={15} />
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Topbar / Header ── */}
+            <header className="topbar print:hidden mb-6">
                 <div className="page-title">
                     <p className="eyebrow">
                         DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
                     </p>
                     <h1>School Innovation and Improvement Fund</h1>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">
+                        Quarterly Utilization Input Tool
+                    </p>
                 </div>
 
                 <div className="siif-topbar-actions w-full sm:w-auto mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    
                     {/* Overall Progress Pill */}
-                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.1)] px-4 py-2">
+                    <section className="siif-school-pill w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-1 shadow-[0_4px_12px_rgba(0,0,0,0.08)] px-4 py-2 bg-white rounded-2xl border border-slate-100">
                         <div className="flex flex-col items-start sm:items-end">
-                            <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>Total Utilized</small>
+                            <small style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)' }}>
+                                Total Utilized
+                            </small>
                             <strong style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: 0, lineHeight: 1.1 }}>
                                 {overallProgress.toFixed(1)}%
                             </strong>
@@ -549,36 +294,38 @@ const SIIFUtilization = ({ user, token }) => {
                 </div>
             </header>
 
-            {/* ─── Summary Dashboard ─── */}
-            <div className="grid grid-cols-1 gap-4 mb-8 mt-6">
+            {/* ── Summary Dashboard Banner ── */}
+            <div className="grid grid-cols-1 gap-4 mb-6">
                 <article className="siif-card siif-progress-highlight">
                     <div className="siif-card-inner relative overflow-hidden">
-                        <div className="siif-card-header relative z-10">
+                        <div className="siif-card-header relative z-10 flex flex-wrap justify-between items-start gap-2">
                             <div>
                                 <h2>FY {officialAllocation?.fiscal_year || new Date().getFullYear()} Total Utilization Progress</h2>
                                 <p className="siif-card-subtitle">
-                                    {officialAllocation.allocation_amount > 0
-                                        ? "Based on Finance Official Allocation"
-                                        : "Based on School Estimated Budget"}
-                                    {officialAllocation.remarks && ` • ${officialAllocation.remarks}`}
+                                    Official Allocation: <strong className="text-slate-800">₱{totalAllocated.toLocaleString('en-PH', { maximumFractionDigits: 2 })}</strong>
+                                    {officialAllocation?.remarks && ` • ${officialAllocation.remarks}`}
                                 </p>
                             </div>
                             <span className={`siif-status ${overallProgress > 100 ? 'bad bg-red-50 text-red-600 border border-red-200' : 'ok'}`}>
-                                {overallProgress.toFixed(1)}%
+                                {overallProgress.toFixed(1)}% Utilized
                             </span>
                         </div>
 
-                        <div className="flex flex-row items-baseline justify-between w-full gap-4 relative z-10" style={{ paddingTop: '20px', paddingBottom: '16px' }}>
+                        <div className="flex flex-row items-baseline justify-between w-full gap-4 relative z-10 pt-4 pb-3">
                             <div className="min-w-0">
-                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-500 mb-1">Total Utilized</p>
-                                <h3 className="siif-big-number text-xl sm:text-2xl md:text-3xl font-black text-[#08315F] leading-none whitespace-nowrap" style={{ letterSpacing: 'normal' }}>
+                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-500 mb-1">
+                                    Total Spent 
+                                </p>
+                                <h3 className="siif-big-number text-xl sm:text-2xl md:text-3xl font-black text-[#08315F] leading-none whitespace-nowrap">
                                     ₱{totalUtilized.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
                                 </h3>
                             </div>
                             <div className="text-right shrink-0 flex flex-col items-end">
-                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-400 mb-1">Total Allocated</p>
-                                <h3 className="siif-big-number text-sm sm:text-base md:text-xl font-bold text-slate-400 leading-none whitespace-nowrap" style={{ letterSpacing: 'normal' }}>
-                                    / ₱{totalAllocated.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
+                                <p className="siif-card-subtitle text-[10px] sm:text-xs uppercase font-extrabold text-slate-400 mb-1">
+                                    Remaining Balance
+                                </p>
+                                <h3 className="siif-big-number text-sm sm:text-base md:text-xl font-bold text-slate-500 leading-none whitespace-nowrap">
+                                    ₱{remainingBalance.toLocaleString('en-PH', { maximumFractionDigits: 2 })}
                                 </h3>
                             </div>
                         </div>
@@ -589,280 +336,344 @@ const SIIFUtilization = ({ user, token }) => {
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.min(overallProgress, 100)}%` }}
                                 style={{ background: overallProgress > 100 ? 'var(--red)' : 'var(--blue)' }}
-                                transition={{ duration: 1.2, ease: 'easeOut' }}
+                                transition={{ duration: 1.0, ease: 'easeOut' }}
                             >
                                 {overallProgress.toFixed(1)}%
                             </motion.div>
                         </div>
-
-                        {/* Background decoration */}
-                        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-deped-blue/5 rounded-full blur-3xl pointer-events-none z-0"></div>
                     </div>
                 </article>
 
-                {/* Information Note */}
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 shadow-sm mx-1">
-                    <TbAlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
-                    <div>
-                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1" style={{ fontFamily: 'var(--font-heading)' }}>Utilization Note</p>
-                        <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
-                            Quarterly utilization can exceed the estimated budget set for a specific intervention, but the total utilization across all quarters must not exceed your official total allocation.
-                        </p>
+                {totalAllocated === 0 && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3 shadow-sm mx-1">
+                        <TbAlertCircle className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                        <div>
+                            <p className="text-[11px] font-black text-blue-900 uppercase tracking-wider mb-0.5">Allocation Notice</p>
+                            <p className="text-xs text-blue-800 font-medium leading-relaxed">
+                                No official finance allocation was found for your school ID yet. You can still select interventions and record quarterly expenditures.
+                            </p>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* ─── Quarterly Navigation ─── */}
-            <div className="flex bg-slate-200/50 p-1 rounded-2xl mb-2">
+            {/* ── Quarterly Navigation Tabs ── */}
+            <div className="flex bg-slate-200/60 p-1.5 rounded-2xl mb-6 shadow-inner">
                 {periods.map(p => {
                     const isCurrent = p.id === activeQuarter;
                     const isSelected = p.id === viewingQuarter;
-                    const isLocked = p.id !== activeQuarter;
 
                     return (
                         <button
                             key={p.id}
                             onClick={() => setViewingQuarter(p.id)}
-                            disabled={isLocked}
-                            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex flex-col items-center gap-0.5 ${isLocked
-                                    ? 'bg-slate-100/50 text-slate-400 cursor-not-allowed opacity-50'
-                                    : isSelected
-                                        ? 'bg-white text-[#0038A8] shadow-md'
-                                        : 'text-slate-500 hover:bg-white/50'
-                                }`}
+                            className={`flex-1 py-3 px-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex flex-col items-center gap-0.5 border-0 cursor-pointer ${
+                                isSelected
+                                    ? 'bg-white text-[#0038A8] shadow-md transform scale-[1.01]'
+                                    : 'bg-transparent text-slate-600 hover:bg-white/40'
+                            }`}
                         >
                             <span>{p.label}</span>
-                            {isCurrent && <span className="text-[8px] text-emerald-500 font-black tracking-normal lowercase">Active Now</span>}
-                            {isLocked && <TbLock size={10} className="text-slate-400" />}
+                            {isCurrent && (
+                                <span className="text-[9px] text-emerald-600 font-extrabold tracking-normal">
+                                    • Active Phase
+                                </span>
+                            )}
                         </button>
                     );
                 })}
             </div>
-            {activeQuarter === '' && (
-                <div className="mb-8 p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2">
-                    <TbAlertCircle size={16} className="text-amber-500" />
-                    <p className="text-[10px] font-bold text-amber-800">
-                        OFF-SEASON: The utilization reporting window is currently closed.
-                    </p>
+
+            {/* ── INTERVENTION ACTIVATOR / SELECTOR (CORE PIVOT UPGRADE) ── */}
+            <section className="mb-8 bg-white border border-slate-200/90 rounded-3xl p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
+                            <TbLayersLinked size={22} />
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                                Select Interventions to Track
+                            </h2>
+                            <p className="text-xs text-slate-500 font-medium">
+                                Toggle ON the interventions your school is utilizing funds for:
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 bg-indigo-50 text-indigo-700 font-black text-xs rounded-full border border-indigo-100">
+                            {selectedInterventions.length} of {INTERVENTIONS.length} Active
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setSelectorExpanded(!selectorExpanded)}
+                            className="text-xs text-slate-500 font-bold px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-all border-0 bg-transparent cursor-pointer"
+                        >
+                            {selectorExpanded ? 'Collapse' : 'Expand Interventions'}
+                        </button>
+                    </div>
                 </div>
-            )}
-            <div className="mb-8" />
 
-            {/* ─── Intervention List ─── */}
-            <div className="mb-8">
-                <div className="flex justify-between items-center mb-4 px-2">
-                    <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Planned Interventions</h2>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-stretch">
-                    {selectedInterventions.map(intId => {
-                    const allocation = budgetEstimates[intId] || 0;
-                    const qData = utilizationData[intId] || {};
-                    const qValObj = qData[viewingQuarter] || {};
-                    const currentVal = qValObj?.amount !== undefined ? qValObj.amount : qValObj;
-                    const currentStatus = qValObj?.status || 'Not Yet Started';
-
-                    // Calculate total used for this intervention so far
-                    const totalUsedInt = Object.values(qData).reduce((sum, val) => sum + (parseFloat(val?.amount !== undefined ? val.amount : val) || 0), 0);
-                    const intProgress = allocation > 0 ? (totalUsedInt / allocation) * 100 : 0;
-
-                    return (
-                        <article key={intId} className="siif-card h-full">
-                            <div className="siif-card-inner flex flex-col" style={{ height: '100%' }}>
-                                <div className="flex flex-wrap items-start justify-between gap-3 mb-4 border-b border-slate-100 pb-4 shrink-0">
-                                    <div className="flex gap-3 items-center min-w-0">
-                                        <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 shadow-sm shrink-0">
-                                            <TbTarget size={20} />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <h2 className="truncate" style={{ fontSize: '14px', lineHeight: 1.2 }} title={intId}>{intId}</h2>
-                                            <p className="siif-card-subtitle mt-1 leading-tight">
-                                                Allocated: <strong style={{ color: 'var(--blue)' }}>₱ {allocation.toLocaleString()}</strong>
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="shrink-0">
-                                        <span className={`inline-block px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg whitespace-nowrap ${intProgress > 100 ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
-                                            {intProgress.toFixed(0)}% Utilized
-                                        </span>
-                                    </div>
-                                </div>
-
-                            <div className="relative flex-1 overflow-y-auto siif-intervention-scroll">
-                                {(() => {
-                                    // Check if overall school budget is exhausted
-                                    let prevOverallTotal = 0;
-                                    const viewIdx = periods.findIndex(p => p.id === viewingQuarter);
-                                    selectedInterventions.forEach(id => {
-                                        const iData = utilizationData[id] || {};
-                                        for (let i = 0; i < viewIdx; i++) {
-                                            const qVal = iData[periods[i].id];
-                                            prevOverallTotal += (parseFloat(qVal?.amount !== undefined ? qVal.amount : qVal) || 0);
-                                        }
-                                    });
-                                    const isBudgetExhausted = totalAllocated > 0 && prevOverallTotal >= totalAllocated;
-                                    const isOffSeason = activeQuarter === '';
-                                    const isNotActiveWindow = viewingQuarter !== activeQuarter;
-                                    const isInputLocked = isBudgetExhausted || isOffSeason || isNotActiveWindow;
+                <AnimatePresence>
+                    {selectorExpanded && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="overflow-hidden"
+                        >
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 pt-2">
+                                {INTERVENTIONS.map(item => {
+                                    const isSelected = selectedInterventions.includes(item.id);
+                                    const Icon = INTERVENTION_ICONS[item.id] || <TbTarget size={18} />;
 
                                     return (
-                                        <div className="relative flex flex-col gap-3">
-                                            <div className="relative">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm select-none pointer-events-none z-10">₱</span>
-                                                <input
-                                                    type="number"
-                                                    value={typeof currentVal === 'object' ? '' : currentVal}
-                                                    onChange={(e) => handleUpdateUtilization(intId, e.target.value)}
-                                                    disabled={isInputLocked}
-                                                    placeholder={isInputLocked ? (isOffSeason ? "WINDOW CLOSED" : isNotActiveWindow ? "NOT ACTIVE PHASE" : "ALLOCATION EXHAUSTED") : "0.00"}
-                                                    style={{ paddingLeft: '48px' }}
-                                                    className={`w-full border-none rounded-2xl py-4 pr-4 text-sm font-bold transition-all ${isInputLocked
-                                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
-                                                            : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20'
-                                                        }`}
-                                                />
-                                                {isInputLocked && (
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
-                                                        <TbLock size={16} />
-                                                        <span className="text-[10px] font-black uppercase">{isOffSeason ? "Archived" : isNotActiveWindow ? "Locked" : "Maxed"}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="relative">
-                                                <select
-                                                    value={currentStatus}
-                                                    onChange={(e) => handleUpdateStatus(intId, e.target.value)}
-                                                    disabled={isInputLocked}
-                                                    className={`w-full border-none rounded-2xl py-3 pl-4 pr-10 text-sm font-bold transition-all appearance-none ${isInputLocked
-                                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed italic'
-                                                            : 'bg-slate-50 text-slate-900 focus:ring-2 focus:ring-deped-blue/20 cursor-pointer'
-                                                        }`}
-                                                >
-                                                    <option value="Not Yet Started">Not Yet Started</option>
-                                                    <option value="Ongoing">Ongoing</option>
-                                                    <option value="Completed">Completed</option>
-                                                </select>
-                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                                    <TbChevronRight size={16} className="rotate-90" />
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => handleToggleIntervention(item.id)}
+                                            className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between gap-2.5 cursor-pointer relative overflow-hidden group ${
+                                                isSelected
+                                                    ? 'bg-gradient-to-br from-indigo-50/80 to-blue-50/50 border-indigo-300 shadow-sm shadow-indigo-100'
+                                                    : 'bg-slate-50/80 border-slate-200/80 hover:bg-slate-100/70 opacity-75 hover:opacity-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between w-full">
+                                                <div className={`p-2 rounded-xl shrink-0 transition-colors ${
+                                                    isSelected ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-200'
+                                                }`}>
+                                                    {Icon}
                                                 </div>
+                                                <span className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                                                    isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400 group-hover:bg-slate-300'
+                                                }`}>
+                                                    {isSelected ? <TbCheck size={12} /> : <TbPlus size={12} />}
+                                                </span>
                                             </div>
 
-                                            {/* Justification zone */}
-                                            <div className="overflow-hidden">
-                                                <AnimatePresence>
-                                                    {parseFloat(currentVal) > allocation && !isNotActiveWindow && (
-                                                        <motion.div
-                                                            initial={{ opacity: 0, y: 6 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            exit={{ opacity: 0, y: 6 }}
-                                                            transition={{ duration: 0.18 }}
+                                            <div>
+                                                <h3 className={`text-xs font-black leading-tight truncate ${isSelected ? 'text-indigo-950' : 'text-slate-700'}`} title={item.label}>
+                                                    {item.label}
+                                                </h3>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 block">
+                                                    {isSelected ? 'Activated' : 'Click to Add'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </section>
+
+            {/* ── Active Interventions Section ── */}
+            <div className="mb-8">
+                <div className="flex justify-between items-center mb-4 px-1">
+                    <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                        Active Interventions for {periods.find(p => p.id === viewingQuarter)?.label || viewingQuarter}
+                    </h2>
+                    <span className="text-xs font-bold text-slate-400">
+                        {selectedInterventions.length} cards displayed
+                    </span>
+                </div>
+
+                {selectedInterventions.length === 0 ? (
+                    <article className="siif-card text-center p-10 bg-slate-50/80 border-2 border-dashed border-slate-200 rounded-3xl">
+                        <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto mb-4 border border-indigo-100 shadow-sm">
+                            <TbTarget size={32} />
+                        </div>
+                        <h3 className="text-lg font-black text-slate-800 mb-1">
+                            No Interventions Selected Yet
+                        </h3>
+                        <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+                            Click any intervention in the selector above to activate it and record utilization amounts.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setSelectorExpanded(true)}
+                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-indigo-700 transition-all border-0 cursor-pointer shadow-md shadow-indigo-600/20"
+                        >
+                            Select Interventions Above
+                        </button>
+                    </article>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch">
+                        {selectedInterventions.map(intId => {
+                            const intMeta = INTERVENTIONS.find(i => i.id === intId) || { label: intId };
+                            const qData = utilizationData[intId] || {};
+                            const currentQuarterObj = qData[viewingQuarter] || {};
+                            const currentVal = currentQuarterObj?.amount !== undefined ? currentQuarterObj.amount : currentQuarterObj;
+                            const currentStatus = currentQuarterObj?.status || 'Not Yet Started';
+                            const currentJustification = currentQuarterObj?.justification || '';
+
+                            // Calculate total utilized for this intervention across all quarters
+                            let totalThisInt = 0;
+                            periods.forEach(p => {
+                                const qv = qData[p.id];
+                                totalThisInt += (parseFloat(qv?.amount !== undefined ? qv.amount : qv) || 0);
+                            });
+
+                            return (
+                                <article key={intId} className="siif-card h-full transition-all hover:shadow-lg">
+                                    <div className="siif-card-inner flex flex-col justify-between" style={{ minHeight: '340px' }}>
+                                        
+                                        {/* Card Header */}
+                                        <div>
+                                            <div className="flex items-start justify-between gap-3 mb-3 border-b border-slate-100 pb-3">
+                                                <div className="flex gap-2.5 items-center min-w-0">
+                                                    <div className="w-9 h-9 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
+                                                        {INTERVENTION_ICONS[intId] || <TbTarget size={18} />}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h3 className="truncate text-sm font-black text-slate-800" title={intMeta.label}>
+                                                            {intMeta.label}
+                                                        </h3>
+                                                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+                                                            Total: <strong className="text-indigo-600">₱{totalThisInt.toLocaleString()}</strong>
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleIntervention(intId)}
+                                                    title="Deactivate this intervention"
+                                                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 flex items-center justify-center transition-all border-0 cursor-pointer shrink-0"
+                                                >
+                                                    <TbMinus size={14} />
+                                                </button>
+                                            </div>
+
+                                            {/* Inputs Zone */}
+                                            <div className="flex flex-col gap-3 pt-1">
+                                                
+                                                {/* Utilized Amount */}
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                        Utilized Amount ({viewingQuarter})
+                                                    </label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm select-none pointer-events-none">
+                                                            ₱
+                                                        </span>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="any"
+                                                            value={typeof currentVal === 'object' ? '' : currentVal}
+                                                            onChange={(e) => handleUpdateUtilization(intId, e.target.value)}
+                                                            placeholder="0.00"
+                                                            style={{ paddingLeft: '40px' }}
+                                                            className="w-full border border-slate-200 rounded-2xl py-3 pr-4 text-sm font-bold bg-slate-50 text-slate-900 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Implementation Status */}
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                        Implementation Status
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={currentStatus}
+                                                            onChange={(e) => handleUpdateStatus(intId, e.target.value)}
+                                                            className="w-full border border-slate-200 rounded-2xl py-2.5 pl-3 pr-8 text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:border-indigo-400 outline-none transition-all appearance-none cursor-pointer"
                                                         >
-                                                            <div className="pt-2">
-                                                                <div className="rounded-xl overflow-hidden border border-amber-200 shadow-sm shadow-amber-100/60">
-                                                                    {/* Header bar */}
-                                                                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-400">
-                                                                        <div className="w-4 h-4 rounded-md bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                                                                            <TbAlertCircle size={10} className="text-white" />
-                                                                        </div>
-                                                                        <span className="text-[9px] font-black text-white uppercase tracking-widest leading-none">Justification Required</span>
-                                                                    </div>
-                                                                    {/* Textarea */}
-                                                                    <textarea
-                                                                        value={qValObj?.justification || ''}
-                                                                        onChange={(e) => handleUpdateJustification(intId, e.target.value)}
-                                                                        disabled={isInputLocked}
-                                                                        placeholder="Provide a detailed justification for exceeding the allocated budget estimate..."
-                                                                        className={`w-full border-none p-3 text-xs font-medium transition-all resize-none outline-none focus:outline-none h-[85px] ${
-                                                                            !qValObj?.justification?.trim()
-                                                                                ? 'bg-amber-50 placeholder-amber-400/70 text-amber-900'
-                                                                                : 'bg-slate-50 text-slate-700'
-                                                                        }`}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
+                                                            <option value="Not Yet Started">Not Yet Started</option>
+                                                            <option value="Ongoing">Ongoing</option>
+                                                            <option value="Completed">Completed</option>
+                                                        </select>
+                                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                            <TbChevronRight size={14} className="rotate-90" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Justification / Notes */}
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                        Remarks / Justification
+                                                    </label>
+                                                    <textarea
+                                                        value={currentJustification}
+                                                        onChange={(e) => handleUpdateJustification(intId, e.target.value)}
+                                                        rows={2}
+                                                        placeholder="Optional notes or accomplishment description..."
+                                                        className="w-full border border-slate-200 rounded-2xl p-2.5 text-xs font-medium text-slate-700 bg-slate-50 focus:bg-white focus:border-indigo-400 outline-none transition-all resize-none"
+                                                    />
+                                                </div>
+
                                             </div>
                                         </div>
-                                    );
-                                })()}
-                            </div>
-                        </div>
-                    </article>
-                );
-                })}
-                </div>
+
+                                        {/* Status Footer Pill */}
+                                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                                            <span className="font-extrabold text-slate-400 uppercase tracking-wider">
+                                                Status:
+                                            </span>
+                                            <span className={`px-2 py-0.5 rounded-md font-black uppercase tracking-wider ${
+                                                currentStatus === 'Completed'
+                                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                                    : currentStatus === 'Ongoing'
+                                                        ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                                                        : 'bg-slate-100 text-slate-500'
+                                            }`}>
+                                                {currentStatus}
+                                            </span>
+                                        </div>
+
+                                    </div>
+                                </article>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
-            {/* ─── Save Action ─── */}
+            {/* ── Save Action Bar ── */}
             <div className="mt-8 pb-12">
-                {(() => {
-                    let missingJustification = false;
-                    if (activeQuarter) {
-                        selectedInterventions.forEach(intId => {
-                            const qData = utilizationData[intId] || {};
-                            const qValObj = qData[activeQuarter] || {};
-                            const amount = parseFloat(qValObj?.amount !== undefined ? qValObj.amount : qValObj) || 0;
-                            const allocation = budgetEstimates[intId] || 0;
-                            if (amount > allocation && !qValObj?.justification?.trim()) {
-                                missingJustification = true;
-                            }
-                        });
-                    }
+                {totalAllocated > 0 && totalUtilized > totalAllocated && (
+                    <div className="mb-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
+                        <TbAlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
+                        <p className="text-xs text-rose-700 font-bold leading-relaxed">
+                            UNABLE TO SAVE: Total utilization (₱{totalUtilized.toLocaleString()}) exceeds your official allocation (₱{totalAllocated.toLocaleString()}). Please adjust the entered amounts.
+                        </p>
+                    </div>
+                )}
 
-                    const isSaveDisabled = saving || (totalAllocated > 0 && totalUtilized > totalAllocated) || activeQuarter === '' || viewingQuarter !== activeQuarter || missingJustification;
-
-                    return (
+                <button
+                    onClick={handleSave}
+                    disabled={saving || (totalAllocated > 0 && totalUtilized > totalAllocated) || !hasUnsavedChanges}
+                    className={`w-full py-4 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.99] transition-all border-0 cursor-pointer disabled:cursor-not-allowed ${
+                        totalAllocated > 0 && totalUtilized > totalAllocated
+                            ? 'bg-rose-500 shadow-rose-500/20 disabled:opacity-50'
+                            : !hasUnsavedChanges
+                                ? 'bg-slate-800 shadow-slate-800/20 opacity-80'
+                                : 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600'
+                    }`}
+                >
+                    {saving ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : !hasUnsavedChanges ? (
                         <>
-                            {totalUtilized > totalAllocated && (
-                                <div className="mb-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3">
-                                    <TbAlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
-                                    <p className="text-[11px] text-rose-700 font-bold leading-relaxed">
-                                        UNABLE TO SAVE: Total utilization (₱{totalUtilized.toLocaleString()}) exceeds the allocated budget (₱{totalAllocated.toLocaleString()}). Please adjust your inputs.
-                                    </p>
-                                </div>
-                            )}
-                            {missingJustification && totalUtilized <= totalAllocated && (
-                                <div className="mb-4 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
-                                    <TbAlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
-                                    <p className="text-[11px] text-amber-700 font-bold leading-relaxed">
-                                        JUSTIFICATION REQUIRED: You have entered amounts exceeding the initial budget estimates. Please provide a justification for all highlighted fields before saving.
-                                    </p>
-                                </div>
-                            )}
-
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaveDisabled || !hasUnsavedChanges}
-                                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:cursor-not-allowed ${(totalAllocated > 0 && totalUtilized > totalAllocated)
-                                        ? 'bg-rose-500 shadow-rose-500/20 disabled:opacity-50'
-                                        : (activeQuarter === '' || viewingQuarter !== activeQuarter)
-                                            ? 'bg-slate-400 shadow-slate-400/20 disabled:opacity-50'
-                                            : !hasUnsavedChanges
-                                                ? 'bg-slate-800 shadow-slate-800/20 opacity-80'
-                                                : 'bg-emerald-500 shadow-emerald-500/20'
-                                    }`}
-                            >
-                                {saving ? (
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                ) : !hasUnsavedChanges ? (
-                                    <>
-                                        <TbCheck size={20} className="text-emerald-400" />
-                                        All Updates Saved
-                                    </>
-                                ) : (
-                                    <>
-                                        <TbCheck size={20} />
-                                        Save Quarterly Updates
-                                    </>
-                                )}
-                            </button>
+                            <TbCheck size={20} className="text-emerald-400" />
+                            All Utilization Updates Saved
                         </>
-                    );
-                })()}
-                <p className="text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-4 italic">
-                    {activeQuarter === '' ? "Reporting window is closed" : "Updates will be reflected in the dashboard progress"}
+                    ) : (
+                        <>
+                            <TbDeviceFloppy size={20} />
+                            Save Quarterly Updates
+                        </>
+                    )}
+                </button>
+
+                <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-4 italic">
+                    Updates will sync with your school's official spent amount and division records
                 </p>
             </div>
         </main>

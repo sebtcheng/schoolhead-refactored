@@ -96,3 +96,43 @@ export async function updateUtilization(submissionId, utilizationData, token) {
     if (!res.ok) throw new Error(`Utilization update failed: ${res.status}`);
     return res.json();
 }
+
+// ─── Modified Utilization (Tactical Pivot) ───────────────────────────────────
+
+/**
+ * Fetch modified utilization and official allocation for a school.
+ * @param {string} schoolId
+ * @param {string} token
+ * @param {number} [fiscalYear]
+ */
+export async function fetchModifiedUtilization(schoolId, token, fiscalYear) {
+    const query = fiscalYear ? `?fiscalYear=${fiscalYear}` : '';
+    const res = await fetch(api(`/siif/modified-utilization/${schoolId}${query}`), {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Modified utilization fetch failed: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Save modified utilization data and active interventions for a school.
+ * @param {object} payload — { schoolId, selectedInterventions, utilizationData, fiscalYear }
+ * @param {string} token
+ */
+export async function saveModifiedUtilization(payload, token) {
+    const res = await fetch(api('/siif/modified-utilization'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok || !data.success) {
+        throw new Error(data.error || `Save modified utilization failed: ${res.status}`);
+    }
+    return data;
+}
+
