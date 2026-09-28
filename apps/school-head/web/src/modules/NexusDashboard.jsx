@@ -30,7 +30,11 @@ const NodesDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showEdWelcome, setShowEdWelcome] = useState(false);
-  const [dynamicLocks, setDynamicLocks] = useState({});
+  const [dynamicLocks, setDynamicLocks] = useState({
+    'school-info': true,
+    'siif': true,
+    'esf7': false
+  });
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
 
@@ -62,7 +66,11 @@ const NodesDashboard = () => {
             const locksData = await locksRes.json();
             if (locksData && locksData.value) {
               try {
-                setDynamicLocks(JSON.parse(locksData.value));
+                const parsed = JSON.parse(locksData.value);
+                setDynamicLocks(prev => ({
+                  ...prev,
+                  ...parsed
+                }));
               } catch (e) {
                 console.error("Failed to parse nexus locks", e);
               }
@@ -78,6 +86,22 @@ const NodesDashboard = () => {
   }, [user]);
 
   const handleCardClick = (route, id) => {
+    if (route.startsWith('http')) {
+      const token = user?.token || localStorage.getItem('token');
+      if (token) {
+        try {
+          const targetUrl = new URL(route);
+          targetUrl.searchParams.set('token', token);
+          window.location.href = targetUrl.toString();
+          return;
+        } catch (e) {
+          console.error("Invalid URL:", e);
+        }
+      }
+      window.location.href = route;
+      return;
+    }
+
     if (!user) {
       console.log(`[NexusDashboard] Unauthenticated click on module "${id}". Redirecting to login with target: ${route}`);
       sessionStorage.setItem('login_target_redirect', route);
@@ -85,14 +109,7 @@ const NodesDashboard = () => {
       return;
     }
 
-    if (route.startsWith('http')) {
-      const token = user?.token || localStorage.getItem('token');
-      const targetUrl = new URL(route);
-      targetUrl.searchParams.set('token', token);
-      window.location.href = targetUrl.toString();
-    } else {
-      navigate(route);
-    }
+    navigate(route);
   };
 
   const calculateProgress = (unitIds) => {
@@ -129,7 +146,7 @@ const NodesDashboard = () => {
       progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       route: '/my-activity',
       description: 'Console for Learning and Operation in Unified Database. Access to school data.',
-      isLocked: dynamicLocks['school-info'] || false,
+      isLocked: dynamicLocks['school-info'] !== undefined ? dynamicLocks['school-info'] : true,
       hideProgress: true,
       cardClass: 'support' // Emerald/Cyan theme
     },
@@ -139,7 +156,7 @@ const NodesDashboard = () => {
       subtitle: 'Inventory',
       icon: <TbReportAnalytics className="w-6 h-6 md:w-8 h-8" />,
       progress: questProgress.esf7_progress || 0,
-      route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
+      route: 'https://stride.deped.gov.ph/insighted-esf7-prod/',
       badge: dynamicLocks['esf7'] ? 'COMING SOON' : null,
       description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
       isLocked: dynamicLocks.hasOwnProperty('esf7') ? dynamicLocks['esf7'] : false,
@@ -153,7 +170,7 @@ const NodesDashboard = () => {
       progress: 0,
       route: '/siif',
       description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-      isLocked: dynamicLocks.hasOwnProperty('siif') ? dynamicLocks['siif'] : false,
+      isLocked: dynamicLocks['siif'] !== undefined ? dynamicLocks['siif'] : true,
       cardClass: 'admin' // Gold theme
     }
   ];
@@ -921,13 +938,13 @@ const NodesDashboard = () => {
                     <p>{mod.description}</p>
 
                     {mod.isLocked ? (
-                      <a className="portal-link" style={{ color: '#9CA3AF' }} aria-label={`Locked: ${mod.title}`}>
+                      <span className="portal-link" style={{ color: '#9CA3AF' }} aria-label={`Locked: ${mod.title}`}>
                         Access Restricted <FiLock className="ml-1" aria-hidden="true" />
-                      </a>
+                      </span>
                     ) : (
-                      <a className="portal-link" aria-label={`Enter ${mod.title} portal`}>
+                      <span className="portal-link" aria-label={`Enter ${mod.title} portal`}>
                         Enter portal <span aria-hidden="true">→</span>
-                      </a>
+                      </span>
                     )}
                   </article>
                 ))}

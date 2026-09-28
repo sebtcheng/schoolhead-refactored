@@ -15,7 +15,7 @@ customRouter.get('/api/settings/:key', async (req, res) => {
     const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
     if (result.rowCount === 0) {
         if (key === 'nexus_module_locks') {
-            return res.json({ value: JSON.stringify({ "school-info": false, "esf7": false, "nspp": true }) });
+            return res.json({ value: JSON.stringify({ "school-info": true, "esf7": false, "siif": true, "nspp": true }) });
         }
         if (key === 'maintenance_mode') {
             return res.json({ value: 'false' });
