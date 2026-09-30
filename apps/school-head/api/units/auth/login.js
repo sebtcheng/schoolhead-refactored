@@ -3,7 +3,15 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { FirebaseScrypt } from 'firebase-scrypt';
 
-import authMiddleware from '@shared/auth';
+import authMiddleware, {
+  maskEmail,
+  generateNumericOtp,
+  saveOtp,
+  verifyOtp,
+  consumeOtp,
+  dispatchResetEmail,
+  updateSchoolHeadPassword
+} from '@shared/auth';
 import { pool, poolUsers } from '@shared/db';
 
 const router = express.Router();
@@ -538,4 +546,167 @@ router.post('/api/system/align-unit8', authMiddleware, async (req, res) => {
   res.json({ success: true, message: "Unit 8 alignment protocol complete" });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// [FORGOT PASSWORD] GET /api/auth/lookup-masked-email/:identifier
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/api/auth/lookup-masked-email/:identifier', async (req, res) => {
+  const { identifier } = req.params;
+  if (!identifier) {
+    return res.status(400).json({ success: false, error: "School ID or email is required." });
+  }
+
+  const target = identifier.trim().toLowerCase();
+  try {
+    const query = `
+      SELECT uid, email, school_id, first_name, last_name 
+      FROM user_schoolhead 
+      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1)
+        AND (disabled = false OR disabled IS NULL)
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+    const result = await poolUsers.query(query, [target]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "No active School Head account found for this School ID or email." });
+    }
+
+    const user = result.rows[0];
+    if (!user.email) {
+      return res.status(400).json({ success: false, error: "No registered email address found on file for this account." });
+    }
+
+    const masked = maskEmail(user.email);
+    return res.json({
+      success: true,
+      schoolId: user.school_id,
+      maskedEmail: masked,
+      firstName: user.first_name || 'School Head'
+    });
+  } catch (err) {
+    console.error("❌ [LOOKUP MASKED EMAIL ERROR]:", err);
+    return res.status(500).json({ success: false, error: "Internal server error during email lookup." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [FORGOT PASSWORD] POST /api/auth/forgot-password/send-otp
+// Dispatches 6-digit OTP via Nodemailer using helpdesk.stride@deped.gov.ph
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/api/auth/forgot-password/send-otp', async (req, res) => {
+  const { identifier } = req.body;
+  if (!identifier) {
+    return res.status(400).json({ success: false, error: "School ID or email is required." });
+  }
+
+  const target = identifier.trim().toLowerCase();
+  try {
+    const query = `
+      SELECT uid, email, school_id, first_name, last_name 
+      FROM user_schoolhead 
+      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1)
+        AND (disabled = false OR disabled IS NULL)
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+    const result = await poolUsers.query(query, [target]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "No active School Head account found for this School ID or email." });
+    }
+
+    const user = result.rows[0];
+    if (!user.email) {
+      return res.status(400).json({ success: false, error: "No registered email address found for this account." });
+    }
+
+    // Generate 6-digit OTP and store in DB with 10-minute expiration
+    const otp = generateNumericOtp(6);
+    await saveOtp(poolUsers, user.email, otp, 10);
+
+    // Send email via Nodemailer
+    const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'School Head';
+    await dispatchResetEmail({
+      to: user.email,
+      code: otp,
+      name: displayName
+    });
+
+    console.log(`✅ [PASSWORD RESET] Sent OTP to ${user.email} (School ID: ${user.school_id})`);
+
+    return res.json({
+      success: true,
+      message: `Verification code sent to ${maskEmail(user.email)}`,
+      maskedEmail: maskEmail(user.email)
+    });
+  } catch (err) {
+    console.error("❌ [SEND OTP ERROR]:", err);
+    return res.status(500).json({ success: false, error: "Failed to send verification email. " + (err.message || "") });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [FORGOT PASSWORD] POST /api/auth/forgot-password/reset
+// Verifies OTP and hashes new password with bcrypt
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/api/auth/forgot-password/reset', async (req, res) => {
+  const { identifier, code, newPassword } = req.body;
+
+  if (!identifier || !code || !newPassword) {
+    return res.status(400).json({ success: false, error: "Identifier, verification code, and new password are required." });
+  }
+
+  const cleanCode = String(code).trim();
+  if (cleanCode.length !== 6) {
+    return res.status(400).json({ success: false, error: "Verification code must be 6 digits." });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, error: "Password must be at least 6 characters." });
+  }
+
+  const target = identifier.trim().toLowerCase();
+  try {
+    const query = `
+      SELECT uid, email, school_id 
+      FROM user_schoolhead 
+      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1)
+        AND (disabled = false OR disabled IS NULL)
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `;
+    const result = await poolUsers.query(query, [target]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Account not found." });
+    }
+
+    const user = result.rows[0];
+    const isValid = await verifyOtp(poolUsers, user.email, cleanCode);
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: "Invalid or expired verification code. Please request a new one." });
+    }
+
+    // Update password with bcrypt (salt 10)
+    await updateSchoolHeadPassword(poolUsers, user.uid, newPassword);
+
+    // Consume OTP so it cannot be reused
+    await consumeOtp(poolUsers, user.email);
+
+    console.log(`✅ [PASSWORD RESET] Password successfully updated for UID: ${user.uid} (${user.email})`);
+    return res.json({
+      success: true,
+      message: "Password updated successfully. You may now sign in with your new password."
+    });
+  } catch (err) {
+    console.error("❌ [RESET PASSWORD ERROR]:", err);
+    return res.status(500).json({ success: false, error: "Failed to reset password: " + (err.message || "") });
+  }
+});
+
+// Legacy alias compatibility
+router.post('/api/forgot-password', async (req, res) => {
+  const { schoolId, identifier } = req.body;
+  req.body.identifier = identifier || schoolId;
+  return router.handle(req, res);
+});
+
 export default router;
+
