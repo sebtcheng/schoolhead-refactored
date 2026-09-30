@@ -2,12 +2,16 @@
   "name": "@shared/auth",
   "version": "1.0.0",
   "type": "module",
-  "main": "./src/authMiddleware.js",
+  "main": "./src/index.js",
   "exports": {
-    ".": "./src/authMiddleware.js"
+    ".": "./src/index.js",
+    "./passwordReset": "./src/passwordReset.js",
+    "./authMiddleware": "./src/authMiddleware.js"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.3",
-    "@shared/db": "workspace:*"
+    "bcryptjs": "^2.4.3",
+    "@shared/db": "workspace:*",
+    "@shared/io": "workspace:*"
   }
 }

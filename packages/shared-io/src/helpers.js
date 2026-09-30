@@ -132,6 +132,96 @@ export const transporter = nodemailer.createTransport({
   }
 });
 
+/**
+ * Send Password Reset OTP email via Nodemailer from helpdesk.stride@deped.gov.ph
+ */
+export const sendPasswordResetEmail = async ({ to, code, identifierName = 'School Head' }) => {
+  const fromAddress = process.env.EMAIL_FROM || '"InsightEd Helpdesk" <helpdesk.stride@deped.gov.ph>';
+  const replyToAddress = 'helpdesk.stride@deped.gov.ph';
+
+  const mailOptions = {
+    from: fromAddress,
+    replyTo: replyToAddress,
+    to,
+    subject: 'InsightEd — Password Reset Verification Code',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>InsightEd Password Reset</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 30px 15px;">
+          <tr>
+            <td align="center">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
+                <!-- HEADER -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #004A99 0%, #002B5C 100%); padding: 36px 32px; text-align: center;">
+                    <div style="font-size: 26px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; margin: 0;">
+                      Insight<span style="color: #60a5fa;">Ed</span>
+                    </div>
+                    <div style="font-size: 11px; font-weight: 700; color: #93c5fd; text-transform: uppercase; letter-spacing: 2px; margin-top: 6px;">
+                      Department of Education • STRIDE
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- BODY -->
+                <tr>
+                  <td style="padding: 36px 32px; color: #1e293b;">
+                    <h1 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 14px 0; letter-spacing: -0.3px;">
+                      Password Reset Verification
+                    </h1>
+                    <p style="font-size: 14px; line-height: 22px; color: #475569; margin: 0 0 24px 0;">
+                      Hello ${identifierName},<br><br>
+                      We received a request to reset the password for your InsightEd School Head account. Use the 6-digit verification code below to complete the reset process:
+                    </p>
+
+                    <!-- CODE BOX -->
+                    <div style="background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 14px; padding: 22px; text-align: center; margin: 0 0 26px 0;">
+                      <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">
+                        Your Verification Code
+                      </div>
+                      <div style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; color: #004A99; letter-spacing: 8px; margin: 0;">
+                        ${code}
+                      </div>
+                      <div style="font-size: 12px; color: #64748b; margin-top: 10px;">
+                        ⏱️ Expires in <strong>10 minutes</strong>
+                      </div>
+                    </div>
+
+                    <p style="font-size: 13px; line-height: 20px; color: #64748b; margin: 0 0 10px 0;">
+                      If you did not request a password reset, you can safely ignore this email. Your current password will remain unchanged.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- FOOTER -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 24px 32px; border-top: 1px solid #e2e8f0; text-align: center;">
+                    <p style="font-size: 11px; color: #94a3b8; margin: 0 0 6px 0;">
+                      Sent automatically from <strong>helpdesk.stride@deped.gov.ph</strong>
+                    </p>
+                    <p style="font-size: 11px; color: #94a3b8; margin: 0;">
+                      STRIDE Project • InsightEd Portal System
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `
+  };
+
+  return await transporter.sendMail(mailOptions);
+};
+
 // --- AZURE BLOB CLIENT ---
 export let blobServiceClient = null;
 try {

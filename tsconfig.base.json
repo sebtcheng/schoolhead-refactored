@@ -6,7 +6,7 @@
     "baseUrl": ".",
     "paths": {
       "@shared/db": ["packages/shared-db/src/db.js"],
-      "@shared/auth": ["packages/shared-auth/src/authMiddleware.js"],
+      "@shared/auth": ["packages/shared-auth/src/index.js"],
       "@shared/io": ["packages/shared-io/src/helpers.js"],
       "@shared/ui": ["packages/shared-ui/src/index.js"],
       "@shared/types": ["packages/shared-types/src/index.js"]
