@@ -347,7 +347,7 @@ const runMigrations = async (client, dbLabel) => {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             INSERT INTO settings (key, value)
-            VALUES ('nexus_module_locks', '{"school-info": true, "esf7": false, "siif": true, "nspp": true}')
+            VALUES ('nexus_module_locks', '{"school-info": false, "esf7": false, "siif": true, "nspp": true}')
             ON CONFLICT (key) DO NOTHING;
         `);
         } catch (tableErr) {

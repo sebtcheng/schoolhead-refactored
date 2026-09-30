@@ -87,15 +87,29 @@ if (process.env.NEW_DATABASE_URL) {
     }).catch(err => console.error("Secondary database connection failed:", err.message));
 }
 
+function isRetryableError(err) {
+  if (!err || !err.message) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes('terminated unexpectedly') ||
+    msg.includes('connection terminated') ||
+    msg.includes('econnreset') ||
+    msg.includes('socket hang up') ||
+    msg.includes('connection closed') ||
+    msg.includes('client has encountered a connection error') ||
+    msg.includes('connection timeout')
+  );
+}
+
 /**
- * [DB-RETRY] Execute a pool query with a one-shot retry on "terminated unexpectedly".
+ * [DB-RETRY] Execute a pool query with a one-shot retry on transient connection drops.
  */
 export async function safeQuery(text, params) {
   try {
     return await pool.query(text, params);
   } catch (err) {
-    if (err.message && err.message.includes('terminated unexpectedly')) {
-      console.warn(`♻️ [DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+    if (isRetryableError(err)) {
+      console.warn(`♻️ [DB-RETRY] Transient connection error (${err.message}), retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
       return await pool.query(text, params);
     }
     throw err;
@@ -128,8 +142,8 @@ export async function safeUsersQuery(text, params) {
   try {
     return await poolUsers.query(text, params);
   } catch (err) {
-    if (err.message && err.message.includes('terminated unexpectedly')) {
-      console.warn(`♻️ [USERS-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+    if (isRetryableError(err)) {
+      console.warn(`♻️ [USERS-DB-RETRY] Transient connection error (${err.message}), retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
       return await poolUsers.query(text, params);
     }
     throw err;
@@ -162,8 +176,8 @@ export async function safeSiifQuery(text, params) {
   try {
     return await poolSiif.query(text, params);
   } catch (err) {
-    if (err.message && err.message.includes('terminated unexpectedly')) {
-      console.warn(`♻️ [SIIF-DB-RETRY] "terminated unexpectedly", retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
+    if (isRetryableError(err)) {
+      console.warn(`♻️ [SIIF-DB-RETRY] Transient connection error (${err.message}), retrying (${text.slice(0, 70).replace(/\n/g, '◻')})…`);
       return await poolSiif.query(text, params);
     }
     throw err;

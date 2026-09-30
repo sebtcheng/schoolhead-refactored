@@ -14,7 +14,8 @@ import {
   FiLayers,
   FiBarChart2,
   FiHome,
-  FiSettings
+  FiSettings,
+  FiUserPlus
 } from 'react-icons/fi';
 import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase, TbHeadset, TbSchool } from "react-icons/tb";
 import { LuCompass } from "react-icons/lu";
@@ -31,7 +32,7 @@ const NodesDashboard = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [showEdWelcome, setShowEdWelcome] = useState(false);
   const [dynamicLocks, setDynamicLocks] = useState({
-    'school-info': true,
+    'school-info': false,
     'siif': true,
     'esf7': false
   });
@@ -146,7 +147,7 @@ const NodesDashboard = () => {
       progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       route: '/my-activity',
       description: 'Console for Learning and Operation in Unified Database. Access to school data.',
-      isLocked: dynamicLocks['school-info'] !== undefined ? dynamicLocks['school-info'] : true,
+      isLocked: dynamicLocks['school-info'] !== undefined ? dynamicLocks['school-info'] : false,
       hideProgress: true,
       cardClass: 'support' // Emerald/Cyan theme
     },
@@ -889,12 +890,75 @@ const NodesDashboard = () => {
                       }
                     }
 
+                    .nexus-top-bar {
+                      position: fixed;
+                      top: 20px;
+                      right: 28px;
+                      z-index: 50;
+                      display: flex;
+                      align-items: center;
+                      gap: 12px;
+                    }
+
+                    .nexus-register-btn {
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 8px;
+                      padding: 10px 20px;
+                      border-radius: 9999px;
+                      background: rgba(255, 255, 255, 0.90);
+                      backdrop-filter: blur(16px);
+                      border: 1.5px solid rgba(255, 255, 255, 0.95);
+                      color: var(--navy);
+                      font-family: var(--font-heading);
+                      font-size: 12px;
+                      font-weight: 800;
+                      letter-spacing: 0.02em;
+                      box-shadow: 0 10px 25px rgba(8, 43, 76, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+                      transition: all 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+                      cursor: pointer;
+                    }
+
+                    .nexus-register-btn:hover {
+                      transform: translateY(-2px);
+                      background: #ffffff;
+                      color: var(--blue-deep);
+                      box-shadow: 0 14px 32px rgba(8, 43, 76, 0.18), inset 0 -2px 0 var(--gold);
+                    }
+
+                    .nexus-register-btn:active {
+                      transform: scale(0.97);
+                    }
+
+                    @media (max-width: 768px) {
+                      .nexus-top-bar {
+                        top: 14px;
+                        right: 14px;
+                      }
+                      .nexus-register-btn {
+                        padding: 8px 14px;
+                        font-size: 10px;
+                      }
+                    }
+
                     @keyframes cardIn{
                       from{opacity:0;filter:blur(2px)}
                       to{opacity:1;filter:blur(0)}
                     }
                     `
         }} />
+
+        <header className="nexus-top-bar" aria-label="Nexus Gateway Header">
+          <button
+            type="button"
+            onClick={() => navigate('/register')}
+            className="nexus-register-btn"
+            aria-label="Create School Head Account"
+          >
+            <FiUserPlus className="text-base text-[#0A6FA6]" />
+            <span>Create School Head Account</span>
+          </button>
+        </header>
 
         <div className="preview-bg" aria-hidden="true"></div>
         <div className="bg-orb orb-a" aria-hidden="true"></div>

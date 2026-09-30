@@ -12,7 +12,7 @@ import authMiddleware, {
   dispatchResetEmail,
   updateSchoolHeadPassword
 } from '@shared/auth';
-import { pool, poolUsers } from '@shared/db';
+import { pool, poolUsers, safeQuery, safeUsersQuery } from '@shared/db';
 
 const router = express.Router();
 
@@ -445,8 +445,8 @@ router.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
 
   try {
     if (oldPasscode) {
-      let userRes = await poolUsers.query('SELECT passcode FROM user_schoolhead WHERE uid = $1', [uid]);
-      if (userRes.rowCount > 0 && userRes.rows[0].passcode) {
+      let userRes = await safeUsersQuery('SELECT passcode FROM user_schoolhead WHERE uid = $1', [uid]);
+      if (userRes && userRes.rowCount > 0 && userRes.rows[0].passcode) {
         const stored = userRes.rows[0].passcode;
         const isMatch = stored.startsWith('$2b$')
           ? await bcrypt.compare(oldPasscode, stored)
@@ -456,10 +456,11 @@ router.post('/api/auth/setup-passcode', authMiddleware, async (req, res) => {
     }
 
     const dbPasscode = (role === 'School Head') ? finalPasscode : await bcrypt.hash(finalPasscode, 10);
-    await poolUsers.query('UPDATE user_schoolhead SET passcode = $1 WHERE uid = $2', [dbPasscode, uid]);
+    await safeUsersQuery('UPDATE user_schoolhead SET passcode = $1 WHERE uid = $2', [dbPasscode, uid]);
 
     res.json({ success: true, message: "Passcode updated successfully" });
   } catch (err) {
+    console.error("❌ [/api/auth/setup-passcode] Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,8 +1,7 @@
 import express from 'express';
 import csv from 'csv-parser';
-import { pool } from '@shared/db';
+import { pool, safeQuery } from '@shared/db';
 
-const router = reportError => express.Router(); // wait, let's keep it simple: express.Router()
 const customRouter = express.Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -10,12 +9,12 @@ const customRouter = express.Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 customRouter.get('/api/settings/:key', async (req, res) => {
+  const { key } = req.params;
   try {
-    const { key } = req.params;
-    const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
-    if (result.rowCount === 0) {
+    const result = await safeQuery('SELECT value FROM settings WHERE key = $1', [key]);
+    if (!result || result.rowCount === 0) {
         if (key === 'nexus_module_locks') {
-            return res.json({ value: JSON.stringify({ "school-info": true, "esf7": false, "siif": true, "nspp": true }) });
+            return res.json({ value: JSON.stringify({ "school-info": false, "esf7": false, "siif": true, "nspp": true }) });
         }
         if (key === 'maintenance_mode') {
             return res.json({ value: 'false' });
@@ -24,6 +23,12 @@ customRouter.get('/api/settings/:key', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    if (key === 'maintenance_mode') {
+        return res.json({ value: 'false' });
+    }
+    if (key === 'nexus_module_locks') {
+        return res.json({ value: JSON.stringify({ "school-info": false, "esf7": false, "siif": true, "nspp": true }) });
+    }
     res.status(500).json({ error: err.message });
   }
 });
