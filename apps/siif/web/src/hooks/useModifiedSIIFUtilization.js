@@ -24,6 +24,7 @@ export function useModifiedSIIFUtilization(user, token) {
     const [selectedInterventions, setSelectedInterventions]     = useState([]);
     const [utilizationData, setUtilizationData]                 = useState({});
     const [officialAllocation, setOfficialAllocation]           = useState({ allocation_amount: 0, spent_amount: 0 });
+    const [lastSavedAt, setLastSavedAt]                         = useState(null);
 
     // ─── Quarter detection from current date ──────────────────────────────────
     useEffect(() => {
@@ -75,6 +76,7 @@ export function useModifiedSIIFUtilization(user, token) {
 
                 setSelectedInterventions(ids);
                 setUtilizationData(data.utilizationData || {});
+                setLastSavedAt(data.updatedAt || null);
             }
         } catch (err) {
             console.error('🔥 [useModifiedSIIFUtilization] Fetch failed:', err);
@@ -98,6 +100,7 @@ export function useModifiedSIIFUtilization(user, token) {
         utilizationData,
         setUtilizationData,
         officialAllocation,
+        lastSavedAt,
         periods: PERIODS,
         refetch: load,
     };
