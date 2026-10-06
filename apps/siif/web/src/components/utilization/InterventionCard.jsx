@@ -7,7 +7,9 @@ import {
     formatAmountInput,
     sanitizeAmountInput,
     STATUS_OPTIONS,
+    QUARTER_SHORT,
     statusStyle,
+    effectiveStatus,
 } from './utilizationUi';
 
 const InterventionCard = ({
@@ -31,7 +33,7 @@ const InterventionCard = ({
     const current = quarterData[viewingQuarter] || {};
     const rawAmount = current?.amount !== undefined ? current.amount : current;
     const amountStr = typeof rawAmount === 'object' || rawAmount === undefined || rawAmount === null ? '' : String(rawAmount);
-    const status = current?.status || 'Not Yet Started';
+    const { status, inheritedFrom } = effectiveStatus(quarterData, periods, viewingQuarter);
     const justification = current?.justification || '';
     const style = statusStyle(status);
 
@@ -59,10 +61,10 @@ const InterventionCard = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.3) }}
-            className="siif-card group relative flex h-full flex-col overflow-hidden transition-transform hover:-translate-y-0.5"
+            className="siif-card group relative flex h-full flex-col overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:!shadow-[0_12px_32px_-12px_rgba(8,49,95,0.28)]"
         >
             {/* Status accent */}
-            <span className={`absolute inset-y-0 left-0 w-1.5 ${style.accent}`} aria-hidden="true" />
+            <span className={`absolute inset-y-0 left-0 w-1.5 transition-colors duration-300 ${style.accent}`} aria-hidden="true" />
 
             <div className="flex flex-1 flex-col gap-4 p-4 pl-5 sm:p-5 sm:pl-6">
                 {/* Header */}
@@ -75,7 +77,8 @@ const InterventionCard = ({
                             <h3 className="truncate font-heading text-[15px] font-extrabold tracking-tight text-[#08315F] dark:text-slate-100" title={label}>
                                 {label}
                             </h3>
-                            <span className={`mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${style.chip}`}>
+                            <span className={`mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors duration-300 ${style.chip}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${style.dot} ${status === 'Ongoing' ? 'animate-pulse' : ''}`} aria-hidden="true" />
                                 {status}
                             </span>
                         </div>
@@ -113,10 +116,10 @@ const InterventionCard = ({
                             aria-invalid={!!errorText}
                             aria-describedby={`${fieldId}-hint`}
                             style={{ paddingLeft: '38px' }}
-                            className={`w-full rounded-2xl border py-3 pr-4 text-base font-black tabular-nums text-slate-900 outline-none transition-all focus:bg-white focus:ring-4 ${
+                            className={`w-full rounded-2xl border py-3 pr-4 text-base font-black tabular-nums text-slate-900 outline-none transition-all hover:border-slate-300 focus:bg-white focus:ring-4 dark:text-slate-100 dark:focus:bg-slate-900 dark:focus:ring-indigo-500/20 ${
                                 errorText
                                     ? 'border-rose-400 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-100'
-                                    : 'border-slate-200 bg-slate-50 focus:border-indigo-400 focus:ring-indigo-100'
+                                    : 'border-slate-200 bg-slate-50 focus:border-indigo-400 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800'
                             }`}
                         />
                     </div>
@@ -133,10 +136,17 @@ const InterventionCard = ({
 
                 {/* Status */}
                 <div>
-                    <span id={`${fieldId}-status`} className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        Implementation Status
-                    </span>
-                    <div role="radiogroup" aria-labelledby={`${fieldId}-status`} className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-slate-800">
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                        <span id={`${fieldId}-status`} className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Implementation Status
+                        </span>
+                        {inheritedFrom && (
+                            <span className="truncate text-[10px] font-bold text-slate-400 dark:text-slate-500" title="Carried over from the previous quarter. Pick another status to change it.">
+                                Same as {QUARTER_SHORT[inheritedFrom] || inheritedFrom}
+                            </span>
+                        )}
+                    </div>
+                    <div role="radiogroup" aria-labelledby={`${fieldId}-status`} className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 ring-1 ring-inset ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/60">
                         {STATUS_OPTIONS.map(opt => {
                             const active = opt.value === status;
                             return (
@@ -146,13 +156,21 @@ const InterventionCard = ({
                                     role="radio"
                                     aria-checked={active}
                                     onClick={() => onStatusChange(intId, opt.value)}
-                                    className={`cursor-pointer rounded-xl border-0 px-1 py-2 text-[10px] sm:text-[11px] font-black outline-none transition-all focus-visible:ring-2 focus-visible:ring-indigo-300 ${
-                                        active
-                                            ? `${opt.active} shadow-sm`
-                                            : 'bg-transparent text-slate-500 hover:bg-white hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'
+                                    className={`relative cursor-pointer rounded-xl border-0 bg-transparent px-1 py-2 text-[10px] sm:text-[11px] font-black outline-none transition-[color,background-color,transform] duration-200 focus-visible:ring-2 focus-visible:ring-indigo-300 active:scale-[0.97] ${
+                                        active ? opt.activeText : `text-slate-500 dark:text-slate-400 ${opt.hover}`
                                     }`}
                                 >
-                                    {opt.short}
+                                    {active && (
+                                        <motion.span
+                                            layoutId={`${fieldId}-status-pill`}
+                                            transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                                            className={`absolute inset-0 rounded-xl shadow-md ${opt.active}`}
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                    <span className="relative z-10">
+                                        {opt.short}
+                                    </span>
                                 </button>
                             );
                         })}
@@ -170,7 +188,7 @@ const InterventionCard = ({
                         onChange={(e) => onJustificationChange(intId, e.target.value)}
                         rows={2}
                         placeholder="Optional notes or accomplishment description..."
-                        className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-700 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+                        className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium leading-relaxed text-slate-700 outline-none transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:bg-slate-900 dark:focus:ring-indigo-500/20"
                     />
                 </div>
             </div>

@@ -886,6 +886,167 @@ const runMigrations = async (client, dbLabel) => {
         await initUnit7Schema(client, dbLabel);
 
 
+        // --- 27. SIIF UTILIZATION SUMMARY VIEWS ---
+        // ONE ROW per school per fiscal year — all interventions aggregated.
+        // Standard view: always reflects live data (no refresh needed).
+        // Materialized view: fast snapshot for BI dashboards (refresh after writes).
+        try {
+            // ── Standard View ──────────────────────────────────────────────────────────
+            await client.query(`
+                CREATE OR REPLACE VIEW v_siif_utilization_summary AS
+                SELECT
+                    m.modi_siif_util_id,
+                    m.school_id,
+                    m.fiscal_year,
+                    a.school_name,
+                    a.region,
+                    a.division,
+                    a.district,
+                    m.allocation_amount,
+                    jsonb_array_length(
+                        CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                             THEN m.selected_interventions ELSE '[]'::jsonb END
+                    ) AS total_interventions,
+                    (
+                        SELECT STRING_AGG(elem ->> 'title', ', ' ORDER BY elem ->> 'title')
+                        FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                    ) AS intervention_titles,
+                    (
+                        SELECT COALESCE(SUM(COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'July-September' ->> 'amount'), '')::NUMERIC, 0)), 0)
+                        FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                    ) AS q1_total,
+                    (
+                        SELECT COALESCE(SUM(COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'October-December' ->> 'amount'), '')::NUMERIC, 0)), 0)
+                        FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                    ) AS q2_total,
+                    (
+                        SELECT COALESCE(SUM(COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'January-March' ->> 'amount'), '')::NUMERIC, 0)), 0)
+                        FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                    ) AS q3_total,
+                    (
+                        SELECT COALESCE(SUM(
+                            COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'July-September'   ->> 'amount'), '')::NUMERIC, 0) +
+                            COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'October-December' ->> 'amount'), '')::NUMERIC, 0) +
+                            COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'January-March'    ->> 'amount'), '')::NUMERIC, 0)
+                        ), 0)
+                        FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                    ) AS total_spent,
+                    CASE WHEN m.allocation_amount > 0 THEN ROUND((
+                        SELECT COALESCE(SUM(
+                            COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'July-September'   ->> 'amount'), '')::NUMERIC, 0) +
+                            COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'October-December' ->> 'amount'), '')::NUMERIC, 0) +
+                            COALESCE(NULLIF(TRIM(elem -> 'quarters' -> 'January-March'    ->> 'amount'), '')::NUMERIC, 0)
+                        ), 0)
+                        FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                    ) / m.allocation_amount * 100, 2) ELSE 0 END AS utilization_rate_pct,
+                    (
+                        SELECT COUNT(*) FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                        WHERE (elem -> 'quarters' -> 'July-September'   ->> 'status') = 'Completed'
+                          AND (elem -> 'quarters' -> 'October-December' ->> 'status') = 'Completed'
+                          AND (elem -> 'quarters' -> 'January-March'    ->> 'status') = 'Completed'
+                    ) AS interventions_fully_completed,
+                    (
+                        SELECT COUNT(*) FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                        WHERE (elem -> 'quarters' -> 'July-September'   ->> 'status') = 'Not Yet Started'
+                          AND (elem -> 'quarters' -> 'October-December' ->> 'status') = 'Not Yet Started'
+                          AND (elem -> 'quarters' -> 'January-March'    ->> 'status') = 'Not Yet Started'
+                    ) AS interventions_not_started,
+                    (
+                        SELECT COUNT(*) FROM jsonb_array_elements(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) AS elem
+                        WHERE NOT (
+                            (elem -> 'quarters' -> 'July-September'   ->> 'status') = 'Completed'
+                            AND (elem -> 'quarters' -> 'October-December' ->> 'status') = 'Completed'
+                            AND (elem -> 'quarters' -> 'January-March'    ->> 'status') = 'Completed'
+                        ) AND NOT (
+                            (elem -> 'quarters' -> 'July-September'   ->> 'status') = 'Not Yet Started'
+                            AND (elem -> 'quarters' -> 'October-December' ->> 'status') = 'Not Yet Started'
+                            AND (elem -> 'quarters' -> 'January-March'    ->> 'status') = 'Not Yet Started'
+                        )
+                    ) AS interventions_in_progress,
+                    CASE
+                        WHEN jsonb_array_length(
+                            CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                 THEN m.selected_interventions ELSE '[]'::jsonb END
+                        ) = 0 THEN 'No Interventions'
+                        WHEN (
+                            SELECT COUNT(*) FROM jsonb_array_elements(
+                                CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                     THEN m.selected_interventions ELSE '[]'::jsonb END
+                            ) AS elem
+                            WHERE (elem -> 'quarters' -> 'July-September'   ->> 'status') = 'Completed'
+                              AND (elem -> 'quarters' -> 'October-December' ->> 'status') = 'Completed'
+                              AND (elem -> 'quarters' -> 'January-March'    ->> 'status') = 'Completed'
+                        ) = jsonb_array_length(m.selected_interventions) THEN 'Fully Completed'
+                        WHEN (
+                            SELECT COUNT(*) FROM jsonb_array_elements(
+                                CASE WHEN jsonb_typeof(m.selected_interventions) = 'array'
+                                     THEN m.selected_interventions ELSE '[]'::jsonb END
+                            ) AS elem
+                            WHERE (elem -> 'quarters' -> 'July-September'   ->> 'status') = 'Not Yet Started'
+                              AND (elem -> 'quarters' -> 'October-December' ->> 'status') = 'Not Yet Started'
+                              AND (elem -> 'quarters' -> 'January-March'    ->> 'status') = 'Not Yet Started'
+                        ) = jsonb_array_length(m.selected_interventions) THEN 'Not Yet Started'
+                        ELSE 'In Progress'
+                    END AS overall_status,
+                    m.updated_at
+                FROM modified_siif_utilization m
+                LEFT JOIN siif_allocations a
+                    ON a.school_id = m.school_id AND a.fiscal_year = m.fiscal_year;
+            `);
+
+            // ── Materialized View ──────────────────────────────────────────────────────
+            await client.query(`
+                CREATE MATERIALIZED VIEW IF NOT EXISTS mv_siif_utilization_summary AS
+                    SELECT * FROM v_siif_utilization_summary
+                WITH DATA;
+            `);
+
+            await client.query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_siif_summary_pk
+                    ON mv_siif_utilization_summary (modi_siif_util_id);
+                CREATE INDEX IF NOT EXISTS idx_mv_siif_summary_school_fy
+                    ON mv_siif_utilization_summary (school_id, fiscal_year);
+                CREATE INDEX IF NOT EXISTS idx_mv_siif_summary_division
+                    ON mv_siif_utilization_summary (division);
+                CREATE INDEX IF NOT EXISTS idx_mv_siif_summary_region
+                    ON mv_siif_utilization_summary (region);
+                CREATE INDEX IF NOT EXISTS idx_mv_siif_summary_status
+                    ON mv_siif_utilization_summary (overall_status);
+            `);
+
+            console.log(`✅ [${dbLabel}] SIIF Utilization Summary Views (standard + materialized) initialized.`);
+        } catch (viewErr) {
+            console.warn(`⚠️ [${dbLabel}] SIIF Utilization Summary Views init warning:`, viewErr.message);
+        }
+
+
         // --- 20. GLOBAL DELETION & TRUNCATION PROTECTION (Nuclear Lock) ---
         // Applies RLS, FORCE RLS, a mathematical no_delete policy, TRUNCATE trigger,
         // and a DELETE trigger to EVERY table in the public schema.

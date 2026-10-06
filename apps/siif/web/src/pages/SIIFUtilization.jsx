@@ -14,7 +14,7 @@ import InterventionSelector from '../components/utilization/InterventionSelector
 import InterventionCard from '../components/utilization/InterventionCard';
 import SaveBar from '../components/utilization/SaveBar';
 import { UtilizationToast, ConfirmDialog } from '../components/utilization/UtilizationFeedback';
-import { amountOf, formatPeso } from '../components/utilization/utilizationUi';
+import { amountOf, formatPeso, effectiveStatus } from '../components/utilization/utilizationUi';
 
 const SIIFUtilization = ({ user, token }) => {
     const navigate = useNavigate();
@@ -78,9 +78,9 @@ const SIIFUtilization = ({ user, token }) => {
         let amount = 0;
         let completed = 0;
         selectedInterventions.forEach(intId => {
-            const qVal = (utilizationData[intId] || {})[p.id];
-            amount += amountOf(qVal);
-            if (qVal?.status === 'Completed') completed += 1;
+            const intUtil = utilizationData[intId] || {};
+            amount += amountOf(intUtil[p.id]);
+            if (effectiveStatus(intUtil, periods, p.id).status === 'Completed') completed += 1;
         });
         quarterStats[p.id] = { amount, completed, total: selectedInterventions.length };
     });
@@ -156,7 +156,8 @@ const SIIFUtilization = ({ user, token }) => {
                 [viewingQuarter]: {
                     ...((prev[intId] || {})[viewingQuarter] || {}),
                     amount: value,
-                    status: (prev[intId] || {})[viewingQuarter]?.status || 'Not Yet Started'
+                    // Keep the status carried over from an earlier quarter
+                    status: effectiveStatus(prev[intId], periods, viewingQuarter).status
                 }
             }
         }));
@@ -186,6 +187,7 @@ const SIIFUtilization = ({ user, token }) => {
                 ...(prev[intId] || {}),
                 [viewingQuarter]: {
                     ...((prev[intId] || {})[viewingQuarter] || {}),
+                    status: effectiveStatus(prev[intId], periods, viewingQuarter).status,
                     justification: text
                 }
             }
@@ -209,15 +211,24 @@ const SIIFUtilization = ({ user, token }) => {
 
         setSaving(true);
         try {
-            // Auto-clean: ensure valid values for active quarter in active interventions
+            // Auto-clean: ensure valid values for active quarter in active interventions.
+            // Statuses carried over from an earlier quarter are written for quarters up to
+            // the current one; future quarters keep inheriting until they are filled in.
+            const activeIdx = periods.findIndex(p => p.id === activeQuarter);
+            const lastPersistIdx = activeIdx === -1 ? periods.length - 1 : activeIdx;
             const payloadData = { ...utilizationData };
             selectedInterventions.forEach(intId => {
-                if (!payloadData[intId]) payloadData[intId] = {};
-                periods.forEach(p => {
-                    if (!payloadData[intId][p.id]) {
-                        payloadData[intId][p.id] = { amount: '0', status: 'Not Yet Started', justification: '' };
-                    }
+                const original = utilizationData[intId] || {};
+                const quarters = { ...original };
+                periods.forEach((p, i) => {
+                    const status = i <= lastPersistIdx
+                        ? effectiveStatus(original, periods, p.id).status
+                        : (quarters[p.id]?.status || 'Not Yet Started');
+                    quarters[p.id] = quarters[p.id]
+                        ? { ...quarters[p.id], status }
+                        : { amount: '0', status, justification: '' };
                 });
+                payloadData[intId] = quarters;
             });
 
             // Construct unified selected_interventions containing quarters and subtotal

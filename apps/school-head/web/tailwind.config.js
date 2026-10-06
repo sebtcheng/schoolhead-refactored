@@ -1,3 +1,5 @@
+import colors from 'tailwindcss/colors';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -19,16 +21,22 @@ export default {
         'siif-yellow': '#ffd93b',
         'surface': '#fafbff',
         navy: 'var(--navy)',
-        blue: 'var(--blue)',
-        'blue-600': 'var(--blue-600)',
-        'blue-400': 'var(--blue-400)',
-        'blue-100': 'var(--blue-100)',
-        'blue-50': 'var(--blue-50)',
+        // SIIF theme tokens are merged INTO Tailwind's default palettes (not replacing
+        // them) so `bg-amber`, `text-blue-600` etc. keep the theme vars while the other
+        // shades (`bg-amber-500`, `text-red-600`, `bg-green-50`...) still exist.
+        blue: {
+          ...colors.blue,
+          DEFAULT: 'var(--blue)',
+          600: 'var(--blue-600)',
+          400: 'var(--blue-400)',
+          100: 'var(--blue-100)',
+          50: 'var(--blue-50)',
+        },
         gold: 'var(--gold)',
-        amber: 'var(--amber)',
-        red: 'var(--red)',
-        green: 'var(--green)',
-        purple: 'var(--purple)',
+        amber: { ...colors.amber, DEFAULT: 'var(--amber)' },
+        red: { ...colors.red, DEFAULT: 'var(--red)' },
+        green: { ...colors.green, DEFAULT: 'var(--green)' },
+        purple: { ...colors.purple, DEFAULT: 'var(--purple)' },
         card: 'var(--card)',
         text: 'var(--text)',
         muted: 'var(--muted)',

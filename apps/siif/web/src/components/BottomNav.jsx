@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TbLayoutDashboard, TbClipboardList, TbChartBar } from 'react-icons/tb';
+import { TbLayoutDashboard, TbChartBar } from 'react-icons/tb';
 import { FiSettings, FiGrid, FiLogOut } from 'react-icons/fi';
 import { useAuth } from '../../../../school-head/web/src/context/AuthContext';
 import InsightEdLogoExpanded from '../../../../school-head/web/src/assets/InsightEdLogoApp.png';
@@ -13,12 +13,17 @@ const BottomNav = () => {
 
     // Insert Nexus in the middle for mobile layout
     const navItems = [
-        { label: 'Dashboard', path: '/siif', icon: TbLayoutDashboard },
-        { label: 'Forms', path: '/siif/forms', icon: TbClipboardList },
+        { label: 'Dashboard', path: '/siif/dashboard', icon: TbLayoutDashboard },
         { label: 'Nexus', path: '/nodes-dashboard', icon: FiGrid, isFab: true },
         { label: 'Utilization', path: '/siif/utilization', icon: TbChartBar },
         { label: 'Settings', path: '/siif/settings', icon: FiSettings },
     ];
+
+    // /siif (the login landing route) shows Utilization
+    const isActivePath = (path) => {
+        const current = location.pathname.replace(/\/+$/, '') || '/';
+        return current === path || (path === '/siif/utilization' && current === '/siif');
+    };
 
     return (
         <>
@@ -40,7 +45,7 @@ const BottomNav = () => {
 
                 <nav className="siif-nav">
                     {navItems.map((item) => {
-                        const isActive = location.pathname === item.path || (item.path === '/siif' && (location.pathname === '/siif/' || location.pathname === '/siif'));
+                        const isActive = isActivePath(item.path);
                         const Icon = item.icon;
 
                         if (item.isFab) {
@@ -100,7 +105,7 @@ const BottomNav = () => {
             {/* Mobile Sticky Bottom Navigation Bar (< 768px / md) */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-[1000] bg-[#08315F] text-white border-t border-white/15 shadow-2xl px-2 py-2 flex items-center justify-around print:hidden" style={{ height: '64px' }}>
                 {navItems.map((item) => {
-                    const isActive = location.pathname === item.path || (item.path === '/siif' && (location.pathname === '/siif/' || location.pathname === '/siif'));
+                    const isActive = isActivePath(item.path);
                     const Icon = item.icon;
 
                     if (item.isFab) {

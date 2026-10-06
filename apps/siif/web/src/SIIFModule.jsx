@@ -26,12 +26,16 @@ const SIIFModuleContent = () => {
 
     return (
         <div className="siif-module-root min-h-screen">
-            <div className="siif-app-layout siif-fullwidth-layout">
-                {/* Sidebar and BottomNav hidden completely for School Head per directive */}
-                <div className="siif-main-area siif-no-sidebar pb-12 w-full px-4 sm:px-6 lg:px-8">
+            <div className="siif-app-layout">
+                {/* School Head nav: Dashboard, Utilization, Settings (Forms stays hidden) */}
+                <BottomNav />
+                <div className="siif-main-area pb-24 md:pb-6">
                     <Routes>
+                        {/* Login still lands on Utilization */}
                         <Route index element={<SIIFUtilization user={user} token={token} />} />
+                        <Route path="dashboard" element={<SIIFDashboard user={user} token={token} />} />
                         <Route path="utilization" element={<SIIFUtilization user={user} token={token} />} />
+                        <Route path="settings" element={<SIIFSettings user={user} token={token} />} />
                         <Route path="*" element={<Navigate to="/siif/utilization" replace />} />
                     </Routes>
                 </div>

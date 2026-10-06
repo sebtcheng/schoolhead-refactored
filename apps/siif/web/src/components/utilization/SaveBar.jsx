@@ -1,17 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { TbCheck, TbDeviceFloppy, TbAlertCircle } from 'react-icons/tb';
-import { formatPeso } from './utilizationUi';
-
-const formatSavedAt = (value) => {
-    if (!value) return null;
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return null;
-    const sameDay = d.toDateString() === new Date().toDateString();
-    return sameDay
-        ? d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
-        : d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-};
+import { formatPeso, formatSavedAt } from './utilizationUi';
 
 const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, totalAllocated, lastSavedAt, onSave }) => {
     const savedLabel = formatSavedAt(lastSavedAt);
