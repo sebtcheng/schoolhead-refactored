@@ -19,6 +19,15 @@ const BottomNav = () => {
         { label: 'Settings', path: '/siif/settings', icon: FiSettings },
     ];
 
+    const byLabel = Object.fromEntries(navItems.map(item => [item.label, item]));
+    const mobileNavItems = [
+        byLabel.Dashboard,
+        byLabel.Utilization,
+        byLabel.Nexus,
+        byLabel.Settings,
+        { label: 'Sign Out', icon: FiLogOut, isSignOut: true },
+    ];
+
     const isActivePath = (path) => {
         const current = location.pathname.replace(/\/+$/, '') || '/';
         return current === path;
@@ -102,20 +111,49 @@ const BottomNav = () => {
             </aside>
 
             {/* Mobile Sticky Bottom Navigation Bar (< 768px / md) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 z-[1000] bg-[#08315F] text-white border-t border-white/15 shadow-2xl px-2 py-2 flex items-center justify-around print:hidden" style={{ height: '64px' }}>
-                {navItems.map((item) => {
+            {/* Two items per side so Nexus sits dead-center: Dashboard · Utilization · Nexus · Settings · Sign Out */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-[1000] bg-[#08315F] text-white border-t border-white/15 shadow-2xl px-2 py-2 grid grid-cols-5 items-center print:hidden" style={{ height: '64px' }}>
+                {mobileNavItems.map((item) => {
                     const isActive = isActivePath(item.path);
                     const Icon = item.icon;
 
+                    if (item.isSignOut) {
+                        return (
+                            <button
+                                key={item.label}
+                                type="button"
+                                onClick={confirmLogout}
+                                className="flex flex-col items-center justify-center py-1 bg-transparent border-0 cursor-pointer text-rose-300 hover:text-rose-200 transition-colors"
+                            >
+                                <Icon size={20} />
+                                <span className="text-[9px] font-bold tracking-tight mt-0.5">{item.label}</span>
+                            </button>
+                        );
+                    }
+
+                    // Nexus: raised center button — the only way back to the portal on mobile
                     if (item.isFab) {
-                        return null; // Hide Nexus FAB entirely on mobile bottom nav
+                        return (
+                            <button
+                                key={item.label}
+                                type="button"
+                                aria-label="Back to Nexus Portal"
+                                onClick={() => navigate(item.path)}
+                                className="flex flex-col items-center justify-end bg-transparent border-0 cursor-pointer text-slate-300 hover:text-white transition-colors"
+                            >
+                                <span className="-mt-7 w-12 h-12 rounded-full bg-[#10346B] text-white flex items-center justify-center shadow-lg shadow-black/30 ring-4 ring-[#08315F] transition-transform active:scale-95">
+                                    <Icon size={20} />
+                                </span>
+                                <span className="text-[9px] font-bold tracking-tight mt-0.5">{item.label}</span>
+                            </button>
+                        );
                     }
 
                     return (
                         <button
                             key={item.label}
                             onClick={() => navigate(item.path)}
-                            className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${isActive ? 'text-[#FBBF24]' : 'text-slate-300 hover:text-white'}`}
+                            className={`flex flex-col items-center justify-center py-1 bg-transparent border-0 cursor-pointer transition-all ${isActive ? 'text-[#FBBF24]' : 'text-slate-300 hover:text-white'}`}
                         >
                             <Icon size={20} className={isActive ? 'transform scale-110' : ''} />
                             <span className={`text-[9px] font-bold tracking-tight mt-0.5 ${isActive ? 'font-black text-white' : ''}`}>

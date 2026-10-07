@@ -263,7 +263,8 @@ html.dark .siif-forms-footer {
 @media (max-width: 1000px) {
   .siif-main-area {
     padding: 0 0 100px 0;
-    overflow-x: hidden;
+    /* clip (not hidden) so position: sticky children still stick to the viewport */
+    overflow-x: clip;
   }
 }
 
@@ -440,7 +441,9 @@ html.dark .siif-forms-footer {
 /* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
 .siif-main-area {
   padding: 0 24px 24px 24px;
-  overflow-y: auto;
+  /* The window scrolls, not this element. Keep it a non-scroll container so the
+     dashboard's sticky quarter bar works; flow-root keeps the old BFC behavior. */
+  display: flow-root;
   box-sizing: border-box;
 }
 
@@ -649,7 +652,6 @@ html.dark .siif-forms-footer {
 /* Ensure the layout right column has padding or the topbar is flush. The prompt says "dashboard should start at top of viewport" */
 .siif-main-area {
   padding: 0 24px 24px 24px;
-  overflow-y: auto;
 }
 
 .siif-topbar-flush {
@@ -1921,6 +1923,16 @@ html.dark .siif-module-root textarea::placeholder {
 
 @media (max-width: 640px) {
   .siif-utilization-page .topbar {
+    margin-bottom: 16px;
+  }
+}
+
+/* Dashboard: on tablet/mobile the .topbar rules add a 10px side inset and zero
+   bottom margin, so the header was narrower than the cards and touched the quarter bar */
+@media (max-width: 1000px) {
+  .siif-dashboard-page .topbar {
+    margin-left: 0;
+    margin-right: 0;
     margin-bottom: 16px;
   }
 }

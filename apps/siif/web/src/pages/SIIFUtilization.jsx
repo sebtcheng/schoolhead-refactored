@@ -1,9 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
 import { TbTarget, TbPlus, TbCalendarStats } from 'react-icons/tb';
-import { FiGrid, FiLogOut } from 'react-icons/fi';
-import { useAuth } from '../../../../school-head/web/src/context/AuthContext';
 import { useModifiedSIIFUtilization } from '../hooks/useModifiedSIIFUtilization';
 import { saveModifiedUtilization } from '../services/siifService';
 import { INTERVENTIONS, INTERVENTION_ICONS } from '../constants/siifConstants';
@@ -17,8 +15,6 @@ import { UtilizationToast, ConfirmDialog } from '../components/utilization/Utili
 import { amountOf, formatPeso, effectiveStatus } from '../components/utilization/utilizationUi';
 
 const SIIFUtilization = ({ user, token }) => {
-    const navigate = useNavigate();
-    const { confirmLogout } = useAuth();
     const [saving, setSaving] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     // null = automatic: open only when nothing is tracked yet
@@ -274,40 +270,6 @@ const SIIFUtilization = ({ user, token }) => {
     return (
         <main className="w-full pt-3 sm:pt-4 lg:pt-6 pb-36 text-lg siif-utilization-page">
 
-            {/* ── Navigation & Account Bar ── */}
-            <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-                <button
-                    type="button"
-                    onClick={() => navigate('/nodes-dashboard')}
-                    className="group inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition-all hover:shadow dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#10346B] text-white transition-transform group-hover:scale-105">
-                        <FiGrid size={13} />
-                    </span>
-                    <span className="hidden sm:inline">Back to Nexus Portal</span>
-                    <span className="sm:hidden">Back</span>
-                </button>
-
-                <div className="flex min-w-0 items-center gap-3">
-                    <div className="hidden min-w-0 text-right sm:block">
-                        <span className="block text-[10px] font-extrabold uppercase tracking-wider text-[#0038A8] dark:text-sky-300">
-                            School Head
-                        </span>
-                        <span className="block max-w-[260px] truncate text-xs font-bold text-slate-700 dark:text-slate-200">
-                            {user?.school_name || 'SIIF Utilization Hub'}
-                        </span>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={confirmLogout}
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 shadow-sm transition-all hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
-                    >
-                        <FiLogOut size={14} />
-                        <span>Sign Out</span>
-                    </button>
-                </div>
-            </div>
-
             {/* ── Topbar / Header ── */}
             <header className="topbar print:hidden mb-6">
                 <div className="page-title">
@@ -320,14 +282,17 @@ const SIIFUtilization = ({ user, token }) => {
                     </p>
                 </div>
 
-                <div className="siif-topbar-actions hidden sm:flex">
-                    <div className="flex items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-4 py-2.5 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#08315F] text-white">
-                            <TbCalendarStats size={18} />
-                        </span>
-                        <div className="leading-tight">
-                            <small className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Fiscal Year</small>
-                            <strong className="block text-lg font-black text-[#08315F]">FY {fiscalYear}</strong>
+                {/* Wrapper does the hiding: siif.css forces .siif-topbar-actions to display:flex */}
+                <div className="hidden sm:block">
+                    <div className="siif-topbar-actions">
+                        <div className="flex items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-4 py-2.5 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#08315F] text-white">
+                                <TbCalendarStats size={18} />
+                            </span>
+                            <div className="leading-tight">
+                                <small className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Fiscal Year</small>
+                                <strong className="block text-lg font-black text-[#08315F]">FY {fiscalYear}</strong>
+                            </div>
                         </div>
                     </div>
                 </div>

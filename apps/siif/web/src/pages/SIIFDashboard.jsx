@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { TbArrowRight, TbClipboardList, TbAlertTriangle } from 'react-icons/tb';
-import { FiGrid, FiLogOut } from 'react-icons/fi';
-import { useAuth } from '../../../../school-head/web/src/context/AuthContext';
 import { useModifiedSIIFUtilization } from '../hooks/useModifiedSIIFUtilization';
 import SiifLoader from '../components/SiifLoader';
 import { formatPeso, formatSavedAt } from '../components/utilization/utilizationUi';
@@ -30,7 +28,6 @@ const KpiCard = ({ accent, value, valueClass, label, caption, children }) => (
 
 const SIIFDashboard = ({ user, token }) => {
     const navigate = useNavigate();
-    const { confirmLogout } = useAuth();
     const [scope, setScope] = useState(ALL_QUARTERS);
 
     const {
@@ -60,35 +57,12 @@ const SIIFDashboard = ({ user, token }) => {
     const hasInterventions = dash.interventions.length > 0;
 
     const scopeOptions = [
-        { id: ALL_QUARTERS, short: 'All Quarters', amount: dash.allUtilized, color: '#08315F' },
+        { id: ALL_QUARTERS, short: 'All Quarters', amount: dash.allUtilized, color: '#38BDF8' },
         ...dash.quarterTotals,
     ];
 
     return (
-        <main className="w-full pt-3 pb-16 sm:pt-4 lg:pt-6">
-
-            {/* ── Navigation & Account Bar (same as the Utilization page) ── */}
-            <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-                <button
-                    type="button"
-                    onClick={() => navigate('/nodes-dashboard')}
-                    className="group inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition-all hover:shadow dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#10346B] text-white transition-transform group-hover:scale-105">
-                        <FiGrid size={13} />
-                    </span>
-                    <span className="hidden sm:inline">Back to Nexus Portal</span>
-                    <span className="sm:hidden">Back</span>
-                </button>
-                <button
-                    type="button"
-                    onClick={confirmLogout}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 shadow-sm transition-all hover:bg-rose-100 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
-                >
-                    <FiLogOut size={14} />
-                    <span>Sign Out</span>
-                </button>
-            </div>
+        <main className="siif-dashboard-page w-full pt-3 pb-16 sm:pt-4 lg:pt-6">
 
             {/* ── Topbar ── */}
             <header className="topbar mb-6">
@@ -102,67 +76,93 @@ const SIIFDashboard = ({ user, token }) => {
                     </p>
                 </div>
 
-                <div className="siif-topbar-actions hidden sm:flex">
-                    <div className="flex min-w-[180px] flex-col items-end gap-1 rounded-2xl border border-slate-100 bg-white/95 px-4 py-2.5 shadow-md">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Fund Utilization Rate</span>
-                        <span className="text-lg font-black leading-none text-[#08315F]">{rate.toFixed(1)}%</span>
-                        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(100, rate)}%` }} />
+                {/* Wrapper does the hiding: siif.css forces .siif-topbar-actions to display:flex,
+                    which beats Tailwind's `hidden`. Phones get the rate from the KPI card instead. */}
+                <div className="hidden sm:block">
+                    <div className="siif-topbar-actions">
+                        <div className="flex min-w-[180px] flex-col items-end gap-1 rounded-2xl border border-slate-100 bg-white/95 px-4 py-2.5 shadow-md">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Fund Utilization Rate</span>
+                            <span className="text-lg font-black leading-none text-[#08315F]">{rate.toFixed(1)}%</span>
+                            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
+                                <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(100, rate)}%` }} />
+                            </div>
+                            <StatusPill status={dash.schoolStatus} />
                         </div>
-                        <StatusPill status={dash.schoolStatus} />
                     </div>
                 </div>
             </header>
 
-            <div className="space-y-6">
-                {/* ── Quarter filter + actions ── */}
-                <section className="flex flex-col gap-3 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:flex-row lg:items-center lg:justify-between">
-                    <div role="tablist" aria-label="Quarter" className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-slate-800 sm:grid-cols-4">
+            {/* ── Quarter bar: 2×2 grid on phones; one row that sticks while scrolling from md up ── */}
+            <section aria-label="Quarter filter" className="z-30 mb-6 print:hidden md:sticky md:top-3">
+                <div className="flex flex-col gap-2 rounded-3xl border border-white/10 bg-gradient-to-r from-[#08315F] via-[#0A3A70] to-[#075985] p-2 shadow-xl shadow-[#08315F]/25 backdrop-blur-md lg:flex-row lg:items-center lg:justify-between">
+                    <div
+                        role="tablist"
+                        aria-label="Quarter"
+                        className="grid grid-cols-2 gap-1 sm:flex sm:snap-x sm:overflow-x-auto sm:[scrollbar-width:none] lg:flex-1 sm:[&::-webkit-scrollbar]:hidden"
+                    >
                         {scopeOptions.map(opt => {
                             const on = opt.id === scope;
+                            const share = totalAllocated > 0 ? Math.min(100, (opt.amount / totalAllocated) * 100) : 0;
                             return (
                                 <button
                                     key={opt.id}
                                     type="button"
                                     role="tab"
                                     aria-selected={on}
+                                    aria-controls="siif-dash-panels"
                                     onClick={() => setScope(opt.id)}
-                                    className={`relative cursor-pointer rounded-xl border-0 bg-transparent px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sky-300 ${on ? '' : 'hover:bg-white/60 dark:hover:bg-slate-700/60'}`}
+                                    className={`relative min-w-0 flex-1 snap-start cursor-pointer rounded-2xl border-0 bg-transparent px-3 py-2.5 sm:min-w-[132px] sm:px-3.5 text-left outline-none transition-[background-color,transform] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[#FBBF24] lg:max-w-[210px] ${on ? '' : 'hover:bg-white/10'}`}
                                 >
                                     {on && (
                                         <motion.span
                                             layoutId="siif-dash-scope-pill"
                                             transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-                                            className="absolute inset-0 rounded-xl bg-white shadow-sm dark:bg-slate-900"
+                                            className="absolute inset-0 rounded-2xl bg-[#FBBF24] shadow-lg shadow-amber-500/30"
                                             aria-hidden="true"
                                         />
                                     )}
                                     <span className="relative z-10 flex items-center gap-1.5">
-                                        <span className="h-2 w-2 rounded-full" style={{ background: opt.color }} />
-                                        <span className={`text-xs font-black ${on ? 'text-[#08315F] dark:text-white' : 'text-slate-500'}`}>{opt.short}</span>
+                                        <span
+                                            className={`h-2 w-2 rounded-full ${on ? 'ring-2 ring-[#08315F]/20' : ''}`}
+                                            style={{ background: opt.color }}
+                                        />
+                                        <span className={`truncate text-[10px] font-black uppercase tracking-wider sm:text-[11px] ${on ? 'text-[#08315F]' : 'text-sky-100/75'}`}>
+                                            {opt.short}
+                                        </span>
                                     </span>
-                                    <span className={`relative z-10 block font-mono text-[11px] font-bold tabular-nums ${on ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
+                                    <span className={`relative z-10 mt-0.5 block font-mono text-sm font-black tabular-nums ${on ? 'text-[#08315F]' : 'text-white'}`}>
                                         {formatPeso(opt.amount, { decimals: 0 })}
+                                    </span>
+                                    <span
+                                        className={`relative z-10 mt-1.5 block h-1 w-full overflow-hidden rounded-full ${on ? 'bg-[#08315F]/15' : 'bg-white/10'}`}
+                                        title={`${share.toFixed(1)}% of allocation`}
+                                    >
+                                        <span
+                                            className="block h-full rounded-full transition-[width] duration-700 ease-out"
+                                            style={{ width: `${share}%`, background: on ? '#08315F' : opt.color }}
+                                        />
                                     </span>
                                 </button>
                             );
                         })}
                     </div>
 
-                    <div className="flex items-center justify-between gap-3 lg:justify-end">
-                        <span className="text-[11px] font-bold text-slate-400">
+                    <div className="flex items-center justify-between gap-3 px-2 pb-1 lg:justify-end lg:pb-0 lg:pr-1">
+                        <span className="text-[11px] font-bold text-sky-100/70">
                             {savedLabel ? `Last updated ${savedLabel}` : 'No utilization saved yet'}
                         </span>
                         <button
                             type="button"
                             onClick={() => navigate('/siif/utilization')}
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border-0 bg-[#08315F] px-4 py-2.5 text-xs font-black text-white shadow-md shadow-[#08315F]/20 transition-all hover:-translate-y-0.5 hover:bg-[#0B3F7A] focus-visible:ring-2 focus-visible:ring-sky-300"
+                            className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border-0 bg-white/95 px-4 py-2.5 text-xs font-black text-[#08315F] shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#FBBF24] focus-visible:ring-2 focus-visible:ring-[#FBBF24]"
                         >
                             <TbClipboardList size={16} /> Update Utilization <TbArrowRight size={14} />
                         </button>
                     </div>
-                </section>
+                </div>
+            </section>
 
+            <div id="siif-dash-panels" className="space-y-6">
                 {/* ── KPI cards ── */}
                 <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <KpiCard
