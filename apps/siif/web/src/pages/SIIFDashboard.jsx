@@ -13,7 +13,6 @@ import { StatusPill } from '../components/dashboard/DashboardParts';
 import InterventionSpending from '../components/dashboard/InterventionSpending';
 import StatusDonut from '../components/dashboard/StatusDonut';
 import QuarterlyDisbursementChart from '../components/dashboard/QuarterlyDisbursementChart';
-import QuarterDetailsPanel from '../components/dashboard/QuarterDetailsPanel';
 
 // ─── School SIIF Dashboard ────────────────────────────────────────────────────
 // School-scoped version of the RO/SDO SIIF monitoring home: same KPIs, charts and
@@ -248,9 +247,6 @@ const SIIFDashboard = ({ user, token }) => {
                             scope={scope}
                             scopeLabel={scopeLabel}
                         />
-
-                        {/* ── Details by quarter ── */}
-                        <QuarterDetailsPanel interventions={dash.interventions} scope={scope} />
                     </>
                 )}
             </div>
