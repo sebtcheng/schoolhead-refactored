@@ -141,7 +141,7 @@ const BottomNav = () => {
                                 onClick={() => navigate(item.path)}
                                 className="flex flex-col items-center justify-end bg-transparent border-0 cursor-pointer text-slate-300 hover:text-white transition-colors"
                             >
-                                <span className="-mt-7 w-12 h-12 rounded-full bg-[#10346B] text-white flex items-center justify-center shadow-lg shadow-black/30 ring-4 ring-[#08315F] transition-transform active:scale-95">
+                                <span className="-mt-7 w-12 h-12 rounded-full bg-[#10346B] text-[#FBBF24] flex items-center justify-center border-[3px] border-[#FBBF24] shadow-lg shadow-amber-400/30 ring-4 ring-[#08315F] transition-transform active:scale-95">
                                     <Icon size={20} />
                                 </span>
                                 <span className="text-[9px] font-bold tracking-tight mt-0.5">{item.label}</span>

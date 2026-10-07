@@ -76,6 +76,8 @@ verify_*.mjs
 *.log
 !README.md
 !CLAUDE.md
+# Schema definitions (views, tables) are source code, not data dumps
+!apps/siif/api/sql/*.sql
 
 # Large Archives
 *.tar.gz

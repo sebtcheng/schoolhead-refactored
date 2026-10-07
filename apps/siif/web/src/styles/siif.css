@@ -1927,6 +1927,28 @@ html.dark .siif-module-root textarea::placeholder {
   }
 }
 
+/* Global support-chat button (SchoolHeadChatWidget): lift it above the Utilization
+   save bar so the two never overlap. Only applies while the save bar is on screen.
+   Save bar: ~66px tall, sitting at 20px (desktop) or 84px (above the mobile nav). */
+body:has(.siif-save-bar) .sh-chat-fab {
+  bottom: 104px;
+}
+
+body:has(.siif-save-bar) .sh-chat-drawer {
+  bottom: 176px;
+}
+
+@media (max-width: 767px) {
+  body:has(.siif-save-bar) .sh-chat-fab {
+    bottom: 166px;
+  }
+
+  body:has(.siif-save-bar) .sh-chat-drawer {
+    bottom: 238px;
+    height: calc(100vh - 270px);
+  }
+}
+
 /* Dashboard: on tablet/mobile the .topbar rules add a 10px side inset and zero
    bottom margin, so the header was narrower than the cards and touched the quarter bar */
 @media (max-width: 1000px) {

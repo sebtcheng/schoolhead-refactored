@@ -1,4 +1,5 @@
 import React from 'react';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { TbCheck, TbDeviceFloppy, TbAlertCircle } from 'react-icons/tb';
 import { formatPeso, formatSavedAt } from './utilizationUi';
@@ -27,7 +28,9 @@ const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, t
     const disabled = saving || isOverAllocation || !hasUnsavedChanges;
 
     return (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-3 sm:px-6 sm:pb-5 print:hidden">
+        // Below md the 64px bottom nav (plus the raised Nexus button) covers bottom-0, so sit above it
+        // .siif-save-bar is also the hook siif.css uses to lift the global chat button above this bar
+        <div className="siif-save-bar pointer-events-none fixed inset-x-0 bottom-[84px] z-40 px-3 sm:px-6 md:bottom-0 md:pb-5 print:hidden">
             <motion.div
                 initial={{ y: 90, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}

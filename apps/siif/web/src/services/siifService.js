@@ -115,6 +115,25 @@ export async function fetchModifiedUtilization(schoolId, token, fiscalYear) {
 }
 
 /**
+ * Fetch the audit trail (newest first) of a school's modified utilization.
+ * @param {string} schoolId
+ * @param {string} token
+ * @param {{ fiscalYear?: number, limit?: number, offset?: number }} [options]
+ */
+export async function fetchModifiedUtilizationHistory(schoolId, token, { fiscalYear, limit, offset } = {}) {
+    const params = new URLSearchParams();
+    if (fiscalYear) params.set('fiscalYear', fiscalYear);
+    if (limit) params.set('limit', limit);
+    if (offset) params.set('offset', offset);
+    const query = params.toString() ? `?${params}` : '';
+    const res = await fetch(api(`/siif/modified-utilization/${schoolId}/history${query}`), {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Modified utilization history fetch failed: ${res.status}`);
+    return res.json();
+}
+
+/**
  * Save modified utilization data and active interventions for a school.
  * @param {object} payload — { schoolId, selectedInterventions, utilizationData, fiscalYear }
  * @param {string} token

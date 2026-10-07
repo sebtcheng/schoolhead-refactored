@@ -76,18 +76,19 @@ const SIIFDashboard = ({ user, token }) => {
                     </p>
                 </div>
 
-                {/* Wrapper does the hiding: siif.css forces .siif-topbar-actions to display:flex,
-                    which beats Tailwind's `hidden`. Phones get the rate from the KPI card instead. */}
-                <div className="hidden sm:block">
-                    <div className="siif-topbar-actions">
-                        <div className="flex min-w-[180px] flex-col items-end gap-1 rounded-2xl border border-slate-100 bg-white/95 px-4 py-2.5 shadow-md">
-                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Fund Utilization Rate</span>
-                            <span className="text-lg font-black leading-none text-[#08315F]">{rate.toFixed(1)}%</span>
-                            <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
-                                <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(100, rate)}%` }} />
-                            </div>
-                            <StatusPill status={dash.schoolStatus} />
+                {/* Compact on phones so it fits the header's white corner instead of clipping */}
+                <div className="siif-topbar-actions shrink-0">
+                    <div className="flex flex-col items-end gap-1 rounded-xl border border-slate-100 bg-white/95 px-2.5 py-1.5 shadow-md sm:min-w-[180px] sm:rounded-2xl sm:px-4 sm:py-2.5">
+                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 sm:text-[9px]">
+                            <span className="hidden sm:inline">Fund </span>Utilization<span className="hidden sm:inline"> Rate</span>
+                        </span>
+                        <span className="text-base font-black leading-none text-[#08315F] sm:text-lg">{rate.toFixed(1)}%</span>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 sm:w-32">
+                            <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.min(100, rate)}%` }} />
                         </div>
+                        <span className="inline-block origin-right scale-90 sm:scale-100">
+                            <StatusPill status={dash.schoolStatus} />
+                        </span>
                     </div>
                 </div>
             </header>

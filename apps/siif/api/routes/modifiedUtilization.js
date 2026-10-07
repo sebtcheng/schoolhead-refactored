@@ -1,5 +1,6 @@
 // ─── Modified SIIF Utilization Route ──────────────────────────────────────────
 // GET  /api/siif/modified-utilization/:schoolId
+// GET  /api/siif/modified-utilization/:schoolId/history
 // POST /api/siif/modified-utilization
 
 import { Router } from 'express';
@@ -8,6 +9,21 @@ import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
 
 const router = Router();
+
+const AUDIT_ACTIONS = ['save', 'remove'];
+
+// Sum of a quarters map; a quarter is { amount } or a bare amount (legacy rows)
+const spentOf = (quarters) =>
+    Object.values(quarters || {}).reduce(
+        (sum, q) => sum + (parseFloat(q?.amount !== undefined ? q.amount : q) || 0),
+        0
+    );
+
+// Intervention ids from a stored selected_interventions array (objects or plain ids)
+const idsOf = (items) =>
+    (Array.isArray(items) ? items : [])
+        .map(item => (typeof item === 'object' && item !== null ? item.id : item))
+        .filter(Boolean);
 
 // ─── GET /api/siif/modified-utilization/:schoolId ──────────────────────────────
 router.get('/modified-utilization/:schoolId', authenticate, async (req, res) => {
@@ -89,10 +105,55 @@ router.get('/modified-utilization/:schoolId', authenticate, async (req, res) => 
     }
 });
 
+// ─── GET /api/siif/modified-utilization/:schoolId/history ──────────────────────
+// Audit trail, newest first. Query: fiscalYear (default current), limit (≤200), offset.
+router.get('/modified-utilization/:schoolId/history', authenticate, async (req, res) => {
+    try {
+        const finalSchoolId = await resolveSchoolId(req.params.schoolId, req.user);
+        const fiscalYear = parseInt(req.query.fiscalYear, 10) || new Date().getFullYear();
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+        const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+        console.log(`\n📜 [SIIF-API] GET Utilization History for School: ${finalSchoolId} | FY: ${fiscalYear}`);
+
+        const { rows } = await pool.query(
+            `SELECT audit_id, action, added_ids, removed_ids,
+                    before_interventions, after_interventions,
+                    before_spent, after_spent,
+                    changed_by_user_id, changed_by_email, changed_at,
+                    COUNT(*) OVER() AS total_count
+             FROM modified_siif_utilization_audit
+             WHERE school_id = $1 AND fiscal_year = $2
+             ORDER BY changed_at DESC, audit_id DESC
+             LIMIT $3 OFFSET $4`,
+            [finalSchoolId, fiscalYear, limit, offset]
+        );
+
+        return res.json({
+            success: true,
+            schoolId: finalSchoolId,
+            fiscalYear,
+            total: rows.length ? parseInt(rows[0].total_count, 10) : 0,
+            limit,
+            offset,
+            // eslint-disable-next-line no-unused-vars
+            history: rows.map(({ total_count, ...row }) => ({
+                ...row,
+                before_spent: row.before_spent === null ? null : parseFloat(row.before_spent),
+                after_spent: parseFloat(row.after_spent),
+            })),
+        });
+    } catch (err) {
+        console.error('🔥 [SIIF-API] Error fetching utilization history:', err);
+        return res.status(500).json({ error: 'Internal Server Error', details: err.message });
+    }
+});
+
 // ─── POST /api/siif/modified-utilization ──────────────────────────────────────
 router.post('/modified-utilization', authenticate, async (req, res) => {
-    const { schoolId, selectedInterventions, utilizationData, fiscalYear: reqFy } = req.body;
+    const { schoolId, selectedInterventions, utilizationData, fiscalYear: reqFy, action: reqAction } = req.body;
     const fiscalYear = parseInt(reqFy, 10) || new Date().getFullYear();
+    const action = AUDIT_ACTIONS.includes(reqAction) ? reqAction : 'save';
 
     console.log(`\n💾 [SIIF-API] SAVE Modified Utilization Request for School: ${schoolId} | FY: ${fiscalYear}`);
 
@@ -170,6 +231,15 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
         const allocationId = allocRes.rows[0]?.siif_allocation_id || null;
         const allocAmount = parseFloat(allocRes.rows[0]?.allocation_amount) || 0.0;
 
+        // 1b. Lock and read the current record so the audit "before" can't race another save
+        const beforeRes = await client.query(
+            `SELECT selected_interventions FROM modified_siif_utilization
+             WHERE school_id = $1 AND fiscal_year = $2
+             FOR UPDATE`,
+            [finalSchoolId, fiscalYear]
+        );
+        const beforeSelected = beforeRes.rows[0]?.selected_interventions ?? null;
+
         // 2. Upsert into modified_siif_utilization with unified selected_interventions
         const upsertRes = await client.query(
             `INSERT INTO modified_siif_utilization 
@@ -198,6 +268,35 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
         } else {
             console.warn(`⚠️ [SIIF-API] No siif_allocation record found for school ${finalSchoolId} to sync spent_amount.`);
         }
+
+        // 4. Append to the audit trail (same transaction — no save without its log row)
+        const beforeIds = idsOf(beforeSelected);
+        const afterIds = unifiedSelected.map(item => item.id);
+        const beforeSpent = beforeSelected === null
+            ? null
+            : (Array.isArray(beforeSelected) ? beforeSelected : [])
+                .reduce((sum, item) => sum + spentOf(item?.quarters), 0);
+
+        await client.query(
+            `INSERT INTO modified_siif_utilization_audit
+                (school_id, fiscal_year, action, added_ids, removed_ids,
+                 before_interventions, after_interventions, before_spent, after_spent,
+                 changed_by_user_id, changed_by_email)
+             VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10, $11)`,
+            [
+                finalSchoolId,
+                fiscalYear,
+                action,
+                afterIds.filter(id => !beforeIds.includes(id)),
+                beforeIds.filter(id => !afterIds.includes(id)),
+                beforeSelected === null ? null : JSON.stringify(beforeSelected),
+                JSON.stringify(unifiedSelected),
+                beforeSpent,
+                spentAmount,
+                String(req.user?.uid || req.user?.id || req.user?.sub || '') || null,
+                req.user?.email || null,
+            ]
+        );
 
         await client.query('COMMIT');
         console.log(`✅ [SIIF-API] Modified utilization successfully saved for school ${finalSchoolId}`);

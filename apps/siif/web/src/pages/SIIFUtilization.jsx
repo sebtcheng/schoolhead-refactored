@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
 import { TbTarget, TbPlus, TbCalendarStats } from 'react-icons/tb';
@@ -44,6 +44,17 @@ const SIIFUtilization = ({ user, token }) => {
     const closeToast = useCallback(() => setToast(null), []);
     const cancelDeactivate = useCallback(() => setPendingDeactivate(null), []);
 
+    // Warn before a reload / tab close throws away edits that were never saved
+    useEffect(() => {
+        if (!hasUnsavedChanges) return undefined;
+        const warn = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', warn);
+        return () => window.removeEventListener('beforeunload', warn);
+    }, [hasUnsavedChanges]);
+
     if (loading) {
         return <SiifLoader text="Loading Utilization Tracker..." />;
     }
@@ -84,12 +95,28 @@ const SIIFUtilization = ({ user, token }) => {
     const viewingLabel = periods.find(p => p.id === viewingQuarter)?.label || viewingQuarter;
 
     // ─── Toggle Intervention Activation ───────────────────────────────────────
-    const deactivateIntervention = (intId) => {
-        setSelectedInterventions(prev => prev.filter(id => id !== intId));
-        setHasUnsavedChanges(true);
+    // Removing is saved right away so a reload can't bring the intervention back
+    const deactivateIntervention = async (intId) => {
+        const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
+        const previous = selectedInterventions;
+        const next = previous.filter(id => id !== intId);
+        setSelectedInterventions(next);
+
+        const result = await persistUtilization(next, 'remove');
+        if (result.status === 'saved') {
+            showToast('success', `${label} removed`, 'Your school and division records are now up to date.');
+        } else if (result.status === 'over') {
+            setHasUnsavedChanges(true);
+            showToast('error', `${label} removed, but not saved yet`,
+                'Your other amounts still exceed the school allocation. Adjust them, then click Save.');
+        } else {
+            setSelectedInterventions(previous);
+            showToast('error', `Couldn't remove ${label}`, `${result.message} Nothing was changed.`);
+        }
     };
 
     const handleToggleIntervention = (intId) => {
+        if (saving) return;
         const isCurrentlyActive = selectedInterventions.includes(intId);
 
         if (isCurrentlyActive) {
@@ -118,8 +145,9 @@ const SIIFUtilization = ({ user, token }) => {
     };
 
     const confirmDeactivate = () => {
-        if (pendingDeactivate) deactivateIntervention(pendingDeactivate);
+        const intId = pendingDeactivate;
         setPendingDeactivate(null);
+        if (intId) deactivateIntervention(intId);
     };
 
     // ─── Utilization Inputs Handlers ──────────────────────────────────────────
@@ -191,18 +219,25 @@ const SIIFUtilization = ({ user, token }) => {
         setHasUnsavedChanges(true);
     };
 
-    // ─── Save Handler ──────────────────────────────────────────────────────────
-    const handleSave = async () => {
-        if (isOverAllocation) {
-            showToast('error', 'Over allocation limit',
-                `Total utilization (${formatPeso(totalUtilized)}) exceeds the school allocation (${formatPeso(totalAllocated)}). Please adjust your figures before saving.`);
-            return;
+    // ─── Persist ───────────────────────────────────────────────────────────────
+    // Saves the given intervention list with the current quarter data.
+    // `action` is recorded in the audit trail ('save' | 'remove').
+    // Resolves to { status: 'saved' | 'over' | 'failed', message? }; callers show the toast.
+    const persistUtilization = async (interventionIds, action = 'save') => {
+        let nextTotal = 0;
+        interventionIds.forEach(intId => {
+            const intUtil = utilizationData[intId] || {};
+            periods.forEach(p => {
+                nextTotal += amountOf(intUtil[p.id]);
+            });
+        });
+        if (totalAllocated > 0 && nextTotal > totalAllocated) {
+            return { status: 'over' };
         }
 
         const schoolId = user?.school_id || user?.schoolId || user?.id || user?.uid || user?.sub;
         if (!schoolId) {
-            showToast('error', 'Unable to save', 'School ID could not be identified from your account session.');
-            return;
+            return { status: 'failed', message: 'School ID could not be identified from your account session.' };
         }
 
         setSaving(true);
@@ -213,7 +248,7 @@ const SIIFUtilization = ({ user, token }) => {
             const activeIdx = periods.findIndex(p => p.id === activeQuarter);
             const lastPersistIdx = activeIdx === -1 ? periods.length - 1 : activeIdx;
             const payloadData = { ...utilizationData };
-            selectedInterventions.forEach(intId => {
+            interventionIds.forEach(intId => {
                 const original = utilizationData[intId] || {};
                 const quarters = { ...original };
                 periods.forEach((p, i) => {
@@ -228,7 +263,7 @@ const SIIFUtilization = ({ user, token }) => {
             });
 
             // Construct unified selected_interventions containing quarters and subtotal
-            const unifiedSelected = selectedInterventions.map(intId => {
+            const unifiedSelected = interventionIds.map(intId => {
                 const intMeta = INTERVENTIONS.find(i => i.id === intId) || { label: intId };
                 const quarters = payloadData[intId] || {};
                 let totalSpent = 0;
@@ -248,6 +283,7 @@ const SIIFUtilization = ({ user, token }) => {
                 selectedInterventions: unifiedSelected,
                 utilizationData: payloadData,
                 fiscalYear,
+                action,
             };
 
             console.log('💾 [SIIFUtilization] Saving modified utilization:', payload);
@@ -255,13 +291,27 @@ const SIIFUtilization = ({ user, token }) => {
 
             setUtilizationData(payloadData);
             setHasUnsavedChanges(false);
-            showToast('success', 'Utilization updates saved', 'Your school and division records are now up to date.');
             refetch();
+            return { status: 'saved' };
         } catch (err) {
             console.error('🔥 [SIIFUtilization] Save failed:', err);
-            showToast('error', 'Error saving updates', err.message);
+            return { status: 'failed', message: err.message };
         } finally {
             setSaving(false);
+        }
+    };
+
+    // ─── Save Handler ──────────────────────────────────────────────────────────
+    const handleSave = async () => {
+        if (saving) return;
+        const result = await persistUtilization(selectedInterventions);
+        if (result.status === 'saved') {
+            showToast('success', 'Utilization updates saved', 'Your school and division records are now up to date.');
+        } else if (result.status === 'over') {
+            showToast('error', 'Over allocation limit',
+                `Total utilization (${formatPeso(totalUtilized)}) exceeds the school allocation (${formatPeso(totalAllocated)}). Please adjust your figures before saving.`);
+        } else {
+            showToast('error', 'Error saving updates', result.message);
         }
     };
 
@@ -282,17 +332,15 @@ const SIIFUtilization = ({ user, token }) => {
                     </p>
                 </div>
 
-                {/* Wrapper does the hiding: siif.css forces .siif-topbar-actions to display:flex */}
-                <div className="hidden sm:block">
-                    <div className="siif-topbar-actions">
-                        <div className="flex items-center gap-2.5 rounded-2xl border border-slate-100 bg-white px-4 py-2.5 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#08315F] text-white">
-                                <TbCalendarStats size={18} />
-                            </span>
-                            <div className="leading-tight">
-                                <small className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Fiscal Year</small>
-                                <strong className="block text-lg font-black text-[#08315F]">FY {fiscalYear}</strong>
-                            </div>
+                {/* Compact on phones (icon hidden) so it fits the header's white corner */}
+                <div className="siif-topbar-actions shrink-0">
+                    <div className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white px-2.5 py-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.08)] sm:rounded-2xl sm:px-4 sm:py-2.5">
+                        <span className="hidden h-9 w-9 items-center justify-center rounded-xl bg-[#08315F] text-white sm:flex">
+                            <TbCalendarStats size={18} />
+                        </span>
+                        <div className="text-right leading-tight sm:text-left">
+                            <small className="block text-[8px] font-extrabold uppercase tracking-wider text-slate-500 sm:text-[10px]">Fiscal Year</small>
+                            <strong className="block text-sm font-black text-[#08315F] sm:text-lg">FY {fiscalYear}</strong>
                         </div>
                     </div>
                 </div>
@@ -408,9 +456,9 @@ const SIIFUtilization = ({ user, token }) => {
 
             <ConfirmDialog
                 open={!!pendingDeactivate}
-                title={`Stop tracking ${pendingLabel}?`}
-                message={`"${pendingLabel}" currently has recorded utilization amounts. Deactivating it will hide it from the active tracker. Are you sure you want to proceed?`}
-                confirmLabel="Deactivate"
+                title={`Remove ${pendingLabel}?`}
+                message={`"${pendingLabel}" has recorded utilization amounts. Removing it deletes those amounts from your saved records right away. Are you sure you want to proceed?`}
+                confirmLabel="Remove"
                 onConfirm={confirmDeactivate}
                 onCancel={cancelDeactivate}
             />
