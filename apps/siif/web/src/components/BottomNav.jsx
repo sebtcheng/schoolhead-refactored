@@ -19,10 +19,9 @@ const BottomNav = () => {
         { label: 'Settings', path: '/siif/settings', icon: FiSettings },
     ];
 
-    // /siif (the login landing route) shows Utilization
     const isActivePath = (path) => {
         const current = location.pathname.replace(/\/+$/, '') || '/';
-        return current === path || (path === '/siif/utilization' && current === '/siif');
+        return current === path;
     };
 
     return (

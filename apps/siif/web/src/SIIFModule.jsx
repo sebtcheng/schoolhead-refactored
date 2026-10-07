@@ -31,12 +31,12 @@ const SIIFModuleContent = () => {
                 <BottomNav />
                 <div className="siif-main-area pb-24 md:pb-6">
                     <Routes>
-                        {/* Login still lands on Utilization */}
-                        <Route index element={<SIIFUtilization user={user} token={token} />} />
+                        {/* Login lands on Dashboard */}
+                        <Route index element={<Navigate to="dashboard" replace />} />
                         <Route path="dashboard" element={<SIIFDashboard user={user} token={token} />} />
                         <Route path="utilization" element={<SIIFUtilization user={user} token={token} />} />
                         <Route path="settings" element={<SIIFSettings user={user} token={token} />} />
-                        <Route path="*" element={<Navigate to="/siif/utilization" replace />} />
+                        <Route path="*" element={<Navigate to="/siif/dashboard" replace />} />
                     </Routes>
                 </div>
             </div>
