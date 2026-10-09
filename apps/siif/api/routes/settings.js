@@ -36,6 +36,12 @@ router.put('/settings/deadline', authenticate, async (req, res) => {
     console.log(`👤 User: ${req.user?.email} | Role: ${req.user?.role}`);
     console.log(`📅 Proposed Value: ${deadline}`);
 
+    // The planning window is global — only system administrators may change it
+    if (req.user?.role !== 'Super User') {
+        console.warn(`⛔ [SIIF-SETTINGS] Deadline change denied for role: ${req.user?.role}`);
+        return res.status(403).json({ error: 'Only administrators can change the SIIF deadline' });
+    }
+
     if (!deadline) {
         return res.status(400).json({ error: 'Deadline is required' });
     }

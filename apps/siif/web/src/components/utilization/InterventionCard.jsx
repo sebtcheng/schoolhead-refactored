@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { TbTarget, TbX, TbAlertTriangle } from 'react-icons/tb';
+import { TbTarget, TbX, TbAlertTriangle, TbLock } from 'react-icons/tb';
+import ActivityChecklist from './ActivityChecklist';
 import {
     amountOf,
     formatPeso,
     formatAmountInput,
     sanitizeAmountInput,
-    STATUS_OPTIONS,
     QUARTER_SHORT,
-    statusStyle,
-    effectiveStatus,
 } from './utilizationUi';
 
 const InterventionCard = ({
@@ -21,10 +19,14 @@ const InterventionCard = ({
     viewingQuarter,
     maxAllowed,
     onAmountChange,
-    onStatusChange,
     onJustificationChange,
     onRemove,
     index,
+    locked = false,
+    removeBlocked = false,
+    plannedActivities = [],
+    activitiesMissing = false,
+    onActivitiesChange,
 }) => {
     const [focused, setFocused] = useState(false);
     const [limitError, setLimitError] = useState(null);
@@ -33,9 +35,8 @@ const InterventionCard = ({
     const current = quarterData[viewingQuarter] || {};
     const rawAmount = current?.amount !== undefined ? current.amount : current;
     const amountStr = typeof rawAmount === 'object' || rawAmount === undefined || rawAmount === null ? '' : String(rawAmount);
-    const { status, inheritedFrom } = effectiveStatus(quarterData, periods, viewingQuarter);
     const justification = current?.justification || '';
-    const style = statusStyle(status);
+    const hasAmount = amountOf(current) > 0;
 
     const total = periods.reduce((sum, p) => sum + amountOf(quarterData[p.id]), 0);
     const fieldId = `siif-${intId}-${viewingQuarter}`;
@@ -44,6 +45,7 @@ const InterventionCard = ({
     useEffect(() => () => clearTimeout(errorTimer.current), []);
 
     const handleAmount = (text) => {
+        if (locked) return;
         const result = onAmountChange(intId, sanitizeAmountInput(text));
         clearTimeout(errorTimer.current);
         if (result?.exceeded) {
@@ -63,8 +65,8 @@ const InterventionCard = ({
             transition={{ duration: 0.3, delay: Math.min(index * 0.04, 0.3) }}
             className="siif-card group relative flex h-full flex-col overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:!shadow-[0_12px_32px_-12px_rgba(8,49,95,0.28)]"
         >
-            {/* Status accent */}
-            <span className={`absolute inset-y-0 left-0 w-1.5 transition-colors duration-300 ${style.accent}`} aria-hidden="true" />
+            {/* Accent: filled in once this quarter has an amount */}
+            <span className={`absolute inset-y-0 left-0 w-1.5 transition-colors duration-300 ${hasAmount ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} aria-hidden="true" />
 
             <div className="flex flex-1 flex-col gap-4 p-4 pl-5 sm:p-5 sm:pl-6">
                 {/* Header */}
@@ -73,22 +75,19 @@ const InterventionCard = ({
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/20">
                             {icon || <TbTarget size={18} />}
                         </div>
-                        <div className="min-w-0">
-                            <h3 className="truncate font-heading text-[15px] font-extrabold tracking-tight text-[#08315F] dark:text-slate-100" title={label}>
-                                {label}
-                            </h3>
-                            <span className={`mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-colors duration-300 ${style.chip}`}>
-                                <span className={`h-1.5 w-1.5 rounded-full ${style.dot} ${status === 'Ongoing' ? 'animate-pulse' : ''}`} aria-hidden="true" />
-                                {status}
-                            </span>
-                        </div>
+                        <h3 className="min-w-0 truncate font-heading text-[15px] font-extrabold tracking-tight text-[#08315F] dark:text-slate-100" title={label}>
+                            {label}
+                        </h3>
                     </div>
                     <button
                         type="button"
                         onClick={() => onRemove(intId)}
-                        title="Stop tracking this intervention"
+                        disabled={removeBlocked}
+                        title={removeBlocked
+                            ? "Can't be removed: it has entries in a locked quarter"
+                            : 'Stop tracking this intervention'}
                         aria-label={`Stop tracking ${label}`}
-                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border-0 bg-slate-100 text-slate-400 outline-none transition-all hover:bg-rose-50 hover:text-rose-500 focus-visible:ring-2 focus-visible:ring-rose-300 dark:bg-slate-800 dark:hover:bg-rose-500/10"
+                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border-0 bg-slate-100 text-slate-400 outline-none transition-all hover:bg-rose-50 hover:text-rose-500 focus-visible:ring-2 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-slate-100 disabled:hover:text-slate-400 dark:bg-slate-800 dark:hover:bg-rose-500/10"
                     >
                         <TbX size={15} />
                     </button>
@@ -112,19 +111,26 @@ const InterventionCard = ({
                             onFocus={() => setFocused(true)}
                             onBlur={() => setFocused(false)}
                             onChange={(e) => handleAmount(e.target.value)}
+                            readOnly={locked}
                             placeholder="0.00"
                             aria-invalid={!!errorText}
                             aria-describedby={`${fieldId}-hint`}
                             style={{ paddingLeft: '38px' }}
                             className={`w-full rounded-2xl border py-3 pr-4 text-base font-black tabular-nums text-slate-900 outline-none transition-all hover:border-slate-300 focus:bg-white focus:ring-4 dark:text-slate-100 dark:focus:bg-slate-900 dark:focus:ring-indigo-500/20 ${
-                                errorText
+                                locked
+                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500 focus:ring-0 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400'
+                                    : errorText
                                     ? 'border-rose-400 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-100'
                                     : 'border-slate-200 bg-slate-50 focus:border-indigo-400 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800'
                             }`}
                         />
                     </div>
                     <p id={`${fieldId}-hint`} className="mt-1.5 min-h-[16px] text-[11px] font-bold">
-                        {errorText ? (
+                        {locked ? (
+                            <span className="inline-flex items-center gap-1 text-slate-400">
+                                <TbLock size={12} /> Locked quarter, view only
+                            </span>
+                        ) : errorText ? (
                             <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400">
                                 <TbAlertTriangle size={13} /> {errorText}
                             </span>
@@ -134,48 +140,18 @@ const InterventionCard = ({
                     </p>
                 </div>
 
-                {/* Status */}
-                <div>
-                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                        <span id={`${fieldId}-status`} className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Implementation Status
-                        </span>
-                        {inheritedFrom && (
-                            <span className="truncate text-[10px] font-bold text-slate-400 dark:text-slate-500" title="Carried over from the previous quarter. Pick another status to change it.">
-                                Same as {QUARTER_SHORT[inheritedFrom] || inheritedFrom}
-                            </span>
-                        )}
-                    </div>
-                    <div role="radiogroup" aria-labelledby={`${fieldId}-status`} className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 ring-1 ring-inset ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/60">
-                        {STATUS_OPTIONS.map(opt => {
-                            const active = opt.value === status;
-                            return (
-                                <button
-                                    key={opt.value}
-                                    type="button"
-                                    role="radio"
-                                    aria-checked={active}
-                                    onClick={() => onStatusChange(intId, opt.value)}
-                                    className={`relative cursor-pointer rounded-xl border-0 bg-transparent px-1 py-2 text-[10px] sm:text-[11px] font-black outline-none transition-[color,background-color,transform] duration-200 focus-visible:ring-2 focus-visible:ring-indigo-300 active:scale-[0.97] ${
-                                        active ? opt.activeText : `text-slate-500 dark:text-slate-400 ${opt.hover}`
-                                    }`}
-                                >
-                                    {active && (
-                                        <motion.span
-                                            layoutId={`${fieldId}-status-pill`}
-                                            transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-                                            className={`absolute inset-0 rounded-xl shadow-md ${opt.active}`}
-                                            aria-hidden="true"
-                                        />
-                                    )}
-                                    <span className="relative z-10">
-                                        {opt.short}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
+                {/* Activities for the quarter on screen; remounts per quarter */}
+                <ActivityChecklist
+                    key={viewingQuarter}
+                    fieldId={fieldId}
+                    caption={`For ${QUARTER_SHORT[viewingQuarter] || viewingQuarter}`}
+                    activities={Array.isArray(current?.activities) ? current.activities : []}
+                    otherActivity={current?.other_activity || ''}
+                    planned={plannedActivities}
+                    readOnly={locked}
+                    missing={activitiesMissing}
+                    onChange={(next) => onActivitiesChange(intId, next)}
+                />
 
                 {/* Remarks */}
                 <div>
@@ -186,9 +162,10 @@ const InterventionCard = ({
                         id={`${fieldId}-remarks`}
                         value={justification}
                         onChange={(e) => onJustificationChange(intId, e.target.value)}
+                        readOnly={locked}
                         rows={2}
-                        placeholder="Optional notes or accomplishment description..."
-                        className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium leading-relaxed text-slate-700 outline-none transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:bg-slate-900 dark:focus:ring-indigo-500/20"
+                        placeholder={locked ? '' : 'Optional notes or accomplishment description...'}
+                        className="read-only:cursor-not-allowed read-only:bg-slate-100 read-only:text-slate-500 dark:read-only:bg-slate-800/60 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium leading-relaxed text-slate-700 outline-none transition-all placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:bg-slate-900 dark:focus:ring-indigo-500/20"
                     />
                 </div>
             </div>

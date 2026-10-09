@@ -136,8 +136,25 @@ export async function safeUsersQuery(text, params) {
   }
 }
 
-// --- CENTRAL SIIF DATABASE CONNECTION (siif_database) ---
-const siifDbUrl = process.env.SIIF_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/siif_database';
+// --- CENTRAL SIIF DATABASE CONNECTION (siif_database_v2) ---
+// No fallback: SIIF must only ever read/write siif_database_v2. A missing or
+// mistargeted SIIF_DATABASE_URL stops the server instead of writing elsewhere.
+const SIIF_DB_NAME = 'siif_database_v2';
+const siifDbUrl = process.env.SIIF_DATABASE_URL;
+if (!siifDbUrl) {
+  throw new Error('[SIIF-DB] SIIF_DATABASE_URL is not set. Refusing to start without siif_database_v2.');
+}
+{
+  let siifDbName;
+  try {
+    siifDbName = decodeURIComponent(new URL(siifDbUrl).pathname.replace(/^\//, ''));
+  } catch {
+    throw new Error('[SIIF-DB] SIIF_DATABASE_URL is not a valid connection URL.');
+  }
+  if (siifDbName !== SIIF_DB_NAME) {
+    throw new Error(`[SIIF-DB] SIIF_DATABASE_URL points to "${siifDbName}", expected "${SIIF_DB_NAME}".`);
+  }
+}
 export const poolSiif = new Pool({
   connectionString: siifDbUrl,
   ssl: { rejectUnauthorized: false },
@@ -156,7 +173,7 @@ poolSiif.on('error', (err) => {
 });
 
 /**
- * [SIIF-DB-RETRY] Execute a safe query on siif_database with one-shot retry.
+ * [SIIF-DB-RETRY] Execute a safe query on siif_database_v2 with one-shot retry.
  */
 export async function safeSiifQuery(text, params) {
   try {

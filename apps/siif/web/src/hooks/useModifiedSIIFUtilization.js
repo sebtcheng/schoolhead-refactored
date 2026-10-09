@@ -3,7 +3,7 @@
 // Bypasses baseline submission checks and loads directly from modified_siif_utilization
 // and siif_allocations.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchDeadline, fetchModifiedUtilization } from '../services/siifService';
 
 const PERIODS = [
@@ -12,6 +12,26 @@ const PERIODS = [
     { id: 'January-March',    label: 'January - March',    full: 'Phase 3: January - March' },
 ];
 
+/** Quarter of today's date; April–June (off-season) falls back to Phase 1. */
+function currentQuarter() {
+    const month = new Date().getMonth(); // 0-11
+    if (month >= 9 && month <= 11) return 'October-December';
+    if (month >= 0 && month <= 2)  return 'January-March';
+    return 'July-September';
+}
+
+/**
+ * Tab to open on: today's quarter if it is open, else the latest open quarter
+ * before it, else the first open one. With every quarter locked, today's (read-only).
+ */
+function startingQuarter(today, locked) {
+    const open = PERIODS.filter(p => !locked.includes(p.id));
+    if (open.some(p => p.id === today)) return today;
+    const todayIdx = PERIODS.findIndex(p => p.id === today);
+    const earlier = open.filter(p => PERIODS.indexOf(p) < todayIdx);
+    return (earlier[earlier.length - 1] || open[0])?.id || today;
+}
+
 /**
  * @param {object} user
  * @param {string} token
@@ -19,25 +39,16 @@ const PERIODS = [
 export function useModifiedSIIFUtilization(user, token) {
     const [loading, setLoading]                                 = useState(true);
     const [deadline, setDeadline]                               = useState(null);
-    const [activeQuarter, setActiveQuarter]                     = useState('');
-    const [viewingQuarter, setViewingQuarter]                   = useState('July-September');
+    const [activeQuarter]                                       = useState(currentQuarter);
+    const [viewingQuarter, setViewingQuarter]                   = useState(currentQuarter);
     const [selectedInterventions, setSelectedInterventions]     = useState([]);
     const [utilizationData, setUtilizationData]                 = useState({});
     const [officialAllocation, setOfficialAllocation]           = useState({ allocation_amount: 0, spent_amount: 0 });
     const [lastSavedAt, setLastSavedAt]                         = useState(null);
-
-    // ─── Quarter detection from current date ──────────────────────────────────
-    useEffect(() => {
-        const month = new Date().getMonth(); // 0-11
-        let q = '';
-        if (month >= 6 && month <= 8)       q = 'July-September';
-        else if (month >= 9 && month <= 11) q = 'October-December';
-        else if (month >= 0 && month <= 2)  q = 'January-March';
-        else                                q = 'July-September'; // default to Phase 1 if off-season test
-
-        setActiveQuarter(q);
-        setViewingQuarter(q || 'July-September');
-    }, []);
+    const [plannedActivities, setPlannedActivities]             = useState({});
+    const [lockedPeriods, setLockedPeriods]                     = useState([]);
+    // The starting tab is picked once, on the first load; refetches keep the user's tab
+    const startPicked                                           = useRef(false);
 
     // ─── Data loading ─────────────────────────────────────────────────────────
     const load = useCallback(async () => {
@@ -76,7 +87,15 @@ export function useModifiedSIIFUtilization(user, token) {
 
                 setSelectedInterventions(ids);
                 setUtilizationData(data.utilizationData || {});
+                setPlannedActivities(data.plannedActivities || {});
                 setLastSavedAt(data.updatedAt || null);
+
+                const locked = Array.isArray(data.lockedPeriods) ? data.lockedPeriods : [];
+                setLockedPeriods(locked);
+                if (!startPicked.current) {
+                    startPicked.current = true;
+                    setViewingQuarter(startingQuarter(currentQuarter(), locked));
+                }
             }
         } catch (err) {
             console.error('🔥 [useModifiedSIIFUtilization] Fetch failed:', err);
@@ -99,6 +118,8 @@ export function useModifiedSIIFUtilization(user, token) {
         setSelectedInterventions,
         utilizationData,
         setUtilizationData,
+        plannedActivities,
+        lockedPeriods,
         officialAllocation,
         lastSavedAt,
         periods: PERIODS,

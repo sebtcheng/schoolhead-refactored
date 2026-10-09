@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
-import { TbTarget, TbPlus, TbCalendarStats } from 'react-icons/tb';
+import { TbTarget, TbPlus, TbCalendarStats, TbLock } from 'react-icons/tb';
 import { useModifiedSIIFUtilization } from '../hooks/useModifiedSIIFUtilization';
 import { saveModifiedUtilization } from '../services/siifService';
-import { INTERVENTIONS, INTERVENTION_ICONS } from '../constants/siifConstants';
+import { INTERVENTIONS, INTERVENTION_ICONS, OTHER_ACTIVITY } from '../constants/siifConstants';
 import SiifLoader from '../components/SiifLoader';
 import UtilizationSummary from '../components/utilization/UtilizationSummary';
 import QuarterTabs from '../components/utilization/QuarterTabs';
@@ -12,7 +12,23 @@ import InterventionSelector from '../components/utilization/InterventionSelector
 import InterventionCard from '../components/utilization/InterventionCard';
 import SaveBar from '../components/utilization/SaveBar';
 import { UtilizationToast, ConfirmDialog } from '../components/utilization/UtilizationFeedback';
-import { amountOf, formatPeso, effectiveStatus } from '../components/utilization/utilizationUi';
+import { amountOf, formatPeso, QUARTER_SHORT } from '../components/utilization/utilizationUi';
+
+const NO_ACTIVITIES = [];
+
+/** A quarter's checked activities (older rows have none). */
+const activitiesOf = (q) => (Array.isArray(q?.activities) ? q.activities : NO_ACTIVITIES);
+
+/** A quarter worth protecting from removal: an amount, remarks or activities. */
+const hasQuarterEntry = (q) =>
+    amountOf(q) > 0 || String(q?.justification || '').trim() !== '' || activitiesOf(q).length > 0;
+
+/** At least one real activity, or "Others" with the other activity spelled out. */
+const activitiesComplete = (q) => {
+    const activities = activitiesOf(q);
+    return activities.some(a => a !== OTHER_ACTIVITY) ||
+        (activities.includes(OTHER_ACTIVITY) && String(q?.other_activity || '').trim() !== '');
+};
 
 const SIIFUtilization = ({ user, token }) => {
     const [saving, setSaving] = useState(false);
@@ -21,6 +37,9 @@ const SIIFUtilization = ({ user, token }) => {
     const [selectorOpen, setSelectorOpen] = useState(null);
     const [toast, setToast] = useState(null);
     const [pendingDeactivate, setPendingDeactivate] = useState(null);
+    // Set when Save is blocked by missing activities; cards then highlight the checklist
+    // of each open quarter that has an amount but no activity
+    const [showActivityErrors, setShowActivityErrors] = useState(false);
 
     // ─── Modified Utilization Hook ────────────────────────────────────────────
     const {
@@ -32,6 +51,8 @@ const SIIFUtilization = ({ user, token }) => {
         setSelectedInterventions,
         utilizationData,
         setUtilizationData,
+        plannedActivities,
+        lockedPeriods,
         officialAllocation,
         lastSavedAt,
         periods,
@@ -83,16 +104,31 @@ const SIIFUtilization = ({ user, token }) => {
     const quarterStats = {};
     periods.forEach(p => {
         let amount = 0;
-        let completed = 0;
+        let recorded = 0;
         selectedInterventions.forEach(intId => {
             const intUtil = utilizationData[intId] || {};
             amount += amountOf(intUtil[p.id]);
-            if (effectiveStatus(intUtil, periods, p.id).status === 'Completed') completed += 1;
+            if (amountOf(intUtil[p.id]) > 0) recorded += 1;
         });
-        quarterStats[p.id] = { amount, completed, total: selectedInterventions.length };
+        quarterStats[p.id] = { amount, recorded, total: selectedInterventions.length };
     });
     const quarterTotals = periods.map(p => ({ id: p.id, label: p.label, amount: quarterStats[p.id].amount }));
     const viewingLabel = periods.find(p => p.id === viewingQuarter)?.label || viewingQuarter;
+
+    // ─── Quarter locks ─────────────────────────────────────────────────────────
+    const allLocked = lockedPeriods.length >= periods.length;
+    const isViewingLocked = lockedPeriods.includes(viewingQuarter);
+    const hasLockedEntry = (intId) =>
+        lockedPeriods.some(p => hasQuarterEntry((utilizationData[intId] || {})[p]));
+
+    // ─── Activities (per quarter) ──────────────────────────────────────────────
+    // An open quarter with an amount needs at least one activity. Locked quarters
+    // can't be edited, so they never block a save.
+    const quarterNeedsActivities = (intId, quarterId) => {
+        if (lockedPeriods.includes(quarterId)) return false;
+        const q = (utilizationData[intId] || {})[quarterId];
+        return amountOf(q) > 0 && !activitiesComplete(q);
+    };
 
     // ─── Toggle Intervention Activation ───────────────────────────────────────
     // Removing is saved right away so a reload can't bring the intervention back
@@ -118,8 +154,20 @@ const SIIFUtilization = ({ user, token }) => {
     const handleToggleIntervention = (intId) => {
         if (saving) return;
         const isCurrentlyActive = selectedInterventions.includes(intId);
+        const label = INTERVENTIONS.find(i => i.id === intId)?.label || intId;
+
+        if (allLocked) {
+            showToast('error', 'Utilization is closed', "All quarters are locked, so interventions can't be changed right now.");
+            return;
+        }
 
         if (isCurrentlyActive) {
+            if (hasLockedEntry(intId)) {
+                showToast('error', `${label} can't be removed`,
+                    'It has entries in a locked quarter. Those records have to stay.');
+                return;
+            }
+
             // Check if there are entered amounts before removing
             const intUtil = utilizationData[intId] || {};
             const hasData = Object.values(intUtil).some(q => amountOf(q) > 0);
@@ -136,7 +184,7 @@ const SIIFUtilization = ({ user, token }) => {
             if (!utilizationData[intId]) {
                 const initialQuarterData = {};
                 periods.forEach(p => {
-                    initialQuarterData[p.id] = { amount: '', status: 'Not Yet Started', justification: '' };
+                    initialQuarterData[p.id] = { amount: '', justification: '' };
                 });
                 setUtilizationData(prev => ({ ...prev, [intId]: initialQuarterData }));
             }
@@ -164,6 +212,7 @@ const SIIFUtilization = ({ user, token }) => {
     };
 
     const handleUpdateUtilization = (intId, value) => {
+        if (isViewingLocked) return { exceeded: false };
         const amount = parseFloat(value) || 0;
         const otherTotal = getOtherTotal(intId);
         const newTotal = otherTotal + amount;
@@ -179,9 +228,7 @@ const SIIFUtilization = ({ user, token }) => {
                 ...(prev[intId] || {}),
                 [viewingQuarter]: {
                     ...((prev[intId] || {})[viewingQuarter] || {}),
-                    amount: value,
-                    // Keep the status carried over from an earlier quarter
-                    status: effectiveStatus(prev[intId], periods, viewingQuarter).status
+                    amount: value
                 }
             }
         }));
@@ -189,30 +236,32 @@ const SIIFUtilization = ({ user, token }) => {
         return { exceeded: false };
     };
 
-    const handleUpdateStatus = (intId, status) => {
+    const handleUpdateJustification = (intId, text) => {
+        if (isViewingLocked) return;
         setUtilizationData(prev => ({
             ...prev,
             [intId]: {
                 ...(prev[intId] || {}),
                 [viewingQuarter]: {
                     ...((prev[intId] || {})[viewingQuarter] || {}),
-                    amount: (prev[intId] || {})[viewingQuarter]?.amount !== undefined ? (prev[intId] || {})[viewingQuarter].amount : '',
-                    status: status
+                    justification: text
                 }
             }
         }));
         setHasUnsavedChanges(true);
     };
 
-    const handleUpdateJustification = (intId, text) => {
+    // Activities belong to the quarter being viewed, like the amount
+    const handleUpdateActivities = (intId, next) => {
+        if (isViewingLocked) return;
         setUtilizationData(prev => ({
             ...prev,
             [intId]: {
                 ...(prev[intId] || {}),
                 [viewingQuarter]: {
                     ...((prev[intId] || {})[viewingQuarter] || {}),
-                    status: effectiveStatus(prev[intId], periods, viewingQuarter).status,
-                    justification: text
+                    activities: next.activities || [],
+                    other_activity: next.other_activity || '',
                 }
             }
         }));
@@ -242,22 +291,25 @@ const SIIFUtilization = ({ user, token }) => {
 
         setSaving(true);
         try {
-            // Auto-clean: ensure valid values for active quarter in active interventions.
-            // Statuses carried over from an earlier quarter are written for quarters up to
-            // the current one; future quarters keep inheriting until they are filled in.
-            const activeIdx = periods.findIndex(p => p.id === activeQuarter);
-            const lastPersistIdx = activeIdx === -1 ? periods.length - 1 : activeIdx;
+            // Every quarter is sent as { amount, justification, activities, other_activity }.
+            // Implementation status is no longer collected, so any status saved earlier is
+            // dropped here. Locked quarters are sent too, but the server keeps what is stored.
             const payloadData = { ...utilizationData };
             interventionIds.forEach(intId => {
                 const original = utilizationData[intId] || {};
-                const quarters = { ...original };
-                periods.forEach((p, i) => {
-                    const status = i <= lastPersistIdx
-                        ? effectiveStatus(original, periods, p.id).status
-                        : (quarters[p.id]?.status || 'Not Yet Started');
-                    quarters[p.id] = quarters[p.id]
-                        ? { ...quarters[p.id], status }
-                        : { amount: '0', status, justification: '' };
+                const quarters = {};
+                periods.forEach(p => {
+                    const q = original[p.id];
+                    // Legacy rows may hold a bare amount instead of { amount }
+                    const isObj = q !== null && typeof q === 'object';
+                    const activities = activitiesOf(q);
+                    quarters[p.id] = {
+                        amount: String((isObj ? q.amount : q) ?? ''),
+                        justification: isObj ? q.justification || '' : '',
+                        activities,
+                        // Free text only counts while "Others" is checked
+                        other_activity: activities.includes(OTHER_ACTIVITY) ? String(q?.other_activity || '') : '',
+                    };
                 });
                 payloadData[intId] = quarters;
             });
@@ -303,9 +355,27 @@ const SIIFUtilization = ({ user, token }) => {
 
     // ─── Save Handler ──────────────────────────────────────────────────────────
     const handleSave = async () => {
-        if (saving) return;
+        if (saving || allLocked) return;
+
+        const missing = [];
+        periods.forEach(p => selectedInterventions.forEach(intId => {
+            if (quarterNeedsActivities(intId, p.id)) missing.push({ intId, quarterId: p.id });
+        }));
+        if (missing.length) {
+            setShowActivityErrors(true);
+            // Jump to the first quarter that needs attention, unless it's the one on screen
+            if (!missing.some(m => m.quarterId === viewingQuarter)) setViewingQuarter(missing[0].quarterId);
+            const names = missing.map(({ intId, quarterId }) =>
+                `${INTERVENTIONS.find(i => i.id === intId)?.label || intId} (${QUARTER_SHORT[quarterId] || quarterId})`
+            ).join(', ');
+            showToast('error', 'Activities needed',
+                `Check at least one activity for: ${names}. Every quarter with an amount needs one.`);
+            return;
+        }
+
         const result = await persistUtilization(selectedInterventions);
         if (result.status === 'saved') {
+            setShowActivityErrors(false);
             showToast('success', 'Utilization updates saved', 'Your school and division records are now up to date.');
         } else if (result.status === 'over') {
             showToast('error', 'Over allocation limit',
@@ -364,7 +434,30 @@ const SIIFUtilization = ({ user, token }) => {
                 viewingQuarter={viewingQuarter}
                 onSelect={setViewingQuarter}
                 quarterStats={quarterStats}
+                lockedPeriods={lockedPeriods}
             />
+
+            {/* ── Lock notice ── */}
+            {(allLocked || isViewingLocked) && (
+                <div
+                    role="status"
+                    className="mb-6 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60"
+                >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        <TbLock size={16} />
+                    </span>
+                    <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+                            {allLocked ? 'Utilization entry is currently closed' : `${QUARTER_SHORT[viewingQuarter] || viewingLabel} is locked`}
+                        </p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {allLocked
+                                ? 'All quarters are locked. You can still view your records, but nothing can be changed.'
+                                : 'Entries for this quarter can be viewed but not changed. It will open when the division enables it.'}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* ── Intervention Selector ── */}
             <InterventionSelector
@@ -403,7 +496,7 @@ const SIIFUtilization = ({ user, token }) => {
                         <p className="mx-auto mb-6 max-w-md text-sm text-slate-500 dark:text-slate-400">
                             Choose the interventions your school is utilizing funds for, then record amounts per quarter.
                         </p>
-                        <button
+                        {!allLocked && <button
                             type="button"
                             onClick={() => {
                                 setSelectorOpen(true);
@@ -412,7 +505,7 @@ const SIIFUtilization = ({ user, token }) => {
                             className="inline-flex cursor-pointer items-center gap-2 rounded-xl border-0 bg-indigo-600 px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-indigo-600/20 transition-all hover:bg-indigo-700"
                         >
                             <TbPlus size={16} /> Select Interventions
-                        </button>
+                        </button>}
                     </motion.article>
                 ) : (
                     <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -431,9 +524,13 @@ const SIIFUtilization = ({ user, token }) => {
                                         viewingQuarter={viewingQuarter}
                                         maxAllowed={totalAllocated > 0 ? Math.max(0, totalAllocated - otherTotal) : null}
                                         onAmountChange={handleUpdateUtilization}
-                                        onStatusChange={handleUpdateStatus}
                                         onJustificationChange={handleUpdateJustification}
                                         onRemove={handleToggleIntervention}
+                                        locked={isViewingLocked}
+                                        removeBlocked={allLocked || hasLockedEntry(intId)}
+                                        plannedActivities={plannedActivities[intId] || []}
+                                        activitiesMissing={showActivityErrors && quarterNeedsActivities(intId, viewingQuarter)}
+                                        onActivitiesChange={handleUpdateActivities}
                                     />
                                 );
                             })}
@@ -450,6 +547,7 @@ const SIIFUtilization = ({ user, token }) => {
                 totalAllocated={totalAllocated}
                 lastSavedAt={lastSavedAt}
                 onSave={handleSave}
+                locked={allLocked}
             />
 
             <UtilizationToast toast={toast} onClose={closeToast} />

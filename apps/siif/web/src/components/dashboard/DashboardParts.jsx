@@ -1,17 +1,4 @@
 import React from 'react';
-import { statusStyle } from '../utilization/utilizationUi';
-
-/** Status chip in the same colors as the utilization cards. */
-export const StatusPill = ({ status, size = 'sm' }) => {
-    const style = statusStyle(status === 'Not Started' ? 'Not Yet Started' : status);
-    const pad = size === 'lg' ? 'px-2.5 py-1 text-[11px]' : 'px-2 py-0.5 text-[10px]';
-    return (
-        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border font-black uppercase tracking-wider ${pad} ${style.chip}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} aria-hidden="true" />
-            {status}
-        </span>
-    );
-};
 
 /** White rounded card used by every dashboard section. */
 export const DashCard = ({ icon, title, subtitle, actions, children, className = '' }) => (

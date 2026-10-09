@@ -80,6 +80,16 @@ export const REMAINING_ACTIVITIES = [
 export const ACTION_RESEARCH_ACTIVITY =
     'Implementation of Action Research or innovative interventions designed to improve learner performance';
 
+export const OTHER_ACTIVITY = 'Others (specify)';
+
+// Utilization activity checklist. Same labels as the plan form so planned vs
+// actual activities can be matched by text.
+export const UTILIZATION_ACTIVITY_GROUPS = [
+    { id: 'sip_aip',         label: 'SIP / AIP',       items: SIP_AIP_ACTIVITIES.filter(a => a !== OTHER_ACTIVITY) },
+    { id: 'action_research', label: 'Action Research', items: [ACTION_RESEARCH_ACTIVITY] },
+    { id: 'remaining',       label: 'Operational',     items: REMAINING_ACTIVITIES },
+];
+
 export const emptyIntData = () => ({
     selectedGrades:     [],
     beneficiaryCounts:  {},

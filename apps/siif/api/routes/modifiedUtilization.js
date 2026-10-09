@@ -7,6 +7,14 @@ import { Router } from 'express';
 import { poolSiif as pool } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
+import {
+    PERIOD_IDS,
+    getLockedPeriods,
+    amountOf,
+    emptyQuarter,
+    hasQuarterEntry,
+    sanitizeQuarter,
+} from '../helpers/utilizationPeriods.js';
 
 const router = Router();
 
@@ -14,10 +22,15 @@ const AUDIT_ACTIONS = ['save', 'remove'];
 
 // Sum of a quarters map; a quarter is { amount } or a bare amount (legacy rows)
 const spentOf = (quarters) =>
-    Object.values(quarters || {}).reduce(
-        (sum, q) => sum + (parseFloat(q?.amount !== undefined ? q.amount : q) || 0),
-        0
-    );
+    Object.values(quarters || {}).reduce((sum, q) => sum + amountOf(q), 0);
+
+// Error with an HTTP status, thrown inside the save transaction
+class SaveRejected extends Error {
+    constructor(status, message) {
+        super(message);
+        this.status = status;
+    }
+}
 
 // Intervention ids from a stored selected_interventions array (objects or plain ids)
 const idsOf = (items) =>
@@ -70,7 +83,7 @@ router.get('/modified-utilization/:schoolId', authenticate, async (req, res) => 
             // Normalize: If rawSelected has objects, ensure utilizationData map matches
             let normalizedSelected = [];
             let normalizedUtilData = {};
-            let selectedIds = [];
+                let selectedIds = [];
 
             if (Array.isArray(rawSelected)) {
                 normalizedSelected = rawSelected;
@@ -86,6 +99,31 @@ router.get('/modified-utilization/:schoolId', authenticate, async (req, res) => 
                 });
             }
 
+            // 3. Quarter locks (settings) — the client renders locked quarters read-only
+            const lockedPeriods = await getLockedPeriods(client);
+
+            // 4. Activities from the school's SIIF plan, for the "Planned" badges (non-critical)
+            const plannedActivities = {};
+            try {
+                const planRes = await client.query(
+                    `SELECT i.intervention_type, a.activity_specific
+                     FROM siif_interventions i
+                     JOIN siif_activities a ON a.siif_int_id = i.siif_int_id
+                     WHERE i.siif_sub_id = (
+                         SELECT siif_sub_id FROM siif_submissions
+                         WHERE school_id = $1 AND fiscal_year = $2
+                         ORDER BY created_at DESC LIMIT 1
+                     )`,
+                    [finalSchoolId, fiscalYear]
+                );
+                planRes.rows.forEach(({ intervention_type: intId, activity_specific: label }) => {
+                    if (!intId || !label) return;
+                    (plannedActivities[intId] ||= []).push(label);
+                });
+            } catch (planErr) {
+                console.warn('⚠️ [SIIF-API] Planned activities lookup failed (non-critical):', planErr.message);
+            }
+
             return res.json({
                 success: true,
                 schoolId: finalSchoolId,
@@ -94,6 +132,8 @@ router.get('/modified-utilization/:schoolId', authenticate, async (req, res) => 
                 selectedInterventions: normalizedSelected,
                 selectedInterventionIds: selectedIds,
                 utilizationData: normalizedUtilData,
+                plannedActivities,
+                lockedPeriods,
                 updatedAt: utilRow?.updated_at || null
             });
         } finally {
@@ -165,61 +205,15 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
     const inputSelected = Array.isArray(selectedInterventions) ? selectedInterventions : [];
     const inputUtilData = utilizationData && typeof utilizationData === 'object' ? utilizationData : {};
 
-    // Standardize to unified array of objects for selected_interventions
-    let unifiedSelected = [];
-    let unifiedUtilData = { ...inputUtilData };
-    let spentAmount = 0;
-
-    inputSelected.forEach(item => {
-        if (typeof item === 'object' && item !== null && item.id) {
-            // Already an object with quarters
-            const quarters = item.quarters || inputUtilData[item.id] || {};
-            let intSpent = 0;
-            Object.values(quarters).forEach(q => {
-                const amt = parseFloat(q?.amount !== undefined ? q.amount : q) || 0;
-                intSpent += amt;
-            });
-
-            spentAmount += intSpent;
-            unifiedUtilData[item.id] = quarters;
-
-            unifiedSelected.push({
-                id: item.id,
-                title: item.title || item.label || item.id,
-                quarters,
-                total_spent: intSpent
-            });
-        } else if (typeof item === 'string') {
-            // String key, pull quarters from inputUtilData
-            const quarters = inputUtilData[item] || {
-                'July-September': { amount: '', status: 'Not Yet Started', justification: '' },
-                'October-December': { amount: '', status: 'Not Yet Started', justification: '' },
-                'January-March': { amount: '', status: 'Not Yet Started', justification: '' }
-            };
-
-            let intSpent = 0;
-            Object.values(quarters).forEach(q => {
-                const amt = parseFloat(q?.amount !== undefined ? q.amount : q) || 0;
-                intSpent += amt;
-            });
-
-            spentAmount += intSpent;
-            unifiedUtilData[item] = quarters;
-
-            unifiedSelected.push({
-                id: item,
-                title: item,
-                quarters,
-                total_spent: intSpent
-            });
-        }
-    });
-
-    console.log(`📊 [SIIF-API] Calculated spent_amount: ₱${spentAmount} across ${unifiedSelected.length} active interventions`);
-
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+
+        // 0. Quarter locks — nothing can be saved while every quarter is locked
+        const lockedPeriods = await getLockedPeriods(client);
+        if (lockedPeriods.length === PERIOD_IDS.length) {
+            throw new SaveRejected(423, 'Utilization entry is currently closed. All quarters are locked.');
+        }
 
         // 1. Check allocation record
         const allocRes = await client.query(
@@ -239,6 +233,54 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
             [finalSchoolId, fiscalYear]
         );
         const beforeSelected = beforeRes.rows[0]?.selected_interventions ?? null;
+        const storedById = new Map(
+            (Array.isArray(beforeSelected) ? beforeSelected : [])
+                .filter(item => item && typeof item === 'object' && item.id)
+                .map(item => [item.id, item])
+        );
+
+        // 1c. Standardize to the unified selected_interventions array. Each quarter is
+        // { amount, justification, activities, other_activity }. Locked quarters always
+        // keep what is stored, whatever the client sent.
+        const unifiedSelected = [];
+        let spentAmount = 0;
+        inputSelected.forEach(item => {
+            const isObject = typeof item === 'object' && item !== null;
+            const id = isObject ? item.id : item;
+            if (typeof id !== 'string' || !id || unifiedSelected.some(u => u.id === id)) return;
+
+            const sentQuarters = (isObject && item.quarters) || inputUtilData[id] || {};
+            const stored = storedById.get(id);
+            const quarters = {};
+            PERIOD_IDS.forEach(p => {
+                const source = lockedPeriods.includes(p) ? stored?.quarters?.[p] : sentQuarters[p];
+                quarters[p] = source === undefined ? emptyQuarter() : sanitizeQuarter(source);
+            });
+
+            const totalSpent = spentOf(quarters);
+            spentAmount += totalSpent;
+
+            unifiedSelected.push({
+                id,
+                title: String((isObject && (item.title || item.label)) || stored?.title || id),
+                quarters,
+                total_spent: totalSpent,
+            });
+        });
+
+        // 1d. An intervention with entries in a locked quarter can't be removed,
+        // or the removal would wipe locked data
+        const keptIds = new Set(unifiedSelected.map(item => item.id));
+        const blocked = [...storedById.values()].filter(item =>
+            !keptIds.has(item.id) &&
+            lockedPeriods.some(p => hasQuarterEntry(item.quarters?.[p]))
+        );
+        if (blocked.length) {
+            const names = blocked.map(item => item.title || item.id).join(', ');
+            throw new SaveRejected(409, `${names} can't be removed because it has entries in a locked quarter.`);
+        }
+
+        console.log(`📊 [SIIF-API] Calculated spent_amount: ₱${spentAmount} across ${unifiedSelected.length} active interventions | Locked: ${lockedPeriods.join(', ') || 'none'}`);
 
         // 2. Upsert into modified_siif_utilization with unified selected_interventions
         const upsertRes = await client.query(
@@ -309,6 +351,10 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
         });
     } catch (err) {
         await client.query('ROLLBACK');
+        if (err instanceof SaveRejected) {
+            console.warn(`⛔ [SIIF-API] Save rejected for school ${finalSchoolId}: ${err.message}`);
+            return res.status(err.status).json({ error: err.message });
+        }
         console.error('🔥 [SIIF-API] Save Modified Utilization Error:', err);
         return res.status(500).json({ error: 'Internal Server Error', details: err.message });
     } finally {

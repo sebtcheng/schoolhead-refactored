@@ -1,14 +1,19 @@
 import React from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
-import { TbCheck, TbDeviceFloppy, TbAlertCircle } from 'react-icons/tb';
+import { TbCheck, TbDeviceFloppy, TbAlertCircle, TbLock } from 'react-icons/tb';
 import { formatPeso, formatSavedAt } from './utilizationUi';
 
-const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, totalAllocated, lastSavedAt, onSave }) => {
+const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, totalAllocated, lastSavedAt, onSave, locked = false }) => {
     const savedLabel = formatSavedAt(lastSavedAt);
 
     let tone, title, subtitle, icon;
-    if (isOverAllocation) {
+    if (locked) {
+        tone = 'bg-slate-400';
+        icon = <TbLock size={18} className="text-slate-500" />;
+        title = 'Utilization is closed';
+        subtitle = savedLabel ? `All quarters are locked. Last saved ${savedLabel}` : 'All quarters are locked.';
+    } else if (isOverAllocation) {
         tone = 'bg-rose-500';
         icon = <TbAlertCircle size={18} className="text-rose-500" />;
         title = 'Over the allocation';
@@ -25,7 +30,7 @@ const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, t
         subtitle = savedLabel ? `Last saved ${savedLabel}` : 'Synced with division records.';
     }
 
-    const disabled = saving || isOverAllocation || !hasUnsavedChanges;
+    const disabled = locked || saving || isOverAllocation || !hasUnsavedChanges;
 
     return (
         // Below md the 64px bottom nav (plus the raised Nexus button) covers bottom-0, so sit above it
@@ -50,7 +55,9 @@ const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, t
                     onClick={onSave}
                     disabled={disabled}
                     className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border-0 px-4 py-2.5 sm:px-5 text-xs font-black uppercase tracking-wider text-white outline-none transition-all focus-visible:ring-4 active:scale-[0.97] disabled:cursor-not-allowed ${
-                        isOverAllocation
+                        locked
+                            ? 'bg-slate-300 dark:bg-slate-700'
+                            : isOverAllocation
                             ? 'bg-rose-500 opacity-60'
                             : hasUnsavedChanges
                                 ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 focus-visible:ring-emerald-200'

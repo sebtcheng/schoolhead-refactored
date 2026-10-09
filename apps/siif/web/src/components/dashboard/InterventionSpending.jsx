@@ -3,7 +3,7 @@ import { TbChartBar, TbTarget } from 'react-icons/tb';
 import { INTERVENTION_ICONS } from '../../constants/siifConstants';
 import { formatPeso } from '../utilization/utilizationUi';
 import { quarterIdsFor } from './dashboardData';
-import { DashCard, StatusPill } from './DashboardParts';
+import { DashCard } from './DashboardParts';
 
 /** Ranked list of the school's interventions by amount spent in the selected quarter(s). */
 const InterventionSpending = ({ interventions, scope, scopeLabel, scopeUtilized }) => {
@@ -36,8 +36,7 @@ const InterventionSpending = ({ interventions, scope, scopeLabel, scopeUtilized 
                                         <span className="truncate text-sm font-extrabold text-slate-900 dark:text-white" title={iv.label}>{iv.label}</span>
                                         <span className="shrink-0 font-mono text-sm font-black tabular-nums text-slate-900 dark:text-white">{formatPeso(iv.total)}</span>
                                     </div>
-                                    <div className="mt-1 flex items-center justify-between gap-2">
-                                        <StatusPill status={iv.status} />
+                                    <div className="mt-1 flex items-center gap-2">
                                         <span className="text-[11px] font-bold tabular-nums text-slate-400">{share.toFixed(1)}% of spending</span>
                                     </div>
                                 </div>
@@ -53,7 +52,7 @@ const InterventionSpending = ({ interventions, scope, scopeLabel, scopeUtilized 
                                     <div
                                         key={q.id}
                                         className={`rounded-lg px-2 py-1 text-[10px] font-bold transition-opacity ${inScope.has(q.id) ? 'bg-slate-50 dark:bg-slate-800/60' : 'opacity-40'}`}
-                                        title={`${q.label}: ${formatPeso(q.amount)} · ${q.status}`}
+                                        title={`${q.label}: ${formatPeso(q.amount)}`}
                                     >
                                         <span className="flex items-center gap-1 text-slate-400">
                                             <span className="h-1.5 w-1.5 rounded-full" style={{ background: q.color }} /> {q.short}

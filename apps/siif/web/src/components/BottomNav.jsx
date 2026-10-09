@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TbLayoutDashboard, TbChartBar } from 'react-icons/tb';
+import { TbLayoutDashboard, TbChartBar, TbClipboardList } from 'react-icons/tb';
 import { FiSettings, FiGrid, FiLogOut } from 'react-icons/fi';
 import { useAuth } from '../../../../school-head/web/src/context/AuthContext';
 import InsightEdLogoExpanded from '../../../../school-head/web/src/assets/InsightEdLogoApp.png';
@@ -14,19 +14,15 @@ const BottomNav = () => {
     // Insert Nexus in the middle for mobile layout
     const navItems = [
         { label: 'Dashboard', path: '/siif/dashboard', icon: TbLayoutDashboard },
+        // Optional plan submission — independent from Utilization
+        { label: 'Forms', path: '/siif/forms', icon: TbClipboardList, badge: 'Optional' },
         { label: 'Nexus', path: '/nodes-dashboard', icon: FiGrid, isFab: true },
         { label: 'Utilization', path: '/siif/utilization', icon: TbChartBar },
         { label: 'Settings', path: '/siif/settings', icon: FiSettings },
     ];
 
-    const byLabel = Object.fromEntries(navItems.map(item => [item.label, item]));
-    const mobileNavItems = [
-        byLabel.Dashboard,
-        byLabel.Utilization,
-        byLabel.Nexus,
-        byLabel.Settings,
-        { label: 'Sign Out', icon: FiLogOut, isSignOut: true },
-    ];
+    // Same order on mobile so Nexus sits dead-center; Sign Out lives in Settings
+    const mobileNavItems = navItems;
 
     const isActivePath = (path) => {
         const current = location.pathname.replace(/\/+$/, '') || '/';
@@ -89,6 +85,11 @@ const BottomNav = () => {
                             >
                                 <Icon size={20} />
                                 <span>{item.label}</span>
+                                {item.badge && (
+                                    <span className="siif-text-label ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/10 text-[#7DD3FC]">
+                                        {item.badge}
+                                    </span>
+                                )}
                             </a>
                         );
                     })}
@@ -111,25 +112,11 @@ const BottomNav = () => {
             </aside>
 
             {/* Mobile Sticky Bottom Navigation Bar (< 768px / md) */}
-            {/* Two items per side so Nexus sits dead-center: Dashboard · Utilization · Nexus · Settings · Sign Out */}
+            {/* Two items per side so Nexus sits dead-center: Dashboard · Forms · Nexus · Utilization · Settings */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-[1000] bg-[#08315F] text-white border-t border-white/15 shadow-2xl px-2 py-2 grid grid-cols-5 items-center print:hidden" style={{ height: '64px' }}>
                 {mobileNavItems.map((item) => {
                     const isActive = isActivePath(item.path);
                     const Icon = item.icon;
-
-                    if (item.isSignOut) {
-                        return (
-                            <button
-                                key={item.label}
-                                type="button"
-                                onClick={confirmLogout}
-                                className="flex flex-col items-center justify-center py-1 bg-transparent border-0 cursor-pointer text-rose-300 hover:text-rose-200 transition-colors"
-                            >
-                                <Icon size={20} />
-                                <span className="text-[9px] font-bold tracking-tight mt-0.5">{item.label}</span>
-                            </button>
-                        );
-                    }
 
                     // Nexus: raised center button — the only way back to the portal on mobile
                     if (item.isFab) {

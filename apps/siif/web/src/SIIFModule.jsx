@@ -27,13 +27,15 @@ const SIIFModuleContent = () => {
     return (
         <div className="siif-module-root min-h-screen">
             <div className="siif-app-layout">
-                {/* School Head nav: Dashboard, Utilization, Settings (Forms stays hidden) */}
+                {/* School Head nav: Dashboard, Forms (optional), Utilization, Settings */}
                 <BottomNav />
                 <div className="siif-main-area pb-24 md:pb-6">
                     <Routes>
                         {/* Login lands on Dashboard */}
                         <Route index element={<Navigate to="dashboard" replace />} />
                         <Route path="dashboard" element={<SIIFDashboard user={user} token={token} />} />
+                        {/* Optional SIIF plan — independent from Utilization, no deadline */}
+                        <Route path="forms" element={<SIIFFormsHub user={user} token={token} />} />
                         <Route path="utilization" element={<SIIFUtilization user={user} token={token} />} />
                         <Route path="settings" element={<SIIFSettings user={user} token={token} />} />
                         <Route path="*" element={<Navigate to="/siif/dashboard" replace />} />
