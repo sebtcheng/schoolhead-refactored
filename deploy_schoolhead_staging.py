@@ -4,10 +4,13 @@ InsightEd SchoolHead — STAGING deployment
   URL : https://stride.deped.gov.ph/insighted-schoolhead-staging/
   Dir : /mnt/insighted-schoolhead-staging   (releases/<id>, current -> releases/<id>, dist -> current/dist)
   PM2 : insighted-schoolhead-staging-backend  (port 5020)
-  DB  : SIIF -> insighted-staging.siif_staging_v2 (see .env.staging)
+  DB  : SIIF  -> insighted-staging.siif_staging_v2
+        Users -> insighted-staging.users_staging_v2   (see .env.staging)
 
 Usage:
   py deploy_schoolhead_staging.py             # preflight -> build -> package -> upload -> activate -> verify
+  py deploy_schoolhead_staging.py --sync-db   # same, but first refresh SIIF + users copies from production
+                                              #   (RESETS staging data, e.g. passwords changed on staging)
   py deploy_schoolhead_staging.py --check     # preflight only (changes nothing)
   py deploy_schoolhead_staging.py --rollback  # switch back to the previous release
   py deploy_schoolhead_staging.py --logs      # last 80 lines of staging PM2 logs
@@ -155,12 +158,13 @@ def preflight():
         "SIIF_DB_NAME": lambda v: v == "insighted-staging",
         "SIIF_DATABASE_URL": lambda v: "/insighted-staging" in v and "siif_staging_v2" in v,
         "DATABASE_URL": lambda v: v.split("?")[0].endswith("/insighted-staging"),
+        "USERS_DATABASE_URL": lambda v: "/insighted-staging" in v and "users_staging_v2" in v,
         "UPLOAD_DIR": lambda v: v.startswith(REMOTE_ROOT),
     }
     bad = [k for k, ok in rules.items() if not ok(env.get(k, ""))]
     if bad:
         die(f"{ENV_FILE} is not a safe staging config. Check: {', '.join(bad)}")
-    success(f"{ENV_FILE} points SIIF to insighted-staging.siif_staging_v2, port {PORT}, migrations off.")
+    success(f"{ENV_FILE} points SIIF + users to insighted-staging (*_staging_v2), port {PORT}, migrations off.")
 
     info(f"Checking server {SERVER_IP} (SSH, port {PORT}, disk)...")
     res = remote(f"""
@@ -407,6 +411,10 @@ def main():
     if "--check" in args:
         success("Preflight passed. Nothing was changed (--check).")
         return
+
+    if "--sync-db" in args:
+        phase("🗄️  Refreshing staging databases from production (read-only on prod)")
+        run_local("node scripts/staging/sync_staging_db.cjs", timeout=1800)
 
     release_id = time.strftime("%Y%m%d-%H%M%S")
     assets = build_frontend(commit)

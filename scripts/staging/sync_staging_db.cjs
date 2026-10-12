@@ -1,18 +1,23 @@
 #!/usr/bin/env node
 /**
- * SIIF Staging Sync — copies production siif_database_v2 (public schema) into
- * insighted-staging.siif_staging_v2 so staging is identical to production.
+ * Staging DB Sync — copies production databases (public schema) into dedicated
+ * schemas of insighted-staging so staging is identical to production.
  *
- *   node scripts/staging/sync_siif_staging.cjs            # full sync
- *   node scripts/staging/sync_siif_staging.cjs --dry-run  # read prod + print plan, write nothing
+ *   siif  : siif_database_v2  ➜ insighted-staging.siif_staging_v2
+ *   users : users_database    ➜ insighted-staging.users_staging_v2
+ *
+ *   node scripts/staging/sync_staging_db.cjs                 # sync all
+ *   node scripts/staging/sync_staging_db.cjs --only users    # sync one (siif | users)
+ *   node scripts/staging/sync_staging_db.cjs --dry-run       # read prod + print plan, write nothing
  *
  * Safety:
  *   - Production is opened READ ONLY in one REPEATABLE READ snapshot (consistent copy).
- *   - Only the dedicated schema siif_staging_v2 in insighted-staging is ever written.
+ *   - Only the dedicated *_staging_v2 schemas in insighted-staging are ever written.
  *     The `public` schema of insighted-staging is never touched.
- *   - Builds into siif_staging_v2_build first; swaps in only after row counts and
+ *   - Builds into <schema>_build first; swaps in only after row counts and
  *     column definitions match production. A failed run leaves the old copy intact.
  *   - Refuses to replace a schema that contains triggers (deletion-lock safety).
+ *   - Re-syncing RESETS staging: anything changed on staging (e.g. test passwords) is replaced.
  */
 const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
@@ -20,13 +25,19 @@ require(path.join(ROOT, 'node_modules/dotenv')).config({ path: path.join(ROOT, '
 const { Client } = require(path.join(ROOT, 'node_modules/pg'));
 const QueryStream = require(path.join(ROOT, 'node_modules/pg-query-stream'));
 
-const SOURCE_DB = 'siif_database_v2';
+const PROFILES = {
+  siif:  { env: 'SIIF_DATABASE_URL',  sourceDb: 'siif_database_v2', schema: 'siif_staging_v2' },
+  users: { env: 'USERS_DATABASE_URL', sourceDb: 'users_database',   schema: 'users_staging_v2' },
+};
 const SOURCE_SCHEMA = 'public';
 const TARGET_DB = 'insighted-staging';
-const SCHEMA = 'siif_staging_v2';
-const BUILD = `${SCHEMA}_build`;
 const BATCH = 5000;
 const DRY_RUN = process.argv.includes('--dry-run');
+const onlyIdx = process.argv.indexOf('--only');
+const ONLY = onlyIdx > -1 ? process.argv[onlyIdx + 1] : null;
+
+// Set per profile by syncOne()
+let SOURCE_ENV, SOURCE_DB, SCHEMA, BUILD;
 
 const C = { g: '\x1b[32m', r: '\x1b[31m', c: '\x1b[36m', y: '\x1b[33m', n: '\x1b[0m' };
 const info = (m) => console.log(`${C.c}ℹ️  ${m}${C.n}`);
@@ -38,9 +49,9 @@ const qi = (s) => '"' + s.replace(/"/g, '""') + '"';
 const dbName = (url) => decodeURIComponent(new URL(url).pathname.slice(1));
 
 function urls() {
-  const src = process.env.SIIF_DATABASE_URL;
-  if (!src) fail('SIIF_DATABASE_URL is not set in .env');
-  if (dbName(src) !== SOURCE_DB) fail(`SIIF_DATABASE_URL points to "${dbName(src)}", expected "${SOURCE_DB}"`);
+  const src = process.env[SOURCE_ENV];
+  if (!src) fail(`${SOURCE_ENV} is not set in .env`);
+  if (dbName(src) !== SOURCE_DB) fail(`${SOURCE_ENV} points to "${dbName(src)}", expected "${SOURCE_DB}"`);
   const t = new URL(src);
   t.pathname = '/' + TARGET_DB;
   t.search = '';
@@ -134,10 +145,12 @@ async function assertReplaceable(dst, schema, allowedNames) {
 const retarget = (sql) => sql.replace(/\b(ON|REFERENCES)\s+(ONLY\s+)?public\./g, `$1 $2${qi(BUILD)}.`);
 
 // ─── Main ───────────────────────────────────────────────────────────────────
-(async () => {
+async function syncOne(name) {
+  ({ env: SOURCE_ENV, sourceDb: SOURCE_DB, schema: SCHEMA } = PROFILES[name]);
+  BUILD = `${SCHEMA}_build`;
   const t0 = Date.now();
   const { src: srcUrl, dst: dstUrl } = urls();
-  console.log(`${C.c}${'='.repeat(64)}\n🔁 SIIF Staging Sync: ${SOURCE_DB}.${SOURCE_SCHEMA} ➜ ${TARGET_DB}.${SCHEMA}${DRY_RUN ? '  (DRY RUN)' : ''}\n${'='.repeat(64)}${C.n}`);
+  console.log(`${C.c}${'='.repeat(64)}\n🔁 Staging Sync [${name}]:${SOURCE_DB}.${SOURCE_SCHEMA} ➜ ${TARGET_DB}.${SCHEMA}${DRY_RUN ? '  (DRY RUN)' : ''}\n${'='.repeat(64)}${C.n}`);
 
   const src = await connect(srcUrl, 'siif_staging_sync_reader');
   await src.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
@@ -273,4 +286,9 @@ const retarget = (sql) => sql.replace(/\b(ON|REFERENCES)\s+(ONLY\s+)?public\./g,
   const total = Object.values(prodCounts).reduce((a, b) => a + b, 0);
   console.log(`${C.c}${'='.repeat(64)}${C.n}`);
   ok(`${TARGET_DB}.${SCHEMA} now mirrors ${SOURCE_DB}: ${cat.tables.length} tables, ${cat.views.length} views, ${total.toLocaleString()} rows (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+}
+
+(async () => {
+  if (ONLY && !PROFILES[ONLY]) fail(`--only must be one of: ${Object.keys(PROFILES).join(', ')}`);
+  for (const name of ONLY ? [ONLY] : Object.keys(PROFILES)) await syncOne(name);
 })().catch((e) => fail(e.stack || e.message));

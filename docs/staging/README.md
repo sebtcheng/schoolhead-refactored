@@ -13,12 +13,15 @@ py deploy_schoolhead_staging.py --rollback  # go back to the previous release
 ```
 Needs `.env.staging` in the repo root (git-ignored). It is a copy of `.env` with staging values. The script refuses to run if it points at production SIIF.
 
-## Refresh SIIF data from production
+## Refresh staging data from production
 ```powershell
-node scripts/staging/sync_siif_staging.cjs --dry-run   # show what would be copied
-node scripts/staging/sync_siif_staging.cjs             # rebuild insighted-staging.siif_staging_v2 from prod
+node scripts/staging/sync_staging_db.cjs --dry-run      # show what would be copied
+node scripts/staging/sync_staging_db.cjs                # refresh SIIF + users
+node scripts/staging/sync_staging_db.cjs --only users   # refresh one (siif | users)
+py deploy_schoolhead_staging.py --sync-db               # refresh both, then deploy
 ```
-Prod is read in a read-only snapshot. Only the `siif_staging_v2` schema is rebuilt (build → verify → swap). `public` in `insighted-staging` is never touched.
+Prod is read in a read-only snapshot. Only the `*_staging_v2` schemas are rebuilt (build → verify → swap). `public` in `insighted-staging` is never touched.
+⚠️ A refresh **resets** staging: passwords or SIIF data changed on staging are replaced with production's.
 
 ## Where staging reads/writes
 
@@ -26,7 +29,7 @@ Prod is read in a read-only snapshot. Only the `siif_staging_v2` schema is rebui
 |------|--------------|------|
 | SIIF | `insighted-staging` → schema `siif_staging_v2` | Safe to test freely |
 | Main (School Head units) | `insighted-staging` → `public` | Staging data, may be older than prod |
-| Users / logins | **prod** `users_database` | Real accounts work. ⚠️ Don't edit profiles on staging |
+| Users / logins | `insighted-staging` → schema `users_staging_v2` (copy of `users_database`) | Same accounts as prod. Safe to change passwords and profiles |
 | Chat | **prod** `chat_database` | ⚠️ Avoid sending chats on staging |
 | File uploads (Azure Blob) | **prod** storage account | ⚠️ Avoid uploading files on staging |
 | Local uploads | `/mnt/insighted-schoolhead-staging/uploads` | Shared across releases |

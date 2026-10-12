@@ -12,7 +12,8 @@
 - [x] `SKIP_BOOT_MIGRATIONS` flag in `apps/school-head/api/index.js`
 - [x] `DISABLE_CHAT_CLEANUP` flag in `apps/school-head/api/index.js`
 - [x] `SIIF_DB_NAME` override in `packages/shared-db/src/db.js`
-- [x] `scripts/staging/sync_siif_staging.cjs` (prod read-only → `insighted-staging.siif_staging_v2`)
+- [x] `scripts/staging/sync_staging_db.cjs` (prod read-only → `insighted-staging.siif_staging_v2` + `users_staging_v2`)
+- [x] Users copy: 9 tables, 173,730 rows → `users_staging_v2`; `.env.staging` USERS_DATABASE_URL points to it
 - [x] Sync ran: 29 tables, 10 views, 1,224,292 rows; counts, columns, sequences, 21 indexes match prod
 
 ## Phase 2 — Config

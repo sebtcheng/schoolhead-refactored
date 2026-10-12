@@ -199,7 +199,7 @@ insighted-staging (database)
 - **Identical to prod:** structure is read from prod's catalog and re-created exactly; data is copied table by table; row counts are verified at the end.
 - **Nothing existing is touched:** no TRUNCATE, no ALTER on `public`, no lock bypass.
 - **No SIIF code changes:** all SIIF routes use `poolSiif` with unqualified table names, so staging just connects with `search_path=siif_staging_v2`.
-- **Re-runnable:** `node scripts/staging/sync_siif_staging.cjs` refreshes staging from prod at any time. It rebuilds **only** `siif_staging_v2`, and the prod connection is opened **read-only**.
+- **Re-runnable:** `node scripts/staging/sync_staging_db.cjs` refreshes staging from prod at any time. It rebuilds **only** `siif_staging_v2`, and the prod connection is opened **read-only**.
 
 Required code tweak (`packages/shared-db/src/db.js`): let `SIIF_DB_NAME` be overridden by env (default stays `siif_database_v2`). Staging's `.env.staging` then uses:
 ```
