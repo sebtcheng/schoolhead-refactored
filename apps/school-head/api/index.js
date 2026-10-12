@@ -256,15 +256,19 @@ const startServer = async () => {
       app.listen(PORT, HOST, () => {
         console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
 
-        // Run cleanup on startup (delay 10s to let server stabilize)
-        setTimeout(() => {
-          autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
-        }, 10000);
+        if (process.env.DISABLE_CHAT_CLEANUP === 'true') {
+          console.log('⏸️ [CLEANUP SERVICE] Disabled via DISABLE_CHAT_CLEANUP.');
+        } else {
+          // Run cleanup on startup (delay 10s to let server stabilize)
+          setTimeout(() => {
+            autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
+          }, 10000);
 
-        // Run cleanup every 24 hours
-        setInterval(() => {
-          autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
-        }, 24 * 60 * 60 * 1000);
+          // Run cleanup every 24 hours
+          setInterval(() => {
+            autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
+          }, 24 * 60 * 60 * 1000);
+        }
 
         if (process.send) {
           process.send('ready');
@@ -272,7 +276,9 @@ const startServer = async () => {
       });
     }
 
-    if (isPrimaryWorker && !isVercel) {
+    if (process.env.SKIP_BOOT_MIGRATIONS === 'true') {
+      console.log('⏸️ Boot-time migrations skipped (SKIP_BOOT_MIGRATIONS).');
+    } else if (isPrimaryWorker && !isVercel) {
       console.log("🏗️ [Primary] Running boot-time migrations in background...");
       (async () => {
         try {

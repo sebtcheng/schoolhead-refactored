@@ -140,7 +140,8 @@ export async function safeUsersQuery(text, params) {
 // --- CENTRAL SIIF DATABASE CONNECTION (siif_database_v2) ---
 // No fallback: SIIF must only ever read/write siif_database_v2. A missing or
 // mistargeted SIIF_DATABASE_URL stops the server instead of writing elsewhere.
-const SIIF_DB_NAME = 'siif_database_v2';
+// Staging overrides SIIF_DB_NAME (insighted-staging, schema via search_path).
+const SIIF_DB_NAME = process.env.SIIF_DB_NAME || 'siif_database_v2';
 const siifDbUrl = process.env.SIIF_DATABASE_URL;
 if (!siifDbUrl) {
   throw new Error('[SIIF-DB] SIIF_DATABASE_URL is not set. Refusing to start without siif_database_v2.');
