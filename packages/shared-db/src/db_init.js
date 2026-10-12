@@ -274,6 +274,204 @@ const initHybridSubmissionsSchema = async (client, dbLabel) => {
     }
 };
 
+const initBaselineRelations = async (client, dbLabel) => {
+    try {
+        console.log(`🧱 [${dbLabel}] Ensuring baseline tables (users, schools_IERN, modified_siif_utilization)...`);
+        
+        // 1. users table (with passcode column)
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                first_name TEXT,
+                last_name TEXT,
+                email TEXT UNIQUE,
+                role TEXT,
+                school_id TEXT,
+                iern TEXT,
+                province TEXT,
+                city TEXT,
+                barangay TEXT,
+                office TEXT,
+                position TEXT,
+                contact_number TEXT,
+                alt_email TEXT,
+                account_category TEXT,
+                registrant_type TEXT,
+                password_hash TEXT,
+                password_salt TEXT,
+                hash_version TEXT,
+                passcode TEXT,
+                disabled BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS passcode TEXT;
+        `);
+
+        // 2. schools_IERN master directory table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "schools_IERN" (
+                school_id TEXT PRIMARY KEY,
+                iern TEXT,
+                school_name TEXT,
+                region TEXT,
+                division TEXT,
+                district TEXT,
+                municipality TEXT,
+                province TEXT,
+                barangay TEXT,
+                legislative_district TEXT,
+                latitude TEXT,
+                longitude TEXT,
+                status TEXT,
+                is_testaccount BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE OR REPLACE VIEW schools_iern AS SELECT * FROM "schools_IERN";
+        `);
+
+        // 3. modified_siif_utilization table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS modified_siif_utilization (
+                modi_siif_util_id SERIAL PRIMARY KEY,
+                school_id TEXT NOT NULL,
+                siif_allocation_id TEXT,
+                fiscal_year INTEGER NOT NULL,
+                allocation_amount NUMERIC(15, 2),
+                selected_interventions JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_modified_siif_util_school_year UNIQUE (school_id, fiscal_year)
+            );
+        `);
+
+        // 4. Ensure ph_schools completion and legacy unit tables
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS ph_schools (
+                iern TEXT PRIMARY KEY,
+                school_id TEXT UNIQUE NOT NULL,
+                school_name TEXT,
+                region TEXT,
+                division TEXT,
+                district TEXT,
+                province TEXT,
+                municipality TEXT,
+                legislative_district TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+
+            ALTER TABLE ph_schools 
+                ADD COLUMN IF NOT EXISTS unit_completion NUMERIC DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS is_esf7_opened BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS unit9_completed BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS unit9 NUMERIC DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS unit9_updated_at TIMESTAMPTZ;
+
+            CREATE TABLE IF NOT EXISTS unit1_school_identity (
+                iern TEXT PRIMARY KEY,
+                unit1 NUMERIC DEFAULT 0,
+                unit1_completed BOOLEAN DEFAULT FALSE,
+                unit1_updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit2_school_learners (
+                iern TEXT PRIMARY KEY,
+                unit2 NUMERIC DEFAULT 0,
+                unit2_completed NUMERIC DEFAULT 0,
+                updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit3_organized_classes (
+                iern TEXT PRIMARY KEY,
+                unit3 NUMERIC DEFAULT 0,
+                unit3_completed NUMERIC DEFAULT 0,
+                updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit4_learner_profile (
+                iern TEXT PRIMARY KEY,
+                unit4 NUMERIC DEFAULT 0,
+                unit4_completed NUMERIC DEFAULT 0,
+                updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit5_shifting_modality (
+                iern TEXT PRIMARY KEY,
+                unit5 NUMERIC DEFAULT 0,
+                unit5_completed BOOLEAN DEFAULT FALSE,
+                unit5_updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit6_school_resources (
+                iern TEXT,
+                school_id TEXT,
+                unit6 NUMERIC DEFAULT 0,
+                unit6_completed BOOLEAN DEFAULT FALSE,
+                unit6_updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit7_facilities (
+                iern TEXT,
+                school_id TEXT,
+                unit7 NUMERIC DEFAULT 0,
+                unit7_completed BOOLEAN DEFAULT FALSE,
+                unit7_updated_at TIMESTAMPTZ
+            );
+
+            CREATE TABLE IF NOT EXISTS unit8_location (
+                iern TEXT,
+                school_id TEXT,
+                unit8 NUMERIC DEFAULT 0,
+                unit8_completed BOOLEAN DEFAULT FALSE,
+                unit8_updated_at TIMESTAMPTZ
+            );
+        `);
+
+        // Ensure baseline in dedicated secondary databases if configured
+        await safeUsersQuery(`
+            CREATE TABLE IF NOT EXISTS "schools_IERN" (
+                school_id TEXT PRIMARY KEY,
+                iern TEXT,
+                school_name TEXT,
+                region TEXT,
+                division TEXT,
+                district TEXT,
+                municipality TEXT,
+                province TEXT,
+                barangay TEXT,
+                legislative_district TEXT,
+                latitude TEXT,
+                longitude TEXT,
+                status TEXT,
+                is_testaccount BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE OR REPLACE VIEW schools_iern AS SELECT * FROM "schools_IERN";
+        `).catch(() => {});
+
+        await safeSiifQuery(`
+            CREATE TABLE IF NOT EXISTS modified_siif_utilization (
+                modi_siif_util_id SERIAL PRIMARY KEY,
+                school_id TEXT NOT NULL,
+                siif_allocation_id TEXT,
+                fiscal_year INTEGER NOT NULL,
+                allocation_amount NUMERIC(15, 2),
+                selected_interventions JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_modified_siif_util_school_year UNIQUE (school_id, fiscal_year)
+            );
+        `).catch(() => {});
+
+        console.log(`✅ [${dbLabel}] Baseline relations verified and synchronized.`);
+    } catch (err) {
+        console.warn(`⚠️ [${dbLabel}] Baseline relations initialization notice:`, err.message);
+    }
+};
+
 const runMigrations = async (client, dbLabel) => {
     // [Master Protocol] Strategic Advisory Lock (ID: 7777777) 
     // Prevents race conditions when multiple workers attempt schema changes simultaneously.
@@ -285,6 +483,9 @@ const runMigrations = async (client, dbLabel) => {
 
     try {
         console.log(`🏗️ [${dbLabel}] Starting comprehensive schema migrations...`);
+        // --- BASELINE RELATIONS (Ordered before indexes & views) ---
+        await initBaselineRelations(client, dbLabel);
+
         // --- 0. HYBRID JSONB & UNIT SCHEMAS ---
         await initHybridSubmissionsSchema(client, dbLabel);
         await initSiifIndexes(dbLabel);
@@ -524,8 +725,8 @@ const runMigrations = async (client, dbLabel) => {
             ADD COLUMN IF NOT EXISTS passcode TEXT,
             ADD COLUMN IF NOT EXISTS disabled BOOLEAN DEFAULT FALSE,
             DROP COLUMN IF EXISTS registrar_type,
-            DROP COLUMN IF EXISTS email_address,
-            ALTER COLUMN passcode TYPE TEXT;
+            DROP COLUMN IF EXISTS email_address;
+            ALTER TABLE users ALTER COLUMN passcode TYPE TEXT;
         `);
 
             // Create UNIQUE INDEX on school_id (only for non-null values)
@@ -756,38 +957,8 @@ const runMigrations = async (client, dbLabel) => {
 
         // Legacy flat unit tables (unit1-unit6) decommissioned in favor of ph_school_unit_submissions
 
-        // --- 21e. PH SCHOOLS VALIDATE TABLE ---
-        try {
-            await client.query(`
-            CREATE TABLE IF NOT EXISTS ph_schools_validate (
-                school_id VARCHAR(255) PRIMARY KEY REFERENCES ph_schools(school_id) ON DELETE CASCADE,
-                unit1_completed BOOLEAN DEFAULT FALSE,
-                unit2_completed BOOLEAN DEFAULT FALSE,
-                unit3_completed BOOLEAN DEFAULT FALSE,
-                unit4_completed BOOLEAN DEFAULT FALSE,
-                unit5_completed BOOLEAN DEFAULT FALSE,
-                unit6_completed BOOLEAN DEFAULT FALSE,
-                unit7_completed BOOLEAN DEFAULT FALSE,
-                unit8_completed BOOLEAN DEFAULT FALSE,
-                unit9_completed BOOLEAN DEFAULT FALSE,
-                unit1_validated BOOLEAN DEFAULT FALSE,
-                unit2_validated BOOLEAN DEFAULT FALSE,
-                unit3_validated BOOLEAN DEFAULT FALSE,
-                unit4_validated BOOLEAN DEFAULT FALSE,
-                unit5_validated BOOLEAN DEFAULT FALSE,
-                unit6_validated BOOLEAN DEFAULT FALSE,
-                unit7_validated BOOLEAN DEFAULT FALSE,
-                unit8_validated BOOLEAN DEFAULT FALSE,
-                unit9_validated BOOLEAN DEFAULT FALSE,
-                needs_validation BOOLEAN DEFAULT FALSE,
-                validation_percentage NUMERIC(5,2) DEFAULT 0.00,
-                validated_units_count INTEGER DEFAULT 0
-            );
-            `);
-            console.log(`✅ [${dbLabel}] ph_schools_validate Table Initialized`);
-        } catch (valErr) {
-            console.error(`❌ [${dbLabel}] Failed to init ph_schools_validate table:`, valErr.message);
-        }
+        // Obsolete legacy validate table decommissioned in favor of ph_school_unit_submissions
+
 
 
         // NOTE: Unit 7 condition & utility columns are now included in the

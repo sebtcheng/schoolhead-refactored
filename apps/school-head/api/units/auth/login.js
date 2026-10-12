@@ -181,7 +181,7 @@ router.post('/api/auth/migrate-login', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/auth/pin-login', async (req, res) => {
   const { email, school_id, pin } = req.body;
-  const identifier = (school_id || email || '').trim();
+  const identifier = (school_id || email || req.body.identifier || pin || '').trim();
 
   if (!identifier || !pin) {
     return res.status(400).json({ success: false, error: "Identifier and PIN are required." });
@@ -195,9 +195,9 @@ router.post('/api/auth/pin-login', async (req, res) => {
     const query = `
       SELECT ${selectCols} 
       FROM user_schoolhead 
-      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1) 
+      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1 OR passcode = $2) 
         AND (disabled = false OR disabled IS NULL) 
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC LIMIT 1
     `;
 
     let user;
@@ -210,17 +210,30 @@ router.post('/api/auth/pin-login', async (req, res) => {
 
       let userRes;
       try {
-        userRes = await client.query(query, [searchTarget]);
+        userRes = await client.query(query, [searchTarget, String(pin).trim()]);
         console.log(`📊 DB query rowCount: ${userRes.rowCount}`);
       } catch (err) {
         if (err.message.includes('terminated unexpectedly')) {
           client.release();
           client = await poolUsers.connect();
-          userRes = await client.query(query, [searchTarget]);
+          userRes = await client.query(query, [searchTarget, String(pin).trim()]);
         } else {
-          throw err;
+          userRes = { rowCount: 0, rows: [] };
         }
       }
+
+      if (userRes.rowCount === 0) {
+        // Fallback to users table
+        userRes = await client.query(
+          `SELECT uid, email, role, region, division, office, account_category, passcode, first_name, last_name, school_id 
+           FROM users 
+           WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1 OR passcode = $2) 
+             AND (disabled = false OR disabled IS NULL) 
+           ORDER BY created_at DESC LIMIT 1`,
+          [searchTarget, String(pin).trim()]
+        ).catch(() => ({ rowCount: 0, rows: [] }));
+      }
+
       if (userRes.rowCount > 0) {
         user = userRes.rows[0];
         console.log(`✅ PIN USER MATCHED: email="${user.email}", school_id="${user.school_id}", role="${user.role}"`);

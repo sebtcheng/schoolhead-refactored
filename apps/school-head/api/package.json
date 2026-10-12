@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "node --watch index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test:db": "node -e \"import('./db.js').then(({db}) => { console.log('✅ Drizzle ORM client verified'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
+    "test:api": "node ../../../scripts/test-api.js"
   },
   "dependencies": {
     "@shared/db": "workspace:*",

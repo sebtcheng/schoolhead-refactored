@@ -5,7 +5,8 @@
   "main": "./src/db.js",
   "exports": {
     ".": "./src/db.js",
-    "./db_init": "./src/db_init.js"
+    "./db_init": "./src/db_init.js",
+    "./schema": "./src/schema.js"
   },
   "dependencies": {
     "pg": "^8.20.0",

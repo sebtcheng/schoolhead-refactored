@@ -6,7 +6,7 @@ import { readFileSync } from 'fs'
 // Read version from package.json — single source of truth
 const { version } = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
-const backendPort = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 3000;
+const backendPort = process.env.SCHOOL_HEAD_PORT || process.env.PORT || 5010;
 const backendTarget = `http://127.0.0.1:${backendPort}`;
 
 const handleProxyError = (proxy, _options) => {
@@ -85,6 +85,7 @@ export default defineConfig({
     })
   ],
   server: {
+    port: 5173,
     proxy: {
       // Proxies for dev when BASE_URL = /insighted-schoolhead/ (matches what api() generates)
       '/insighted-schoolhead/api': {
