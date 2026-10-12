@@ -1,103 +1,83 @@
-# Coding Standards
+# Coding standards
 
-## Overview
+What reviewers hold changes to in this monorepo (pnpm workspaces + Turbo:
+`apps/school-head/{api,web}`, `apps/siif/{api,web}`, `packages/*`). Where a rule is
+already enforced by a tool, the tool is named; everything else is a review call.
 
-This reference guide provides comprehensive information for code reviewer.
+## Repository structure
+- **No cross-app imports.** `apps/siif/**` and `apps/school-head/**` never import from each
+  other; shared code goes in `packages/*` and is imported as `@shared/*`
+  (enforced: ESLint `no-restricted-imports`).
+- New shared database code goes in `packages/shared-db` / `packages/db`; shared auth in
+  `packages/shared-auth`. Do not copy a helper into a second app.
+- Generated and local-only files stay out of git: `dist/`, `.turbo/`, `node_modules/`,
+  `.env*` (except `.env.example`), scratch exports.
 
-## Patterns and Practices
+## Configuration and secrets
+- All credentials come from environment variables, with **no literal fallback**:
+  ```js
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET is not set');
+  ```
+- Each environment variable an app needs is listed in `.env.example` with a fake value.
+- Database TLS uses the provider CA, not `rejectUnauthorized: false`.
 
-### Pattern 1: Best Practice Implementation
+## API routes (Express 5)
+- One router per resource/unit; mount it in the app's `index.js`.
+- Every route that touches school data uses the auth middleware
+  (`authMiddleware` from `@shared/auth` in school-head, `authenticate` in SIIF) and then
+  checks the user may access that school (`req.user` vs the requested school id).
+- Validate input at the top of the handler (zod is available) and return 400 on bad input.
+- Response shape: `{ success: true, data }` / `{ success: false, error: '<user-safe message>' }`.
+  Log the real error with context: `console.error('[unit2:save]', err)`.
+- Express 5 forwards rejected promises to the error handler; still catch where you
+  need to roll back a transaction or release a client.
+- Keep the global JSON body limit small; give upload routes their own limits.
 
-**Description:**
-Detailed explanation of the pattern.
+## Database access (pg + Drizzle)
+- Values always go through parameters (`$1`, `$2`) or Drizzle builders / `` sql`...` ``.
+  Never interpolate request data into SQL text.
+- Dynamic identifiers (column names, sort fields) are mapped through an allowlist object.
+- Transactions:
+  ```js
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // ...writes...
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  ```
+- No queries inside loops over request data; use `ANY($1)`, `unnest`, multi-row
+  `INSERT ... VALUES`, or Drizzle `inArray` / batch inserts.
+- Select named columns; paginate or LIMIT list queries.
+- Schema changes go through Drizzle (`drizzle/`, `pnpm db:generate`); the Drizzle schema
+  and raw SQL must agree on table and column names.
 
-**When to Use:**
-- Scenario 1
-- Scenario 2
-- Scenario 3
+## Frontend (React 19 + Vite + Tailwind)
+- Function components and hooks only. Follow `eslint-plugin-react-hooks` (enforced): no
+  conditional hooks, correct effect dependencies, no setState during render.
+- Every data fetch handles loading, error and empty states; save failures are shown to
+  the user, not only logged.
+- Never render API or user data with `dangerouslySetInnerHTML`.
+- Role and permission checks in the UI are for display only; the API must enforce them.
+- Components over ~500 lines are split into section components and hooks.
+- Tailwind classes for styling; keep inline `<style>` blocks static.
 
-**Implementation:**
-```typescript
-// Example code implementation
-export class Example {
-  // Implementation details
-}
-```
+## Naming and style
+- `camelCase` for variables/functions, `PascalCase` for components and component files,
+  `UPPER_SNAKE_CASE` for module constants, `snake_case` for database columns.
+- `const` by default, `let` only when reassigned, never `var`. `===` / `!==` always.
+- No unused variables or imports (enforced: ESLint `no-unused-vars`; names starting with
+  a capital or `_` are exempt).
+- Comments explain *why*, not what. Remove commented-out code and `debugger`.
+- No `console.log` of passwords, passcodes, tokens or full request bodies.
 
-**Benefits:**
-- Benefit 1
-- Benefit 2
-- Benefit 3
-
-**Trade-offs:**
-- Consider 1
-- Consider 2
-- Consider 3
-
-### Pattern 2: Advanced Technique
-
-**Description:**
-Another important pattern for code reviewer.
-
-**Implementation:**
-```typescript
-// Advanced example
-async function advancedExample() {
-  // Code here
-}
-```
-
-## Guidelines
-
-### Code Organization
-- Clear structure
-- Logical separation
-- Consistent naming
-- Proper documentation
-
-### Performance Considerations
-- Optimization strategies
-- Bottleneck identification
-- Monitoring approaches
-- Scaling techniques
-
-### Security Best Practices
-- Input validation
-- Authentication
-- Authorization
-- Data protection
-
-## Common Patterns
-
-### Pattern A
-Implementation details and examples.
-
-### Pattern B
-Implementation details and examples.
-
-### Pattern C
-Implementation details and examples.
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1
-What not to do and why.
-
-### Anti-Pattern 2
-What not to do and why.
-
-## Tools and Resources
-
-### Recommended Tools
-- Tool 1: Purpose
-- Tool 2: Purpose
-- Tool 3: Purpose
-
-### Further Reading
-- Resource 1
-- Resource 2
-- Resource 3
-
-## Conclusion
-
-Key takeaways for using this reference guide effectively.
+## Python scripts (deploy and tooling)
+- `subprocess.run([...])` with an argument list, not `shell=True` with a built string.
+- Credentials from environment variables or a gitignored config file, never inline.
+- Catch specific exceptions; no bare `except:`.
