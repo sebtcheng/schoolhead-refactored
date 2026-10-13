@@ -1,17 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import {
-    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
-import { TbTrendingUp, TbTable } from 'react-icons/tb';
+import { TbChartBar, TbTable } from 'react-icons/tb';
 import { formatPeso } from '../utilization/utilizationUi';
 import { formatPesoCompact, quarterIdsFor, DASH_QUARTERS, ALL_QUARTERS } from './dashboardData';
 import { DashCard } from './DashboardParts';
 import { useIsDark } from '../../hooks/useIsDark';
 
-// Ported from the RO/SDO "Quarterly Disbursement by Intervention" combo chart, scoped to one school
+// Stacked bar per quarter, one segment per intervention, scoped to one school
 const THEME = {
-    light: { line: '#08315F', surface: '#FFFFFF', grid: '#E2E8F0', ink: '#475569', muted: '#94A3B8' },
-    dark: { line: '#E2E8F0', surface: '#0F172A', grid: '#1E293B', ink: '#CBD5E1', muted: '#64748B' },
+    light: { surface: '#FFFFFF', grid: '#E2E8F0', ink: '#475569', muted: '#94A3B8' },
+    dark: { surface: '#0F172A', grid: '#1E293B', ink: '#CBD5E1', muted: '#64748B' },
 };
 const MIN_INSIDE_LABEL_PX = 16;
 const CHART_HEIGHT = 360;
@@ -38,24 +38,18 @@ const QuarterlyDisbursementChart = ({ interventions, rankOrder, view = 'chart', 
         [interventions, rankOrder]
     );
 
-    const data = useMemo(() => {
-        const rows = quarters.map(q => {
-            const amounts = Object.fromEntries(series.map(iv => [iv.id, iv.quarters.find(x => x.id === q.id).amount]));
-            const values = Object.values(amounts);
-            return {
-                id: q.id,
-                label: q.short,
-                full: q.label,
-                ...amounts,
-                count: values.filter(v => v > 0).length,
-                total: values.reduce((sum, v) => sum + v, 0),
-            };
-        });
-        return rows.map((row, i) => ({
-            ...row,
-            cumulative: rows.slice(0, i + 1).reduce((sum, r) => sum + r.total, 0),
-        }));
-    }, [quarters, series]);
+    const data = useMemo(() => quarters.map(q => {
+        const amounts = Object.fromEntries(series.map(iv => [iv.id, iv.quarters.find(x => x.id === q.id).amount]));
+        const values = Object.values(amounts);
+        return {
+            id: q.id,
+            label: q.short,
+            full: q.label,
+            ...amounts,
+            count: values.filter(v => v > 0).length,
+            total: values.reduce((sum, v) => sum + v, 0),
+        };
+    }), [quarters, series]);
 
     const grandTotal = data.reduce((sum, r) => sum + r.total, 0);
     const visible = series.filter(iv => !hidden.has(iv.id));
@@ -80,7 +74,7 @@ const QuarterlyDisbursementChart = ({ interventions, rankOrder, view = 'chart', 
         const row = data.find(d => d.label === payload.value);
         return (
             <g transform={`translate(${x},${y})`}>
-                {/* Quarter total under the bar so the cumulative line's dot never covers it */}
+                {/* Quarter total under the bar */}
                 <text textAnchor="middle" fontSize={11} fontWeight={800} fill={t.ink} dy={14}>
                     {payload.value}{row ? ` · ${formatPesoCompact(row.total)}` : ''}
                 </text>
@@ -109,19 +103,13 @@ const QuarterlyDisbursementChart = ({ interventions, rankOrder, view = 'chart', 
                     <span className="font-bold text-slate-700 dark:text-slate-200">Quarter total</span>
                     <span className="font-mono font-black text-slate-900 dark:text-white">{formatPeso(row.total)}</span>
                 </div>
-                <div className="flex items-center justify-between gap-4 py-0.5">
-                    <span className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-300">
-                        <span className="h-0.5 w-3 rounded-full" style={{ background: t.line }} /> Cumulative
-                    </span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white">{formatPeso(row.cumulative)}</span>
-                </div>
             </div>
         );
     };
 
     return (
         <DashCard
-            icon={view === 'table' ? <TbTable /> : <TbTrendingUp />}
+            icon={view === 'table' ? <TbTable /> : <TbChartBar />}
             className={view === 'chart' ? 'h-full' : ''}
             title={view === 'table' ? 'Quarterly Disbursement Table' : 'Quarterly Disbursement by Intervention'}
             subtitle={<>{scopeLabel} · <strong className="text-slate-800 dark:text-slate-100">{formatPeso(grandTotal)}</strong> declared</>}
@@ -148,18 +136,11 @@ const QuarterlyDisbursementChart = ({ interventions, rankOrder, view = 'chart', 
                                 </button>
                             );
                         })}
-                        <span className="flex items-center gap-1.5 px-2 py-1 text-slate-600 dark:text-slate-300">
-                            <span className="relative flex h-3 w-5 items-center">
-                                <span className="h-0.5 w-full rounded-full" style={{ background: t.line }} />
-                                <span className="absolute left-1/2 h-2 w-2 -translate-x-1/2 rounded-full" style={{ background: t.line }} />
-                            </span>
-                            Cumulative ₱ disbursed
-                        </span>
                     </div>
 
                     <div className="w-full" style={{ height: CHART_HEIGHT }}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={data} margin={{ top: 24, right: 24, left: 8, bottom: 20 }} barCategoryGap="28%">
+                            <BarChart data={data} margin={{ top: 24, right: 24, left: 8, bottom: 20 }} barCategoryGap="28%">
                                 <CartesianGrid vertical={false} stroke={t.grid} strokeDasharray="3 3" />
                                 <XAxis dataKey="label" interval={0} tick={renderTick} tickLine={false} axisLine={{ stroke: t.grid }} height={44} />
                                 <YAxis tickFormatter={formatPesoCompact} tick={{ fontSize: 10, fill: t.muted }} tickLine={false} axisLine={false} width={64} />
@@ -179,16 +160,7 @@ const QuarterlyDisbursementChart = ({ interventions, rankOrder, view = 'chart', 
                                         <LabelList dataKey={iv.id} content={renderInsideLabel} />
                                     </Bar>
                                 ))}
-                                <Line
-                                    type="linear"
-                                    dataKey="cumulative"
-                                    stroke={t.line}
-                                    strokeWidth={2}
-                                    dot={{ r: 4, fill: t.line, stroke: t.surface, strokeWidth: 2 }}
-                                    activeDot={{ r: 6, fill: t.line, stroke: t.surface, strokeWidth: 2 }}
-                                    isAnimationActive={false}
-                                />
-                            </ComposedChart>
+                            </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </>

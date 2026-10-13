@@ -11,11 +11,16 @@ if sys.platform == "win32":
 
 ### --- CONFIGURATION ---
 SERVER_IP   = "20.24.58.49"
-SERVER_DIR  = "/mnt/www/InsightEd-Mobile-PWA/insighted-schoolhead"
+SERVER_DIR  = "/var/www/html/InsightED-SchoolHead/insighted-schoolhead"
+BACKUP_DIR  = "/var/www/html/InsightED-SchoolHead/backups"
 USER        = "Administrator1"
 TAR_FILE    = "schoolhead-deploy.tmp.tar.gz"
-PM2_CONFIG  = "ecosystem.schoolhead-staging.config.cjs"
 PORT        = "5010"
+
+# Production PM2 processes running from SERVER_DIR (reloaded by name; the
+# on-server ecosystem file has a stale script path, so it is not used here)
+PM2_SCHOOLHEAD = "insighted-schoolhead-backend"   # cluster x2, port 5010
+PM2_SIIF       = "insighted-siif-backend"         # fork, port 5015
 
 # Files/folders to bundle into the release tarball
 INCLUDE = [
@@ -32,7 +37,6 @@ INCLUDE = [
     "packages/shared-io",
     "packages/shared-types",
     "packages/shared-ui",
-    "ecosystem.schoolhead-staging.config.cjs",
 ]
 
 # SSH base options — always passed as a plain string so Windows shell parses them correctly
@@ -154,7 +158,9 @@ def package_assets():
     for p in skipped:
         warn(f"Path skipped (not present locally): {p}")
 
-    run_command(f"tar -czf {TAR_FILE} {' '.join(paths)}", retries=1)
+    # Exclude node_modules: pnpm junctions can't be archived by Windows bsdtar,
+    # and the server rebuilds dependencies with `pnpm install --prod` anyway.
+    run_command(f"tar --exclude=node_modules -czf {TAR_FILE} {' '.join(paths)}", retries=1)
     success(f"Workspace assets packaged into: {TAR_FILE}")
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,32 +183,34 @@ def deploy_remote():
         retries=4, delay=8
     )
 
-    # Step C: Atomic remote extraction + dual-path sync + pnpm install + pm2 restart
-    info("Executing atomic remote extraction, dist sync, and zero-downtime PM2 restart...")
+    # Step C: Backup current release, extract, pnpm install, reload PM2
+    # (uploads/ and logs/ are never touched; nginx serves SERVER_DIR/dist directly)
+    backup_file = f"{BACKUP_DIR}/schoolhead-{time.strftime('%Y%m%d-%H%M%S')}.tar.gz"
+    info(f"Backing up current release to {backup_file}, then extracting and reloading PM2...")
     remote_script = " && ".join([
-        f"mkdir -p {SERVER_DIR}/logs",
-        f"mkdir -p /var/www/html/InsightEd-Mobile-PWA/insighted-schoolhead",
-        f"rm -rf {SERVER_DIR}/dist {SERVER_DIR}/apps/school-head/api {SERVER_DIR}/apps/siif/api /var/www/html/InsightEd-Mobile-PWA/insighted-schoolhead/dist",
+        f"mkdir -p {SERVER_DIR}/logs {BACKUP_DIR}",
         f"cd {SERVER_DIR}",
+        f"tar -czf {backup_file} --ignore-failed-read dist apps .env package.json pnpm-lock.yaml",
+        f"rm -rf {SERVER_DIR}/dist {SERVER_DIR}/apps/school-head/api {SERVER_DIR}/apps/siif/api",
         f"tar -xzf {TAR_FILE}",
         f"rm -f {TAR_FILE}",
-        f"cp -rf dist /var/www/html/InsightEd-Mobile-PWA/insighted-schoolhead/ 2>/dev/null || true",
         f"pnpm install --prod --frozen-lockfile --prefer-offline",
-        f"pm2 delete insighted-schoolhead-backend 2>/dev/null || true && "
-        f"pm2 delete insighted-schoolhead-staging-backend 2>/dev/null || true && "
-        f"pm2 start {PM2_CONFIG} && "
+        f"pm2 reload {PM2_SCHOOLHEAD} --update-env",
+        f"pm2 restart {PM2_SIIF} --update-env",
         f"pm2 save",
     ])
 
+    # retries=1: the step is not idempotent (tarball is consumed on first run)
     run_command(
         f'{SSH_BASE} {SSH_TARGET} "{remote_script}"',
-        retries=3, delay=8
+        retries=1
     )
 
     if os.path.exists(TAR_FILE):
         os.remove(TAR_FILE)
 
-    success("Remote extraction, dual-dist sync, and PM2 restart finalized flawlessly.")
+    success("Backup, extraction, and PM2 reload finalized.")
+    info(f"Rollback: ssh {SSH_TARGET} \"cd {SERVER_DIR} && rm -rf dist apps/school-head/api apps/siif/api && tar -xzf {backup_file} && pm2 reload {PM2_SCHOOLHEAD} && pm2 restart {PM2_SIIF}\"")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
