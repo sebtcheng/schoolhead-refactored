@@ -2,9 +2,9 @@ import React, { useMemo, useState } from 'react';
 import {
     ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
-import { TbTrendingUp } from 'react-icons/tb';
+import { TbTrendingUp, TbTable } from 'react-icons/tb';
 import { formatPeso } from '../utilization/utilizationUi';
-import { formatPesoCompact, quarterIdsFor, DASH_QUARTERS } from './dashboardData';
+import { formatPesoCompact, quarterIdsFor, DASH_QUARTERS, ALL_QUARTERS } from './dashboardData';
 import { DashCard } from './DashboardParts';
 import { useIsDark } from '../../hooks/useIsDark';
 
@@ -16,31 +16,13 @@ const THEME = {
 const MIN_INSIDE_LABEL_PX = 16;
 const CHART_HEIGHT = 360;
 
-const ViewToggle = ({ view, onChange }) => (
-    <div role="tablist" aria-label="View" className="inline-flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
-        {['chart', 'table'].map(v => (
-            <button
-                key={v}
-                type="button"
-                role="tab"
-                aria-selected={view === v}
-                onClick={() => onChange(v)}
-                className={`cursor-pointer rounded-lg border-0 px-3 py-1.5 text-xs font-black capitalize outline-none transition-all focus-visible:ring-2 focus-visible:ring-sky-300 ${
-                    view === v
-                        ? 'bg-white text-[#08315F] shadow-sm dark:bg-slate-900 dark:text-white'
-                        : 'bg-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-            >
-                {v}
-            </button>
-        ))}
-    </div>
-);
-
-const QuarterlyDisbursementChart = ({ interventions, rankOrder, scope, scopeLabel }) => {
+/**
+ * `view` picks what this card shows: the stacked 'chart' or the per-quarter 'table'.
+ * The Utilization dashboard renders one of each (chart beside the donut, table under both).
+ */
+const QuarterlyDisbursementChart = ({ interventions, rankOrder, view = 'chart', scope = ALL_QUARTERS, scopeLabel = 'All quarters' }) => {
     const isDark = useIsDark();
     const t = isDark ? THEME.dark : THEME.light;
-    const [view, setView] = useState('chart');
     const [hidden, setHidden] = useState(() => new Set());
 
     const quarters = useMemo(() => {
@@ -139,10 +121,10 @@ const QuarterlyDisbursementChart = ({ interventions, rankOrder, scope, scopeLabe
 
     return (
         <DashCard
-            icon={<TbTrendingUp />}
-            title="Quarterly Disbursement by Intervention"
+            icon={view === 'table' ? <TbTable /> : <TbTrendingUp />}
+            className={view === 'chart' ? 'h-full' : ''}
+            title={view === 'table' ? 'Quarterly Disbursement Table' : 'Quarterly Disbursement by Intervention'}
             subtitle={<>{scopeLabel} · <strong className="text-slate-800 dark:text-slate-100">{formatPeso(grandTotal)}</strong> declared</>}
-            actions={<ViewToggle view={view} onChange={setView} />}
         >
             {series.length === 0 ? (
                 <div className="py-16 text-center text-xs font-bold text-slate-400">

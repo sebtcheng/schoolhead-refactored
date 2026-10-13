@@ -17,8 +17,9 @@ const formatCurrency = (value) =>
 /**
  * @param {object}      allocation  { allocation_amount, fiscal_year, region, division, school_name }
  * @param {object|null} submission  GET /siif/submission response (optional plan)
+ * @param {function}    onOpenForm  opens the Plan Form tab
  */
-const PlanOverview = ({ user, allocation, submission }) => {
+const PlanOverview = ({ user, allocation, submission, onOpenForm }) => {
     const navigate = useNavigate();
     const [selectedModalIntervention, setSelectedModalIntervention] = useState(null);
 
@@ -202,7 +203,7 @@ const PlanOverview = ({ user, allocation, submission }) => {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => navigate('/siif/forms')}
+                                            onClick={onOpenForm}
                                             className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Revise Proposal
@@ -225,7 +226,7 @@ const PlanOverview = ({ user, allocation, submission }) => {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => navigate('/siif/utilization')}
+                                            onClick={() => navigate('/siif/utilization?tab=record')}
                                             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Proceed to Utilization
@@ -248,7 +249,7 @@ const PlanOverview = ({ user, allocation, submission }) => {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => navigate('/siif/forms')}
+                                            onClick={onOpenForm}
                                             className="px-4 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 whitespace-nowrap shrink-0"
                                         >
                                             View Submission
@@ -355,7 +356,7 @@ const PlanOverview = ({ user, allocation, submission }) => {
                                 </div>
 
                                 <div className="siif-quick-actions">
-                                    <button className="siif-action-btn" onClick={() => navigate('/siif/forms')}>
+                                    <button className="siif-action-btn" onClick={onOpenForm}>
                                         <div className="siif-action-icon">＋</div>
                                         <div className="text-left">
                                             <b>Plan Intervention</b>

@@ -1,7 +1,7 @@
 // SIIFFormsHub.jsx
 // The /forms route — 4-card hub with sequential locking
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TbChevronLeft, TbCircleCheck, TbLock,
@@ -9,7 +9,7 @@ import {
     TbChevronRight, TbClock, TbTrendingUp,
     TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit,
     TbSettings, TbClipboardList, TbCalculator, TbChartBar,
-    TbShieldCheck, TbAlertTriangle
+    TbShieldCheck, TbAlertTriangle, TbLayoutDashboard, TbFileText
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../utils/logger';
@@ -22,6 +22,10 @@ import { INTERVENTIONS, INTERVENTION_ICONS, KEY_STAGES, GRADE_LABELS, emptyIntDa
 import { submitPlan } from '../services/siifService';
 import { useSIIFSubmission } from '../hooks/useSIIFSubmission';
 import SiifLoader from '../components/SiifLoader';
+import PageTabs from '../components/utilization/PageTabs';
+import PlanOverview from '../components/dashboard/PlanOverview';
+import { formsCompletionOf } from '../components/dashboard/dashboardData';
+import { useSIIFPlan } from '../hooks/useSIIFPlan';
 
 // Custom Flaticon Icons
 import interventionIcon from '../assets/icons/intervention.png';
@@ -76,8 +80,31 @@ const CARDS = [
 const TOTAL_STEPS = CARDS.length;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+// In-page tabs: Dashboard (the saved plan, moved from the old SIIF Dashboard page)
+// and Plan Form (data collection). Kept in the URL (?tab=) so a refresh keeps it.
+const FORM_TABS = [
+    { id: 'dashboard', label: 'Dashboard', icon: <TbLayoutDashboard size={16} /> },
+    { id: 'form', label: 'Plan Form', icon: <TbFileText size={16} /> },
+];
+const DEFAULT_FORM_TAB = 'dashboard';
+
 const SIIFFormsHub = ({ user, token }) => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tab = FORM_TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : DEFAULT_FORM_TAB;
+    // Bumped each time the Dashboard opens so it shows the latest saved plan
+    const [planRefresh, setPlanRefresh] = useState(0);
+    const setTab = useCallback((id) => {
+        if (id === 'dashboard') setPlanRefresh(n => n + 1);
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('tab', id);
+            return next;
+        }, { replace: true });
+    }, [setSearchParams]);
+    const openForm = useCallback(() => setTab('form'), [setTab]);
+    const { loading: planLoading, allocation: planAllocation, submission: planSubmission } =
+        useSIIFPlan(user, token, planRefresh);
     const [activeCard, setActiveCard] = useState(null);
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -521,6 +548,53 @@ const SIIFFormsHub = ({ user, token }) => {
 
 
     // ─── Render ───────────────────────────────────────────────────────────────
+    const pageTabs = <PageTabs tabs={FORM_TABS} value={tab} onChange={setTab} idPrefix="siif-forms" />;
+
+    // Dashboard tab: works even while the form is loading, failed or not open yet
+    if (tab === 'dashboard') {
+        if (planLoading) return <SiifLoader text="Loading SIIF Plan..." />;
+        const planFy = planAllocation?.fiscal_year || new Date().getFullYear();
+        const completion = formsCompletionOf(planSubmission);
+        return (
+            <main className="siif-dashboard-page w-full pt-3 pb-16 font-sans sm:pt-4 lg:pt-6 print:m-0 print:bg-white print:p-0">
+                <header className="topbar mb-5 print:hidden">
+                    <div className="page-title">
+                        <p className="eyebrow">
+                            DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
+                        </p>
+                        <h1>{user?.school_name || 'School Innovation and Improvement Fund'}</h1>
+                        <p className="mt-1 text-xs font-bold uppercase tracking-wider text-sky-200/90">
+                            SIIF Plan Dashboard · FY {planFy}
+                        </p>
+                    </div>
+                    <div className="siif-topbar-actions shrink-0">
+                        <div className="flex flex-col items-end gap-1 rounded-xl border border-slate-100 bg-white/95 px-2.5 py-1.5 shadow-md sm:min-w-[180px] sm:rounded-2xl sm:px-4 sm:py-2.5">
+                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 sm:text-[9px]">Forms Completion</span>
+                            <span className="text-base font-black leading-none text-[#08315F] sm:text-lg">{completion}%</span>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 sm:w-32">
+                                <div className="h-full rounded-full bg-[#0284C7] transition-all duration-500" style={{ width: `${completion}%` }} />
+                            </div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                {planSubmission ? `Plan ${String(planSubmission.status || 'draft').toLowerCase()}` : 'No plan yet'}
+                            </span>
+                        </div>
+                    </div>
+                </header>
+
+                {pageTabs}
+
+                <div role="tabpanel" id="siif-forms-panel-dashboard" aria-labelledby="siif-forms-dashboard">
+                    <PlanOverview
+                        user={user}
+                        allocation={planAllocation}
+                        submission={planSubmission}
+                        onOpenForm={openForm}
+                    />
+                </div>
+            </main>
+        );
+    }
+
     if (loading) {
         return <SiifLoader text="Initializing Planner..." />;
     }
@@ -554,7 +628,8 @@ const SIIFFormsHub = ({ user, token }) => {
     if (isNotYetOpen) {
         return (
             <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12 px-4">
+                {pageTabs}
+                <div role="tabpanel" id="siif-forms-panel-form" aria-labelledby="siif-forms-form" className="max-w-2xl mx-auto mt-6 px-4">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-8 sm:p-10">
                             <motion.div
@@ -604,7 +679,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             </motion.div>
 
                             <button
-                                onClick={() => navigate('/siif/dashboard')}
+                                onClick={() => setTab('dashboard')}
                                 className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
                                 style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
                             >
@@ -621,7 +696,7 @@ const SIIFFormsHub = ({ user, token }) => {
     return (
         <div className="w-full min-h-screen pb-48 sm:pb-48 text-lg">
 
-            {/* ── Topbar Header matching SIIFDashboard.jsx full width ── */}
+            {/* ── Topbar Header (full width) ── */}
             <main className="siif-main-area w-full pt-3 sm:pt-4 lg:pt-8 print:hidden">
                 <header className="topbar print:hidden">
                     <div className="page-title">
@@ -674,8 +749,10 @@ const SIIFFormsHub = ({ user, token }) => {
                     </div>
                 </header>
 
+                <div className="mt-6">{pageTabs}</div>
+
                 {/* ── Center Form Step Cards Stack (Narrower max-w-2xl layout) ── */}
-                <div className="w-full max-w-lg sm:max-w-xl md:max-w-2xl mx-auto px-4">
+                <div role="tabpanel" id="siif-forms-panel-form" aria-labelledby="siif-forms-form" className="w-full max-w-lg sm:max-w-xl md:max-w-2xl mx-auto px-4">
                     {/* ── Warning Banner Area (Repositioned to Top) ── */}
                     <div className="relative z-20 mt-4 space-y-3">
                         {/* Optional-submission notice — Forms no longer gates Utilization */}

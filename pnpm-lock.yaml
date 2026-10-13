@@ -232,6 +232,8 @@ importers:
         specifier: ^7.4.0
         version: 7.4.1
 
+  apps/school-head: {}
+
   apps/school-head/api:
     dependencies:
       '@shared/auth':
@@ -325,6 +327,15 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.2.8(react@19.2.8)
+      sweetalert2:
+        specifier: ^11
+        version: 11.26.25
+
+  packages/db:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@opentelemetry/api@1.9.1)(knex@3.3.0(pg-query-stream@4.16.0(pg@8.22.0))(pg@8.22.0))(pg@8.22.0)
 
   packages/shared-auth:
     dependencies:
@@ -5588,6 +5599,9 @@ packages:
   svg-pathdata@6.0.3:
     resolution: {integrity: sha512-qsjeeq5YjBZ5eMdFuUa4ZosMLxgr5RZ+F+Y1OrDhuOCEInRMA3x74XdBtggJcj9kOeInz0WE+LgCPDkZFlBYJw==}
     engines: {node: '>=12.0.0'}
+
+  sweetalert2@11.26.25:
+    resolution: {integrity: sha512-+hunCOJdJ6FLj04T9YSLvvZXRjsvIkTeTKP2e4VF8CaBias961BTnWiSFAy7F/CM5eq3QK2Rraoc5Gzftslvkg==}
 
   swiper@12.2.0:
     resolution: {integrity: sha512-K8uXsBZU6ME97Ia3xbBge8IRCnR1lOmIILzvY/jGVic7dSTQ530s3uO8RvXbPUtkkXLWIwmZLRPbtDxRWVAFdg==}
@@ -11568,6 +11582,8 @@ snapshots:
 
   svg-pathdata@6.0.3:
     optional: true
+
+  sweetalert2@11.26.25: {}
 
   swiper@12.2.0: {}
 

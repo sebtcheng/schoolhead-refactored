@@ -1899,21 +1899,15 @@ html.dark .siif-module-root textarea::placeholder {
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.12);
 }
 
-/* Hide legacy desktop sidebar background on all mobile screens (< 768px) across all pages */
-@media (max-width: 767px) {
+/* The desktop sidebar only exists from 1001px up; mobile and tablet (<= 1000px, e.g. iPad)
+   use the BottomNav bottom bar instead, so hide the sidebar on every page */
+@media (max-width: 1000px) {
   .siif-sidebar {
     display: none !important;
   }
 }
 
 @media (max-width: 1000px) {
-
-  .siif-utilization-page~.siif-sidebar,
-  .siif-utilization-page .siif-sidebar,
-  body:has(.siif-utilization-page) .siif-sidebar {
-    display: none !important;
-  }
-
   /* Restore breathing room between the header and the progress card
      (the tablet/mobile .topbar rules reset margin-bottom to 0) */
   .siif-utilization-page .topbar {
@@ -1924,6 +1918,20 @@ html.dark .siif-module-root textarea::placeholder {
 @media (max-width: 640px) {
   .siif-utilization-page .topbar {
     margin-bottom: 16px;
+  }
+}
+
+/* Global support-chat button: the widget only clears a bottom bar up to 768px, but SIIF
+   shows its bottom nav up to 1000px (tablets), so lift it there too */
+@media (max-width: 1000px) {
+  body:has(.siif-module-root) .sh-chat-fab {
+    bottom: 96px;
+  }
+
+  body:has(.siif-module-root) .sh-chat-drawer {
+    bottom: 168px;
+    width: calc(100% - 48px);
+    height: calc(100vh - 200px);
   }
 }
 
@@ -1938,7 +1946,7 @@ body:has(.siif-save-bar) .sh-chat-drawer {
   bottom: 176px;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1000px) {
   body:has(.siif-save-bar) .sh-chat-fab {
     bottom: 166px;
   }
@@ -1957,4 +1965,30 @@ body:has(.siif-save-bar) .sh-chat-drawer {
     margin-right: 0;
     margin-bottom: 16px;
   }
+}
+/* ─── Unsaved-changes SweetAlert (confirmUnsaved.js) ───────────────────────── */
+.swal2-popup.siif-swal-popup {
+  border-radius: 1.5rem;
+  padding: 1.75rem 1.5rem 1.5rem;
+  font-family: inherit;
+}
+.siif-swal-title {
+  font-size: 1.15rem !important;
+  font-weight: 900 !important;
+}
+.siif-swal-text {
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+}
+.siif-swal-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.siif-swal-actions .swal2-styled {
+  margin: 0;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }

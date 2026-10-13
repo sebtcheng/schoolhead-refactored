@@ -16,11 +16,12 @@ const DEFAULT_ALLOCATION = {
 };
 
 /**
+ * @param {*} [refreshKey] change it to refetch (e.g. each time the Dashboard tab opens)
  * @returns {{ loading: boolean, allocation: object, submission: object|null }}
  */
-export function useSIIFPlan(user, token) {
+export function useSIIFPlan(user, token, refreshKey = 0) {
     const schoolId = user?.school_id || user?.schoolId || user?.uid || user?.id || user?.sub;
-    const requestKey = schoolId && token ? `${schoolId}|${token}` : null;
+    const requestKey = schoolId && token ? `${schoolId}|${token}|${refreshKey}` : null;
     // Result is tagged with the request it answers; loading is derived, not set
     const [result, setResult] = useState({ key: null, allocation: DEFAULT_ALLOCATION, submission: null });
 

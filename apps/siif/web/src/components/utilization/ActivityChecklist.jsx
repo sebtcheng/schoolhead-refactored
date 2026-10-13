@@ -1,23 +1,33 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
-import { TbCheck, TbChevronDown, TbChecklist, TbAlertTriangle } from 'react-icons/tb';
+import { TbCheck, TbChevronRight, TbChecklist, TbAlertTriangle, TbX, TbLock } from 'react-icons/tb';
 import { UTILIZATION_ACTIVITY_GROUPS, OTHER_ACTIVITY } from '../../constants/siifConstants';
 
 const MAX_OTHER_LENGTH = 300;
 
 /**
  * Activities an intervention's funds were spent on in one quarter.
+ * The card shows a summary row; the checklist itself opens in a modal.
+ * Ticks apply immediately (like the rest of the card), so the modal only needs Done.
  * `planned` holds the labels chosen in the school's SIIF plan.
  */
-const ActivityChecklist = ({ fieldId, caption, activities = [], otherActivity = '', planned = [], readOnly, missing, onChange }) => {
-    const [userOpen, setUserOpen] = useState(() => !readOnly && activities.length === 0);
-    // Stays open while Save flags it as required
-    const open = userOpen || !!missing;
+const ActivityChecklist = ({ fieldId, caption, title, activities = [], otherActivity = '', planned = [], readOnly, missing, onChange }) => {
+    const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [open]);
 
     const otherChecked = activities.includes(OTHER_ACTIVITY);
     const count = activities.length;
     const listId = `${fieldId}-activities`;
+    // First ticked activity as a preview on the card ("Other" shows what was typed)
+    const firstLabel = activities[0] === OTHER_ACTIVITY ? (otherActivity || OTHER_ACTIVITY) : activities[0];
 
     const toggle = (label) => {
         if (readOnly) return;
@@ -74,94 +84,149 @@ const ActivityChecklist = ({ fieldId, caption, activities = [], otherActivity = 
     };
 
     return (
-        <div className={`rounded-2xl border transition-colors ${
-            missing
-                ? 'border-rose-300 bg-rose-50/40 dark:border-rose-500/40 dark:bg-rose-500/5'
-                : 'border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/40'
-        }`}>
-            <button
-                type="button"
-                onClick={() => setUserOpen(!open)}
-                aria-expanded={open}
-                aria-controls={listId}
-                className="flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-2xl border-0 bg-transparent px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
-            >
-                <TbChecklist size={16} className="shrink-0 text-indigo-500" />
-                <span className="min-w-0 flex-1">
-                    <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        Activities Funded
+        <>
+            <div className={`rounded-2xl border transition-colors ${
+                missing
+                    ? 'border-rose-300 bg-rose-50/40 dark:border-rose-500/40 dark:bg-rose-500/5'
+                    : 'border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/40'
+            }`}>
+                <button
+                    type="button"
+                    onClick={() => setOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-controls={listId}
+                    className="flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-2xl border-0 bg-transparent px-3 py-2.5 text-left outline-none transition-colors hover:bg-slate-100/70 focus-visible:ring-2 focus-visible:ring-indigo-300 dark:hover:bg-slate-800/60"
+                >
+                    <TbChecklist size={16} className="shrink-0 text-indigo-500" />
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Activities Funded
+                        </span>
+                        <span className={`block truncate text-[11px] font-semibold ${count ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                            {count
+                                ? <>{firstLabel}{count > 1 && <span className="text-slate-400"> +{count - 1} more</span>}</>
+                                : readOnly ? 'No activities recorded' : `Tap to choose · ${caption}`}
+                        </span>
                     </span>
-                    <span className="block text-[10px] font-semibold text-slate-400 dark:text-slate-500">
-                        {caption}
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black tabular-nums ${
+                        count > 0
+                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
+                            : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                    }`}>
+                        {count} {count === 1 ? 'activity' : 'activities'}
                     </span>
-                </span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black tabular-nums ${
-                    count > 0
-                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
-                        : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                }`}>
-                    {count} {count === 1 ? 'activity' : 'activities'}
-                </span>
-                <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="flex text-slate-400">
-                    <TbChevronDown size={16} />
-                </motion.span>
-            </button>
+                    <TbChevronRight size={16} className="shrink-0 text-slate-400" />
+                </button>
 
-            {missing && (
-                <p className="flex items-center gap-1 px-3 pb-2 text-[11px] font-bold text-rose-600 dark:text-rose-400">
-                    <TbAlertTriangle size={13} /> Check at least one activity this amount was spent on.
-                </p>
-            )}
+                {missing && (
+                    <p className="flex items-center gap-1 px-3 pb-2 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                        <TbAlertTriangle size={13} /> Check at least one activity this amount was spent on.
+                    </p>
+                )}
+            </div>
 
-            <AnimatePresence initial={false}>
-                {open && (
-                    <motion.div
-                        id={listId}
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.22 }}
-                        className="overflow-hidden"
-                    >
-                        <div className="space-y-3 px-2 pb-3">
-                            {readOnly && count === 0 && (
-                                <p className="px-1 text-xs italic text-slate-400">No activities recorded.</p>
-                            )}
-                            {UTILIZATION_ACTIVITY_GROUPS.map(group => {
-                                const rows = group.items.map(renderRow).filter(Boolean);
-                                if (rows.length === 0) return null;
-                                return (
-                                    <div key={group.id}>
-                                        <p className="mb-1 px-1 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                                            {group.label}
-                                        </p>
-                                        <ul className="m-0 list-none space-y-1 p-0">{rows}</ul>
+            {createPortal(
+                <AnimatePresence>
+                    {open && (
+                        <motion.div
+                            className="fixed inset-0 z-[65] flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setOpen(false)}
+                        >
+                            <motion.div
+                                role="dialog"
+                                aria-modal="true"
+                                aria-labelledby={`${listId}-title`}
+                                initial={{ opacity: 0, y: 30, scale: 0.97 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 20, scale: 0.97 }}
+                                transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                            >
+                                <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5 pb-4 dark:border-slate-800">
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-500/20">
+                                            <TbChecklist size={20} />
+                                        </span>
+                                        <div className="min-w-0">
+                                            <h2 id={`${listId}-title`} className="text-base font-black text-slate-900 dark:text-white">
+                                                Activities funded
+                                            </h2>
+                                            <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                {title ? `${title} · ` : ''}{caption}
+                                            </p>
+                                        </div>
                                     </div>
-                                );
-                            })}
+                                    <button
+                                        type="button"
+                                        onClick={() => setOpen(false)}
+                                        aria-label="Close"
+                                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl border-0 bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700"
+                                    >
+                                        <TbX size={15} />
+                                    </button>
+                                </div>
 
-                            {(!readOnly || otherChecked) && (
-                                <div>
-                                    <ul className="m-0 list-none p-0">{renderRow(OTHER_ACTIVITY)}</ul>
-                                    {otherChecked && (
-                                        <input
-                                            type="text"
-                                            value={otherActivity}
-                                            readOnly={readOnly}
-                                            maxLength={MAX_OTHER_LENGTH}
-                                            onChange={(e) => onChange({ activities, other_activity: e.target.value })}
-                                            placeholder="Specify the other activity…"
-                                            aria-label="Other activity"
-                                            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 read-only:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:focus:ring-indigo-500/20"
-                                        />
+                                <div id={listId} className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+                                    {readOnly && count === 0 && (
+                                        <p className="px-1 text-xs italic text-slate-400">No activities recorded.</p>
+                                    )}
+                                    {UTILIZATION_ACTIVITY_GROUPS.map(group => {
+                                        const rows = group.items.map(renderRow).filter(Boolean);
+                                        if (rows.length === 0) return null;
+                                        return (
+                                            <div key={group.id}>
+                                                <p className="mb-1 px-1 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                    {group.label}
+                                                </p>
+                                                <ul className="m-0 list-none space-y-1 p-0">{rows}</ul>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {(!readOnly || otherChecked) && (
+                                        <div>
+                                            <ul className="m-0 list-none p-0">{renderRow(OTHER_ACTIVITY)}</ul>
+                                            {otherChecked && (
+                                                <input
+                                                    type="text"
+                                                    value={otherActivity}
+                                                    readOnly={readOnly}
+                                                    maxLength={MAX_OTHER_LENGTH}
+                                                    onChange={(e) => onChange({ activities, other_activity: e.target.value })}
+                                                    placeholder="Specify the other activity…"
+                                                    aria-label="Other activity"
+                                                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 read-only:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:focus:ring-indigo-500/20"
+                                                />
+                                            )}
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+
+                                <div className="flex items-center justify-between gap-3 border-t border-slate-100 p-4 dark:border-slate-800">
+                                    <span className="text-[11px] font-bold text-slate-400">
+                                        {readOnly
+                                            ? <span className="inline-flex items-center gap-1"><TbLock size={12} /> Locked quarter, view only</span>
+                                            : `${count} selected · click Save to keep changes`}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOpen(false)}
+                                        className="shrink-0 cursor-pointer rounded-xl border-0 bg-indigo-600 px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-indigo-600/25 hover:bg-indigo-700"
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+        </>
     );
 };
 

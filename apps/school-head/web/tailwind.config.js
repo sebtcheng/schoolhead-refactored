@@ -56,6 +56,7 @@ export default {
         'pop-up': 'pop-up 0.5s ease-out forwards',
         'shimmer': 'shimmer 2s infinite',
         'pulse-subtle': 'pulse-subtle 3s ease-in-out infinite',
+        'shake': 'shake 0.45s ease-in-out',
       },
       keyframes: {
         blob: {
@@ -79,6 +80,11 @@ export default {
         'pulse-subtle': {
           '0%, 100%': { transform: 'scale(1)', opacity: '1' },
           '50%': { transform: 'scale(1.01)', opacity: '0.95' },
+        },
+        shake: {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%, 60%': { transform: 'translateX(-6px)' },
+          '40%, 80%': { transform: 'translateX(6px)' },
         },
       },
     },

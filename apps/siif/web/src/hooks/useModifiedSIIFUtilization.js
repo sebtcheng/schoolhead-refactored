@@ -47,6 +47,8 @@ export function useModifiedSIIFUtilization(user, token) {
     const [lastSavedAt, setLastSavedAt]                         = useState(null);
     const [plannedActivities, setPlannedActivities]             = useState({});
     const [lockedPeriods, setLockedPeriods]                     = useState([]);
+    // What the server last confirmed; the page compares against it to find unsaved edits
+    const [savedSnapshot, setSavedSnapshot]                     = useState({ selected: [], data: {} });
     // The starting tab is picked once, on the first load; refetches keep the user's tab
     const startPicked                                           = useRef(false);
 
@@ -87,6 +89,7 @@ export function useModifiedSIIFUtilization(user, token) {
 
                 setSelectedInterventions(ids);
                 setUtilizationData(data.utilizationData || {});
+                setSavedSnapshot({ selected: ids, data: data.utilizationData || {} });
                 setPlannedActivities(data.plannedActivities || {});
                 setLastSavedAt(data.updatedAt || null);
 
@@ -108,6 +111,11 @@ export function useModifiedSIIFUtilization(user, token) {
         load();
     }, [load]);
 
+    /** Records a successful save so its data no longer counts as unsaved. */
+    const markSaved = useCallback((selected, data) => {
+        setSavedSnapshot({ selected, data });
+    }, []);
+
     return {
         loading,
         deadline,
@@ -122,6 +130,8 @@ export function useModifiedSIIFUtilization(user, token) {
         lockedPeriods,
         officialAllocation,
         lastSavedAt,
+        savedSnapshot,
+        markSaved,
         periods: PERIODS,
         refetch: load,
     };

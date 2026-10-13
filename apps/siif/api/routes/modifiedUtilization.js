@@ -14,6 +14,7 @@ import {
     emptyQuarter,
     hasQuarterEntry,
     sanitizeQuarter,
+    stampExpenses,
 } from '../helpers/utilizationPeriods.js';
 
 const router = Router();
@@ -244,6 +245,7 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
         // keep what is stored, whatever the client sent.
         const unifiedSelected = [];
         let spentAmount = 0;
+        const nowIso = new Date().toISOString();
         inputSelected.forEach(item => {
             const isObject = typeof item === 'object' && item !== null;
             const id = isObject ? item.id : item;
@@ -253,8 +255,11 @@ router.post('/modified-utilization', authenticate, async (req, res) => {
             const stored = storedById.get(id);
             const quarters = {};
             PERIOD_IDS.forEach(p => {
-                const source = lockedPeriods.includes(p) ? stored?.quarters?.[p] : sentQuarters[p];
+                const isLocked = lockedPeriods.includes(p);
+                const source = isLocked ? stored?.quarters?.[p] : sentQuarters[p];
                 quarters[p] = source === undefined ? emptyQuarter() : sanitizeQuarter(source);
+                // Open quarters: the server owns when each spending entry was recorded
+                if (!isLocked) stampExpenses(quarters[p], stored?.quarters?.[p], nowIso);
             });
 
             const totalSpent = spentOf(quarters);

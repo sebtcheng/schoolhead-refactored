@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { TbCheck, TbDeviceFloppy, TbAlertCircle, TbLock } from 'react-icons/tb';
 import { formatPeso, formatSavedAt } from './utilizationUi';
 
-const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, totalAllocated, lastSavedAt, onSave, locked = false }) => {
+const SaveBar = ({ saving, hasUnsavedChanges, changedLabels = [], isOverAllocation, totalUtilized, totalAllocated, lastSavedAt, onSave, locked = false }) => {
     const savedLabel = formatSavedAt(lastSavedAt);
 
     let tone, title, subtitle, icon;
@@ -22,7 +22,10 @@ const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, t
         tone = 'bg-amber-400';
         icon = <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400" />;
         title = 'Unsaved changes';
-        subtitle = 'Save to sync with your school and division records.';
+        // Name the cards with unsaved edits so the bar and each card's "Save changes" read as one
+        subtitle = changedLabels.length
+            ? `${changedLabels.length} intervention${changedLabels.length === 1 ? '' : 's'} changed: ${changedLabels.join(', ')}`
+            : 'Save to sync with your school and division records.';
     } else {
         tone = 'bg-emerald-500';
         icon = <TbCheck size={18} className="text-emerald-500" />;
@@ -33,9 +36,9 @@ const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, t
     const disabled = locked || saving || isOverAllocation || !hasUnsavedChanges;
 
     return (
-        // Below md the 64px bottom nav (plus the raised Nexus button) covers bottom-0, so sit above it
+        // Up to 1000px the 64px bottom nav (plus the raised Nexus button) covers bottom-0, so sit above it
         // .siif-save-bar is also the hook siif.css uses to lift the global chat button above this bar
-        <div className="siif-save-bar pointer-events-none fixed inset-x-0 bottom-[84px] z-40 px-3 sm:px-6 md:bottom-0 md:pb-5 print:hidden">
+        <div className="siif-save-bar pointer-events-none fixed inset-x-0 bottom-[84px] z-40 px-3 sm:px-6 min-[1001px]:bottom-0 min-[1001px]:pb-5 print:hidden">
             <motion.div
                 initial={{ y: 90, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -69,7 +72,7 @@ const SaveBar = ({ saving, hasUnsavedChanges, isOverAllocation, totalUtilized, t
                     ) : (
                         <TbDeviceFloppy size={16} />
                     )}
-                    <span>{saving ? 'Saving…' : 'Save'}</span>
+                    <span>{saving ? 'Saving…' : hasUnsavedChanges ? 'Save changes' : 'Save'}</span>
                 </button>
             </motion.div>
         </div>

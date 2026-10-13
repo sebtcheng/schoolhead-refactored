@@ -10,8 +10,8 @@ import { useAuth } from './context/AuthContext';
 import PageTransition from './components/PageTransition';
 import LoadingScreen from './components/LoadingScreen';
 import PinLogin from './components/PinLogin';
+import PasscodeInput from './components/PasscodeInput';
 import { FiArrowLeft } from 'react-icons/fi';
-import { FaCalculator } from 'react-icons/fa';
 import { saveSchoolToCache } from './db';
 import BlueprintBackground from './components/BlueprintBackground';
 import Register from './Register';
@@ -50,7 +50,7 @@ const Login = ({ mode = 'login' }) => {
     const [loginMode, setLoginMode] = useState('password'); // 'password' | 'passcode'
     const [isSchoolHead, setIsSchoolHead] = useState(true);
     const [isPortalEnforced, setIsPortalEnforced] = useState(true); // NEW: Track if a portal is active
-    const [showDialpadModal, setShowDialpadModal] = useState(false);
+    const [passcodeShake, setPasscodeShake] = useState(0); // bumped on failed passcode login
     const [showTrafficModal, setShowTrafficModal] = useState(false);
     const [showBackPrompt, setShowBackPrompt] = useState(false); // NEW: Fix ReferenceError
 
@@ -193,51 +193,6 @@ const Login = ({ mode = 'login' }) => {
     }, [location.state]);
 
 
-
-    // --- 0. INSTALLATION GATE LOGIC ---11111
-    const [isInstalled, setIsInstalled] = useState(false);
-    const [deferredPrompt, setDeferredPrompt] = useState(null);
-    const [isIOS, setIsIOS] = useState(false);
-    const [showInstallModal, setShowInstallModal] = useState(false);
-
-    useEffect(() => {
-        // 1. Detect if already installed (Standalone Mode)
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-        setIsInstalled(isStandalone);
-
-        // If not installed, show the modal (default)
-        if (!isStandalone) {
-            setShowInstallModal(true);
-        }
-
-        // 2. Listen for 'beforeinstallprompt' (Chrome/Android)
-        const handleBeforeInstallPrompt = (e) => {
-            e.preventDefault();
-            setDeferredPrompt(e);
-        };
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-        // 3. Detect iOS specifically
-        const userAgent = window.navigator.userAgent.toLowerCase();
-        const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-        setIsIOS(isIosDevice);
-
-        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    }, []);
-
-    const handleInstallClick = async () => {
-        if (!deferredPrompt) {
-            alert("Installation prompt not available. Please use your browser's menu to install.");
-            return;
-        }
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            setIsInstalled(true);
-            setShowInstallModal(false);
-        }
-        setDeferredPrompt(null);
-    };
 
     // --- 1. THEME CLEANUP & REDIRECT IF LOGGED IN ---
     useEffect(() => {
@@ -407,6 +362,7 @@ const Login = ({ mode = 'login' }) => {
             } else {
                 const friendlyMsg = error.message || "Login Failed. Please check your credentials.";
                 alert(friendlyMsg);
+                if (loginMode === 'passcode') setPasscodeShake((n) => n + 1);
             }
 
             setPassword(''); // Clear field on error
@@ -570,7 +526,10 @@ const Login = ({ mode = 'login' }) => {
                                                         </span>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setLoginMode(loginMode === 'passcode' ? 'password' : 'passcode')}
+                                                            onClick={() => {
+                                                                setLoginMode(loginMode === 'passcode' ? 'password' : 'passcode');
+                                                                setPassword(''); // don't carry password letters into the passcode boxes
+                                                            }}
                                                             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-slate-200 transition-colors duration-200 ease-in-out focus:outline-none ${loginMode === 'passcode' ? 'bg-blue-600' : 'bg-slate-200'}`}
                                                         >
                                                             <span
@@ -579,52 +538,74 @@ const Login = ({ mode = 'login' }) => {
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <div className={`relative flex items-center transition-all duration-300 rounded-2xl border-2 bg-slate-50 ${focusedInput === 'password' ? 'border-blue-600 ring-4 ring-blue-500/10' : 'border-slate-200 hover:border-slate-300'}`}>
-                                                    <span className="pl-4 text-slate-400">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </span>
-                                                    <input
-                                                        type={showPassword ? 'text' : 'password'}
-                                                        placeholder={loginMode === 'passcode' ? (isSchoolHead ? 'Passcode' : '6-digit Passcode') : 'Enter Password'}
-                                                        value={password}
-                                                        onChange={(e) => setPassword(e.target.value)}
-                                                        onFocus={() => setFocusedInput('password')}
-                                                        onBlur={() => setFocusedInput(null)}
-                                                        required
-                                                        className="w-full bg-transparent border-none px-4 py-4 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-0 font-medium"
-                                                    />
-                                                    {loginMode === 'passcode' && (
+                                                {loginMode === 'passcode' ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1">
+                                                            <PasscodeInput
+                                                                value={password}
+                                                                onChange={setPassword}
+                                                                masked={!showPassword}
+                                                                shakeSignal={passcodeShake}
+                                                                disabled={loading}
+                                                            />
+                                                        </div>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setShowDialpadModal(true)}
-                                                            className="pr-2 text-slate-400 hover:text-blue-600 transition-colors focus:outline-none"
-                                                            title="Open Passcode Dialpad"
+                                                            onClick={() => setShowPassword(!showPassword)}
+                                                            className="p-2 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
+                                                            tabIndex={-1}
+                                                            aria-label={showPassword ? 'Hide passcode' : 'Show passcode'}
+                                                        >
+                                                            {showPassword ? (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                                                                    <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                                                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className={`relative flex items-center transition-all duration-300 rounded-2xl border-2 bg-slate-50 ${focusedInput === 'password' ? 'border-blue-600 ring-4 ring-blue-500/10' : 'border-slate-200 hover:border-slate-300'}`}>
+                                                        <span className="pl-4 text-slate-400">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        </span>
+                                                        <input
+                                                            type={showPassword ? 'text' : 'password'}
+                                                            placeholder="Enter Password"
+                                                            value={password}
+                                                            onChange={(e) => setPassword(e.target.value)}
+                                                            onFocus={() => setFocusedInput('password')}
+                                                            onBlur={() => setFocusedInput(null)}
+                                                            required
+                                                            className="w-full bg-transparent border-none px-4 py-4 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-0 font-medium"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowPassword(!showPassword)}
+                                                            className="pr-4 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
                                                             tabIndex={-1}
                                                         >
-                                                            <FaCalculator className="h-5 w-5" />
+                                                            {showPassword ? (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                                                                    <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                                                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            )}
                                                         </button>
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowPassword(!showPassword)}
-                                                        className="pr-4 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
-                                                        tabIndex={-1}
-                                                    >
-                                                        {showPassword ? (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                                                                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                                                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                                            </svg>
-                                                        )}
-                                                    </button>
-                                                </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* FORGOT PASSWORD / PASSCODE TRIGGER */}
@@ -659,21 +640,11 @@ const Login = ({ mode = 'login' }) => {
 
 
 
-                                            {loginMode === 'passcode' && (
-                                                <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                    <p className="text-xs text-yellow-850 font-medium leading-relaxed flex items-start gap-2.5">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
-                                                        <span className="text-yellow-800">You are using your 6-digit passcode for authentication.</span>
-                                                    </p>
-                                                </div>
-                                            )}
 
                                             <button
                                                 type="submit"
-                                                disabled={loading}
-                                                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/20 transform transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center gap-2 group uppercase tracking-widest text-xs"
+                                                disabled={loading || (loginMode === 'passcode' && password.length !== 6)}
+                                                className="w-full disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-500/20 transform transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center gap-2 group uppercase tracking-widest text-xs"
                                             >
                                                 <span>Sign In</span>
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transform transition-transform group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
@@ -696,17 +667,6 @@ const Login = ({ mode = 'login' }) => {
 
                                 {/* Bottom troubleshooting and utility buttons row */}
                                 <div className="mt-8 pt-6 border-t border-slate-250 flex flex-wrap gap-2.5 justify-center">
-                                    {!isInstalled && (
-                                        <button
-                                            onClick={() => setShowInstallModal(true)}
-                                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-250 rounded-full text-slate-600 text-[10px] font-bold shadow-sm hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                            </svg>
-                                            <span>INSTALL APP</span>
-                                        </button>
-                                    )}
 
                                     <button
                                         type="button"
@@ -815,6 +775,7 @@ const Login = ({ mode = 'login' }) => {
                                             type="button"
                                             onClick={() => {
                                                 setLoginMode('passcode');
+                                                setPassword('');
                                                 handleCloseForgotModal();
                                             }}
                                             className="w-full py-2.5 text-blue-600 hover:text-blue-800 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
@@ -1031,148 +992,6 @@ const Login = ({ mode = 'login' }) => {
                         </div>
                     </div>
                 )}
-
-                {/* DIALPAD MODAL */}
-                {showDialpadModal && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                        <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl relative border border-white/20">
-                            <div className="text-center mb-6">
-                                <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Enter Passcode</h2>
-
-                                <div className="flex justify-center gap-3 mb-6 mt-4">
-                                    {[...Array(6)].map((_, i) => (
-                                        <div
-                                            key={i}
-                                            className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${password.length > i
-                                                ? 'bg-blue-600 border-blue-600 scale-110'
-                                                : 'bg-slate-200 border-transparent'
-                                                }`}
-                                        />
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-3 gap-y-4 gap-x-6 w-full max-w-[260px] mx-auto mb-4">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                                        <button
-                                            key={num}
-                                            type="button"
-                                            onClick={() => {
-                                                if (password.length < 6) {
-                                                    setPassword(password + num);
-                                                }
-                                            }}
-                                            className="w-16 h-16 rounded-full bg-slate-50 hover:bg-slate-200 active:bg-slate-300 active:scale-95 text-2xl font-semibold mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 shadow-sm"
-                                        >
-                                            {num}
-                                        </button>
-                                    ))}
-                                    <div className="col-start-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (password.length < 6) {
-                                                    setPassword(password + '0');
-                                                }
-                                            }}
-                                            className="w-16 h-16 rounded-full bg-slate-50 hover:bg-slate-200 active:bg-slate-300 active:scale-95 text-2xl font-semibold mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 shadow-sm"
-                                        >
-                                            0
-                                        </button>
-                                    </div>
-                                    <div className="col-start-3 flex items-center justify-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPassword(password.slice(0, -1))}
-                                            className="w-16 h-16 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors focus:outline-none"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowDialpadModal(false)}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
-                                >
-                                    Done
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* --- INSTALLATION TUTORIAL MODAL (New Approach) --- */}
-                {showInstallModal && !isInstalled && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
-                        <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative">
-
-                            {/* Modal Header */}
-                            <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-center justify-between">
-                                <h3 className="font-bold text-slate-800 text-lg">How to Install</h3>
-                                <button
-                                    onClick={() => setShowInstallModal(false)}
-                                    className="p-2 bg-slate-200 rounded-full hover:bg-slate-300 transition-colors"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </button>
-                            </div>
-
-                            {/* Modal Body: Platform Specific Instructions */}
-                            <div className="p-6">
-                                {isIOS ? (
-                                    <div className="space-y-4">
-                                        <div className="flex items-start gap-4 p-3 bg-blue-50 rounded-xl">
-                                            <div className="bg-white p-2 rounded-lg shadow-sm text-blue-600 font-bold shrink-0">1</div>
-                                            <p className="text-sm text-slate-600">Tap the <span className="font-bold text-blue-700">Share Icon</span> at the bottom of your screen.</p>
-                                        </div>
-                                        <div className="flex items-start gap-4 p-3 bg-blue-50 rounded-xl">
-                                            <div className="bg-white p-2 rounded-lg shadow-sm text-blue-600 font-bold shrink-0">2</div>
-                                            <p className="text-sm text-slate-600">Scroll down and tap <span className="font-bold text-slate-800">"Add to Home Screen"</span>.</p>
-                                        </div>
-                                        <div className="flex items-start gap-4 p-3 bg-blue-50 rounded-xl">
-                                            <div className="bg-white p-2 rounded-lg shadow-sm text-blue-600 font-bold shrink-0">3</div>
-                                            <p className="text-sm text-slate-600">Tap <span className="font-bold text-slate-800">Add</span> in the top right corner.</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {/* Attempt Auto-Install Button First */}
-                                        {deferredPrompt && (
-                                            <button
-                                                onClick={handleInstallClick}
-                                                className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 mb-4 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
-                                            >
-                                                <span>Tap to Install App</span>
-                                            </button>
-                                        )}
-
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center mb-2">Manual Installation</p>
-
-                                        <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                            <div className="bg-white p-2 rounded-lg shadow-sm text-slate-700 font-bold shrink-0">1</div>
-                                            <p className="text-sm text-slate-600">Tap the <span className="font-bold text-slate-900">Three Dots (⋮)</span> icon in the top right browser menu.</p>
-                                        </div>
-                                        <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                            <div className="bg-white p-2 rounded-lg shadow-sm text-slate-700 font-bold shrink-0">2</div>
-                                            <p className="text-sm text-slate-600">Select <span className="font-bold text-slate-900">"Install App"</span> or <span className="font-bold text-slate-900">"Add to Home Screen"</span>.</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Footer */}
-                            <div className="bg-slate-50 p-4 text-center">
-                                <p className="text-xs text-slate-400">Installing ensures InsightEd works offline.</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
 
                 {/* BACK TO NEXUS CONFIRMATION MODAL */}
                 {showBackPrompt && (
