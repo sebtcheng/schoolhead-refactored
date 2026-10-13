@@ -215,7 +215,7 @@ const InterventionCard = ({
             {/* Footer total */}
             <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/70 px-5 py-3 pl-6 dark:border-slate-800 dark:bg-slate-800/40">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                    Total, all quarters
+                    TOTAL (ALL QUARTERS)
                 </span>
                 <span className="text-sm font-black tabular-nums text-indigo-700 dark:text-indigo-300">
                     {formatPeso(total)}
