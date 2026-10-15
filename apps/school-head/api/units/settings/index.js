@@ -15,7 +15,7 @@ customRouter.get('/api/settings/:key', async (req, res) => {
     const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
     if (result.rowCount === 0) {
         if (key === 'nexus_module_locks') {
-            return res.json({ value: JSON.stringify({ "school-info": false, "esf7": false, "nspp": true }) });
+            return res.json({ value: JSON.stringify({ "school-info": false, "esf7": false, "nspp": true, "siif": true }) });
         }
         if (key === 'maintenance_mode') {
             return res.json({ value: 'false' });
@@ -24,6 +24,34 @@ customRouter.get('/api/settings/:key', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Save / update a setting (e.g. from Admin Dashboard)
+customRouter.post('/api/settings/save', async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    if (!key || typeof value === 'undefined') {
+      return res.status(400).json({ error: 'Both key and value are required' });
+    }
+
+    const ALLOWED_KEYS = ['nexus_module_locks', 'enrolment_deadline', 'maintenance_mode'];
+    if (!ALLOWED_KEYS.includes(key)) {
+      return res.status(403).json({ error: `Modification of setting "${key}" is not permitted` });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO settings (key, value, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+       RETURNING key, value, updated_at;`,
+      [key, String(value)]
+    );
+
+    res.json({ success: true, setting: result.rows[0] });
+  } catch (err) {
+    console.error('❌ [API Settings Save Error]:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
