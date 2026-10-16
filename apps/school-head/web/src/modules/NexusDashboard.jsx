@@ -25,6 +25,9 @@ import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
 import { api } from "../lib/api";
 
+// import.meta.env.DEV is replaced with false at build time, so this can never unlock production
+const SIIF_DEV_UNLOCK = import.meta.env.DEV && import.meta.env.VITE_SIIF_DEV_UNLOCK === 'true';
+
 const NodesDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, confirmLogout } = useAuth();
@@ -156,7 +159,8 @@ const NodesDashboard = () => {
       progress: 0,
       route: '/siif',
       description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-      isLocked: dynamicLocks.hasOwnProperty('siif') ? Boolean(dynamicLocks['siif']) : true,
+      // Dev-only override (VITE_SIIF_DEV_UNLOCK in .env.local); always false in production builds
+      isLocked: SIIF_DEV_UNLOCK ? false : (dynamicLocks.hasOwnProperty('siif') ? Boolean(dynamicLocks['siif']) : true),
       cardClass: 'admin' // Gold theme
     }
   ];

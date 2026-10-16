@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../school-head/web/src/context/AuthContext';
+import { api } from '../../../school-head/web/src/lib/api';
+
+// import.meta.env.DEV is replaced with false at build time, so this can never unlock production
+const SIIF_DEV_UNLOCK = import.meta.env.DEV && import.meta.env.VITE_SIIF_DEV_UNLOCK === 'true';
 
 // Pages
 import SIIFFormsHub from './pages/SIIFFormsHub';
@@ -36,7 +40,7 @@ const SIIFModuleContent = () => {
     const role = user?.role || localStorage.getItem('userRole') || '';
     const isBypassRole = ['Admin', 'Super Admin', 'Super User', 'School Division Office', 'Regional Office'].includes(role);
     const isPreviewParam = searchParams.get('preview') === 'true';
-    const canBypass = isBypassRole || isPreviewParam;
+    const canBypass = isBypassRole || isPreviewParam || SIIF_DEV_UNLOCK;
 
     useEffect(() => {
         if (canBypass) {
@@ -48,7 +52,8 @@ const SIIFModuleContent = () => {
 
         // Fetch nexus_module_locks from the school-head API
         const controller = new AbortController();
-        fetch('api/settings/nexus_module_locks', { signal: controller.signal })
+        // Absolute URL via api(): a relative 'api/...' resolves under /siif/ and gets index.html back
+        fetch(api('/settings/nexus_module_locks'), { signal: controller.signal })
             .then(r => r.ok ? r.json() : null)
             .then(data => {
                 if (data && data.value) {
