@@ -15,6 +15,8 @@ import {
   FiBarChart2,
   FiHome,
   FiSettings,
+  FiX,
+  FiShield,
   FiUserPlus
 } from 'react-icons/fi';
 import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase, TbHeadset, TbSchool } from "react-icons/tb";
@@ -23,6 +25,9 @@ import { useAuth } from '../context/AuthContext';
 import loadingLogo from '../assets/loading.gif';
 import PageTransition from '../components/PageTransition';
 import { api } from "../lib/api";
+
+// import.meta.env.DEV is replaced with false at build time, so this can never unlock production
+const SIIF_DEV_UNLOCK = import.meta.env.DEV && import.meta.env.VITE_SIIF_DEV_UNLOCK === 'true';
 
 const NodesDashboard = () => {
   const navigate = useNavigate();
@@ -36,6 +41,7 @@ const NodesDashboard = () => {
     'siif': true,
     'esf7': false
   });
+  const [lockedModalModule, setLockedModalModule] = useState(null);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
 
@@ -171,7 +177,8 @@ const NodesDashboard = () => {
       progress: 0,
       route: '/siif',
       description: 'Manage School Innovation and Intervention Fund submissions and utilization.',
-      isLocked: dynamicLocks['siif'] !== undefined ? dynamicLocks['siif'] : true,
+      // Dev-only override (VITE_SIIF_DEV_UNLOCK in .env.local); always false in production builds
+      isLocked: SIIF_DEV_UNLOCK ? false : (dynamicLocks.hasOwnProperty('siif') ? Boolean(dynamicLocks['siif']) : true),
       cardClass: 'admin' // Gold theme
     }
   ];
@@ -988,7 +995,11 @@ const NodesDashboard = () => {
                     key={mod.id}
                     className={`portal-card ${mod.cardClass || ''} ${mod.isLocked ? 'locked' : ''}`}
                     onClick={() => {
-                      if (!mod.isLocked) handleCardClick(mod.route, mod.id);
+                      if (!mod.isLocked) {
+                        handleCardClick(mod.route, mod.id);
+                      } else {
+                        setLockedModalModule(mod);
+                      }
                     }}
                   >
                     <div className="card-top">
@@ -1083,6 +1094,104 @@ const NodesDashboard = () => {
                 >
                   <span>TAYO NA!</span>
                   <FiArrowRight className="group-hover:translate-x-1 transition-transform" />
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- LOCKED MODULE MODAL --- */}
+      <AnimatePresence>
+        {lockedModalModule && (
+          <motion.div
+            key="locked-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+            onClick={() => setLockedModalModule(null)}
+          >
+            <motion.div
+              key="locked-modal-card"
+              initial={{ scale: 0.88, y: 32, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.88, y: 32, opacity: 0 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+              className="relative bg-white rounded-[28px] shadow-2xl max-w-md w-full overflow-hidden"
+              style={{ fontFamily: 'var(--font-body, "DM Sans", sans-serif)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Amber accent top bar */}
+              <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400" />
+
+              {/* Header band */}
+              <div className="flex items-center justify-between px-7 pt-6 pb-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-amber-50 border border-amber-200">
+                    <FiShield className="text-amber-600" size={16} />
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                    InsightED Gateway Sentinel
+                  </span>
+                </div>
+                <button
+                  onClick={() => setLockedModalModule(null)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                  aria-label="Close"
+                >
+                  <FiX size={15} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-7 pb-7 pt-3 space-y-5">
+                {/* Icon + Title */}
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                    <FiLock className="text-white" size={24} />
+                  </div>
+                  <div>
+                    <h2
+                      className="text-xl font-black text-slate-800 leading-tight tracking-tight"
+                      style={{ fontFamily: 'var(--font-heading, "Plus Jakarta Sans", sans-serif)' }}
+                    >
+                      {lockedModalModule.title}
+                      <br />
+                      <span className="text-amber-600">Access Restricted</span>
+                    </h2>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+                      Scheduled Maintenance & Verification Period
+                    </p>
+                  </div>
+                </div>
+
+                {/* Status pills */}
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Under Maintenance
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    <FiShield size={10} />
+                    Admin Review Active
+                  </span>
+                </div>
+
+                {/* Contact note */}
+                <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                  For urgent access, contact your <span className="font-bold text-slate-600">InsightED System Administrator</span> or Division ICT Coordinator.
+                </p>
+
+                {/* CTA */}
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setLockedModalModule(null)}
+                  className="w-full py-3.5 bg-[#06345F] hover:bg-[#05233F] text-white font-black rounded-2xl shadow-lg shadow-slate-800/20 flex items-center justify-center gap-2 transition-all text-sm tracking-wide"
+                >
+                  <FiArrowLeft size={14} />
+                  Return to Nexus
                 </motion.button>
               </div>
             </motion.div>

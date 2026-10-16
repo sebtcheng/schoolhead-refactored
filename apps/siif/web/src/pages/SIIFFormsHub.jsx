@@ -1,7 +1,7 @@
 // SIIFFormsHub.jsx
 // The /forms route — 4-card hub with sequential locking
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TbChevronLeft, TbCircleCheck, TbLock,
@@ -9,7 +9,7 @@ import {
     TbChevronRight, TbClock, TbTrendingUp,
     TbArrowLeft, TbX, TbCheck, TbArrowRight, TbEdit,
     TbSettings, TbClipboardList, TbCalculator, TbChartBar,
-    TbShieldCheck, TbAlertTriangle
+    TbShieldCheck, TbAlertTriangle, TbLayoutDashboard, TbFileText
 } from 'react-icons/tb';
 import { FiSave, FiAlertCircle } from 'react-icons/fi';
 import { logger } from '../utils/logger';
@@ -22,6 +22,10 @@ import { INTERVENTIONS, INTERVENTION_ICONS, KEY_STAGES, GRADE_LABELS, emptyIntDa
 import { submitPlan } from '../services/siifService';
 import { useSIIFSubmission } from '../hooks/useSIIFSubmission';
 import SiifLoader from '../components/SiifLoader';
+import PageTabs from '../components/utilization/PageTabs';
+import PlanOverview from '../components/dashboard/PlanOverview';
+import { formsCompletionOf } from '../components/dashboard/dashboardData';
+import { useSIIFPlan } from '../hooks/useSIIFPlan';
 
 // Custom Flaticon Icons
 import interventionIcon from '../assets/icons/intervention.png';
@@ -76,8 +80,31 @@ const CARDS = [
 const TOTAL_STEPS = CARDS.length;
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+// In-page tabs: Dashboard (the saved plan, moved from the old SIIF Dashboard page)
+// and Plan Form (data collection). Kept in the URL (?tab=) so a refresh keeps it.
+const FORM_TABS = [
+    { id: 'dashboard', label: 'Dashboard', icon: <TbLayoutDashboard size={16} /> },
+    { id: 'form', label: 'Plan Form', icon: <TbFileText size={16} /> },
+];
+const DEFAULT_FORM_TAB = 'dashboard';
+
 const SIIFFormsHub = ({ user, token }) => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tab = FORM_TABS.some(t => t.id === searchParams.get('tab')) ? searchParams.get('tab') : DEFAULT_FORM_TAB;
+    // Bumped each time the Dashboard opens so it shows the latest saved plan
+    const [planRefresh, setPlanRefresh] = useState(0);
+    const setTab = useCallback((id) => {
+        if (id === 'dashboard') setPlanRefresh(n => n + 1);
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('tab', id);
+            return next;
+        }, { replace: true });
+    }, [setSearchParams]);
+    const openForm = useCallback(() => setTab('form'), [setTab]);
+    const { loading: planLoading, allocation: planAllocation, submission: planSubmission } =
+        useSIIFPlan(user, token, planRefresh);
     const [activeCard, setActiveCard] = useState(null);
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -107,6 +134,11 @@ const SIIFFormsHub = ({ user, token }) => {
         budgets, setBudgets,
         confirmed, setConfirmed,
     } = useSIIFSubmission(user, token);
+
+    // ─── Submitted plans open view-only until the school head chooses to edit ─
+    const [editUnlocked, setEditUnlocked] = useState(false);
+    const isViewOnlySubmitted = isSubmitted && !editUnlocked;
+    const isReadOnly = isExpired || isNotYetOpen || isLocked || isViewOnlySubmitted;
 
     // ─── Helper: Validate Empty Payload ───────────────────────────────────────
     const isEmptyPayload = (p) => {
@@ -169,7 +201,7 @@ const SIIFFormsHub = ({ user, token }) => {
     // ─── Debounced Auto-save ──────────────────────────────────────────────────
     useEffect(() => {
         // Block auto-save if form state is not hydrated, loading, has errors, or is locked/submitted/reviewed
-        if (!isHydrated || loading || error || isExpired || isNotYetOpen || isLocked || isSubmitted || isReviewed) return;
+        if (!isHydrated || loading || error || isReadOnly || isSubmitted || isReviewed) return;
 
         // Prevent auto-save on initial load (if data is still null)
         if (Object.keys(beneficiaries).length === 0 && selectedInterventions.length > 0) return;
@@ -258,7 +290,7 @@ const SIIFFormsHub = ({ user, token }) => {
     // ─── Lock chain: interventions → beneficiaries → activities → budget ──────
     const isCardLocked = (cardId) => {
         // 1. [TEMPORAL LOCK] If deadline expired or not yet open, unlock for READ-ONLY viewing
-        if (isExpired || isNotYetOpen || isLocked) return false;
+        if (isReadOnly) return false;
 
         // (Architectural Bypass removed to enforce strict sequential locking during drafting)
 
@@ -281,7 +313,7 @@ const SIIFFormsHub = ({ user, token }) => {
 
     const handleCardClick = (cardId) => {
         const locked = isCardLocked(cardId);
-        const readOnlyMode = isExpired || isNotYetOpen || isLocked;
+        const readOnlyMode = isReadOnly;
 
         console.log('🛡️ [SIIF_HUB_DIAGNOSTIC]', {
             cardId,
@@ -307,7 +339,7 @@ const SIIFFormsHub = ({ user, token }) => {
     };
 
     const confirm = (cardId) => {
-        if (isExpired || isNotYetOpen || isLocked) {
+        if (isReadOnly) {
             setActiveCard(null);
             return;
         }
@@ -516,6 +548,53 @@ const SIIFFormsHub = ({ user, token }) => {
 
 
     // ─── Render ───────────────────────────────────────────────────────────────
+    const pageTabs = <PageTabs tabs={FORM_TABS} value={tab} onChange={setTab} idPrefix="siif-forms" />;
+
+    // Dashboard tab: works even while the form is loading, failed or not open yet
+    if (tab === 'dashboard') {
+        if (planLoading) return <SiifLoader text="Loading SIIF Plan..." />;
+        const planFy = planAllocation?.fiscal_year || new Date().getFullYear();
+        const completion = formsCompletionOf(planSubmission);
+        return (
+            <main className="siif-dashboard-page w-full pt-3 pb-16 font-sans sm:pt-4 lg:pt-6 print:m-0 print:bg-white print:p-0">
+                <header className="topbar mb-5 print:hidden">
+                    <div className="page-title">
+                        <p className="eyebrow">
+                            DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
+                        </p>
+                        <h1>{user?.school_name || 'School Innovation and Improvement Fund'}</h1>
+                        <p className="mt-1 text-xs font-bold uppercase tracking-wider text-sky-200/90">
+                            SIIF Plan Dashboard · FY {planFy}
+                        </p>
+                    </div>
+                    <div className="siif-topbar-actions shrink-0">
+                        <div className="flex flex-col items-end gap-1 rounded-xl border border-slate-100 bg-white/95 px-2.5 py-1.5 shadow-md sm:min-w-[180px] sm:rounded-2xl sm:px-4 sm:py-2.5">
+                            <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 sm:text-[9px]">Forms Completion</span>
+                            <span className="text-base font-black leading-none text-[#08315F] sm:text-lg">{completion}%</span>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 sm:w-32">
+                                <div className="h-full rounded-full bg-[#0284C7] transition-all duration-500" style={{ width: `${completion}%` }} />
+                            </div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                {planSubmission ? `Plan ${String(planSubmission.status || 'draft').toLowerCase()}` : 'No plan yet'}
+                            </span>
+                        </div>
+                    </div>
+                </header>
+
+                {pageTabs}
+
+                <div role="tabpanel" id="siif-forms-panel-dashboard" aria-labelledby="siif-forms-dashboard">
+                    <PlanOverview
+                        user={user}
+                        allocation={planAllocation}
+                        submission={planSubmission}
+                        onOpenForm={openForm}
+                    />
+                </div>
+            </main>
+        );
+    }
+
     if (loading) {
         return <SiifLoader text="Initializing Planner..." />;
     }
@@ -549,7 +628,8 @@ const SIIFFormsHub = ({ user, token }) => {
     if (isNotYetOpen) {
         return (
             <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-32 text-lg">
-                <div className="max-w-2xl mx-auto mt-12 px-4">
+                {pageTabs}
+                <div role="tabpanel" id="siif-forms-panel-form" aria-labelledby="siif-forms-form" className="max-w-2xl mx-auto mt-6 px-4">
                     <article className="siif-card">
                         <div className="siif-card-inner text-center p-8 sm:p-10">
                             <motion.div
@@ -599,7 +679,7 @@ const SIIFFormsHub = ({ user, token }) => {
                             </motion.div>
 
                             <button
-                                onClick={() => navigate('/siif')}
+                                onClick={() => setTab('dashboard')}
                                 className="w-full py-4 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.98]"
                                 style={{ background: 'linear-gradient(135deg, var(--navy), var(--blue))' }}
                             >
@@ -616,7 +696,7 @@ const SIIFFormsHub = ({ user, token }) => {
     return (
         <div className="w-full min-h-screen pb-48 sm:pb-48 text-lg">
 
-            {/* ── Topbar Header matching SIIFDashboard.jsx full width ── */}
+            {/* ── Topbar Header (full width) ── */}
             <main className="siif-main-area w-full pt-3 sm:pt-4 lg:pt-8 print:hidden">
                 <header className="topbar print:hidden">
                     <div className="page-title">
@@ -625,15 +705,23 @@ const SIIFFormsHub = ({ user, token }) => {
                         </p>
                         <h1>School Innovation and Improvement Fund</h1>
 
-                        {/* Deadline & Lock badges — Identical Sizing & Alignment */}
+                        {/* Status + lock badges side by side — the plan is optional with no deadline, so no deadline badge */}
                         <div className="flex flex-row items-center gap-2 mt-2 flex-wrap max-w-full">
-                            {deadline && (
-                                <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest flex items-start sm:items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm leading-tight max-w-[170px] xs:max-w-[210px] sm:max-w-none break-words sm:whitespace-nowrap" style={{ backgroundColor: '#EF4444', color: '#FFFFFF', border: '1px solid #DC2626' }}>
-                                    <TbClock size={14} className="shrink-0 text-white mt-0.5 sm:mt-0" />
-                                    <span className="leading-snug">Deadline: {new Date(deadline).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                                </span>
-                            )}
-                            {(isLocked || isExpired) ? (
+                            <span
+                                className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                                style={{
+                                    backgroundColor: isReviewed ? '#059669' : isDisapproved ? '#DC2626' : isSubmitted ? '#0284C7' : '#08315F',
+                                    color: '#FFFFFF',
+                                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                                }}
+                            >
+                                {isReviewed ? <TbCheck size={14} className="shrink-0 text-white" /> :
+                                    isDisapproved ? <TbX size={14} className="shrink-0 text-white" /> :
+                                        isSubmitted ? <TbArrowRight size={14} className="shrink-0 text-white" /> :
+                                            <TbEdit size={14} className="shrink-0" style={{ color: '#FBBF24' }} />}
+                                <span>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
+                            </span>
+                            {(isLocked || isExpired || isViewOnlySubmitted) ? (
                                 <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap" style={{ backgroundColor: '#F59E0B', color: '#FFFFFF', border: '1px solid #D97706' }}>
                                     <TbLock size={14} className="shrink-0 text-white" />
                                     <span>Read-Only</span>
@@ -648,24 +736,6 @@ const SIIFFormsHub = ({ user, token }) => {
                     </div>
 
                     <div className="siif-topbar-actions shrink-0">
-                        {/* Submission Status Pill — Solid High-Contrast Dark Navy Badge */}
-                        <div
-                            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[10px] sm:text-[11px] uppercase tracking-wider shadow-md shrink-0"
-                            style={{
-                                backgroundColor: isReviewed ? '#059669' : isDisapproved ? '#DC2626' : isSubmitted ? '#0284C7' : '#08315F',
-                                color: '#FFFFFF',
-                                border: '1.5px solid rgba(255, 255, 255, 0.4)',
-                                boxShadow: '0 4px 12px rgba(8, 49, 95, 0.3)',
-                                opacity: 1,
-                            }}
-                        >
-                            {isReviewed ? <TbCheck size={15} className="text-white" /> :
-                                isDisapproved ? <TbX size={15} className="text-white" /> :
-                                    isSubmitted ? <TbArrowRight size={15} className="text-white" /> :
-                                        <TbEdit size={15} style={{ color: '#FBBF24' }} />}
-                            <span style={{ color: '#FFFFFF', fontWeight: 900 }}>{isReviewed ? 'Reviewed' : isDisapproved ? 'Rejected' : isSubmitted ? 'Submitted' : 'Draft'}</span>
-                        </div>
-
                         {/* Overall Progress Square Pill */}
                         <section className="siif-school-pill">
                             <small style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.03em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms<br />Completion</small>
@@ -679,10 +749,25 @@ const SIIFFormsHub = ({ user, token }) => {
                     </div>
                 </header>
 
+                <div className="mt-6">{pageTabs}</div>
+
                 {/* ── Center Form Step Cards Stack (Narrower max-w-2xl layout) ── */}
-                <div className="w-full max-w-lg sm:max-w-xl md:max-w-2xl mx-auto px-4">
+                <div role="tabpanel" id="siif-forms-panel-form" aria-labelledby="siif-forms-form" className="w-full max-w-lg sm:max-w-xl md:max-w-2xl mx-auto px-4">
                     {/* ── Warning Banner Area (Repositioned to Top) ── */}
                     <div className="relative z-20 mt-4 space-y-3">
+                        {/* Optional-submission notice — Forms no longer gates Utilization */}
+                        <div className="p-4 bg-sky-50 dark:bg-sky-950/30 text-slate-800 dark:text-slate-100 rounded-3xl border border-sky-200 dark:border-sky-800/60 flex items-start gap-4 shadow-sm">
+                            <div className="w-10 h-10 bg-sky-100 dark:bg-sky-900/50 rounded-2xl flex items-center justify-center shrink-0">
+                                <TbClipboardList size={20} className="text-sky-700 dark:text-sky-300" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-300">Optional · No Deadline</p>
+                                <p className="text-[11px] font-bold leading-snug mt-0.5">
+                                    Submitting a SIIF plan is optional. Use this if your plan was lost during the September 2026 data incident or you have not submitted yet. It does not affect your Utilization.
+                                </p>
+                            </div>
+                        </div>
+
                         <AnimatePresence>
                             {isExpired && (
                                 <motion.div
@@ -822,7 +907,15 @@ const SIIFFormsHub = ({ user, token }) => {
             {/* ── Persistent Sticky Bottom Navigation Bar ── */}
             <div className="siif-forms-footer">
                 <div className="max-w-lg sm:max-w-xl md:max-w-2xl mx-auto flex items-center justify-between gap-4">
-                    {(() => {
+                    {isViewOnlySubmitted && !isLocked && !isExpired ? (
+                        <button
+                            onClick={() => setEditUnlocked(true)}
+                            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 font-semibold rounded-xl text-base shadow-md transition-all focus:ring-4 focus:ring-blue-500 focus:outline-none min-h-[48px] bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
+                        >
+                            <TbEdit size={18} />
+                            Edit Plan
+                        </button>
+                    ) : (() => {
                         const isSubmitDisabled = !isLocked && !isExpired && (progressPct < 100 || (isSubmitted && !isDirty));
                         return (
                             <button
@@ -880,7 +973,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                     onChange={setPriorityAreas}
                                     onConfirm={() => confirm('pia')}
                                     onClose={() => closeCard('pia')}
-                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                    readOnly={isReadOnly}
                                 />
                             )}
                             {activeCard === 'interventions' && (
@@ -891,7 +984,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                     onAralChange={setAral}
                                     onConfirm={() => confirm('interventions')}
                                     onClose={() => closeCard('interventions')}
-                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                    readOnly={isReadOnly}
                                 />
                             )}
                             {activeCard === 'beneficiaries' && (
@@ -902,7 +995,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                     onChange={setBeneficiaries}
                                     onConfirm={() => confirm('beneficiaries')}
                                     onClose={() => closeCard('beneficiaries')}
-                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                    readOnly={isReadOnly}
                                 />
                             )}
                             {activeCard === 'activities' && (
@@ -912,7 +1005,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                     onChange={setActivities}
                                     onConfirm={() => confirm('activities')}
                                     onClose={() => closeCard('activities')}
-                                    readOnly={isExpired || isNotYetOpen || isLocked}
+                                    readOnly={isReadOnly}
                                 />
                             )}
                             {activeCard === 'budget' && (
@@ -924,7 +1017,7 @@ const SIIFFormsHub = ({ user, token }) => {
                                     beneficiaries={beneficiaries}
                                     onConfirm={() => confirm('budget')}
                                     onClose={() => closeCard('budget')}
-                                    isLocked={isExpired || isNotYetOpen || isLocked}
+                                    isLocked={isReadOnly}
                                     allocation={allocation}
                                 />
                             )}

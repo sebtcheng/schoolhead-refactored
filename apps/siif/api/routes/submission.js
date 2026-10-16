@@ -3,6 +3,7 @@ import { poolSiif as pool, cacheGet, cacheSet, cacheDel } from '@shared/db';
 import { authenticate } from '../middleware/authenticate.js';
 import { resolveSchoolId } from '../helpers/resolveSchoolId.js';
 import { resolveSchoolDetails } from '../helpers/resolveSchoolDetails.js';
+import { parseList, parseObject, toBool, normalizeStatus } from '../helpers/parseLegacy.js';
 
 const router = Router();
 
@@ -62,8 +63,8 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             budgetEstimates[intId] = int.budget_estimate;
 
             if (intId === 'remediation') {
-                aral.planned = int.has_aral;
-                aral.subjects = int.aral_subjects || [];
+                aral.planned = toBool(int.has_aral);
+                aral.subjects = parseList(int.aral_subjects);
             }
 
             interventionData[intId] = {
@@ -84,7 +85,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
                 if (!interventionData[intId].aralCounts) {
                     interventionData[intId].aralCounts = {};
                 }
-                interventionData[intId].aralCounts[ben.grade_level] = ben.aral_sub_counts || {};
+                interventionData[intId].aralCounts[ben.grade_level] = parseObject(ben.aral_sub_counts);
             }
 
             // Fetch activities
@@ -148,7 +149,7 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             district: districtVal,
             fiscalYear: submission.fiscal_year,
             totalBudget: submission.total_budget_estimate,
-            status: submission.status || (submission.submitted_at ? 'submitted' : 'draft'),
+            status: normalizeStatus(submission.status || (submission.submitted_at ? 'submitted' : 'draft')),
             remarks: submission.remarks || submission.rejection_reason || null,
             rejection_reason: submission.remarks || submission.rejection_reason || null,
             rejectionReason: submission.remarks || submission.rejection_reason || null,
@@ -158,10 +159,10 @@ router.get('/submission/:schoolId', authenticate, async (req, res) => {
             utilization,
             aral,
             allocation,
-            priorityAreas: submission.priority_improvement_area || [],
+            priorityAreas: parseList(submission.priority_improvement_area).map(String),
             form_completion_percentage: submission.form_completion_percentage !== undefined && submission.form_completion_percentage !== null ? parseInt(submission.form_completion_percentage) : null,
             formCompletionPercentage: submission.form_completion_percentage !== undefined && submission.form_completion_percentage !== null ? parseInt(submission.form_completion_percentage) : null,
-            for_revision: submission.for_revision ?? false,
+            for_revision: toBool(submission.for_revision),
             revision_remarks: submission.revision_remarks || null,
         };
 
@@ -327,11 +328,14 @@ router.post('/submit', authenticate, async (req, res) => {
         // Authorized deletion for re-submission
         await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
 
+        // Serialize saves per school/year so a double-submit can't create two headers
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`siif_sub:${finalSchoolId}:${currentFiscalYear}`]);
+
         let existingSubmissionStatus = null;
         let existingRemarks = null;
 
         // Clear previous children for this school/year (interventions, beneficiaries, activities)
-        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks, form_completion_percentage, school_name, region, division, district FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2', [finalSchoolId, currentFiscalYear]);
+        const oldSubRes = await client.query('SELECT siif_sub_id, status, remarks, form_completion_percentage, school_name, region, division, district FROM siif_submissions WHERE school_id = $1 AND fiscal_year = $2 ORDER BY created_at DESC LIMIT 1', [finalSchoolId, currentFiscalYear]);
 
         if (oldSubRes.rows.length > 0) {
             const oldSub = oldSubRes.rows[0];
@@ -409,7 +413,7 @@ router.post('/submit', authenticate, async (req, res) => {
                     isNaN(parseFloat(totalBudget)) ? 0 : parseFloat(totalBudget),
                     submittedAt,
                     status || 'draft',
-                    JSON.stringify(priorityAreas),
+                    JSON.stringify(Array.isArray(priorityAreas) ? priorityAreas : []),
                     formCompletionPercentage,
                     submissionId
                 ]
@@ -434,11 +438,15 @@ router.post('/submit', authenticate, async (req, res) => {
                     submittedAt,
                     status || 'draft',
                     null,
-                    JSON.stringify(priorityAreas),
+                    JSON.stringify(Array.isArray(priorityAreas) ? priorityAreas : []),
                     formCompletionPercentage
                 ]
             );
             submissionId = submissionResult.rows[0].siif_sub_id;
+            if (submissionId === null || submissionId === undefined) {
+                // siif_submissions.siif_sub_id has no DEFAULT (see sql/siif_v2_schema_repair.sql)
+                throw new Error('siif_submissions.siif_sub_id was not generated — schema repair has not been applied');
+            }
             console.log(`🆔 [SIIF-API] Submission header created with school_name (${resolvedSchoolName}). ID: ${submissionId}`);
         }
 
@@ -459,11 +467,12 @@ router.post('/submit', authenticate, async (req, res) => {
             budget = parseFloat(budget);
             if (isNaN(budget)) budget = 0;
 
-            let hasAral = false;
-            let aralSubjects = [];
+            // has_aral is bigint (0/1) and aral_subjects is text in siif_database_v2
+            let hasAral = 0;
+            let aralSubjects = '[]';
             if (intType === 'remediation' && aral) {
-                hasAral = aral.planned === 'yes';
-                aralSubjects = aral.subjects || [];
+                hasAral = toBool(aral.planned) ? 1 : 0;
+                aralSubjects = JSON.stringify(Array.isArray(aral.subjects) ? aral.subjects : []);
             }
 
             let siifIntId = existingIntMap[intType];
@@ -486,6 +495,9 @@ router.post('/submit', authenticate, async (req, res) => {
                     [submissionId, intType, budget, hasAral, aralSubjects, data.otherActivity || '']
                 );
                 siifIntId = intResult.rows[0].siif_int_id;
+                if (siifIntId === null || siifIntId === undefined) {
+                    throw new Error('siif_interventions.siif_int_id was not generated — schema repair has not been applied');
+                }
             }
 
             // Refresh beneficiaries & activities for this specific siifIntId
@@ -501,7 +513,7 @@ router.post('/submit', authenticate, async (req, res) => {
                     await client.query(
                         `INSERT INTO siif_beneficiaries (siif_sub_id, siif_int_id, grade_level, beneficiary_count, aral_sub_counts)
                          VALUES ($1, $2, $3, $4, $5)`,
-                        [submissionId, siifIntId, gradeLevel, parseInt(count) || 0, gradeAralCounts]
+                        [submissionId, siifIntId, gradeLevel, parseInt(count) || 0, JSON.stringify(gradeAralCounts)]
                     );
                 }
             }

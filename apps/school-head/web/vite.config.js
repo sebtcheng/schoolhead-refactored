@@ -85,6 +85,7 @@ export default defineConfig({
     })
   ],
   server: {
+    port: 5173,
     proxy: {
       // Proxies for dev when BASE_URL = /insighted-schoolhead/ (matches what api() generates)
       '/insighted-schoolhead/api': {

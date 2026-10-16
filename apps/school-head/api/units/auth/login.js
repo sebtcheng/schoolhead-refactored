@@ -56,7 +56,6 @@ router.post('/api/auth/migrate-login', async (req, res) => {
     try {
       const searchTarget = identifier.toLowerCase();
       console.log(`\n=================== [LOGIN DEBUG TRACE] ===================`);
-      console.log(`🔍 Received req.body:`, JSON.stringify(req.body));
       console.log(`🔍 Extracted identifier: "${identifier}", searchTarget: "${searchTarget}"`);
       
       const userRes = await loginClient.query(query, [searchTarget]);
@@ -181,7 +180,7 @@ router.post('/api/auth/migrate-login', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/auth/pin-login', async (req, res) => {
   const { email, school_id, pin } = req.body;
-  const identifier = (school_id || email || '').trim();
+  const identifier = String(school_id || email || req.body.identifier || '').trim();
 
   if (!identifier || !pin) {
     return res.status(400).json({ success: false, error: "Identifier and PIN are required." });
@@ -191,43 +190,50 @@ router.post('/api/auth/pin-login', async (req, res) => {
     const isEmail = identifier.includes('@');
     const isSchoolId = !isEmail && (!!school_id || /^\d{6,}$/.test(identifier));
 
+    // Look the account up by identifier ONLY. The PIN is verified afterwards —
+    // it must never be part of the lookup, or a PIN shared by another account
+    // logs the user into that other account.
+    const matchCol = isSchoolId ? 'TRIM(school_id)' : 'LOWER(email)';
     const selectCols = 'uid, email, role, region, division, office, account_category, passcode, first_name, last_name, school_id';
     const query = `
-      SELECT ${selectCols} 
-      FROM user_schoolhead 
-      WHERE (TRIM(school_id) = $1 OR LOWER(email) = $1) 
-        AND (disabled = false OR disabled IS NULL) 
-      ORDER BY created_at DESC
+      SELECT ${selectCols}
+      FROM user_schoolhead
+      WHERE ${matchCol} = $1
+        AND (disabled = false OR disabled IS NULL)
+      ORDER BY created_at DESC LIMIT 1
     `;
 
     let user;
     let client = await poolUsers.connect();
     try {
-      const searchTarget = identifier.toLowerCase();
-      console.log(`\n=================== [PIN-LOGIN DEBUG TRACE] ===================`);
-      console.log(`🔍 Received req.body:`, JSON.stringify(req.body));
-      console.log(`🔍 Extracted identifier: "${identifier}", searchTarget: "${searchTarget}"`);
+      const searchTarget = isSchoolId ? identifier : identifier.toLowerCase();
 
       let userRes;
       try {
         userRes = await client.query(query, [searchTarget]);
-        console.log(`📊 DB query rowCount: ${userRes.rowCount}`);
       } catch (err) {
         if (err.message.includes('terminated unexpectedly')) {
           client.release();
           client = await poolUsers.connect();
           userRes = await client.query(query, [searchTarget]);
         } else {
-          throw err;
+          userRes = { rowCount: 0, rows: [] };
         }
       }
-      if (userRes.rowCount > 0) {
-        user = userRes.rows[0];
-        console.log(`✅ PIN USER MATCHED: email="${user.email}", school_id="${user.school_id}", role="${user.role}"`);
-      } else {
-        console.log(`❌ NO PIN USER MATCH FOUND IN DB for target: "${searchTarget}"`);
+
+      if (userRes.rowCount === 0) {
+        // Fallback to users table
+        userRes = await client.query(
+          `SELECT uid, email, role, region, division, office, account_category, passcode, first_name, last_name, school_id
+           FROM users
+           WHERE ${matchCol} = $1
+             AND (disabled = false OR disabled IS NULL)
+           ORDER BY created_at DESC LIMIT 1`,
+          [searchTarget]
+        ).catch(() => ({ rowCount: 0, rows: [] }));
       }
-      console.log(`===============================================================\n`);
+
+      if (userRes.rowCount > 0) user = userRes.rows[0];
     } finally {
       client.release();
     }
@@ -243,8 +249,8 @@ router.post('/api/auth/pin-login', async (req, res) => {
     const storedPasscode = user.passcode;
     const isBcryptHash = storedPasscode.startsWith('$2b$');
     const isValidPin = isBcryptHash
-      ? await bcrypt.compare(pin, storedPasscode)
-      : (pin === storedPasscode);
+      ? await bcrypt.compare(String(pin), storedPasscode)
+      : (String(pin).trim() === storedPasscode);
 
     if (!isValidPin) {
       return res.status(401).json({ success: false, error: "The username exists but does not match the PIN you provided." });

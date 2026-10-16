@@ -1,0 +1,82 @@
+import React from 'react';
+// eslint-disable-next-line no-unused-vars
+import { motion } from 'framer-motion';
+import { TbCheck, TbDeviceFloppy, TbAlertCircle, TbLock } from 'react-icons/tb';
+import { formatPeso, formatSavedAt } from './utilizationUi';
+
+const SaveBar = ({ saving, hasUnsavedChanges, changedLabels = [], isOverAllocation, totalUtilized, totalAllocated, lastSavedAt, onSave, locked = false }) => {
+    const savedLabel = formatSavedAt(lastSavedAt);
+
+    let tone, title, subtitle, icon;
+    if (locked) {
+        tone = 'bg-slate-400';
+        icon = <TbLock size={18} className="text-slate-500" />;
+        title = 'Utilization is closed';
+        subtitle = savedLabel ? `All quarters are locked. Last saved ${savedLabel}` : 'All quarters are locked.';
+    } else if (isOverAllocation) {
+        tone = 'bg-rose-500';
+        icon = <TbAlertCircle size={18} className="text-rose-500" />;
+        title = 'Over the allocation';
+        subtitle = `${formatPeso(totalUtilized)} of ${formatPeso(totalAllocated)}. Adjust amounts to save.`;
+    } else if (hasUnsavedChanges) {
+        tone = 'bg-amber-400';
+        icon = <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400" />;
+        title = 'Unsaved changes';
+        // Name the cards with unsaved edits so the bar and each card's "Save changes" read as one
+        subtitle = changedLabels.length
+            ? `${changedLabels.length} intervention${changedLabels.length === 1 ? '' : 's'} changed: ${changedLabels.join(', ')}`
+            : 'Save to sync with your school and division records.';
+    } else {
+        tone = 'bg-emerald-500';
+        icon = <TbCheck size={18} className="text-emerald-500" />;
+        title = 'All changes saved';
+        subtitle = savedLabel ? `Last saved ${savedLabel}` : 'Synced with division records.';
+    }
+
+    const disabled = locked || saving || isOverAllocation || !hasUnsavedChanges;
+
+    return (
+        // Up to 1000px the 64px bottom nav (plus the raised Nexus button) covers bottom-0, so sit above it
+        // .siif-save-bar is also the hook siif.css uses to lift the global chat button above this bar
+        <div className="siif-save-bar pointer-events-none fixed inset-x-0 bottom-[84px] z-40 px-3 sm:px-6 min-[1001px]:bottom-0 min-[1001px]:pb-5 print:hidden">
+            <motion.div
+                initial={{ y: 90, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+                className="pointer-events-auto relative mx-auto flex max-w-3xl items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-2xl shadow-slate-900/15 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/90"
+            >
+                <span className={`absolute inset-x-0 top-0 h-0.5 ${tone}`} aria-hidden="true" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+                    {icon}
+                </div>
+                <div className="min-w-0 flex-1" aria-live="polite">
+                    <p className="truncate text-sm font-black text-slate-800 dark:text-slate-100">{title}</p>
+                    <p className="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">{subtitle}</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={onSave}
+                    disabled={disabled}
+                    className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border-0 px-4 py-2.5 sm:px-5 text-xs font-black uppercase tracking-wider text-white outline-none transition-all focus-visible:ring-4 active:scale-[0.97] disabled:cursor-not-allowed ${
+                        locked
+                            ? 'bg-slate-300 dark:bg-slate-700'
+                            : isOverAllocation
+                            ? 'bg-rose-500 opacity-60'
+                            : hasUnsavedChanges
+                                ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 focus-visible:ring-emerald-200'
+                                : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                >
+                    {saving ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                        <TbDeviceFloppy size={16} />
+                    )}
+                    <span>{saving ? 'Saving…' : hasUnsavedChanges ? 'Save changes' : 'Save'}</span>
+                </button>
+            </motion.div>
+        </div>
+    );
+};
+
+export default SaveBar;

@@ -4,13 +4,14 @@
   "type": "module",
   "main": "src/SIIFModule.jsx",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build"
+    "dev": "node -e \"console.log('[SIIF Web] Mounted inside SchoolHead Web app')\"",
+    "build": "node -e \"console.log('[SIIF Web] Component library bundled inside SchoolHead')\""
   },
   "dependencies": {
-    "@shared/ui": "workspace:*",
     "@shared/types": "workspace:*",
+    "@shared/ui": "workspace:*",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "sweetalert2": "^11"
   }
 }

@@ -6,8 +6,18 @@ import path from 'path';
 
 import { initOtpTable, runMigrations, initChatSchema } from '@shared/db/db_init';
 
-// Import Database & Utilities
+// Import Database & Utilities (Raw pools + Drizzle ORM client)
 import { pool, poolChat } from '@shared/db';
+import db from './db.js';
+
+// Global pool error listeners preventing unhandled socket dropouts
+pool.on('error', (err) => {
+  console.error('💥 [DB-POOL] Unexpected idle client error:', err.message);
+});
+
+poolChat.on('error', (err) => {
+  console.error('💥 [CHAT-DB-POOL] Unexpected idle chat client error:', err.message);
+});
 
 // Import Helpers & Uploads
 import { UPLOAD_BASE_PATH } from '@shared/io';
@@ -35,8 +45,9 @@ import siifRouter from '../../siif/api/index.js'; // SIIF Module Unit
 
 // Chat cleanup function logic (purges messages older than 90 days with Nuclear-Lock compliance)
 const autoCleanOldChats = async () => {
-  const client = await poolChat.connect();
+  let client;
   try {
+    client = await poolChat.connect();
     await client.query('BEGIN');
     await client.query("SET LOCAL internal.authorized_app_deletion = 'true'");
     const res = await client.query("DELETE FROM chat_messages WHERE created_at < NOW() - INTERVAL '90 days'");
@@ -45,10 +56,14 @@ const autoCleanOldChats = async () => {
       console.log(`🧹 [CLEANUP SERVICE] Purged ${res.rowCount} chat messages older than 90 days.`);
     }
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ [CLEANUP SERVICE] autoCleanOldChats error:', err.message);
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch {}
+    }
+    console.warn('⚠️ [CLEANUP SERVICE] autoCleanOldChats non-blocking notice:', err.message);
   } finally {
-    client.release();
+    if (client) {
+      try { client.release(); } catch {}
+    }
   }
 };
 
@@ -241,15 +256,19 @@ const startServer = async () => {
       app.listen(PORT, HOST, () => {
         console.log(`✨ InsightEd Master Server active on http://${HOST}:${PORT}`);
 
-        // Run cleanup on startup (delay 10s to let server stabilize)
-        setTimeout(() => {
-          autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
-        }, 10000);
+        if (process.env.DISABLE_CHAT_CLEANUP === 'true') {
+          console.log('⏸️ [CLEANUP SERVICE] Disabled via DISABLE_CHAT_CLEANUP.');
+        } else {
+          // Run cleanup on startup (delay 10s to let server stabilize)
+          setTimeout(() => {
+            autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Startup cleaner run failed:', err));
+          }, 10000);
 
-        // Run cleanup every 24 hours
-        setInterval(() => {
-          autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
-        }, 24 * 60 * 60 * 1000);
+          // Run cleanup every 24 hours
+          setInterval(() => {
+            autoCleanOldChats().catch(err => console.error('[CLEANUP SERVICE] Scheduled cleaner run failed:', err));
+          }, 24 * 60 * 60 * 1000);
+        }
 
         if (process.send) {
           process.send('ready');
@@ -257,7 +276,9 @@ const startServer = async () => {
       });
     }
 
-    if (isPrimaryWorker && !isVercel) {
+    if (process.env.SKIP_BOOT_MIGRATIONS === 'true') {
+      console.log('⏸️ Boot-time migrations skipped (SKIP_BOOT_MIGRATIONS).');
+    } else if (isPrimaryWorker && !isVercel) {
       console.log("🏗️ [Primary] Running boot-time migrations in background...");
       (async () => {
         try {

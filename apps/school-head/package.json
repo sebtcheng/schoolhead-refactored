@@ -1,0 +1,9 @@
+{
+  "name": "school-head",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:api": "node ../../scripts/test-api.js",
+    "test": "node ../../scripts/test-api.js"
+  }
+}

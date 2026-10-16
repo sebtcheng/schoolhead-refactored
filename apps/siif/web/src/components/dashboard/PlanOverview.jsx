@@ -1,94 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    TbHistory, TbChevronRight, TbArrowLeft, TbWallet, TbBulb, TbChecklist, TbUsers, TbCheck, TbX, TbPrinter, TbCircleCheck, TbClock
-} from 'react-icons/tb';
+import { TbWallet, TbChecklist, TbUsers, TbX, TbCircleCheck, TbClock } from 'react-icons/tb';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
-import { logger } from '../utils/logger';
-import { INTERVENTIONS, INTERVENTION_ICONS, GRADE_LABELS, KEY_STAGES } from '../constants/siifConstants';
-import { fetchAllocation, fetchSubmission } from '../services/siifService';
-import SiifLoader from '../components/SiifLoader';
+import { INTERVENTIONS, GRADE_LABELS } from '../../constants/siifConstants';
 
-const SIIFDashboard = ({ user, token }) => {
+// ─── SIIF Plan Overview ──────────────────────────────────────────────────────
+// The original School Head dashboard (klein-feature-siif-sh): allocation KPIs,
+// allocation overview, Action Queue donut of the planned interventions, quick
+// actions, printable plan, intervention details and the revision notice.
+// The plan is optional now, so every section renders without a submission.
+
+const formatCurrency = (value) =>
+    new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(parseFloat(value) || 0);
+
+/**
+ * @param {object}      allocation  { allocation_amount, fiscal_year, region, division, school_name }
+ * @param {object|null} submission  GET /siif/submission response (optional plan)
+ * @param {function}    onOpenForm  opens the Plan Form tab
+ */
+const PlanOverview = ({ user, allocation, submission, onOpenForm }) => {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
     const [selectedModalIntervention, setSelectedModalIntervention] = useState(null);
-
-    // ── Revision Alert Modal State ───────────────────────────────────────────
-    const [showRevisionModal, setShowRevisionModal] = useState(false);
-    const [countdown, setCountdown] = useState(10);
-    const [isAckEnabled, setIsAckEnabled] = useState(false);
-
-    const [allocation, setAllocation] = useState({
-        allocation_amount: '0.00',
-        spent_amount: '0.00',
-        remaining_balance: '0.00',
-        fiscal_year: new Date().getFullYear(),
-        school_name: ''
-    });
-    const [submission, setSubmission] = useState(null);
-
-    const formatCurrency = (value) =>
-        new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(parseFloat(value) || 0);
-
-    useEffect(() => {
-        if (!user?.school_id) {
-            logger.warn('SIIF', 'No school_id found in user context. Skipping fetch.');
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setLoading(false);
-            return;
-        }
-
-        Promise.all([
-            fetchAllocation(user.school_id, token),
-            fetchSubmission(user.school_id, token),
-        ])
-            .then(([allocData, subData]) => {
-                setAllocation(allocData);
-                if (subData && subData.success) {
-                    setSubmission(subData);
-                }
-            })
-            .catch(err => {
-                logger.error('SIIF', 'Fetch Fatal Error', err);
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [user, token]);
 
     // ── Revision Detection: purely DB-driven — fires on every mount/refetch ──
     // No sessionStorage or localStorage — the ONLY authority is for_revision in DB.
-    // Modal fires whenever for_revision === true, regardless of browser state.
-    useEffect(() => {
-        if (!submission) return;
-        const forRevision = submission.for_revision ?? false;
-        if (forRevision) {
-            setShowRevisionModal(true);
-            setCountdown(10);
-            setIsAckEnabled(false);
-        }
-    }, [submission]);
+    // Modal shows whenever for_revision === true until acknowledged in this visit.
+    const [acknowledged, setAcknowledged] = useState(false);
+    const showRevisionModal = submission?.for_revision === true && !acknowledged;
 
-    // ── Countdown Timer: decrements every second while modal is open ─────────
+    // ── Countdown Timer: 10 s before the acknowledge button unlocks ──────────
+    const [countdown, setCountdown] = useState(10);
+    const isAckEnabled = countdown <= 0;
     useEffect(() => {
-        if (!showRevisionModal) return;
-        if (countdown <= 0) {
-            setIsAckEnabled(true);
-            return;
-        }
-        const timer = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    setIsAckEnabled(true);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(timer);
+        if (!showRevisionModal || countdown <= 0) return undefined;
+        const timer = setTimeout(() => setCountdown(prev => prev - 1), 1000);
+        return () => clearTimeout(timer);
     }, [showRevisionModal, countdown]);
 
     // ── Escape Key Blocker: prevents keyboard dismissal of the modal ─────────
@@ -105,7 +52,7 @@ const SIIFDashboard = ({ user, token }) => {
     // No persistence — closing is in-memory only. On next page load or navigation
     // back to dashboard, submission refetches and modal fires again if still flagged.
     const handleAcknowledge = () => {
-        setShowRevisionModal(false);
+        setAcknowledged(true);
     };
 
     // Calculate Summary Totals
@@ -130,8 +77,6 @@ const SIIFDashboard = ({ user, token }) => {
             }
         });
     }
-
-
 
     // Donut chart logic for Action Queue
     const chartData = useMemo(() => {
@@ -166,86 +111,9 @@ const SIIFDashboard = ({ user, token }) => {
         ? Math.min(100, Math.max(0, Math.round((parseFloat(totalBudgetEstimate) / parseFloat(allocation.allocation_amount)) * 100)))
         : 0;
 
-    const formsCompletionPct = useMemo(() => {
-        const dbPct = submission?.form_completion_percentage ?? submission?.formCompletionPercentage;
-        if (dbPct !== undefined && dbPct !== null && !isNaN(parseInt(dbPct))) {
-            return parseInt(dbPct);
-        }
-
-        let count = 0;
-        if (submission?.priorityAreas?.length > 0) count++;
-        if (submission?.interventions?.length > 0) count++;
-        if (totalBeneficiaries > 0) count++;
-        let hasAct = false;
-        if (submission?.interventionData) {
-            hasAct = Object.values(submission.interventionData).some(int => {
-                const acts = Object.values(int.selectedActivities || {}).flat().filter(Boolean);
-                return acts.length > 0 || (int.otherActivity && int.otherActivity.trim().length > 0);
-            });
-        }
-        if (hasAct) count++;
-        if (submission?.status?.toLowerCase() === 'submitted' || submission?.status?.toLowerCase() === 'reviewed') {
-            return 100;
-        }
-        return Math.round((Math.min(count, 5) / 5) * 100);
-    }, [submission, totalBeneficiaries]);
-
-    // Flagged Items Computation
-    const flaggedCount = useMemo(() => {
-        if (!submission?.interventions || submission.interventions.length === 0) return 0;
-        let flags = 0;
-        submission.interventions.forEach(intId => {
-            const budget = parseFloat(submission.budgetEstimates?.[intId]) || 0;
-            const intData = submission.interventionData?.[intId] || {};
-
-            // Check Beneficiaries
-            const beneficiariesCount = Object.values(intData.beneficiaryCounts || {}).reduce((s, v) => s + (parseInt(v) || 0), 0);
-
-            // Check Activities
-            const selectedActivities = intData.selectedActivities || {};
-            const activitiesCount = Object.values(selectedActivities).flat().filter(Boolean).length;
-            const otherAct = intData.otherActivity || '';
-            const hasActivity = activitiesCount > 0 || otherAct.trim().length > 0;
-
-            if (budget <= 0 || beneficiariesCount <= 0 || !hasActivity) {
-                flags += 1;
-            }
-        });
-        return flags;
-    }, [submission]);
-
-    if (loading) {
-        return <SiifLoader text="Loading SIIF Dashboard..." />;
-    }
-
     return (
-        <div className="font-sans text-lg print:bg-white print:m-0 print:p-0 pb-32">
-
-
-
-            <main className="w-full pt-3 sm:pt-4 lg:pt-8 pb-7 print:hidden">
-                <header className="topbar print:hidden">
-                    <div className="page-title">
-                        <p className="eyebrow">
-                            DEPARTMENT OF EDUCATION | HUMAN RESOURCE AND ORGANIZATIONAL DEVELOPMENT AND INFRASTRUCTURE
-                        </p>
-                        <h1>School Innovation and Improvement Fund</h1>
-                    </div>
-
-                    <div className="siif-topbar-actions shrink-0">
-                        <section className="siif-school-pill">
-                            <small style={{ fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.05em', lineHeight: 1.2, textAlign: 'center', display: 'block' }}>Forms Completion</small>
-                            <strong style={{ fontSize: '22px', background: 'linear-gradient(to right, var(--navy), var(--blue))', WebkitBackgroundClip: 'text', color: 'transparent', margin: '3px 0', lineHeight: 1, fontWeight: 900, display: 'block' }}>
-                                {formsCompletionPct}%
-                            </strong>
-                            <div style={{ width: '80%', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden', margin: '2px auto 0' }}>
-                                <div style={{ width: `${formsCompletionPct}%`, height: '100%', background: 'var(--blue)', transition: 'width 0.3s ease' }} />
-                            </div>
-                        </section>
-                    </div>
-                </header>
-
-                <section className="siif-grid mt-3 sm:mt-6">
+        <>
+            <section className="siif-grid mt-3 sm:mt-6 print:hidden">
                     {/* KPI Cards Row - Strictly 1 Row */}
                     <div className="siif-kpis grid grid-cols-4 gap-2 sm:gap-3">
                         <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
@@ -261,8 +129,8 @@ const SIIFDashboard = ({ user, token }) => {
                             <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: (allocation.allocation_amount - totalBudgetEstimate) < 0 ? 'var(--red)' : 'var(--green)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.allocation_amount - totalBudgetEstimate)}</h3>
                         </div>
                         <div className="siif-card kpi-card" style={{ padding: '10px 12px' }}>
-                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Budget Utilized</p>
-                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--purple)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatCurrency(allocation.spent_amount)}</h3>
+                            <p className="siif-card-subtitle" style={{ fontSize: 'clamp(8px, 1.1vw, 11px)', textTransform: 'uppercase', fontWeight: 900, marginTop: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Target Learners</p>
+                            <h3 className="kpi-number" style={{ fontSize: 'clamp(11px, 1.8vw, 24px)', color: 'var(--purple)', margin: '4px 0 0', fontWeight: 900, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{totalBeneficiaries.toLocaleString()}</h3>
                         </div>
                     </div>
 
@@ -335,7 +203,7 @@ const SIIFDashboard = ({ user, token }) => {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => navigate('/siif/forms')}
+                                            onClick={onOpenForm}
                                             className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Revise Proposal
@@ -358,7 +226,7 @@ const SIIFDashboard = ({ user, token }) => {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => navigate('/siif/utilization')}
+                                            onClick={() => navigate('/siif/utilization?tab=record')}
                                             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all whitespace-nowrap shrink-0"
                                         >
                                             Proceed to Utilization
@@ -381,7 +249,7 @@ const SIIFDashboard = ({ user, token }) => {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => navigate('/siif/forms')}
+                                            onClick={onOpenForm}
                                             className="px-4 py-2.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg font-bold text-xs shadow-sm transition-all border border-amber-200 whitespace-nowrap shrink-0"
                                         >
                                             View Submission
@@ -488,7 +356,7 @@ const SIIFDashboard = ({ user, token }) => {
                                 </div>
 
                                 <div className="siif-quick-actions">
-                                    <button className="siif-action-btn" onClick={() => navigate('/siif/forms')}>
+                                    <button className="siif-action-btn" onClick={onOpenForm}>
                                         <div className="siif-action-icon">＋</div>
                                         <div className="text-left">
                                             <b>Plan Intervention</b>
@@ -509,8 +377,7 @@ const SIIFDashboard = ({ user, token }) => {
                             </div>
                         </aside>
                     </section>
-                </section>
-            </main>
+            </section>
 
             {/* ── Plan Summary Grid (Replacing Massive Scroller) ─────────────────────── */}
             {submission && (
@@ -921,9 +788,8 @@ const SIIFDashboard = ({ user, token }) => {
                     );
                 })()}
             </AnimatePresence>
-
-        </div>
+        </>
     );
 };
 
-export default SIIFDashboard;
+export default PlanOverview;

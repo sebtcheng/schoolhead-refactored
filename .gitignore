@@ -18,6 +18,7 @@ dist-ssr
 
 # CRITICAL SECRETS – never commit
 .env
+.env.staging
 server/.env
 # Editor directories and files
 .vscode/*
@@ -76,6 +77,7 @@ verify_*.mjs
 *.log
 !README.md
 !CLAUDE.md
+# SQL scripts (incl. apps/siif/api/sql) stay local — covered by *.sql above
 
 # Large Archives
 *.tar.gz

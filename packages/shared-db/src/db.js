@@ -118,9 +118,10 @@ export async function safeQuery(text, params) {
 
 // --- CENTRAL USERS DATABASE CONNECTION (users_database) ---
 const usersDbUrl = process.env.USERS_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/users_database';
+const isUsersLoopback = usersDbUrl.includes('localhost') || usersDbUrl.includes('127.0.0.1');
 export const poolUsers = new Pool({
   connectionString: usersDbUrl,
-  ssl: { rejectUnauthorized: false },
+  ssl: (isUsersLoopback || isVmProxy) ? false : { rejectUnauthorized: false },
   max: isLocal ? 15 : 10,
   min: 1,
   idleTimeoutMillis: 60000,
@@ -150,11 +151,31 @@ export async function safeUsersQuery(text, params) {
   }
 }
 
-// --- CENTRAL SIIF DATABASE CONNECTION (siif_database) ---
-const siifDbUrl = process.env.SIIF_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/siif_database';
+// --- CENTRAL SIIF DATABASE CONNECTION (siif_database_v2) ---
+// No fallback: SIIF must only ever read/write siif_database_v2. A missing or
+// mistargeted SIIF_DATABASE_URL stops the server instead of writing elsewhere.
+// Staging overrides SIIF_DB_NAME (insighted-staging, schema via search_path).
+const SIIF_DB_NAME = process.env.SIIF_DB_NAME || 'siif_database_v2';
+const siifDbUrl = process.env.SIIF_DATABASE_URL;
+if (!siifDbUrl) {
+  throw new Error('[SIIF-DB] SIIF_DATABASE_URL is not set. Refusing to start without siif_database_v2.');
+}
+{
+  let siifDbName;
+  try {
+    siifDbName = decodeURIComponent(new URL(siifDbUrl).pathname.replace(/^\//, ''));
+  } catch {
+    throw new Error('[SIIF-DB] SIIF_DATABASE_URL is not a valid connection URL.');
+  }
+  const allowedNames = isLocalMachine ? [SIIF_DB_NAME, 'siif_local', 'siif_v2_staging'] : [SIIF_DB_NAME];
+  if (!allowedNames.includes(siifDbName)) {
+    throw new Error(`[SIIF-DB] SIIF_DATABASE_URL points to "${siifDbName}", expected "${SIIF_DB_NAME}".`);
+  }
+}
+const isSiifLoopback = siifDbUrl.includes('localhost') || siifDbUrl.includes('127.0.0.1');
 export const poolSiif = new Pool({
   connectionString: siifDbUrl,
-  ssl: { rejectUnauthorized: false },
+  ssl: (isSiifLoopback || isVmProxy) ? false : { rejectUnauthorized: false },
   max: isLocal ? 15 : 10,
   min: 1,
   idleTimeoutMillis: 60000,
@@ -170,7 +191,7 @@ poolSiif.on('error', (err) => {
 });
 
 /**
- * [SIIF-DB-RETRY] Execute a safe query on siif_database with one-shot retry.
+ * [SIIF-DB-RETRY] Execute a safe query on siif_database_v2 with one-shot retry.
  */
 export async function safeSiifQuery(text, params) {
   try {
@@ -186,9 +207,10 @@ export async function safeSiifQuery(text, params) {
 
 // --- CENTRAL CHAT DATABASE CONNECTION (chat_database) ---
 const chatDbUrl = process.env.CHAT_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/chat_database';
+const isChatLoopback = chatDbUrl.includes('localhost') || chatDbUrl.includes('127.0.0.1');
 export const poolChat = new Pool({
   connectionString: chatDbUrl,
-  ssl: { rejectUnauthorized: false },
+  ssl: (isChatLoopback || isVmProxy) ? false : { rejectUnauthorized: false },
   max: isLocal ? 15 : 10,
   min: 1,
   idleTimeoutMillis: 60000,

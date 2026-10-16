@@ -1,0 +1,15 @@
+{
+  "name": "@packages/db",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "schema/index.js",
+  "types": "schema/index.ts",
+  "exports": {
+    ".": "./schema/index.js",
+    "./schema": "./schema/index.js",
+    "./schema/*": "./schema/*"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4"
+  }
+}
