@@ -42,30 +42,12 @@ router.post('/api/check-existing-school', async (req, res) => {
     return res.status(400).json({ error: "School ID is required." });
   }
 
-  let client;
   try {
-    client = await poolUsers.connect();
-    const query = "SELECT uid FROM user_schoolhead WHERE CAST(school_id AS TEXT) = $1";
-    let result;
-
-    try {
-      result = await client.query(query, [tidiedId]);
-    } catch (err) {
-      if (err.message.includes('terminated unexpectedly')) {
-        client.release();
-        client = await poolUsers.connect();
-        result = await client.query(query, [tidiedId]);
-      } else {
-        throw err;
-      }
-    }
-
+    const result = await safeUsersQuery("SELECT uid FROM user_schoolhead WHERE CAST(school_id AS TEXT) = $1", [tidiedId]);
     res.json({ exists: result.rowCount > 0 });
   } catch (err) {
     console.error("❌ [Check Existing School] Error:", err.message);
-    res.status(500).json({ error: "Internal Server Error" });
-  } finally {
-    if (client) client.release();
+    res.status(500).json({ error: "Internal Server Error", message: err.message });
   }
 });
 
@@ -150,12 +132,13 @@ router.post('/api/register-beta', async (req, res) => {
         school_id, iern
       ]);
 
+      const targetSchoolYr = process.env.DEFAULT_SCHOOL_YR || 'SY 26-27';
       const unit1Query = `
         INSERT INTO unit1_school_identity (
-          school_id, iern, school_name, region, division, province, municipality, barangay, district, leg_district, curricular_offering, latitude, longitude, updated_at
+          school_id, iern, school_yr, school_name, region, division, province, municipality, barangay, district, leg_district, curricular_offering, latitude, longitude, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
-        ON CONFLICT (iern) DO UPDATE SET 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+        ON CONFLICT (iern, school_yr) DO UPDATE SET 
           school_id = EXCLUDED.school_id,
           school_name = EXCLUDED.school_name,
           region = EXCLUDED.region,
@@ -171,7 +154,7 @@ router.post('/api/register-beta', async (req, res) => {
           updated_at = EXCLUDED.updated_at
       `;
       await client.query(unit1Query, [
-        school_id, iern, master.School_Name,
+        school_id, iern, targetSchoolYr, master.School_Name,
         master.Region, master.Division, master.Province, master.Municipality, master.Barangay,
         master.District, master.Legislative_District, master.Curricular_Offering,
         finalLat, finalLng

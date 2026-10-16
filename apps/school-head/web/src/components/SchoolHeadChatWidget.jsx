@@ -10,7 +10,9 @@ const getSharedAudioContext = () => {
   if (!globalAudioCtx) {
     const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
     if (AudioCtxClass) {
-      globalAudioCtx = new AudioCtxClass();
+      try {
+        globalAudioCtx = new AudioCtxClass();
+      } catch (_) {}
     }
   }
   if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
@@ -21,11 +23,13 @@ const getSharedAudioContext = () => {
 
 if (typeof window !== 'undefined') {
   const unlockAudio = () => {
-    getSharedAudioContext();
+    try {
+      getSharedAudioContext();
+    } catch (_) {}
   };
-  window.addEventListener('click', unlockAudio, { passive: true });
-  window.addEventListener('keydown', unlockAudio, { passive: true });
-  window.addEventListener('touchstart', unlockAudio, { passive: true });
+  window.addEventListener('click', unlockAudio, { once: true, passive: true });
+  window.addEventListener('keydown', unlockAudio, { once: true, passive: true });
+  window.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
 }
 
 const SchoolHeadChatWidget = () => {

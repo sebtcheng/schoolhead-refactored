@@ -16,7 +16,8 @@ import {
   FiHome,
   FiSettings,
   FiX,
-  FiShield
+  FiShield,
+  FiUserPlus
 } from 'react-icons/fi';
 import { TbReportAnalytics, TbTarget, TbShieldCheck, TbShieldX, TbCloudSearch, TbUsers, TbBriefcase, TbHeadset, TbSchool } from "react-icons/tb";
 import { LuCompass } from "react-icons/lu";
@@ -35,7 +36,11 @@ const NodesDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showEdWelcome, setShowEdWelcome] = useState(false);
-  const [dynamicLocks, setDynamicLocks] = useState({});
+  const [dynamicLocks, setDynamicLocks] = useState({
+    'school-info': false,
+    'siif': true,
+    'esf7': false
+  });
   const [lockedModalModule, setLockedModalModule] = useState(null);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [activeTab, setActiveTab] = useState('Home');
@@ -68,7 +73,11 @@ const NodesDashboard = () => {
             const locksData = await locksRes.json();
             if (locksData && locksData.value) {
               try {
-                setDynamicLocks(JSON.parse(locksData.value));
+                const parsed = JSON.parse(locksData.value);
+                setDynamicLocks(prev => ({
+                  ...prev,
+                  ...parsed
+                }));
               } catch (e) {
                 console.error("Failed to parse nexus locks", e);
               }
@@ -84,6 +93,22 @@ const NodesDashboard = () => {
   }, [user]);
 
   const handleCardClick = (route, id) => {
+    if (route.startsWith('http')) {
+      const token = user?.token || localStorage.getItem('token');
+      if (token) {
+        try {
+          const targetUrl = new URL(route);
+          targetUrl.searchParams.set('token', token);
+          window.location.href = targetUrl.toString();
+          return;
+        } catch (e) {
+          console.error("Invalid URL:", e);
+        }
+      }
+      window.location.href = route;
+      return;
+    }
+
     if (!user) {
       console.log(`[NexusDashboard] Unauthenticated click on module "${id}". Redirecting to login with target: ${route}`);
       sessionStorage.setItem('login_target_redirect', route);
@@ -91,14 +116,7 @@ const NodesDashboard = () => {
       return;
     }
 
-    if (route.startsWith('http')) {
-      const token = user?.token || localStorage.getItem('token');
-      const targetUrl = new URL(route);
-      targetUrl.searchParams.set('token', token);
-      window.location.href = targetUrl.toString();
-    } else {
-      navigate(route);
-    }
+    navigate(route);
   };
 
   const calculateProgress = (unitIds) => {
@@ -135,7 +153,7 @@ const NodesDashboard = () => {
       progress: calculateProgress([1, 2, 3, 4, 5, 6, 7, 8, 9]),
       route: '/my-activity',
       description: 'Console for Learning and Operation in Unified Database. Access to school data.',
-      isLocked: dynamicLocks['school-info'] || false,
+      isLocked: dynamicLocks['school-info'] !== undefined ? dynamicLocks['school-info'] : false,
       hideProgress: true,
       cardClass: 'support' // Emerald/Cyan theme
     },
@@ -145,7 +163,7 @@ const NodesDashboard = () => {
       subtitle: 'Inventory',
       icon: <TbReportAnalytics className="w-6 h-6 md:w-8 h-8" />,
       progress: questProgress.esf7_progress || 0,
-      route: 'https://stride.deped.gov.ph/insighted/Insighted-esf7/',
+      route: 'https://stride.deped.gov.ph/insighted-esf7-prod/',
       badge: dynamicLocks['esf7'] ? 'COMING SOON' : null,
       description: 'The eSF7 Hub manages the inventory of school personnel through the submission of the eSF7 tool via InsightED.',
       isLocked: dynamicLocks.hasOwnProperty('esf7') ? dynamicLocks['esf7'] : false,
@@ -879,12 +897,75 @@ const NodesDashboard = () => {
                       }
                     }
 
+                    .nexus-top-bar {
+                      position: fixed;
+                      top: 20px;
+                      right: 28px;
+                      z-index: 50;
+                      display: flex;
+                      align-items: center;
+                      gap: 12px;
+                    }
+
+                    .nexus-register-btn {
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 8px;
+                      padding: 10px 20px;
+                      border-radius: 9999px;
+                      background: rgba(255, 255, 255, 0.90);
+                      backdrop-filter: blur(16px);
+                      border: 1.5px solid rgba(255, 255, 255, 0.95);
+                      color: var(--navy);
+                      font-family: var(--font-heading);
+                      font-size: 12px;
+                      font-weight: 800;
+                      letter-spacing: 0.02em;
+                      box-shadow: 0 10px 25px rgba(8, 43, 76, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+                      transition: all 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+                      cursor: pointer;
+                    }
+
+                    .nexus-register-btn:hover {
+                      transform: translateY(-2px);
+                      background: #ffffff;
+                      color: var(--blue-deep);
+                      box-shadow: 0 14px 32px rgba(8, 43, 76, 0.18), inset 0 -2px 0 var(--gold);
+                    }
+
+                    .nexus-register-btn:active {
+                      transform: scale(0.97);
+                    }
+
+                    @media (max-width: 768px) {
+                      .nexus-top-bar {
+                        top: 14px;
+                        right: 14px;
+                      }
+                      .nexus-register-btn {
+                        padding: 8px 14px;
+                        font-size: 10px;
+                      }
+                    }
+
                     @keyframes cardIn{
                       from{opacity:0;filter:blur(2px)}
                       to{opacity:1;filter:blur(0)}
                     }
                     `
         }} />
+
+        <header className="nexus-top-bar" aria-label="Nexus Gateway Header">
+          <button
+            type="button"
+            onClick={() => navigate('/register')}
+            className="nexus-register-btn"
+            aria-label="Create School Head Account"
+          >
+            <FiUserPlus className="text-base text-[#0A6FA6]" />
+            <span>Create School Head Account</span>
+          </button>
+        </header>
 
         <div className="preview-bg" aria-hidden="true"></div>
         <div className="bg-orb orb-a" aria-hidden="true"></div>
@@ -932,13 +1013,13 @@ const NodesDashboard = () => {
                     <p>{mod.description}</p>
 
                     {mod.isLocked ? (
-                      <a className="portal-link" style={{ color: '#9CA3AF' }} aria-label={`Locked: ${mod.title}`}>
+                      <span className="portal-link" style={{ color: '#9CA3AF' }} aria-label={`Locked: ${mod.title}`}>
                         Access Restricted <FiLock className="ml-1" aria-hidden="true" />
-                      </a>
+                      </span>
                     ) : (
-                      <a className="portal-link" aria-label={`Enter ${mod.title} portal`}>
+                      <span className="portal-link" aria-label={`Enter ${mod.title} portal`}>
                         Enter portal <span aria-hidden="true">→</span>
-                      </a>
+                      </span>
                     )}
                   </article>
                 ))}

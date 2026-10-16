@@ -9,10 +9,11 @@ import BlueprintBackground from './components/BlueprintBackground';
 import { saveUnitDraft, saveSchoolToCache } from './db';
 import PageTransition from './components/PageTransition';
 import { api } from "./lib/api";
+import { FiShield, FiLock, FiCheckCircle, FiArrowLeft, FiX } from 'react-icons/fi';
 
 const Register = ({ isEmbed = false, onBackToLogin }) => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, setUser } = useAuth();
     const [loading, setLoading] = useState(false);
 
     // --- BASIC FORM STATE ---
@@ -48,13 +49,41 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
     };
 
     // --- REGISTRATION STAGES ---
-    const [registrationStage, setRegistrationStage] = useState('form');
+    const [registrationStage, setRegistrationStage] = useState('form'); // 'form' | 'passcode'
+    const [passcodeStep, setPasscodeStep] = useState('setup'); // 'setup' | 'confirm' | 'success'
+    const [tempPasscode, setTempPasscode] = useState('');
+    const [confirmPasscode, setConfirmPasscode] = useState('');
+    const [passcodeError, setPasscodeError] = useState('');
+    const [passcodeLoading, setPasscodeLoading] = useState(false);
 
     // --- SCHOOL HEAD CASCADING OPTIONS STATE ---
-    const [regions, setRegions] = useState([]);
+    const DEFAULT_DEPED_REGIONS = [
+        'CAR',
+        'CARAGA',
+        'MIMAROPA',
+        'NCR',
+        'NIR',
+        'REGION I',
+        'REGION II',
+        'REGION III',
+        'REGION IV-A',
+        'REGION IX',
+        'REGION V',
+        'REGION VI',
+        'REGION VII',
+        'REGION VIII',
+        'REGION X',
+        'REGION XI',
+        'REGION XII'
+    ];
+    const [regions, setRegions] = useState(DEFAULT_DEPED_REGIONS);
     const [divisions, setDivisions] = useState([]);
     const [municipalities, setMunicipalities] = useState([]);
     const [availableSchools, setAvailableSchools] = useState([]);
+
+    const [loadingDivisions, setLoadingDivisions] = useState(false);
+    const [loadingMunicipalities, setLoadingMunicipalities] = useState(false);
+    const [loadingSchools, setLoadingSchools] = useState(false);
 
     // Cascading Selections (Region -> Division -> Municipality -> School)
     const [selectedRegion, setSelectedRegion] = useState('');
@@ -64,13 +93,23 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
 
     // --- 1. LOAD INITIAL DATA (Regions only) ---
     useEffect(() => {
+        let isMounted = true;
         fetch(api(`/locations/regions`))
-            .then(res => res.json())
-            .then(data => {
-                const list = (Array.isArray(data) ? data : []).filter(r => (r || '').toUpperCase().trim() !== 'CENTRAL OFFICE');
-                setRegions(list);
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
             })
-            .catch(err => console.error("Failed to load regions:", err));
+            .then(data => {
+                if (!isMounted) return;
+                const list = (Array.isArray(data) ? data : []).filter(r => (r || '').toUpperCase().trim() !== 'CENTRAL OFFICE');
+                if (list.length > 0) {
+                    setRegions(list);
+                }
+            })
+            .catch(err => {
+                console.warn("Using default DepEd regions list (API fetch warning):", err.message);
+            });
+        return () => { isMounted = false; };
     }, []);
 
     // --- 2. CASCADING EFFECTS ---
@@ -79,6 +118,7 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
     useEffect(() => {
         setDivisions([]);
         if (selectedRegion) {
+            setLoadingDivisions(true);
             fetch(api(`/locations/divisions?region=${encodeURIComponent(selectedRegion)}`))
                 .then(res => res.json())
                 .then(data => {
@@ -86,7 +126,8 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                     if (selectedRegion === 'BLANK REGION' && !options.includes('BLANK DIVISION')) options.unshift('BLANK DIVISION');
                     setDivisions(options);
                 })
-                .catch(console.error);
+                .catch(console.error)
+                .finally(() => setLoadingDivisions(false));
         }
     }, [selectedRegion]);
 
@@ -94,6 +135,7 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
     useEffect(() => {
         setMunicipalities([]);
         if (selectedRegion && selectedDivision) {
+            setLoadingMunicipalities(true);
             fetch(api(`/locations/municipalities?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}`))
                 .then(res => res.json())
                 .then(data => {
@@ -101,7 +143,8 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                     if (selectedDivision === 'BLANK DIVISION' && !options.includes('BLANK MUNICIPALITY')) options.unshift('BLANK MUNICIPALITY');
                     setMunicipalities(options);
                 })
-                .catch(console.error);
+                .catch(console.error)
+                .finally(() => setLoadingMunicipalities(false));
         }
     }, [selectedRegion, selectedDivision]);
 
@@ -109,6 +152,7 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
     useEffect(() => {
         setAvailableSchools([]);
         if (selectedRegion && selectedDivision && selectedMunicipality) {
+            setLoadingSchools(true);
             fetch(api(`/locations/schools?region=${encodeURIComponent(selectedRegion)}&division=${encodeURIComponent(selectedDivision)}&municipality=${encodeURIComponent(selectedMunicipality)}`))
                 .then(res => res.json())
                 .then(data => {
@@ -126,7 +170,8 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                     }
                     setAvailableSchools(options);
                 })
-                .catch(console.error);
+                .catch(console.error)
+                .finally(() => setLoadingSchools(false));
         }
     }, [selectedRegion, selectedDivision, selectedMunicipality]);
     
@@ -265,6 +310,77 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
         handleSubmitFinal();
     };
 
+    const handlePasscodeKeyPress = (num) => {
+        setPasscodeError('');
+        const current = passcodeStep === 'setup' ? tempPasscode : confirmPasscode;
+        if (current.length < 6) {
+            if (passcodeStep === 'setup') setTempPasscode(prev => prev + num);
+            else setConfirmPasscode(prev => prev + num);
+        }
+    };
+
+    const handlePasscodeDelete = () => {
+        setPasscodeError('');
+        if (passcodeStep === 'setup') setTempPasscode(prev => prev.slice(0, -1));
+        else setConfirmPasscode(prev => prev.slice(0, -1));
+    };
+
+    const handlePasscodeNext = () => {
+        if (tempPasscode.length === 6) {
+            setPasscodeStep('confirm');
+            setPasscodeError('');
+        } else {
+            setPasscodeError('Please enter a 6-digit passcode');
+        }
+    };
+
+    const handlePasscodeFinalize = async () => {
+        if (confirmPasscode.length !== 6) {
+            setPasscodeError('Please re-enter your 6-digit passcode');
+            return;
+        }
+        if (tempPasscode !== confirmPasscode) {
+            setPasscodeError('Passcodes do not match. Try again.');
+            setTempPasscode('');
+            setConfirmPasscode('');
+            setPasscodeStep('setup');
+            return;
+        }
+
+        setPasscodeLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(api('/auth/setup-passcode'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ passcode: tempPasscode })
+            });
+
+            if (res.ok) {
+                if (setUser) setUser(prev => ({ ...prev, passcode: tempPasscode }));
+                localStorage.removeItem('needs_pin_setup');
+                setPasscodeStep('success');
+                setTimeout(() => {
+                    navigate('/nodes-dashboard');
+                }, 1400);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                setPasscodeError(data.error || 'Failed to save passcode. Please try again.');
+                setTempPasscode('');
+                setConfirmPasscode('');
+                setPasscodeStep('setup');
+            }
+        } catch (err) {
+            console.error("Passcode setup error:", err);
+            setPasscodeError('Connection error. Please try again.');
+        } finally {
+            setPasscodeLoading(false);
+        }
+    };
+
     const handleSubmitFinal = async () => {
         const contactDigits = (formData.contactNumber || '').replace(/\D/g, '');
         const contactEmail = (formData.schoolEmail || '').trim();
@@ -275,20 +391,26 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
 
             // Backend Check
             console.log("Step A: Checking existing school...");
-            const checkRes = await fetch(api(`/api/check-existing-school`), {
+            const checkRes = await fetch(api('/check-existing-school'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ schoolId: String(selectedSchool.school_id) })
             });
-            if (!checkRes.ok) {
-                const errorText = await checkRes.text();
-                throw new Error(`Check School Failed (${checkRes.status}): ${errorText || 'No detail'}`);
-            }
             const checkText = await checkRes.text();
-            if (!checkText) throw new Error("Empty response from /api/check-existing-school");
-            const checkData = JSON.parse(checkText);
+            let checkData = {};
+            try {
+                checkData = JSON.parse(checkText);
+            } catch (e) {
+                // If not JSON, check status
+                if (!checkRes.ok) {
+                    throw new Error(`Check School Failed (${checkRes.status}): ${checkText || 'Backend offline'}`);
+                }
+            }
+            if (!checkRes.ok) {
+                throw new Error(checkData.error || checkData.message || `Check School Failed (${checkRes.status})`);
+            }
             if (checkData.exists) {
-                throw new Error(checkData.message || "School already registered.");
+                throw new Error(checkData.message || "School is already registered.");
             }
 
             // Unified Native Registration and Persistence
@@ -297,7 +419,7 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                 curricularOffering: ""
             };
 
-            const endpoint = 'api/register-beta';
+            const endpoint = api('/register-beta');
             const regRes = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -313,19 +435,19 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
             });
 
             const regText = await regRes.text();
-            if (!regRes.ok) {
-                let errorMessage = `Registration Failed (${regRes.status})`;
-                try {
-                    const errData = JSON.parse(regText);
-                    errorMessage = errData.error || errData.message || errorMessage;
-                } catch (e) {
-                    errorMessage = regText || errorMessage;
+            let regData = {};
+            try {
+                regData = JSON.parse(regText);
+            } catch (e) {
+                if (!regRes.ok) {
+                    throw new Error(`Registration Failed (${regRes.status}): ${regText || 'Backend server offline'}`);
                 }
+            }
+
+            if (!regRes.ok) {
+                let errorMessage = regData.message || regData.error || (regData.details ? JSON.stringify(regData.details) : '') || `Registration Failed (${regRes.status})`;
                 throw new Error(errorMessage);
             }
-            
-            if (!regText) throw new Error("Empty response from " + endpoint);
-            const regData = JSON.parse(regText);
 
             if (regData.success && regData.token) {
                 localStorage.setItem('needs_pin_setup', 'true');
@@ -379,7 +501,12 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                     console.warn("Auto-seeding Unit 1 failed:", seedErr);
                 }
 
-                navigate('/nodes-dashboard');
+                // Transition immediately to Passcode Setup stage
+                setRegistrationStage('passcode');
+                setPasscodeStep('setup');
+                setTempPasscode('');
+                setConfirmPasscode('');
+                setPasscodeError('');
                 return;
             } else {
                 throw new Error(regData.error || "Registration succeeded but no session was established. Please log in.");
@@ -543,16 +670,16 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
                                                     <option value="">Select Region</option>
                                                     {regions.map(r => <option key={r} value={r}>{r}</option>)}
                                                 </select>
-                                                <select className="w-full p-3 rounded-xl bg-white border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" value={selectedDivision} disabled={!selectedRegion} onChange={(e) => { setSelectedDivision(e.target.value); setSelectedMunicipality(''); setSelectedSchool(null); }}>
-                                                    <option value="">Select Division</option>
+                                                 <select className="w-full p-3 rounded-xl bg-white border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" value={selectedDivision} disabled={!selectedRegion || loadingDivisions} onChange={(e) => { setSelectedDivision(e.target.value); setSelectedMunicipality(''); setSelectedSchool(null); }}>
+                                                    <option value="">{loadingDivisions ? 'Loading Divisions...' : 'Select Division'}</option>
                                                     {divisions.map(d => <option key={d} value={d}>{d}</option>)}
                                                 </select>
-                                                <select className="w-full p-3 rounded-xl bg-white border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" value={selectedMunicipality} disabled={!selectedDivision} onChange={(e) => { setSelectedMunicipality(e.target.value); setSelectedSchool(null); }}>
-                                                    <option value="">Select Municipality</option>
+                                                <select className="w-full p-3 rounded-xl bg-white border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" value={selectedMunicipality} disabled={!selectedDivision || loadingMunicipalities} onChange={(e) => { setSelectedMunicipality(e.target.value); setSelectedSchool(null); }}>
+                                                    <option value="">{loadingMunicipalities ? 'Loading Municipalities...' : 'Select Municipality'}</option>
                                                     {municipalities.map(m => <option key={m} value={m}>{m}</option>)}
                                                 </select>
-                                                <select className="w-full p-3 rounded-xl bg-blue-50 border border-blue-200 text-sm font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" value={selectedSchool?.school_id != null ? String(selectedSchool.school_id) : ''} disabled={!selectedMunicipality} onChange={handleSchoolSelect}>
-                                                    <option value="">Select School</option>
+                                                <select className="w-full p-3 rounded-xl bg-blue-50 border border-blue-200 text-sm font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" value={selectedSchool?.school_id != null ? String(selectedSchool.school_id) : ''} disabled={!selectedMunicipality || loadingSchools} onChange={handleSchoolSelect}>
+                                                    <option value="">{loadingSchools ? 'Loading Schools...' : 'Select School'}</option>
                                                     {availableSchools.map(s => <option key={s.school_id} value={s.school_id}>{s.school_id} {s.school_name}</option>)}
                                                 </select>
                                             </div>
@@ -626,13 +753,154 @@ const Register = ({ isEmbed = false, onBackToLogin }) => {
 
                         </form>
 
-                        <div className="mt-8 text-center pt-6 border-t border-slate-100">
-                            {isEmbed ? (
-                                <Link to="/login" className="text-sm font-semibold text-[#0470BF] hover:text-[#0580da]">Back to Login</Link>
-                            ) : (
-                                <Link to="/" className="text-sm font-semibold text-[#0470BF] hover:text-[#0580da]">Back to Login</Link>
-                            )}
-                        </div>
+                        {/* 2. PASSCODE SETUP STAGE (POST REGISTRATION) */}
+                        {registrationStage === 'passcode' && (
+                            <div className="py-2 text-center animate-in fade-in zoom-in-95 duration-500">
+                                <AnimatePresence mode="wait">
+                                    {(passcodeStep === 'setup' || passcodeStep === 'confirm') && (
+                                        <motion.div
+                                            key={passcodeStep}
+                                            initial={{ opacity: 0, y: 15 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -15 }}
+                                            transition={{ duration: 0.25 }}
+                                            className="space-y-4"
+                                        >
+                                            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl flex items-center justify-center mx-auto text-white shadow-xl shadow-blue-200">
+                                                <FiShield size={32} className="animate-pulse" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                                                    {passcodeStep === 'setup' ? 'Set 6-Digit Passcode' : 'Confirm Your Passcode'}
+                                                </h2>
+                                                <p className="text-slate-500 text-xs font-semibold mt-1">
+                                                    {passcodeStep === 'setup' ? 'Choose 6 digits for instant quick login and security' : 'Re-enter your 6 digits to verify'}
+                                                </p>
+                                            </div>
+
+                                            {/* PIN DOTS */}
+                                            <div className="flex justify-center gap-3 my-4">
+                                                {[...Array(6)].map((_, i) => (
+                                                    <div 
+                                                        key={i} 
+                                                        className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${
+                                                            (passcodeStep === 'setup' ? tempPasscode : confirmPasscode).length > i 
+                                                                ? 'bg-[#004A99] border-[#004A99] scale-125 shadow-md' 
+                                                                : 'bg-transparent border-slate-300'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+
+                                            {/* ERROR OR ENCRYPTION LABEL */}
+                                            <div className="h-5">
+                                                {passcodeError ? (
+                                                    <p className="text-red-500 text-xs font-bold animate-shake">{passcodeError}</p>
+                                                ) : (
+                                                    <div className="flex items-center justify-center gap-1 text-slate-400">
+                                                        <FiLock size={10} />
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest">End-to-End Encrypted</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* NUMERIC KEYPAD */}
+                                            <div className="grid grid-cols-3 gap-y-3 gap-x-3 max-w-[260px] mx-auto pt-2">
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                                                    <button
+                                                        key={num}
+                                                        type="button"
+                                                        onClick={() => handlePasscodeKeyPress(num.toString())}
+                                                        className="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 active:bg-blue-100 text-xl font-black mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 hover:scale-105 active:scale-95 shadow-sm"
+                                                    >
+                                                        {num}
+                                                    </button>
+                                                ))}
+                                                <div />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handlePasscodeKeyPress('0')}
+                                                    className="w-14 h-14 rounded-2xl bg-slate-100 hover:bg-slate-200 active:bg-blue-100 text-xl font-black mx-auto flex items-center justify-center transition-all focus:outline-none text-slate-700 hover:scale-105 active:scale-95 shadow-sm"
+                                                >
+                                                    0
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handlePasscodeDelete}
+                                                    className="w-14 h-14 rounded-2xl text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors focus:outline-none hover:bg-slate-100"
+                                                >
+                                                    <FiX size={22} />
+                                                </button>
+                                            </div>
+
+                                            {/* ACTIONS */}
+                                            <div className="flex flex-col gap-3 pt-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={passcodeStep === 'setup' ? handlePasscodeNext : handlePasscodeFinalize}
+                                                    disabled={passcodeLoading || (passcodeStep === 'setup' ? tempPasscode : confirmPasscode).length !== 6}
+                                                    className="w-full bg-[#004A99] hover:bg-blue-800 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-900/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                                                >
+                                                    {passcodeLoading ? (
+                                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                    ) : (
+                                                        passcodeStep === 'setup' ? 'Next →' : 'Complete & Secure Account'
+                                                    )}
+                                                </button>
+                                                {passcodeStep === 'confirm' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPasscodeStep('setup');
+                                                            setTempPasscode('');
+                                                            setConfirmPasscode('');
+                                                            setPasscodeError('');
+                                                        }}
+                                                        className="w-full text-slate-400 py-1 hover:text-slate-600 text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1"
+                                                    >
+                                                        <FiArrowLeft size={12} /> Back to choose PIN
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate('/nodes-dashboard')}
+                                                    className="w-full text-slate-400 py-1 hover:text-slate-600 text-[11px] font-semibold tracking-wide transition-colors"
+                                                >
+                                                    Skip for now & go to Dashboard →
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+
+                                    {passcodeStep === 'success' && (
+                                        <motion.div
+                                            key="success"
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="py-10 text-center space-y-4"
+                                        >
+                                            <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto text-white shadow-2xl shadow-green-200 scale-110">
+                                                <FiCheckCircle size={52} />
+                                            </div>
+                                            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Account Secured!</h2>
+                                            <p className="text-slate-500 text-sm font-semibold">
+                                                Your 6-digit passcode is active. Entering InsightED Nexus...
+                                            </p>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
+                        {registrationStage === 'form' && (
+                            <div className="mt-8 text-center pt-6 border-t border-slate-100">
+                                {isEmbed ? (
+                                    <Link to="/login" className="text-sm font-semibold text-[#0470BF] hover:text-[#0580da]">Back to Login</Link>
+                                ) : (
+                                    <Link to="/" className="text-sm font-semibold text-[#0470BF] hover:text-[#0580da]">Back to Login</Link>
+                                )}
+                            </div>
+                        )}
         </div>
     );
 
