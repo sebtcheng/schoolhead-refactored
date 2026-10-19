@@ -94,3 +94,14 @@ __pycache__/
 ph_schools_04282026.sqlite
 insightEd_tables_backup.sql
 
+
+# Ad-hoc DB scripts (may contain prod credentials)
+scratch/
+
+# Any env file variant; keep a template if one is added
+.env.*
+*.env
+!.env.example
+
+# Database backups
+*.dump

@@ -38,7 +38,7 @@ const NodesDashboard = () => {
   const [showEdWelcome, setShowEdWelcome] = useState(false);
   const [dynamicLocks, setDynamicLocks] = useState({
     'school-info': false,
-    'siif': true,
+    'siif': true, // Fail-closed until the settings row is read
     'esf7': false
   });
   const [lockedModalModule, setLockedModalModule] = useState(null);
@@ -50,6 +50,24 @@ const NodesDashboard = () => {
       const isNew = localStorage.getItem('isNewUser');
       if (isNew === 'true') {
         setShowEdWelcome(true);
+      }
+
+      // Module locks are read for every user, independent of the progress fetch,
+      // so a missing schoolId or a failed progress call can't leave the defaults in place
+      try {
+        const locksRes = await fetch(api(`/settings/nexus_module_locks`));
+        if (locksRes.ok) {
+          const locksData = await locksRes.json();
+          if (locksData && locksData.value) {
+            const parsed = JSON.parse(locksData.value);
+            setDynamicLocks(prev => ({
+              ...prev,
+              ...parsed
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load nexus locks", err);
       }
 
       const schoolId = localStorage.getItem('schoolId') || user?.school_id;
@@ -65,22 +83,6 @@ const NodesDashboard = () => {
                 school_name: json.data.schoolInfo?.school_name,
                 is_esf7_opened: json.data.schoolInfo?.is_esf7_opened
               });
-            }
-          }
-
-          const locksRes = await fetch(api(`/settings/nexus_module_locks`));
-          if (locksRes.ok) {
-            const locksData = await locksRes.json();
-            if (locksData && locksData.value) {
-              try {
-                const parsed = JSON.parse(locksData.value);
-                setDynamicLocks(prev => ({
-                  ...prev,
-                  ...parsed
-                }));
-              } catch (e) {
-                console.error("Failed to parse nexus locks", e);
-              }
             }
           }
         } catch (err) {

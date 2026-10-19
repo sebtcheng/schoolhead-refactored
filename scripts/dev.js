@@ -38,7 +38,7 @@ function getDbInfo() {
     }
   }
 
-  const mainDbUrl = env.CLOUD_DATABASE_URL || env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insighted-staging';
+  const mainDbUrl = env.CLOUD_DATABASE_URL || env.DATABASE_URL || '';
   const siifDbUrl = env.SIIF_DATABASE_URL || '';
   const usersDbUrl = env.USERS_DATABASE_URL || '';
 

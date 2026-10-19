@@ -14,7 +14,10 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 const { Pool } = pg;
 
 // --- DATABASE CONNECTION ---
-let dbUrl = process.env.CLOUD_DATABASE_URL || process.env.DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/insighted-staging';
+let dbUrl = process.env.CLOUD_DATABASE_URL || process.env.DATABASE_URL;
+if (!dbUrl) {
+  throw new Error('[DB] CLOUD_DATABASE_URL (or DATABASE_URL) is not set. Refusing to start without a database URL.');
+}
 
 // Auto-redirect local development connections from production (insightEd) to staging (insighted-staging)
 const isLocalMachine = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging';
@@ -117,7 +120,10 @@ export async function safeQuery(text, params) {
 }
 
 // --- CENTRAL USERS DATABASE CONNECTION (users_database) ---
-const usersDbUrl = process.env.USERS_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/users_database';
+const usersDbUrl = process.env.USERS_DATABASE_URL;
+if (!usersDbUrl) {
+  throw new Error('[USERS-DB] USERS_DATABASE_URL is not set. Refusing to start without users_database.');
+}
 const isUsersLoopback = usersDbUrl.includes('localhost') || usersDbUrl.includes('127.0.0.1');
 export const poolUsers = new Pool({
   connectionString: usersDbUrl,
@@ -206,7 +212,10 @@ export async function safeSiifQuery(text, params) {
 }
 
 // --- CENTRAL CHAT DATABASE CONNECTION (chat_database) ---
-const chatDbUrl = process.env.CHAT_DATABASE_URL || 'postgres://Administrator1:pRZTbQ2T1JD7@stride-posgre-prod-01.postgres.database.azure.com:5432/chat_database';
+const chatDbUrl = process.env.CHAT_DATABASE_URL;
+if (!chatDbUrl) {
+  throw new Error('[CHAT-DB] CHAT_DATABASE_URL is not set. Refusing to start without chat_database.');
+}
 const isChatLoopback = chatDbUrl.includes('localhost') || chatDbUrl.includes('127.0.0.1');
 export const poolChat = new Pool({
   connectionString: chatDbUrl,
